@@ -1,12 +1,14 @@
-# Media — backed up with restic, not git (several GB, see PLANNING.md "Backup")
-scans/
-photos/
+# Real recipe data never lives in this repo — it is in the vault folder at
+# VAULT_PATH. These guard against a vault accidentally created inside the repo.
+/recipes/
+/ingredients/
+/scans/
+/photos/
+/data/
+/review/
 
-# Derived index — rebuilt by `vault sync`
-data/
-
-# Batch ingest output
-review/
+# Local config — points at the real vault
+/config.json
 
 # Build / deps
 node_modules/

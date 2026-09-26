@@ -171,7 +171,7 @@ Plus `family: lasagna`, `variant: bolognaise`, `slug: lasagna-bolognaise`,
 `source: {type: family, author: Mamie Jeanne}`, `servings: 6`, and
 "Meilleur le lendemain !" under `## Notes`, not as a step.
 
-The full expected file is `recipes/lasagna-bolognaise.md`.
+The full expected file is `tests/fixtures/vault/recipes/lasagna-bolognaise.md`.
 
 ## Failure modes seen in practice
 

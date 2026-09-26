@@ -5,6 +5,9 @@ Draft 2. Companion to `RECIPE-SCHEMA.md` and `VOCAB.md`.
 Principle: **`recipes/*.md` on disk is the source of truth. SQLite is a derived
 cache that can be deleted and rebuilt.** Nothing may live only in the database.
 
+All paths are relative to the vault folder (`vault_directory` in the config), which
+lives outside the app repository. The app never writes inside its own repository.
+
 ## Two inputs, one save path
 
 ```
@@ -23,8 +26,9 @@ paths at once.
 
 1. Serialize to markdown (if coming from the form).
 2. Write `recipes/<slug>.md` to disk.
-3. `git add` + commit — `add: <title>` or `edit: <title>`, author tagged with
-   whoever saved it.
+3. Commit to the vault's git repository — `add: <title>` or `edit: <title>`,
+   author tagged with whoever saved it. Push to its private remote in the
+   background; a failed push is retried later and never blocks the save.
 4. Upsert index rows in one transaction.
 5. Generate thumbnails for any new images.
 
@@ -73,7 +77,7 @@ picker, tags from an autocomplete over the vocabulary.
 
 ## Index schema (SQLite)
 
-Derived. Regenerable. Not precious. Lives at `data/vault.db`, gitignored.
+Derived. Regenerable. Not precious. Lives at `data/vault.db` inside the vault, excluded from the vault's git.
 
 ```sql
 CREATE TABLE recipes (

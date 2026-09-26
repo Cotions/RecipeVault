@@ -18,6 +18,7 @@ Two users, different needs:
 |---|---|
 | Mealie or own build | Own build |
 | Source of truth | `recipes/*.md` on disk, frontmatter + body |
+| Code vs data | Separate, same pattern as ChannelVault. This repo is app + docs only. Recipes live in a vault folder set by `vault_directory` in the config, with their own git repo. |
 | Index | SQLite, derived, regenerable |
 | Stack | SvelteKit + better-sqlite3 + FTS5 |
 | Volume | 500–5000 recipes |
@@ -33,7 +34,7 @@ Two users, different needs:
    courgette, végétarienne, Mamie's version — grouped, with a view of *what
    differs*. Mealie has a flat recipe list and tags; tags tell you two recipes
    share a word, not that they are siblings.
-2. **Data outlives the app.** Plain `.md` in git: readable in 20 years, greppable,
+2. **Data outlives the app.** Plain `.md` files: readable in 20 years, greppable,
    diffable, no server needed to read a recipe. Mealie's truth lives in its
    database; export exists but is a second-class path.
 3. **Custom fields.** Provenance (who it came from, book and page), the scan of
@@ -66,6 +67,44 @@ factor was the ingredient/step form editor, which is genuinely nicer in Svelte.
 
 ## Data model
 
+### Code and data are separate
+
+This repository holds the app, the docs, and test fixtures — nothing real. It can
+be public. The recipes live in a **vault folder** somewhere else, located the same
+way ChannelVault locates its data:
+
+| Thing | Path |
+|---|---|
+| Config (installed) | `~/.config/recipevault/config.json` |
+| Config (from source) | `config.json` at repo root, gitignored |
+| Recipes, ingredients, media, index | whatever `vault_directory` points at |
+
+```json
+{
+  "vault_directory": "/home/cotions/RecipeVault-vault",
+  "port": 3370
+}
+```
+
+Environment overrides: `RECIPEVAULT_CONFIG`, `RECIPEVAULT_PORT`. To run against
+throwaway data instead of the real vault:
+
+```bash
+RECIPEVAULT_CONFIG=/tmp/rv.json RECIPEVAULT_PORT=3399 npm run dev
+```
+
+with `/tmp/rv.json` pointing `vault_directory` at a copy of `tests/fixtures/vault`.
+
+The app never writes inside its own repository. Consequences:
+- Updating the app (`git pull`, new container) never touches a recipe.
+- The repo can be public; her recipes, notes, and provenance never are.
+- The vault is backed up as one folder (see Backup).
+- A missing `vault_directory` on startup is an error, not a silent new empty
+  vault — otherwise a typo in the path looks exactly like losing everything.
+
+### Vault layout
+
+Paths in every doc (`recipes/`, `scans/`, ...) are relative to `vault_directory`.
 One file per recipe, flat directory:
 
 ```
@@ -78,7 +117,8 @@ ingredients/oeuf.md
 scans/lasagna-bolognaise-p1.jpg    # the original paper, kept forever
 photos/lasagna-bolognaise.jpg      # the finished dish
 photos/.thumbs/                    # generated
-data/vault.db                      # derived index, gitignored
+data/vault.db                      # derived index, excluded from vault git
+.git/                              # vault's own local history — see below
 ```
 
 Flat over nested: renames stay cheap, one file is one recipe, git diffs stay
@@ -156,10 +196,15 @@ Why the index exists: at 5000 recipes you want instant sort, filter, and full-te
 search. SQLite FTS5 answers in under a millisecond. Reading 5000 markdown files
 per page load does not.
 
-Why git matters now: she can edit and delete. Every save being a commit gives free
-version history and a real undo — "restore what it looked like last Tuesday"
-becomes a `git show`, not a support incident. Deletes move the file to
-`recipes/_trash/` rather than unlinking it.
+Why the vault has its own git history: she can edit and delete. The vault folder is
+its own git repository, separate from the app's, pushed to a **private** GitHub
+repo (`Cotions/RecipeVault-recipes`) as an offsite copy of the text. Every save is a
+commit there, which gives version history and a real undo —
+"restore what it looked like last Tuesday" becomes a `git show`, not a support
+incident. Only `recipes/` and `ingredients/` are tracked; `scans/`, `photos/` and
+`data/` are excluded by the vault's own `.gitignore`, which the app writes when
+creating a vault. Deletes move the file to `recipes/_trash/` rather than unlinking
+it.
 
 Details — database schema, paste and form flows, validation, auth:
 `docs/DATA-FLOW.md`.
@@ -290,7 +335,7 @@ Numbers to design against:
 ## Phases
 
 **P0 — schema validation, by hand**
-Transcribe 10-15 real recipes manually into `recipes/`. Pick awkward ones on
+Transcribe 10-15 real recipes manually into the vault's `recipes/`. Pick awkward ones on
 purpose: a handwritten card, one with sub-recipes (sauce + pasta), a page that is
 really three variants, one from a book, one clipped from a magazine, one in
 English. The schema was designed in a vacuum, so it is wrong somewhere; real paper
@@ -354,10 +399,15 @@ risks losing data, so it is settled now. Tier 2 is cheap to add later.
 **Backup. Git is history, not a backup.** One dead disk loses every recipe and
 every scan, and the scans are the irreplaceable part — the paper may be gone by
 then. Decision:
-- `recipes/` and `ingredients/` in git, pushed to a private remote.
-- `scans/` and `photos/` *not* in git. Several GB of JPEGs makes every clone and
-  status slow, and git keeps every deleted version forever. Backed up with
-  `restic` (or similar) instead: deduplicated, encrypted, versioned.
+- Nothing real is in the app repository.
+- The vault's git repo is pushed to a private GitHub repo — an offsite copy of every
+  recipe and ingredient with full history. Push after each save, or on a timer;
+  a failed push must never block a save.
+- Scans and photos are not in any git repo (several GB, and git keeps every
+  deleted version forever). The whole vault folder is backed up with `restic`
+  (or similar): deduplicated, encrypted, versioned. One folder, one backup job,
+  which covers the media the GitHub copy does not.
+- `data/` can be excluded from the backup; `vault sync` rebuilds it.
 - 3-2-1: the live copy, a local second copy (external disk or NAS), one offsite
   (cloud bucket, or a disk at a sibling's house).
 - A scheduled restore test. A backup never restored is a hope, not a backup.
