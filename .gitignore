@@ -1,0 +1,26 @@
+# Media — backed up with restic, not git (several GB, see PLANNING.md "Backup")
+scans/
+photos/
+
+# Derived index — rebuilt by `vault sync`
+data/
+
+# Batch ingest output
+review/
+
+# Build / deps
+node_modules/
+.svelte-kit/
+build/
+dist/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
