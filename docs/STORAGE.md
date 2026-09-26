@@ -18,7 +18,7 @@ Data splits by how it changes, because each kind wants a different format:
 | Authored content | recipes | rarely, by hand or AI | one Markdown file each |
 | Reference data | ingredients, families, tags, units | occasionally, by the app | one small text file per entry, or one YAML list |
 | Event history | prices paid | append only | CSV, one row per event |
-| Media | scans, dish photos | written once, never modified | original files, untouched |
+| Media | dish photos (optional) | written once, never modified | original files, untouched |
 | Derived | search index, thumbnails | rebuilt at will | SQLite, image cache |
 | App state | accounts, sessions | app-owned | outside the vault entirely |
 
@@ -40,9 +40,7 @@ Data splits by how it changes, because each kind wants a different format:
 ├── prices.csv                       # append-only price history
 ├── media/
 │   ├── lasagna-bolognaise/
-│   │   ├── scan-1.jpg               # originals, exactly as uploaded
-│   │   ├── scan-2.jpg
-│   │   └── final.heic
+│   │   └── final.heic               # original, exactly as uploaded
 │   └── ...
 ├── _trash/                          # soft-deleted recipes AND their media folder
 ├── cache/                           # DELETABLE. excluded from git and backup
@@ -147,7 +145,7 @@ a new vault, plus the rules.
 - `media/<slug>/` keeps a recipe and its images together. Deleting a recipe moves
   the file and its folder to `_trash/` together; renaming moves both.
 - **Originals are stored exactly as uploaded.** Never resized, never recompressed,
-  EXIF kept. A scan is the archival object; every lossy re-save degrades it.
+  EXIF kept. Every lossy re-save degrades a photo.
 - Everything displayed is derived into `cache/img/`: thumbnails, and web-friendly
   copies. This matters for iPhone photos — HEIC does not display in most browsers,
   so the cache holds a JPEG or WebP copy while the original HEIC stays untouched.
@@ -160,7 +158,6 @@ Frontmatter references media by filename within the recipe's own folder:
 ```yaml
 media:
   final: final.heic
-  scans: [scan-1.jpg, scan-2.jpg]
 ```
 
 Short, and it survives a slug rename untouched because it is relative.
@@ -228,13 +225,14 @@ Rules that keep the two from fighting:
 | `cache/` | no | no | rebuilt by `vault sync` |
 | `~/.config/recipevault/` | no | yes (separate path) | re-create accounts |
 
-Media is the one path with a single backup, and it is the irreplaceable part. That
-is why restic must keep an offsite copy, and why the restore test is not optional.
+Media is the one path with a single backup. Photos of the old paper recipes are
+not stored in the vault at all — they stay with the user — so what is here is
+dish photos only: nice to keep, not irreplaceable.
 
 ## Size estimate at 5000 recipes
 
 - Recipe text: ~3 KB each → ~15 MB. Git history over decades: well under 1 GB.
 - Ingredients, vocab, prices: a few MB total.
-- Media: ~2 scans + 1 photo per recipe at 2–4 MB → **30–60 GB of originals.** This
-  dominates everything; plan the disk and the offsite backup around it.
+- Media: optional dish photos, at most one per recipe at 2–4 MB → **up to ~15 GB**
+  if every recipe gets one, realistically far less.
 - Cache: index ~50 MB, image cache a few GB.

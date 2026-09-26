@@ -3,14 +3,13 @@
 Draft 1. This file is the contract. Everything downstream — the parser, the
 validator, the cost engine, pantry search — assumes output matching it exactly.
 
-Two consumers:
-- **Me, by hand.** Paste a photo into any AI chat along with the prompt below,
-  copy the result into RecipeVault's paste box.
-- **The batch ingest script (P3).** Sends the same prompt via the Claude API with
-  structured output, over a directory of photos.
+How it is used: paste the prompt below into any chat AI (ChatGPT free tier,
+Claude, anything that reads images), attach the recipe photo, copy the markdown it
+returns into RecipeVault's paste box. The app has no AI built in.
 
-Both use the same text, so a fix to the prompt improves both. Keep it in this file
-and have the app render it with a copy button — never retyped from memory.
+Keep the prompt in this file and have the app render it with a copy button — never
+retyped from memory. Free tiers forget long instructions over a long chat, so start
+a fresh chat every ~10 recipes, pasting the prompt again.
 
 ---
 
@@ -71,7 +70,7 @@ RULES
     elaborate tags.
 19. `status: draft` always, unless rule 3 applies, in which case
     `status: needs-review`.
-20. `extracted_by: claude`.
+20. `extracted_by: ai`.
 21. Omit any key you have no value for. Never write an empty value.
 22. First frontmatter line is always `schema: 3`.
 23. If an ingredient is itself a recipe written elsewhere on the same source
@@ -110,7 +109,7 @@ ingredients:
       - { qty: , unit: , name: , note: , prep: }
 status: draft
 added:             # today, YYYY-MM-DD
-extracted_by: claude
+extracted_by: ai
 ---
 
 ## Préparation
@@ -180,7 +179,7 @@ all of them:
 
 - **Invented precision.** A source saying "un peu de crème" becomes
   `qty: 100, unit: ml`. Should be `to_taste: true`. The validator cannot detect
-  this — only comparing against the scan can.
+  this — only glancing at the photo can.
 - **Merged ingredients** surviving rule 5, usually `sel et poivre` as one entry.
 - **Preparation smuggled into the name**, which silently splits the pantry index
   into `tomate` and `tomate pelée`.
@@ -189,5 +188,6 @@ all of them:
   to lose and the most painful.
 - **Helpful additions.** Steps the source never had, because the dish "needs" them.
 
-This is why every AI-extracted recipe keeps its scan, is marked
-`extracted_by: claude`, and starts as `draft` rather than `verified`.
+This is why every AI-extracted recipe is marked `extracted_by: ai` and starts as
+`draft` rather than `verified`: a quick look at the photo before marking it verified
+catches what the validator cannot.

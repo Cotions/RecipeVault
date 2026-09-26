@@ -43,7 +43,7 @@ WARNINGS — fix if you can, the file will save without them:
 Design choices that matter:
 
 - **Stable numeric codes.** `E201` never changes meaning. Makes errors greppable,
-  countable across a batch, and lets the prompt in `AI-TEMPLATE.md` be improved
+  countable over time, and lets the prompt in `AI-TEMPLATE.md` be improved
   against whichever code fires most often.
 - **Path, not line number.** `ingredients[0].items[3]` survives reformatting; a
   line number does not, and YAML reflow shifts every line.
@@ -112,7 +112,7 @@ Warnings. Save, mark `needs-review`.
 | W503 | near-identical `title` already in the vault — duplicate paste |
 | W601 | no `servings` |
 | W602 | no `times` |
-| W603 | no photo and no scan |
+| W603 | no dish photo |
 | W604 | `source` entirely absent — provenance lost |
 | W605 | `[illisible]` / `[illegible]` present in the file |
 
@@ -121,24 +121,17 @@ They catch the two AI mistakes that quietly corrupt the ingredient index, and a
 false positive costs one manual override — far cheaper than discovering at recipe
 800 that the pantry search has been splitting onions in two the whole time.
 
-## Batch validation
+## Several recipes in one paste
 
-When P3 runs the ingest script over a directory, per-file blocks are the wrong
-shape. Instead:
-
-- one summary: files passed, files failed, error counts by code
-- **codes sorted by frequency** — this is the point. 200 files all failing `E201`
-  means the prompt in `AI-TEMPLATE.md` needs one line about units, not 200 fix
-  requests.
-- a per-file fix-request block written to `review/<slug>.fix.txt` for the
-  remainder, once the systematic errors are dealt with
-
-Fix the prompt, re-run the batch, then hand-fix the residue. The other order wastes
-hours.
+One photo can hold several recipes, so the AI may return several fenced files in
+one answer. The paste box accepts that: each fence is validated and saved as its
+own recipe. The fix-request block then covers only the failing ones, each with its
+own file included, and says which recipes already saved so the AI does not resend
+them.
 
 ## Human-facing validation
 
 Her form UI never shows any of this. Codes and fix-request blocks exist for the
-paste path and for batch ingest. The form prevents these states structurally —
+paste path. The form prevents these states structurally —
 ingredient rows have separate `qty`, `unit`, `name`, `note`, `prep` inputs, so
 `E210` and `E211` cannot be expressed in the first place.

@@ -7,6 +7,13 @@ Status: design phase, nothing built. Last updated 2026-09-26.
 Digitize mother's paper recipe collection (scattered around the house) into a
 durable, searchable, browsable archive. 500 to 5000 recipes.
 
+Input workflow, kept deliberately simple: photograph a paper recipe, give the
+photo to any chat AI (ChatGPT free tier, Claude, anything) along with the prompt
+from `docs/AI-TEMPLATE.md`, paste the markdown it returns into the app. The app
+checks it, saves it, displays it. If the file is not compliant, the app produces a
+copy-paste error block to send back to the same chat. **Photos of the old recipes
+never enter the app** — they stay on the user's side.
+
 Two users, different needs:
 - **Mother** (retired, non-technical): browses, cooks from it, and **adds and
   edits her own recipes**. Never sees markdown.
@@ -37,8 +44,8 @@ Two users, different needs:
 2. **Data outlives the app.** Plain `.md` files: readable in 20 years, greppable,
    diffable, no server needed to read a recipe. Mealie's truth lives in its
    database; export exists but is a second-class path.
-3. **Custom fields.** Provenance (who it came from, book and page), the scan of
-   the original paper, review status. Mealie's `extras` bag can hold these but
+3. **Custom fields.** Provenance (who it came from, book and page), review
+   status. Mealie's `extras` bag can hold these but
    treats them as second-class in the UI.
 
 Given up: meal planner, shopping list, ingredient scaling, URL import — all
@@ -59,8 +66,6 @@ its features ever outweigh the loss of the family model.
 - FTS5 ships inside SQLite. No Elasticsearch, no separate search service.
 - Server-side rendering for the read views, so recipes load fast on a phone in a
   kitchen with weak wifi.
-- Batch ingest (P2) can be a TypeScript script against the same code — one
-  runtime, one set of parsing logic, no Python/Node split.
 
 FastAPI + HTMX would be less total code and is a fine alternative; the deciding
 factor was the ingredient/step form editor, which is genuinely nicer in Svelte.
@@ -113,7 +118,7 @@ recipes/<slug>.md          one file per recipe, Markdown + YAML frontmatter
 ingredients/<slug>.md      aliases, category, substitutes — no price
 vocab/                     families, tags, units — grows as she uses it
 prices.csv                 append-only price history
-media/<slug>/              original scans and photos, never modified
+media/<slug>/              optional dish photo, original never modified
 _trash/                    soft-deleted recipes with their media
 cache/                     SQLite index + image cache, deletable
 ```
@@ -167,7 +172,7 @@ Specs: `docs/STORAGE.md` · `docs/RECIPE-SCHEMA.md` · `docs/INGREDIENTS.md` · 
 Files are the truth. SQLite is a cache that can be deleted.
 
 ```
- me: paste raw MD ─────┐
+ me: paste MD from AI ─┐
                        ├──> parse ──> validate ──> preview ──> save
  her: form UI ─────────┘                                        │
                                   ┌─────────────────────────────┴────┐
@@ -237,9 +242,11 @@ absent one, because an absent price is visibly absent.
 
 ## AI-generated files
 
-Most recipes will be produced by an AI from a photo, so the prompt is a
-first-class artifact, not something retyped per session: `docs/AI-TEMPLATE.md`. The
-app renders it with a copy button.
+Most recipes will be produced by a chat AI from a photo, outside the app — any
+provider, including free tiers. So the prompt is a first-class artifact, not
+something retyped per session: `docs/AI-TEMPLATE.md`. The app renders it with a copy
+button. There is no AI integration inside the app, no API key, and no per-recipe
+cost.
 
 When a pasted file fails validation, the error output is designed as **input to the
 next AI turn**, not as a message for a human: stable error codes, a path rather than
@@ -247,10 +254,6 @@ a line number for every fault, the corrected form shown alongside each complaint
 the whole rejected file included, and a restatement of "return the complete
 corrected file, one fence, no explanation". One copy button, paste it back, get a
 fixed file. Codes and format: `docs/VALIDATION.md`.
-
-Batch validation sorts errors by frequency rather than emitting one block per file.
-200 files failing on the same code means the prompt needs one extra line, not 200
-fix requests.
 
 ## Kitchen mode
 
@@ -315,8 +318,8 @@ Recipes will be a mix of French and English. Decisions:
 Numbers to design against:
 
 - **List views** — never render 5000 cards. Paginate or virtualize from day one.
-- **Images** — ~5000 dish photos plus 5000+ scans, several GB. Thumbnails
-  generated on upload, cached to disk, lazy loaded. Full-size phone photos in a
+- **Images** — optional dish photos only, up to ~5000. Thumbnails generated on
+  upload, cached to disk, lazy loaded. Full-size phone photos in a
   grid is unusable. Handle EXIF rotation — phone photos arrive sideways.
 - **Duplicates** — the same recipe gets pasted twice, guaranteed. Slug collision
   is a hard block; a near-identical title is a warning.
@@ -324,19 +327,20 @@ Numbers to design against:
   their own filtering, not just a list.
 - **`vault sync`** — hash files, reparse only what changed. A no-op sync over 5000
   files is then a couple of seconds. Run it on startup.
-- **Manual input does not scale to 5000.** Photo, chat, copy, paste, times 5000 is
-  hundreds of hours. The form and paste box are right for v1 and for corrections
-  forever, but batch ingest is necessary, not optional. Build them first anyway —
-  they define the parser and validator the batch path reuses.
+- **Paste speed matters.** Every recipe goes through the paste box, so the loop
+  must be fast: paste, see it valid, save, next — one keyboard shortcut each, the
+  box cleared and focused again after saving. When invalid, the fix block is one
+  click to copy.
 
 ## Phases
 
-**P0 — schema validation, by hand**
-Transcribe 10-15 real recipes manually into the vault's `recipes/`. Pick awkward ones on
+**P0 — schema validation**
+Run 10-15 real recipes through the chat AI with the template and check the output
+with the validator (the first code built, as a command line tool). Pick awkward ones on
 purpose: a handwritten card, one with sub-recipes (sauce + pasta), a page that is
 really three variants, one from a book, one clipped from a magazine, one in
-English. The schema was designed in a vacuum, so it is wrong somewhere; real paper
-says where. More important at 5000 recipes, not less — a schema mistake found at
+English, one with vague quantities. The schema was designed in a vacuum, so it is
+wrong somewhere; real recipes say where. More important at 5000 recipes, not less — a schema mistake found at
 recipe 400 is a migration.
 
 **P1 — read app**
@@ -358,12 +362,7 @@ families, photo upload from a phone, no markdown anywhere. Soft delete, undo via
 git. Auth. This is a substantial chunk of work — it is deliberately after the read
 app so the data model is proven before building forms on top of it.
 
-**P3 — batch ingest**
-Directory of photos, Claude API structured output, reusing P1's parser and
-validator. Everything lands in a review queue rather than straight into the vault:
-handwriting and stained paper produce errors, so review is not optional.
-
-**P4 — only if actually wanted**
+**P3 — only if actually wanted**
 Ingredient scaling (the structured quantities already make this nearly free),
 shopping list with whole-pack costs, meal planner, price history charts.
 
@@ -383,7 +382,7 @@ shopping list with whole-pack costs, meal planner, price history charts.
 4. **Does she want her own tags?** A controlled vocabulary keeps filters usable
    but means she cannot invent a tag freely. Middle ground: she proposes, it lands
    as `pending` until mapped.
-6. **Photo per recipe, or several?** Schema allows several; the form is simpler
+5. **Photo per recipe, or several?** Schema allows several; the form is simpler
    with one. Start with one, schema already supports more.
 
 ## Gaps review — 2026-09-26
@@ -393,31 +392,21 @@ risks losing data, so it is settled now. Tier 2 is cheap to add later.
 
 ### Tier 1 — decided now
 
-**Backup. Git is history, not a backup.** One dead disk loses every recipe and
-every scan, and the scans are the irreplaceable part — the paper may be gone by
-then. Decision:
+**Backup. Git is history, not a backup.** One dead disk loses every recipe.
+Decision:
 - Nothing real is in the app repository.
 - The vault's git repo is pushed to a private GitHub repo — an offsite copy of every
   recipe and ingredient with full history. Push after each save, or on a timer;
   a failed push must never block a save.
-- Scans and photos are not in any git repo (several GB, and git keeps every
-  deleted version forever). The whole vault folder is backed up with `restic`
-  (or similar): deduplicated, encrypted, versioned. One folder, one backup job,
-  which covers the media the GitHub copy does not.
+- Dish photos are not in git (git keeps every deleted version forever). The vault
+  folder is backed up with `restic` (or similar): deduplicated, encrypted,
+  versioned. One folder, one backup job, which covers the photos the GitHub copy
+  does not. Losing the photos is annoying; losing the text is not possible while
+  the GitHub copy exists.
 - `cache/` is excluded from the backup; `vault sync` rebuilds it.
 - 3-2-1: the live copy, a local second copy (external disk or NAS), one offsite
   (cloud bucket, or a disk at a sibling's house).
 - A scheduled restore test. A backup never restored is a hope, not a backup.
-
-**Review is the real bottleneck.** 5000 AI drafts each need a human to compare
-against the scan. At two minutes each that is ~170 hours. Needs a dedicated screen,
-built with the batch ingest (P3), not after:
-- scan on the left, zoomable; rendered recipe on the right, editable in place
-- one key to verify and advance, one to flag and advance
-- queue ordered by risk: `[illisible]` present, unresolved ingredients, and any
-  warnings first; clean parses last
-- the ability to verify in bulk once a batch has proven reliable — honest spot
-  checks of clean parses rather than pretending all 5000 get read closely
 
 **Sub-recipes.** Pâte brisée in forty tartes should not be forty copies. An
 ingredient can reference another recipe with `recipe: <slug>`; cost and pantry
@@ -426,8 +415,8 @@ files would have been a migration.
 
 **Multi-page and multi-recipe photos.** Real sources are not one-card-one-recipe:
 a card has a back, a magazine page has three recipes. Template now says: several
-images may be one recipe, one image may be several. The ingest script needs a
-grouping step before it calls the AI (P3).
+images may be one recipe, one image may be several. The paste box therefore accepts
+several fenced files in one paste and saves them as separate recipes.
 
 **Schema version.** `schema: 3` on every file. A future migration must know what
 it is reading. Now required (`E110`).
@@ -451,11 +440,8 @@ path only when a site lacks the markup. Goes in P1 alongside the paste box.
   form. A `tests/fixtures/` folder of good files and deliberately broken files,
   each asserting its exact error codes. Every real-world failure found becomes a
   fixture.
-- **Batch ingest cost estimate.** 5000 images through the Claude API is a real
-  bill. Estimate from current pricing before running, use the Message Batches API
-  for the discount, and run a 50-image pilot first — it also tunes the prompt.
 - **Where it runs.** Still open under Hosting. Candidates: a NAS, a Raspberry Pi
-  5, an old laptop. One Docker container plus the two data directories makes any
+  5, an old laptop. One Docker container plus the vault folder makes any
   of them fine.
 
 ### Deliberately out of scope

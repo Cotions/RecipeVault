@@ -94,14 +94,13 @@ ingredients:
 
 # media — filenames inside media/<slug>/, see STORAGE.md
 media:
-  final: final.jpg
-  scans: [scan-1.jpg]                # the original paper, kept forever
+  final: final.jpg                   # optional photo of the finished dish
 
 # bookkeeping
 status: verified                     # draft | needs-review | verified
 added: 2026-09-26
 updated: 2026-09-26
-extracted_by: hand                   # hand | claude — which parses to distrust
+extracted_by: hand                   # hand | ai — which parses to distrust
 ---
 ```
 
@@ -161,7 +160,7 @@ ingredient entry can point at another recipe:
   tarte — unless `buy_instead` is set (store-bought pastry is a legitimate answer).
 - Cycles (`A` uses `B` uses `A`) are a hard error (`E213`).
 - A reference to a slug that does not exist yet is a warning (`W306`), not an
-  error — during a batch ingest the tarte can arrive before the pastry.
+  error — the tarte can be pasted before the pastry.
 
 Sub-recipes usually need a `yield` rather than `servings`:
 `yield: { qty: 1, unit: piece, note: "pour un moule de 28 cm" }`.

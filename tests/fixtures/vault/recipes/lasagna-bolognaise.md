@@ -40,8 +40,6 @@ ingredients:
     items:
       - { qty: 12, unit: piece, name: feuilles de lasagne }
       - { qty: 100, unit: g, name: parmesan, prep: râpé }
-media:
-  scans: [scan-1.jpg]
 status: draft
 added: 2026-09-26
 updated: 2026-09-26

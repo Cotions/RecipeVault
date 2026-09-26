@@ -134,7 +134,7 @@ CREATE TABLE ingredients (
 
 CREATE TABLE media (
   slug  TEXT,
-  kind  TEXT,                  -- final | step | scan
+  kind  TEXT,                  -- final | step
   path  TEXT,
   thumb TEXT,
   w     INTEGER,
