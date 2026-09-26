@@ -104,7 +104,8 @@ The app never writes inside its own repository. Consequences:
 
 ### Vault layout
 
-Full layout, formats, and reasoning: `docs/STORAGE.md`. In short — anything
+Full layout, formats, and reasoning: `docs/STORAGE.md`. The vault is also a valid
+Obsidian vault — optional power-user view, same files, see `STORAGE.md`. In short — anything
 precious is plain text in the vault's git repo; anything in SQLite is rebuildable.
 
 ```

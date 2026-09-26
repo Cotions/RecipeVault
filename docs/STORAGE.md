@@ -48,7 +48,8 @@ Data splits by how it changes, because each kind wants a different format:
 ├── cache/                           # DELETABLE. excluded from git and backup
 │   ├── index.db                     # SQLite search/filter index
 │   └── img/                         # thumbnails + web-friendly copies
-├── .gitignore                       # written by the app: media/ cache/
+├── .obsidian/                       # only if opened in Obsidian; optional
+├── .gitignore                       # written by the app: media/ cache/ .obsidian/workspace*.json
 └── .git/                            # pushed to private Cotions/RecipeVault-recipes
 ```
 
@@ -178,6 +179,41 @@ config, not in the vault. The vault's git repo is pushed to GitHub; password
 hashes, even private and hashed, do not belong in a remote whose purpose is sharing
 recipe history. Sessions are in memory or in the cache: losing them costs a re-login,
 nothing else.
+
+## Obsidian compatibility
+
+The vault folder is a valid Obsidian vault as-is: recipes are Markdown files with
+YAML frontmatter, which is Obsidian's native format. Opening it in Obsidian gives a
+second, power-user way in — browsing, graph view, quick hand edits — alongside the
+app. Obsidian is optional and never required; the app remains the interface for her
+(pantry search, cost, kitchen mode, and the form do not exist in Obsidian).
+
+Rules that keep the two from fighting:
+
+- **Obsidian's Properties panel does not handle nested YAML well.** `ingredients`,
+  `source`, and `times` are nested objects; the panel shows them as raw values, and
+  editing through it can reformat or mangle them. Edit those in source mode. Simple
+  top-level keys (`title`, `tags`, `rating`, `servings`) are fine in the panel.
+- **Obsidian may reformat frontmatter** (flow style `{ qty: 500 }` to block style).
+  Harmless — the parser reads both, and the app's canonical serialization restores
+  the house style on the next save through the app. It shows up as diff noise in the
+  vault's history, nothing worse.
+- **Links.** Body text may link recipes with Obsidian wikilinks: `voir [[pate-brisee]]`.
+  Obsidian renders them and draws them in the graph; the app renders them as links
+  to the recipe. In frontmatter, `recipe: pate-brisee` stays plain — an AI writes it
+  reliably that way — and the app also accepts `recipe: "[[pate-brisee]]"`,
+  stripping the brackets, in case it is edited from Obsidian.
+- **Images do not show in Obsidian** by default, because they are referenced from
+  frontmatter, not embedded in the body. Deliberate: embedding every image in the
+  body would duplicate the frontmatter reference. Acceptable for a power-user view.
+- **Hide app folders from Obsidian:** add `cache/` and `_trash/` to Settings →
+  Files and links → Excluded files, so search and graph ignore them.
+- **`.obsidian/` in the vault's git:** settings can be tracked; the workspace files
+  change on every click and must not be. The vault `.gitignore` the app writes
+  includes `.obsidian/workspace*.json`.
+- **Edits made in Obsidian while the app runs** are picked up by the app's file
+  watcher (see `DATA-FLOW.md`). Not committed until the app sees them — the watcher
+  commits external edits as `edit (external): <title>`.
 
 ## What goes where — backup view
 

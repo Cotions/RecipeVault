@@ -170,6 +170,24 @@ file no longer exists. Report counts plus every file that failed to parse.
 With hashing, a no-op sync over 5000 files is a couple of seconds. Run it on app
 startup so hand-edits in a text editor are always picked up.
 
+## File watcher — edits from outside the app
+
+The files are the truth, so they can be edited by anything: a text editor, Obsidian,
+`git revert` in the vault. Same pattern as ChannelVault watching its download folder
+in real time. While the app runs, it watches `recipes/`, `ingredients/`, `vocab/`,
+and `prices.csv`:
+
+- Debounce ~1 s after the last change — editors save in several writes.
+- Re-parse and re-index only the changed file.
+- If it parses: commit it to the vault repo as `edit (external): <title>`.
+- If it does not: keep the last good index rows, flag the recipe in the UI with the
+  validation errors, and do not commit. A half-typed edit in Obsidian must never
+  knock a recipe out of search.
+- Ignore the app's own writes (it knows the hash it just wrote), or every save would
+  echo back as an external edit.
+
+`vault sync` on startup still covers edits made while the app was stopped.
+
 ## Family diff table
 
 For a given `family`, select every variant, then compute:
