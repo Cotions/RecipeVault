@@ -104,21 +104,17 @@ The app never writes inside its own repository. Consequences:
 
 ### Vault layout
 
-Paths in every doc (`recipes/`, `scans/`, ...) are relative to `vault_directory`.
-One file per recipe, flat directory:
+Full layout, formats, and reasoning: `docs/STORAGE.md`. In short — anything
+precious is plain text in the vault's git repo; anything in SQLite is rebuildable.
 
 ```
-recipes/lasagna-bolognaise.md
-recipes/lasagna-courgette.md
-recipes/tarte-tatin.md
-recipes/_trash/               # soft-deleted, recoverable
-ingredients/tomates-concassees.md  # ingredient registry: names, pack, price
-ingredients/oeuf.md
-scans/lasagna-bolognaise-p1.jpg    # the original paper, kept forever
-photos/lasagna-bolognaise.jpg      # the finished dish
-photos/.thumbs/                    # generated
-data/vault.db                      # derived index, excluded from vault git
-.git/                              # vault's own local history — see below
+recipes/<slug>.md          one file per recipe, Markdown + YAML frontmatter
+ingredients/<slug>.md      aliases, category, substitutes — no price
+vocab/                     families, tags, units — grows as she uses it
+prices.csv                 append-only price history
+media/<slug>/              original scans and photos, never modified
+_trash/                    soft-deleted recipes with their media
+cache/                     SQLite index + image cache, deletable
 ```
 
 Flat over nested: renames stay cheap, one file is one recipe, git diffs stay
@@ -162,7 +158,7 @@ and unresolved names go to a queue rather than blocking the save.
 This registry is what makes cost, pantry search, and the ingredient view possible
 at all. Details: `docs/INGREDIENTS.md`.
 
-Specs: `docs/RECIPE-SCHEMA.md` · `docs/INGREDIENTS.md` · `docs/VOCAB.md` ·
+Specs: `docs/STORAGE.md` · `docs/RECIPE-SCHEMA.md` · `docs/INGREDIENTS.md` · `docs/VOCAB.md` ·
 `docs/AI-TEMPLATE.md` · `docs/VALIDATION.md` · `docs/DATA-FLOW.md`.
 
 ## Architecture
@@ -201,9 +197,9 @@ its own git repository, separate from the app's, pushed to a **private** GitHub
 repo (`Cotions/RecipeVault-recipes`) as an offsite copy of the text. Every save is a
 commit there, which gives version history and a real undo —
 "restore what it looked like last Tuesday" becomes a `git show`, not a support
-incident. Only `recipes/` and `ingredients/` are tracked; `scans/`, `photos/` and
-`data/` are excluded by the vault's own `.gitignore`, which the app writes when
-creating a vault. Deletes move the file to `recipes/_trash/` rather than unlinking
+incident. All text is tracked; `media/` and `cache/` are excluded by the vault's
+own `.gitignore`, which the app writes when creating a vault. Deletes move the file
+and its media folder to `_trash/` rather than unlinking
 it.
 
 Details — database schema, paste and form flows, validation, auth:
@@ -407,7 +403,7 @@ then. Decision:
   deleted version forever). The whole vault folder is backed up with `restic`
   (or similar): deduplicated, encrypted, versioned. One folder, one backup job,
   which covers the media the GitHub copy does not.
-- `data/` can be excluded from the backup; `vault sync` rebuilds it.
+- `cache/` is excluded from the backup; `vault sync` rebuilds it.
 - 3-2-1: the live copy, a local second copy (external disk or NAS), one offsite
   (cloud bucket, or a disk at a sibling's house).
 - A scheduled restore test. A backup never restored is a hope, not a backup.

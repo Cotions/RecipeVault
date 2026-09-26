@@ -37,7 +37,7 @@ the file exists and `vault sync` recovers it. Never the reverse.
 
 ### Delete
 
-Never unlink. Move the file to `recipes/_trash/<slug>.md`, commit, remove the
+Never unlink. Move the file to `_trash/<slug>.md` and its `media/<slug>/` folder alongside it, commit, remove the
 index rows. A trash view restores it. Combined with the git history this means no
 single click she makes is unrecoverable.
 
@@ -77,7 +77,7 @@ picker, tags from an autocomplete over the vocabulary.
 
 ## Index schema (SQLite)
 
-Derived. Regenerable. Not precious. Lives at `data/vault.db` inside the vault, excluded from the vault's git.
+Derived. Regenerable. Not precious. Lives at `cache/index.db` inside the vault, excluded from git and backup. See `STORAGE.md`.
 
 ```sql
 CREATE TABLE recipes (

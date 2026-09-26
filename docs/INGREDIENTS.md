@@ -20,16 +20,6 @@ names:                               # every way it appears in a recipe
   en: [chopped tomatoes, crushed tomatoes, canned tomatoes]
 default_unit: g
 staple: false                        # true = assumed always in the cupboard
-pack:                                # how it is actually sold
-  size: 400
-  unit: g
-  label: "1 boîte"
-price:
-  amount: 0.89
-  currency: EUR
-  per: pack                          # pack | unit_of_default_unit
-  updated: 2026-09-26
-  source: "Leclerc"
 density: 1.0                         # g per ml, only when the conversion is safe
 substitutes: [tomates-fraiches, coulis-de-tomate]
 allergens: [gluten]                  # from a fixed list
@@ -55,10 +45,11 @@ registry. So on save:
 
 1. Normalize the written name — lowercase, strip accents, strip plurals.
 2. Look it up in the `ingredient_names` index (every alias of every ingredient).
-3. Exact alias hit → set `item: <slug>` on that ingredient entry.
+3. Exact alias hit → resolved. The result goes in the index only; it is never
+   written back into the recipe file (see `STORAGE.md`).
 4. No hit → fuzzy match (trigram) and offer the top candidates in the UI:
    link to an existing ingredient, or create a new registry entry from this name.
-5. Still unresolved → `item: null`, recipe flagged `needs-review`. The recipe still
+5. Still unresolved → unresolved in the index, recipe flagged `needs-review`. The recipe still
    saves and renders; it is only missing from cost totals and pantry search until
    resolved.
 
@@ -70,6 +61,11 @@ A "resolve queue" screen lists every unresolved name across the vault, most
 frequent first. Resolving `farine T55` once fixes it in 200 recipes.
 
 ## Cost
+
+Prices are not stored in ingredient files. They are rows in the append-only
+`prices.csv` — date, ingredient, amount, pack size, shop — and the current price is
+the latest row. Pack size belongs to the purchase, not the ingredient: the same
+tomatoes come in 400 g and 800 g tins. See `STORAGE.md`.
 
 Two numbers, both honest, never conflated:
 
@@ -99,7 +95,7 @@ Most ingredients will have no price for a long time. So:
 - `tbsp`, `tsp`, `pinch`: convert only via a per-ingredient table, because a
   tablespoon of flour and a tablespoon of honey are not the same mass. When no
   entry exists, treat the ingredient as unpriceable rather than inventing a figure.
-- `piece`: needs `pack.unit: piece`, or an explicit average weight for mass
+- `piece`: needs a price row with `pack_unit: piece`, or an explicit average weight for mass
   conversion (one egg ≈ 55 g).
 
 Wrong prices are worse than absent prices — an absent price shows as absent, a
@@ -107,8 +103,8 @@ wrong one silently poisons every total that includes it.
 
 ### Price history
 
-Prices change. `price.updated` plus a `price_history` table means the ingredient
-view can show a trend, and a price older than a year can be flagged stale. Cheap to
+Prices change. Because `prices.csv` is append-only, the ingredient view can show a
+trend, and a price older than a year can be flagged stale. Cheap to
 store, impossible to reconstruct later.
 
 ## Pantry search — "what can I make"

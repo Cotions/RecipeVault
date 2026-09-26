@@ -92,12 +92,10 @@ ingredients:
       - { qty: 12, unit: piece, name: feuilles de lasagne }
       - { qty: 100, unit: g, name: parmesan, prep: râpé }
 
-# media
-photos:
-  final: photos/lasagna-bolognaise.jpg
-  steps: []
-scans:
-  - scans/lasagna-bolognaise-p1.jpg  # the original paper, kept forever
+# media — filenames inside media/<slug>/, see STORAGE.md
+media:
+  final: final.jpg
+  scans: [scan-1.jpg]                # the original paper, kept forever
 
 # bookkeeping
 status: verified                     # draft | needs-review | verified
@@ -123,7 +121,7 @@ handle than an empty one.
 | `to_taste` | no | `true` for salt, pepper, oil — no quantity, and that is correct |
 | `optional` | no | `true` if the recipe works without it |
 | `recipe` | no | slug of another recipe used as an ingredient — see sub-recipes below |
-| `item` | never written by hand | canonical ingredient slug, resolved by the app on save. See `INGREDIENTS.md`. |
+| `item` | no | manual override only — forces this entry to a registry slug when the name is ambiguous. Normally absent: resolution comes from registry aliases at index time and is never written back. See `STORAGE.md`. |
 
 Rules:
 - **One ingredient per entry.** `huile d'olive, sel, poivre` is three entries.

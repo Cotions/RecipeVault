@@ -1,5 +1,9 @@
 # Controlled vocabularies
 
+These lists are the **seed** copied into `vocab/` when a new vault is created. From
+then on the live vocabulary is data in the vault, edited by the app. The rules in
+this doc still apply. See `STORAGE.md`.
+
 Draft 1. Why this file exists: the vault is bilingual and will hold thousands of
 recipes. Free-text tags fragment — `four`, `oven`, and `baked` all describe one
 thing, and a filter sidebar listing all three is worse than no sidebar. So: one
