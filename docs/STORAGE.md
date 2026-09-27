@@ -210,7 +210,9 @@ Rules that keep the two from fighting:
   includes `.obsidian/workspace*.json`.
 - **Edits made in Obsidian while the app runs** are picked up by the app's file
   watcher (see `DATA-FLOW.md`). Not committed until the app sees them — the watcher
-  commits external edits as `edit (external): <title>`.
+  commits external edits as `edit (external): <title>`. Edits made while the app
+  was stopped are committed at its next start, in one `edit (external): …`
+  commit; a file that fails the checker stays uncommitted and flagged.
 
 ## What goes where — backup view
 
