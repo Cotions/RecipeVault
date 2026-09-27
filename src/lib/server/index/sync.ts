@@ -9,7 +9,7 @@ import type { Diagnostic } from '../../vault/types';
 import { RECIPES, type VaultPaths } from '../vault';
 import { loadVocab, type VaultVocab } from '../vocab';
 import type { DB } from './db';
-import { bodyOf, deleteRecipeRows, recordProblem, refreshFamilies, sha256, upsertRecipe } from './build';
+import { bodyOf, deleteRecipeRows, getMeta, recordProblem, refreshFamilies, retag, sha256, upsertRecipe } from './build';
 
 export interface SyncProblem {
 	file: string;
@@ -78,6 +78,12 @@ export function syncFile(db: DB, paths: VaultPaths, relPath: string, vocab = loa
 	return indexText(db, vocab, relPath, buf.toString('utf8'), hash);
 }
 
+/** sha256 of vocab/tags.yaml ('' when absent), to notice a change made while the app was down. */
+export function tagsHash(vocabDir: string): string {
+	const f = join(vocabDir, 'tags.yaml');
+	return existsSync(f) ? sha256(readFileSync(f)) : '';
+}
+
 export function syncVault(db: DB, paths: VaultPaths, { force = false } = {}): SyncReport {
 	const t0 = performance.now();
 	const vocab = loadVocab(paths.vocab);
@@ -98,6 +104,10 @@ export function syncVault(db: DB, paths: VaultPaths, { force = false } = {}): Sy
 		}
 		for (const p of db.prepare('SELECT file_path FROM problems').pluck().all() as string[])
 			if (!present.has(p)) db.prepare('DELETE FROM problems WHERE file_path = ?').run(p);
+		// vocab/tags.yaml changed while the app was down (a git pull, an editor):
+		// unchanged files were skipped above, so recompute every tag row.
+		const hash = tagsHash(paths.vocab);
+		if (force || getMeta(db, 'tags_hash') !== hash) retag(db, vocab, hash);
 		refreshFamilies(db, vocab);
 	})();
 	const problems = db.prepare('SELECT file_path, diagnostics FROM problems ORDER BY file_path').all() as { file_path: string; diagnostics: string }[];

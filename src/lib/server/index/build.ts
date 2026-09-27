@@ -25,6 +25,22 @@ export function totalSeconds(r: Recipe): number | null {
 	return parts.length ? parts.reduce((n, d) => n + secs(d)!, 0) : null;
 }
 
+/** docs/VOCAB.md "Seasons": the four values and their aliases. */
+const SEASON_ALIASES: Record<string, string> = {
+	printemps: 'printemps',
+	spring: 'printemps',
+	ete: 'ete',
+	summer: 'ete',
+	automne: 'automne',
+	autumn: 'automne',
+	fall: 'automne',
+	hiver: 'hiver',
+	winter: 'hiver'
+};
+
+/** A season as the index stores it: canonical when known, else folded. */
+export const canonicalSeason = (s: string) => SEASON_ALIASES[fold(s)] ?? fold(s);
+
 export interface IndexInput {
 	recipe: Recipe;
 	/** The raw body Markdown. */
@@ -87,7 +103,7 @@ export function upsertRecipe(db: DB, vocab: VaultVocab, { recipe: r, body, fileP
 	const tagRows = insertTags(db, vocab, r);
 
 	const insSeason = db.prepare('INSERT OR IGNORE INTO seasons (slug, season) VALUES (?, ?)');
-	for (const season of r.season) insSeason.run(r.slug, fold(season));
+	for (const season of r.season) insSeason.run(r.slug, canonicalSeason(season));
 
 	const insIng = db.prepare(
 		`INSERT INTO ingredients (slug, position, group_idx, group_name, group_optional, qty, qty_max, unit, name, optional, recipe, item)
@@ -124,7 +140,7 @@ export function upsertRecipe(db: DB, vocab: VaultVocab, { recipe: r, body, fileP
 		searchText(body),
 		searchText(names.join(' · ')),
 		searchText(s?.author ?? ''),
-		searchText([...r.tags, ...tagRows.keys()].join(' '))
+		ftsTags(r, tagRows)
 	);
 	db.prepare('DELETE FROM problems WHERE file_path = ?').run(filePath);
 }
@@ -141,10 +157,30 @@ function insertTags(db: DB, vocab: VaultVocab, r: Recipe): Map<string, boolean> 
 	return tagRows;
 }
 
-/** Recompute every recipe's tag rows after the vocabulary changed. No file is read. */
-export function retag(db: DB, vocab: VaultVocab): void {
+/**
+ * Recompute every recipe's tag rows, and the FTS `tags` column, after the
+ * vocabulary changed. No file is read. `hash` (of vocab/tags.yaml) is stored
+ * so startup sync can tell whether the vocabulary changed while the app was down.
+ */
+export function retag(db: DB, vocab: VaultVocab, hash?: string): void {
 	db.prepare('DELETE FROM tags').run();
-	for (const json of db.prepare('SELECT data_json FROM recipes').pluck().all() as string[]) insertTags(db, vocab, JSON.parse(json));
+	const fts = db.prepare('UPDATE recipes_fts SET tags = ? WHERE rowid = ?');
+	for (const { id, data_json } of db.prepare('SELECT id, data_json FROM recipes').all() as { id: number; data_json: string }[]) {
+		const r = JSON.parse(data_json) as Recipe;
+		const tagRows = insertTags(db, vocab, r);
+		fts.run(ftsTags(r, tagRows), id);
+	}
+	if (hash !== undefined) setMeta(db, 'tags_hash', hash);
+}
+
+const ftsTags = (r: Recipe, tagRows: Map<string, boolean>) => searchText([...r.tags, ...tagRows.keys()].join(' '));
+
+export function getMeta(db: DB, key: string): string | undefined {
+	return db.prepare('SELECT value FROM meta WHERE key = ?').pluck().get(key) as string | undefined;
+}
+
+export function setMeta(db: DB, key: string, value: string): void {
+	db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
 }
 
 /** Record a file that fails the checker; its last good rows (if any) are kept and flagged. */

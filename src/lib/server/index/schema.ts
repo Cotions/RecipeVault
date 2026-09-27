@@ -4,7 +4,7 @@
 // (Vite) load it the same way.
 
 /** Bump on any change below: the index is then rebuilt from scratch. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const SCHEMA_SQL = `
 CREATE TABLE recipes (
@@ -48,6 +48,9 @@ CREATE TABLE problems (
   file_hash   TEXT NOT NULL,
   diagnostics TEXT NOT NULL             -- JSON list of { code, path, message }
 );
+
+-- Index bookkeeping: tags_hash = sha256 of vocab/tags.yaml at the last retag.
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE families (
   slug     TEXT PRIMARY KEY,
