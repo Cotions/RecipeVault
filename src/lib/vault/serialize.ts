@@ -160,14 +160,14 @@ function frontmatter(r: Recipe): string[] {
 	if (r.oven) {
 		out.push(
 			`oven: ${flowMap([
-				['temp', r.oven.temp],
-				['temp_max', r.oven.tempMax],
+				['temp', r.oven.tempRaw ?? r.oven.temp],
+				['temp_max', r.oven.tempMaxRaw ?? r.oven.tempMax],
 				['unit', r.oven.unit]
 			])}`
 		);
 	}
-	line('servings', r.servings);
-	line('servings_max', r.servingsMax);
+	line('servings', r.servingsRaw ?? r.servings);
+	line('servings_max', r.servingsMaxRaw ?? r.servingsMax);
 	line('servings_note', r.servingsNote);
 	if (typeof r.yield === 'string') line('yield', r.yield);
 	else if (r.yield && Object.keys(r.yield).length) {

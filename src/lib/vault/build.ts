@@ -2,7 +2,7 @@
 // errors, so the shapes are known to be valid; anything else is dropped.
 
 import { parseDuration } from './duration';
-import { parseQuantity } from './quantity';
+import { markedNumber, parseQuantity } from './quantity';
 import { slugify } from './slug';
 import type {
 	Alt,
@@ -104,12 +104,20 @@ export function buildRecipe(fm: Record<string, unknown>, markers: Marker[]): Rec
 		recipe.times = times;
 	}
 	if (isMap(fm.oven)) {
-		const oven: Oven = { temp: fm.oven.temp as number, unit: fm.oven.unit as Oven['unit'] };
-		if (typeof fm.oven.temp_max === 'number') oven.tempMax = fm.oven.temp_max;
+		const oven: Oven = { temp: markedNumber(fm.oven.temp)!, unit: fm.oven.unit as Oven['unit'] };
+		if (typeof fm.oven.temp === 'string') oven.tempRaw = fm.oven.temp;
+		const tempMax = markedNumber(fm.oven.temp_max);
+		if (tempMax !== undefined) oven.tempMax = tempMax;
+		if (typeof fm.oven.temp_max === 'string') oven.tempMaxRaw = fm.oven.temp_max;
 		recipe.oven = oven;
 	}
-	if (int(fm.servings)) recipe.servings = int(fm.servings);
-	if (int(fm.servings_max)) recipe.servingsMax = int(fm.servings_max);
+	// A marker is kept as written (`"4 [?]"`) so saving the file does not drop it.
+	const servings = markedNumber(fm.servings);
+	if (servings) recipe.servings = servings;
+	if (servings && typeof fm.servings === 'string') recipe.servingsRaw = fm.servings;
+	const servingsMax = markedNumber(fm.servings_max);
+	if (servingsMax) recipe.servingsMax = servingsMax;
+	if (servingsMax && typeof fm.servings_max === 'string') recipe.servingsMaxRaw = fm.servings_max;
 	if (str(fm.servings_note)) recipe.servingsNote = str(fm.servings_note);
 	if (str(fm.yield)) recipe.yield = str(fm.yield);
 	else if (isMap(fm.yield)) {

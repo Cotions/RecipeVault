@@ -61,7 +61,11 @@ TRANSCRIBE, AND MARK EVERYTHING THAT IS NOT A PLAIN READING
    quotes — unquoted, "[?: other]" and any marker inside { } break the file:
    Examples:  author: "Jeanne Tremblay [?: Tremblé]"
               - { qty: "250 [?]", unit: ml, name: "lait [?]" }
+              servings: "4 [?]"
+              oven: { temp: "350 [?]", unit: F }
               1. Mélanger tous les ingrédients. [+]
+   A number, unit, source type or time you cannot read at all is not
+   written as a marker: leave that key out and ask in QUESTIONS (rule 4).
 3. You MAY add, marked [+], only what is obvious and harmless:
    - a missing "mix the ingredients" step when the card jumps straight to baking
    - a title for an untitled clipping, based on its ingredients
@@ -316,6 +320,8 @@ Draft 3.2 — decisions on cases the checker's stress test left open (invented f
 | Found | Fix |
 |---|---|
 | A can size printed in two measures (`19 oz (540 ml)`) was rejected as two amounts (`E216`); dropping one breaks rule 1, and `alt` is the amount, not the container size | One size plus its parenthesised equivalent is one size (rule 11) |
+| `servings: "4 [?]"` and `oven.temp: "350 [?]"` were rejected (`E108`, `E111`), so the fix dropped the marker and claimed a certainty the transcriber did not have | Markers allowed on `servings` and `oven.temp` as on `qty` (rule 2) |
+| A bare marker on `qty`, `unit`, `source.type` or a time was told "wrap it in quotes", and the quoted value failed again | An unreadable number, unit, type or time is left out and asked about (rule 2, rule 4); the checker's fix says so |
 
 ## Failure modes to watch for
 

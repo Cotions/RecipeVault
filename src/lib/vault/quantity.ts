@@ -1,6 +1,6 @@
 // Quantities: a number, or a string exactly as written — "1 1/2", "2/3", "250 [?]".
 
-import { stripMarkers } from './markers';
+import { findMarkers, stripMarkers } from './markers';
 
 export type QuantityResult =
 	| { ok: true; value: number }
@@ -65,4 +65,17 @@ function suggest(s: string): string | undefined {
 /** Format a qty string for YAML: plain for decimals, quoted for fractions. */
 export function fmt(q: string): string {
 	return /^\d+(?:\.\d+)?$/.test(q) ? q : `"${q}"`;
+}
+
+/**
+ * A number field that may carry markers, like `qty`: `servings: "4 [?]"`,
+ * `temp: "350 [?]"` → the number. A plain number passes through; a string
+ * without a marker, or with nothing but a number left once the markers are
+ * gone, does not.
+ */
+export function markedNumber(v: unknown): number | undefined {
+	if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+	if (typeof v !== 'string' || !findMarkers(v, '').length) return undefined;
+	const s = stripMarkers(v.normalize('NFC'));
+	return /^\d+(?:\.\d+)?$/.test(s) ? Number(s) : undefined;
 }

@@ -95,6 +95,17 @@ A value that *starts* with an unquoted marker (`name: [illisible]`) is read by
 YAML as a list, not text. Whichever code fires on that field, its fix is the
 same: wrap the value in double quotes (`name: "[illisible]"`).
 
+Number fields take markers the way `qty` does: `qty`, `qty_max`, `servings`,
+`servings_max`, `oven.temp` and `oven.temp_max` may be a quoted string such as
+`"4 [?]"` or `"350 [?: 325]"`, and what is left once the markers are removed
+must be valid for the field. A field that cannot hold text — `qty`, `qty_max`,
+`unit` (of an ingredient, `alt` or `yield`), `source.type`, `times.*`,
+`servings`, `servings_max`, `oven.temp`, `oven.temp_max` — holding *only* a
+marker, quoted or not (`qty: [illisible]`, `type: "[?]"`), means nothing was
+read. Quoting would not make it valid, so the fix is instead to leave the key
+out (the whole amount for `qty`/`unit`, the whole `alt`, the whole `oven` for
+`temp`) and ask in `QUESTIONS` — `AI-TEMPLATE.md` rule 4.
+
 | Code | Fixed by | Condition |
 |---|---|---|
 | E001 | ai | not valid markdown with a YAML frontmatter block |
@@ -106,9 +117,9 @@ same: wrap the value in double quotes (`name: "[illisible]"`).
 | E105 | ai | `family` set without `variant`, or `variant` without `family` |
 | E106 | ai | `source.type` not in the allowed list |
 | E107 | ai | `difficulty` or `rating` outside 1–5 |
-| E108 | ai | `servings` not a positive integer, or `servings_max` ≤ `servings` |
+| E108 | ai | `servings` not a positive integer, or `servings_max` ≤ `servings` (markers aside: `"4 [?]"` is 4) |
 | E109 | ai | `times.*` not in the duration format: `30m`, `1h`, `1h15m`, range `45m-50m` |
-| E111 | ai | `oven.unit` not `F` or `C`, or `oven.temp` not a number |
+| E111 | ai | `oven.unit` not `F` or `C`, or `oven.temp` not a number (markers aside: `"350 [?]"` is 350), or `oven.temp_max` ≤ `oven.temp` |
 | E112 | app | `status` or `added` written in a pasted file — the app sets these (auto-fixed on the paste path: stripped with a note, not rejected) |
 | E113 | app | a vault file's `slug` does not match its file name (an edit outside the app) — the file is not indexed until the file is renamed or `slug` set back |
 | E110 | ai | `schema` missing, or a version this app does not know |

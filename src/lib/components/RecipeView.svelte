@@ -8,6 +8,7 @@
 	import { MULTIPLIERS } from '$lib/render/scale';
 	import { formatOven } from '$lib/render/temperature';
 	import { formatNumber } from '$lib/render/fraction';
+	import { findMarkers } from '$lib/vault/markers';
 	import type { Recipe } from '$lib/vault/types';
 	import IngredientLine from './IngredientLine.svelte';
 	import Marked from './Marked.svelte';
@@ -37,6 +38,11 @@
 	const factor = $derived(recipe.servings ? servings / recipe.servings : multiplier);
 	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s] }));
 	const oven = $derived(recipe.oven ? formatOven(recipe.oven) : null);
+	/** The markers of number fields written with one (`servings: "4 [?]"`), shown after the number. */
+	const markersOf = (...raw: (string | undefined)[]) =>
+		raw.flatMap((r) => (r ? findMarkers(r, '').map((m) => m.text) : [])).join(' ');
+	const ovenMarkers = $derived(recipe.oven ? markersOf(recipe.oven.tempRaw, recipe.oven.tempMaxRaw) : '');
+	const servingsMarkers = $derived(markersOf(recipe.servingsRaw, recipe.servingsMaxRaw));
 	const kinds = $derived(new Set(recipe.markers.map((m) => (m.kind === 'uncertain-alt' ? 'uncertain' : m.kind))));
 
 	const src = $derived(recipe.source);
@@ -126,13 +132,13 @@
 			<div><dt>{t.recipe.total}</dt><dd>{formatSeconds(computedTotal, lang)}</dd></div>
 		{/if}
 		{#if oven}
-			<div><dt>{t.recipe.oven}</dt><dd>{oven.written} <span class="conv">({oven.converted})</span></dd></div>
+			<div><dt>{t.recipe.oven}</dt><dd>{oven.written}{#if ovenMarkers}&nbsp;<Marked text={ovenMarkers} />{/if} <span class="conv">({oven.converted})</span></dd></div>
 		{/if}
 		{#if recipe.servings}
 			<div>
 				<dt>{t.recipe.servings}</dt>
 				<dd>
-					{formatNumber(servings, lang)}{#if recipe.servingsMax && servings === recipe.servings}&nbsp;à&nbsp;{recipe.servingsMax}{/if}
+					{formatNumber(servings, lang)}{#if recipe.servingsMax && servings === recipe.servings}&nbsp;à&nbsp;{recipe.servingsMax}{/if}{#if servingsMarkers && servings === recipe.servings}&nbsp;<Marked text={servingsMarkers} />{/if}
 					{#if recipe.servingsNote}<span class="conv"><Marked text={recipe.servingsNote} /></span>{/if}
 				</dd>
 			</div>

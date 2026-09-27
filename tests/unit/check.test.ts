@@ -171,12 +171,57 @@ describe('markers', () => {
 
 describe('a value starting with an unquoted marker', () => {
 	it('fires the field\'s own code with the quote fix', () => {
-		const text = edit('title: Pouding chômeur', 'title: [?: Pouding]').replace('{ qty: 1, unit: cup, name: farine }', '{ qty: [?], unit: cup, name: farine }');
+		const text = edit('title: Pouding chômeur', 'title: [?: Pouding]').replace('author: Grand-maman Lucienne', 'author: [illisible]');
 		const ds = checkRecipe(text).diagnostics;
 		expect(ds.map((d) => [d.code, d.path, d.fix])).toEqual([
-			['E204', 'ingredients[0].items[0].qty', 'Wrap the value in double quotes: `qty: "[?]"`.'],
+			['E218', 'source.author', 'Wrap the value in double quotes: `author: "[illisible]"`.'],
 			['E101', 'title', 'Wrap the value in double quotes: `title: "[?: Pouding]"`.']
 		]);
+	});
+});
+
+describe('a number, unit, type or time holding only a marker', () => {
+	const ask = 'and ask about it in QUESTIONS — never guess it.';
+	it.each([
+		['qty, unquoted', ['{ qty: 1, unit: cup, name: farine }', '{ qty: [?], unit: cup, name: farine }'], 'E204', 'ingredients[0].items[0].qty', `leave out the amount (\`qty\`, \`qty_max\`, \`unit\`) ${ask}`],
+		['qty, quoted', ['{ qty: 1, unit: cup, name: farine }', '{ qty: "[illisible]", unit: cup, name: farine }'], 'E204', 'ingredients[0].items[0].qty', 'leave out the amount'],
+		['unit', ['{ qty: 1, unit: cup, name: farine }', '{ qty: 1, unit: "[illisible]", name: farine }'], 'E201', 'ingredients[0].items[0].unit', 'leave out the amount'],
+		['alt unit', ['{ qty: 1, unit: cup, name: farine }', '{ qty: 1, unit: cup, name: farine, alt: { qty: 250, unit: [illisible] } }'], 'E201', 'ingredients[0].items[0].alt.unit', 'leave out `alt`'],
+		['source.type', ['type: family', 'type: [illisible]'], 'E106', 'source.type', `leave out \`type\` ${ask}`],
+		['a time', ['cook: 40m', 'cook: "[?]"'], 'E109', 'times.cook', `leave out \`cook\` ${ask}`],
+		['servings', ['servings: 8', 'servings: [illisible]'], 'E108', 'servings', 'leave out `servings` (and `servings_max`)'],
+		['oven.temp', ['oven: { temp: 350, unit: F }', 'oven: { temp: "[illisible]", unit: F }'], 'E111', 'oven.temp', 'leave out `oven`']
+	] as const)('%s: leave it out and ask', (_, [from, to], code, path, fix) => {
+		const ds = checkRecipe(edit(from, to)).diagnostics.filter((d) => d.severity === 'error');
+		expect(ds.map((d) => [d.code, d.path])).toEqual([[code, path]]);
+		expect(ds[0].message).toContain('holds only a marker');
+		expect(ds[0].fix).toContain(fix);
+		expect(ds[0].fix).not.toContain('double quotes');
+	});
+});
+
+describe('markers on servings and oven temperatures', () => {
+	it('are allowed as on qty, and the numbers stay numbers', () => {
+		const text = edit('servings: 8', 'servings: "8 [?]"\nservings_max: "10 [?: 12]"').replace('oven: { temp: 350, unit: F }', 'oven: { temp: "350 [?]", temp_max: 375, unit: F }');
+		const r = checkRecipe(text);
+		expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+		expect(r.diagnostics.filter((d) => d.code === 'W605').map((d) => d.path)).toEqual(['oven.temp', 'servings', 'servings_max']);
+		expect(r.recipe).toMatchObject({ servings: 8, servingsMax: 10, servingsRaw: '8 [?]', servingsMaxRaw: '10 [?: 12]' });
+		expect(r.recipe?.oven).toEqual({ temp: 350, tempMax: 375, unit: 'F', tempRaw: '350 [?]' });
+	});
+
+	it.each([
+		['servings: "huit [?]"', 'E108'],
+		['servings: "8"', 'E108'],
+		['servings: "8.5 [?]"', 'E108'],
+		['servings: "8 [?]"\nservings_max: "6 [?]"', 'E108']
+	])('still rejects what is not a number once the markers are gone: %s', (to, code) => {
+		expect(find(edit('servings: 8', to), code)).toHaveLength(1);
+	});
+
+	it('still rejects an oven range that does not rise', () => {
+		const ds = find(edit('oven: { temp: 350, unit: F }', 'oven: { temp: "350 [?]", temp_max: "325 [?]", unit: F }'), 'E111');
+		expect(ds.map((d) => d.path)).toEqual(['oven.temp_max']);
 	});
 
 	it('followed by text it breaks the YAML: E002 names the value to quote', () => {

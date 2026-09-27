@@ -130,6 +130,10 @@ export interface Oven {
 	temp: number;
 	tempMax?: number;
 	unit: 'F' | 'C';
+	/** `temp` as written when it carries a marker: `"350 [?]"`. */
+	tempRaw?: string;
+	/** `temp_max` as written when it carries a marker. */
+	tempMaxRaw?: string;
 }
 
 export interface YieldObject {
@@ -153,6 +157,10 @@ export interface Recipe {
 	oven?: Oven;
 	servings?: number;
 	servingsMax?: number;
+	/** `servings` as written when it carries a marker: `"4 [?]"`. */
+	servingsRaw?: string;
+	/** `servings_max` as written when it carries a marker. */
+	servingsMaxRaw?: string;
 	servingsNote?: string;
 	yield?: string | YieldObject;
 	tags: string[];

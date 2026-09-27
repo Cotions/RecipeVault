@@ -1,6 +1,7 @@
 // Timing and quantity: E108, E109, E111, W601, W602, plus `yield`.
 
 import { parseDuration, suggestDuration } from '../duration';
+import { markedNumber } from '../quantity';
 import { ALLOWED_KEYS } from '../vocab';
 import { checkKeys, isBlank, isMap, join, show, type RuleContext } from './context';
 import { checkAmount } from './ingredients';
@@ -40,7 +41,11 @@ export function checkServings(ctx: RuleContext): void {
 	const { fm } = ctx;
 	const s = fm.servings;
 	const max = fm.servings_max;
-	const posInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0;
+	// A marker is allowed, as on `qty`: `servings: "4 [?]"`.
+	const posInt = (v: unknown): boolean => {
+		const n = markedNumber(v);
+		return n !== undefined && Number.isInteger(n) && n > 0;
+	};
 
 	if (isBlank(s)) {
 		if (!isBlank(max)) ctx.report('E108', 'servings_max', '`servings_max` is set without `servings`.', 'A range is `servings` (the low end) plus `servings_max`.');
@@ -57,8 +62,8 @@ export function checkServings(ctx: RuleContext): void {
 	}
 	if (!isBlank(s) && !isBlank(max)) {
 		if (!posInt(max)) ctx.report('E108', 'servings_max', `\`servings_max: ${show(max)}\` is not a positive whole number.`, 'Write a whole number greater than `servings`.');
-		else if (posInt(s) && max <= s)
-			ctx.report('E108', 'servings_max', `\`servings_max: ${max}\` is not greater than \`servings: ${s}\`.`, 'Write the high end of the range in `servings_max`, or remove it.');
+		else if (posInt(s) && markedNumber(max)! <= markedNumber(s)!)
+			ctx.report('E108', 'servings_max', `\`servings_max: ${show(max)}\` is not greater than \`servings: ${show(s)}\`.`, 'Write the high end of the range in `servings_max`, or remove it.');
 	}
 
 	const y = fm.yield;
@@ -83,7 +88,9 @@ export function checkOven(ctx: RuleContext): void {
 		return;
 	}
 	checkKeys(ctx, oven, 'oven', ALLOWED_KEYS.oven);
-	if (typeof oven.temp !== 'number' || !Number.isFinite(oven.temp)) {
+	// A marker is allowed, as on `qty`: `temp: "350 [?]"`.
+	const temp = markedNumber(oven.temp);
+	if (temp === undefined) {
 		const digits = String(oven.temp ?? '').match(/\d{2,3}/);
 		ctx.report(
 			'E111',
@@ -102,9 +109,10 @@ export function checkOven(ctx: RuleContext): void {
 		);
 	}
 	if (!isBlank(oven.temp_max)) {
-		if (typeof oven.temp_max !== 'number' || !Number.isFinite(oven.temp_max))
+		const tempMax = markedNumber(oven.temp_max);
+		if (tempMax === undefined)
 			ctx.report('E111', 'oven.temp_max', `\`oven.temp_max: ${show(oven.temp_max)}\` is not a number.`, 'Write the high end of the range as a number.');
-		else if (typeof oven.temp === 'number' && oven.temp_max <= oven.temp)
-			ctx.report('E111', 'oven.temp_max', `\`oven.temp_max: ${oven.temp_max}\` is not greater than \`temp: ${oven.temp}\`.`, 'Write the high end of the range in `temp_max`, or remove it.');
+		else if (temp !== undefined && tempMax <= temp)
+			ctx.report('E111', 'oven.temp_max', `\`oven.temp_max: ${show(oven.temp_max)}\` is not greater than \`temp: ${show(oven.temp)}\`.`, 'Write the high end of the range in `temp_max`, or remove it.');
 	}
 }

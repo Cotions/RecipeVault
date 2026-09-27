@@ -153,8 +153,11 @@ Rules:
 
 ### Markers
 
-Four inline markers, allowed in any string value — title, names, notes, steps, and
-fraction-string quantities (`qty: "250 [?]"`):
+Four inline markers, allowed in any string value — title, names, notes, steps — and
+on the number fields `qty`, `qty_max`, `servings`, `servings_max`, `oven.temp` and
+`oven.temp_max` written as a quoted string (`qty: "250 [?]"`, `servings: "4 [?]"`,
+`oven: { temp: "350 [?]", unit: F }`), where the value without its markers must
+still be valid:
 
 | Marker | Meaning | App behaviour |
 |---|---|---|
@@ -167,6 +170,10 @@ In the frontmatter, any value containing a marker must be double-quoted:
 `author: "Jeanne Tremblay [?: Tremblé]"`, `{ qty: 1, unit: cup, name: "farine [?]" }`.
 Unquoted, `[?: …]` reads as a nested `key: value` and any `[` inside `{ … }`
 opens a list — the file no longer parses (`E002`).
+
+A number, unit, source type or time that cannot be read at all is left out, not
+written as a bare marker: `qty: "[illisible]"` still is not a quantity. The AI
+asks about it in its `QUESTIONS` section instead.
 
 Markers are stripped before slugs, search, and resolution, so `boeuf [?]` still
 resolves to `boeuf`. Clearing a `[?]` in the app (confirming or correcting the

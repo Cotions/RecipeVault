@@ -2,7 +2,7 @@
 
 import type { BodyChunk } from '../body';
 import type { Body, Diagnostic, Lang, Severity } from '../types';
-import { misreadMarker } from '../markers';
+import { findMarkers, misreadMarker, stripMarkers } from '../markers';
 import { suggestKey } from '../vocab';
 
 export interface RuleContext {
@@ -28,9 +28,18 @@ export function createContext(
 		bodyChunks,
 		lang: fm.lang === 'en' ? 'en' : 'fr',
 		report(code, path, message, fix, severity) {
+			const value = path ? valueAt(fm, path) : undefined;
+			// A field that takes a number, a unit, a duration or a listed value
+			// holding only a marker: nothing was read, and quoting the marker
+			// would not make it valid.
+			const bare = path && code[0] === 'E' ? bareMarker(value) : undefined;
+			const omit = bare && path ? unreadableFix(path) : undefined;
 			// Whatever the rule, a marker read as a list has one cause and one fix.
-			const marker = path ? misreadMarker(valueAt(fm, path)) : undefined;
-			if (marker && path) {
+			const marker = path ? misreadMarker(value) : undefined;
+			if (bare && omit && path) {
+				message = `\`${path.replace(/^.*\./, '')}: ${bare}\` holds only a marker — no value was read.`;
+				fix = omit;
+			} else if (marker && path) {
 				const key = path.replace(/^.*\./, '').replace(/\[\d+\]$/, '');
 				const list = /\[\d+\]$/.test(path) ? valueAt(fm, path.replace(/\[\d+\]$/, '')) : undefined;
 				if (Array.isArray(list)) {
@@ -47,6 +56,34 @@ export function createContext(
 			out.push(d);
 		}
 	};
+}
+
+/** A value that is nothing but markers — quoted (`"[illisible]"`) or read as a list — as written. */
+function bareMarker(v: unknown): string | undefined {
+	const misread = misreadMarker(v);
+	if (misread) return misread;
+	if (typeof v === 'string' && findMarkers(v, '').length && stripMarkers(v) === '') return v.trim();
+	return undefined;
+}
+
+/**
+ * For a field that cannot hold text, what to leave out when nothing on it
+ * could be read (docs/VALIDATION.md): the rule-4 answer — leave it absent and
+ * ask. Undefined for text fields, where a quoted marker is a valid value.
+ */
+function unreadableFix(path: string): string | undefined {
+	const ask = 'and ask about it in QUESTIONS — never guess it.';
+	if (/\.alt\.(?:qty|qty_max|unit)$/.test(path)) return `Nothing could be read: leave out \`alt\` ${ask}`;
+	if (/(?:^yield|\.items\[\d+\](?:\.or\[\d+\])*)\.(?:qty|qty_max|unit)$/.test(path))
+		return `Nothing could be read: leave out the amount (\`qty\`, \`qty_max\`, \`unit\`) ${ask}`;
+	if (path === 'source.type') return `Nothing could be read: leave out \`type\` ${ask}`;
+	const time = path.match(/^times\.(prep|cook|rest|total)$/);
+	if (time) return `Nothing could be read: leave out \`${time[1]}\` ${ask}`;
+	if (path === 'servings') return `Nothing could be read: leave out \`servings\` (and \`servings_max\`) ${ask}`;
+	if (path === 'servings_max') return `Nothing could be read: leave out \`servings_max\` ${ask}`;
+	if (path === 'oven.temp') return `Nothing could be read: leave out \`oven\` ${ask}`;
+	if (path === 'oven.temp_max') return `Nothing could be read: leave out \`temp_max\` ${ask}`;
+	return undefined;
 }
 
 /** A list element as written in a flow list, a misread marker quoted. */
