@@ -1,5 +1,6 @@
 // Durations in step text become timer buttons in kitchen mode:
-// "25 min", "1 h 30", "45-50 minutes", "1 heure", "45 à 50 min", "2 hours".
+// "25 min", "1 h 30", "45-50 minutes", "1 heure", "45 à 50 min", "2 hours",
+// "3 heures 1/2", "1 heure et demie".
 // A range counts down its upper bound and says so in its label.
 
 export interface FoundDuration {
@@ -14,7 +15,9 @@ export interface FoundDuration {
 const NUM = String.raw`\d+(?:[.,]\d+)?(?:\s*[½¼¾]|\s+\d\/\d)?|[½¼¾]`;
 const H = String.raw`h|hr|hrs|heures?|hours?`;
 const M = String.raw`min|mins|minutes?|mn`;
-const ONE = String.raw`(${NUM})\s*(?:(${H})(?:\s*(\d{1,2})(?:\s*(?:${M}))?)?|(${M}))`;
+// After the hours: « 1 h 30 », « 3 heures 1/2 », « 1 heure et demie ».
+const HALF = String.raw`(?:et\s+)?(?:demie?|1\/2|½)`;
+const ONE = String.raw`(${NUM})\s*(?:(${H})(?:\s*(${HALF})|\s*(\d{1,2})(?!\s*\/)(?:\s*(?:${M}))?)?|(${M}))`;
 const RANGE_RE = new RegExp(
 	String.raw`(?<![\p{L}\d])(?:(${NUM})\s*(?:-|–|à|to|ou|or)\s*)?${ONE}(?![\p{L}])`,
 	'giu'
@@ -32,9 +35,9 @@ function num(s: string): number {
 export function findDurations(text: string): FoundDuration[] {
 	const out: FoundDuration[] = [];
 	for (const m of text.matchAll(RANGE_RE)) {
-		const [whole, low, value, hours, extraMin, minutes] = m;
+		const [whole, low, value, hours, half, extraMin, minutes] = m;
 		const perUnit = hours ? 3600 : 60;
-		const main = num(value) * perUnit + (hours && extraMin ? Number(extraMin) * 60 : 0);
+		const main = num(value) * perUnit + (hours && half ? 1800 : 0) + (hours && extraMin ? Number(extraMin) * 60 : 0);
 		if (!main || main > 48 * 3600) continue;
 		const d: FoundDuration = { start: m.index ?? 0, end: (m.index ?? 0) + whole.length, text: whole.trim(), seconds: main };
 		if (low !== undefined) {

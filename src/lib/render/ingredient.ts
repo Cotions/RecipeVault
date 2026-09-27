@@ -72,9 +72,16 @@ export function unitLabel(unit: Unit, amount: number, lang: Lang): string {
 	return plural ? many : one;
 }
 
-/** `de ` or `d'` before a name, French elision before a vowel or a mute-ish h. */
+// Words whose h is mute (elided: « d’huile »). Every other h is taken as
+// aspirated (« de haricots », « de homard », « de hachis »), and y is never
+// elided (« de yogourt »).
+const H_MUET = /^(?:huile|herbe|huître|huitre|hysope|hydromel|hôte|hôtel)/i;
+
+/** `de ` or `d’` before a name: elision before a vowel or a mute h. */
 export function de(name: string): string {
-	return /^[aeiouyàâäéèêëîïôöùûüœæh]/i.test(name.normalize('NFC')) ? 'd’' : 'de ';
+	const n = name.normalize('NFC').trimStart();
+	if (/^[aeiouàâäéèêëîïôöùûüœæ]/i.test(n)) return 'd’';
+	return H_MUET.test(n) ? 'd’' : 'de ';
 }
 
 export interface AmountOptions {

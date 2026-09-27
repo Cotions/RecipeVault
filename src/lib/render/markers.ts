@@ -1,6 +1,7 @@
 // Split text around the four markers so the page can style them:
 // [?] and [?: …] highlighted, [illisible] highlighted, [+] in the "added" style.
 
+import { stripMarkers } from '../vault/markers';
 import type { MarkerKind } from '../vault/types';
 
 export type Segment = { text: string; marker?: undefined } | { text: string; marker: MarkerKind; alternative?: string };
@@ -24,3 +25,15 @@ export function segments(s: string): Segment[] {
 }
 
 export const hasMarker = (s: string) => new RegExp(MARKER_RE.source).test(s);
+
+const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]/g;
+
+/**
+ * A line as plain text for a title or a dimmed preview: [[slug]] and
+ * [[slug|label]] become the label, the recipe's title or the slug; the four
+ * markers are removed. Other brackets are left alone.
+ */
+export function plainText(s: string, resolve: (slug: string) => string | undefined = () => undefined): string {
+	const linked = s.replace(WIKI_RE, (_, slug: string, label?: string) => label?.trim() || resolve(slug.trim()) || slug.trim());
+	return stripMarkers(linked);
+}
