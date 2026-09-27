@@ -1,21 +1,32 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { t, familyLabel } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import Marked from '$lib/components/Marked.svelte';
+	import { plainText } from '$lib/render/markers';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
-	// svelte-ignore state_referenced_locally -- a new recipe page remounts
-	let servings = $state(data.recipe.servings ?? 0);
-	let multiplier = $state(1);
+	// SvelteKit keeps this component when going from one recipe to another, so
+	// the scaling is derived from the recipe: it resets on every new recipe and
+	// can still be changed by hand in between.
+	// Keyed on the slug alone, so a form action reloading the same recipe keeps them.
+	const slug = $derived(data.recipe.slug);
+	let servings = $derived.by(() => {
+		void slug;
+		return untrack(() => data.recipe.servings ?? 0);
+	});
+	let multiplier = $derived.by(() => {
+		void slug;
+		return 1;
+	});
 	let copied = $state(false);
 
 	const uncertain = $derived(data.recipe.markers.some((m) => m.kind !== 'added'));
-	const kitchenHref = $derived(
-		`/r/${data.recipe.slug}/cuisine${data.recipe.servings && servings !== data.recipe.servings ? `?portions=${servings}` : multiplier !== 1 ? `?fois=${multiplier}` : ''}`
-	);
+	// Always say how much: an old kitchen session must not win over what this page shows.
+	const kitchenHref = $derived(`/r/${data.recipe.slug}/cuisine${data.recipe.servings ? `?portions=${servings}` : `?fois=${multiplier}`}`);
 
 	async function copyFile() {
 		await navigator.clipboard.writeText(data.file.text);
@@ -25,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.recipe.title.replace(/\s*\[[^\]]*\]/g, '')} — {t.app.name}</title>
+	<title>{plainText(data.recipe.title)} — {t.app.name}</title>
 </svelte:head>
 
 {#if data.broken}

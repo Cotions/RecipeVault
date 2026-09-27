@@ -161,7 +161,8 @@ export const fr = {
 		expand: 'Voir la recette',
 		collapse: 'Masquer',
 		noSteps: 'Cette recette n’a pas d’étapes numérotées.',
-		offline: 'Hors ligne — recette gardée sur l’appareil.'
+		offline: 'Hors ligne — recette gardée sur l’appareil.',
+		restart: 'Recommencer'
 	},
 	add: {
 		title: 'Ajouter des recettes',

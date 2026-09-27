@@ -5,6 +5,7 @@
 	// zones, timers that survive reloads, everything resumable and offline.
 	import { onDestroy, onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
 	import { t } from '$lib/i18n/fr';
 	import IngredientLine from '$lib/components/IngredientLine.svelte';
 	import Marked from '$lib/components/Marked.svelte';
@@ -15,6 +16,7 @@
 	import { renderInline } from '$lib/render/markdown';
 	import { MULTIPLIERS } from '$lib/render/scale';
 	import { stepIngredients } from '$lib/render/steps';
+	import { plainText } from '$lib/render/markers';
 	import { formatOven } from '$lib/render/temperature';
 	import { clock, findDurations } from '$lib/render/timers';
 	import type { PageProps } from './$types';
@@ -38,6 +40,10 @@
 	}
 
 	interface Saved {
+		/** Which recipe content the session belongs to: ticks are by position. */
+		v: string;
+		/** Last change, epoch ms: an old session is not resumed. */
+		at: number;
 		step: number;
 		ticks: string[];
 		servings: number;
@@ -61,30 +67,64 @@
 	let open = $state<Record<string, boolean>>({});
 	let restored = false;
 
+	/** A session older than this is a new cook, not a resume. */
+	const SESSION_MS = 12 * 3600 * 1000;
+
+	/** FNV-1a of the ingredient list and steps: a replaced recipe file starts a fresh session. */
+	function fingerprint(s: string): string {
+		let h = 0x811c9dc5;
+		for (let i = 0; i < s.length; i++) {
+			h ^= s.charCodeAt(i);
+			h = Math.imul(h, 0x01000193);
+		}
+		return (h >>> 0).toString(36);
+	}
+	const version = $derived(fingerprint(JSON.stringify([recipe.ingredients, steps.map((x) => x.text)])));
+
 	const factor = $derived(recipe.servings ? servings / recipe.servings : multiplier);
 
 	function load() {
 		const url = page.url.searchParams;
+		dark = matchMedia('(prefers-color-scheme: dark)').matches;
 		try {
 			const s: Partial<Saved> = JSON.parse(localStorage.getItem(key) ?? '{}');
-			if (typeof s.step === 'number') step = Math.min(s.step, steps.length);
-			if (s.ticks) ticks = new Set(s.ticks);
-			if (s.servings) servings = s.servings;
-			if (s.multiplier) multiplier = s.multiplier;
-			if (s.timers) timers = s.timers;
 			if (typeof s.dark === 'boolean') dark = s.dark;
-			else dark = matchMedia('(prefers-color-scheme: dark)').matches;
+			// Resume only the same recipe content, recently, and not a finished cook.
+			const resume = s.v === version && typeof s.at === 'number' && Date.now() - s.at < SESSION_MS && typeof s.step === 'number' && s.step < steps.length;
+			if (resume) {
+				step = Math.max(-1, s.step!);
+				if (s.ticks) ticks = new Set(s.ticks);
+				if (s.servings) servings = s.servings;
+				if (s.multiplier) multiplier = s.multiplier;
+				if (s.timers) timers = s.timers;
+			}
 		} catch {
 			// a broken entry: start fresh
 		}
-		// Servings chosen on the recipe page win over a stale session.
-		if (url.get('portions')) servings = Number(url.get('portions')) || servings;
-		if (url.get('fois')) multiplier = Number(url.get('fois')) || multiplier;
+		// The amount chosen on the recipe page wins over the session. It is then
+		// dropped from the address, so a reload resumes what was set here.
+		const portions = Number(url.get('portions'));
+		const fois = Number(url.get('fois'));
+		if (portions > 0) servings = portions;
+		if (fois > 0) multiplier = fois;
+		if (url.has('portions') || url.has('fois')) {
+			try {
+				replaceState(page.url.pathname, page.state);
+			} catch {
+				// the router is not ready: the parameter stays, harmless
+			}
+		}
 		restored = true;
 	}
 
+	function restart() {
+		step = -1;
+		ticks = new Set();
+		timers = [];
+	}
+
 	$effect(() => {
-		const snapshot: Saved = { step, ticks: [...ticks], servings, multiplier, timers, dark };
+		const snapshot: Saved = { v: version, at: Date.now(), step, ticks: [...ticks], servings, multiplier, timers, dark };
 		if (restored) localStorage.setItem(key, JSON.stringify(snapshot));
 	});
 
@@ -230,7 +270,7 @@
 </script>
 
 <svelte:head>
-	<title>{recipe.title.replace(/\s*\[[^\]]*\]/g, '')} — {t.recipe.cookMode}</title>
+	<title>{plainText(recipe.title)} — {t.recipe.cookMode}</title>
 	<meta name="theme-color" content={dark ? '#0f1520' : '#fffffd'} />
 </svelte:head>
 
@@ -324,7 +364,7 @@
 				<p class="count">
 					{t.kitchen.step(step + 1, steps.length)}{#if current?.subheading}{` · ${current.subheading}`}{/if}
 				</p>
-				{#if step > 0}<p class="ghost prev">{steps[step - 1].text.replace(/\s*\[[^\]]*\]/g, '')}</p>{/if}
+				{#if step > 0}<p class="ghost prev">{plainText(steps[step - 1].text, (s) => data.titles[s])}</p>{/if}
 				<p class="now">
 					{#each pieces(current!.text) as p, i (i)}
 						{#if 'html' in p}{@html p.html}{:else}<button
@@ -342,9 +382,10 @@
 						{/each}
 					</ul>
 				{/if}
-				{#if step < steps.length - 1}<p class="ghost next">{steps[step + 1].text.replace(/\s*\[[^\]]*\]/g, '')}</p>{/if}
+				{#if step < steps.length - 1}<p class="ghost next">{plainText(steps[step + 1].text, (s) => data.titles[s])}</p>{/if}
 			{:else}
 				<p class="now done">{t.kitchen.done}</p>
+				<button class="start restart" type="button" onclick={restart}>{t.kitchen.restart}</button>
 			{/if}
 		</section>
 		<nav class="pager">
