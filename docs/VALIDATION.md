@@ -134,6 +134,7 @@ Warnings. Save, mark `needs-review`.
 | W607 | `name` contains a word from the known-brands list — suggest `brand:` |
 | W608 | same title as an existing recipe — offer to make both members of a family |
 | W609 | step text mentions an oven temperature but `oven` is absent |
+| W610 | unknown frontmatter key (`serving:`, `temps:`), in the frontmatter or inside `source`, `times`, `oven`, `yield`, `media`, a group or an ingredient entry — its value is ignored; the closest allowed key is suggested |
 
 `E210` and `E211` are heuristics, deliberately hard errors rather than warnings.
 They catch the two AI mistakes that quietly corrupt the ingredient index, and a
