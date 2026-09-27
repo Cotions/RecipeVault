@@ -23,7 +23,8 @@ explain the changes. Do not return a partial file or a diff.
 ERRORS — must fix:
   [E201] ingredients[0].items[3]: `unit: "cuillere"` is not allowed.
          Allowed units: g, kg, ml, cl, l, cup, tbsp, tsp, pinch, drop, lb, oz,
-         piece, clove, leaf, sprig, stalk, bunch, slice, can, packet, qt, pint
+         piece, clove, leaf, sprig, stalk, bunch, slice, can, packet, bottle,
+         jar, bag, qt, pint
   [E203] ingredients[0].items[6]: `qty: 2` present but `unit` missing.
          Every qty needs a unit. Countable items use `unit: piece`.
   [E210] ingredients[1].items[2]: `name: "500 g de lait"` contains a quantity.
@@ -57,10 +58,20 @@ Design choices that matter:
 - **Errors and warnings separated**, with warnings explicitly marked non-blocking,
   so the AI does not restructure a valid file chasing a suggestion.
 
-Errors the app resolves itself are left out of the block: `E103` (slug collision)
-is settled in the app by overwriting or suffixing the slug, not by the AI. A file
-whose only errors are of that kind is not in the block at all, and counts among
-the recipes the AI must not resend.
+**Who fixes each code.** Every code in the tables below has a *Fixed by* column:
+
+- `ai` — the AI that produced the file can fix it from the file and the source.
+  These, and only these, go into the fix-request block.
+- `app` — only the app or the person can settle it: it depends on the rest of the
+  vault (slug collisions, duplicate titles, sub-recipes not added yet, the
+  registry and vocabularies), on reading the photo (confirming a `[?]`), or on
+  information the source may not have (servings, times, provenance — asking the
+  AI invites it to invent them). These show in the app UI and in `vault check`
+  output, never in the block.
+
+A file whose only errors are `app` codes is left out of the block and listed with
+the recipes the AI must not resend. **Adding a code means choosing its fixer**;
+the checker's test suite fails on a code without one.
 
 The block includes the spec only when an error suggests the AI never had it —
 several `E2xx` at once, or the output not being markdown at all. Otherwise the
@@ -71,75 +82,79 @@ wastes the AI's context on a one-line fix.
 
 Not problems; shown so nothing is silent.
 
-| Code | Condition |
-|---|---|
-| I701 | `[+]` present — text added by the transcriber, rendered distinctly |
-| I702 | a `QUESTIONS` section or other text found outside the fences — ignored, shown to the user in case the AI asked something |
+| Code | Fixed by | Condition |
+|---|---|---|
+| I701 | app | `[+]` present — text added by the transcriber, rendered distinctly |
+| I702 | app | a `QUESTIONS` section or other text found outside the fences — ignored, shown to the user in case the AI asked something |
 
 ## Error codes
 
 Hard errors. Refuse to save.
 
-| Code | Condition |
-|---|---|
-| E001 | not valid markdown with a YAML frontmatter block |
-| E002 | frontmatter is not valid YAML (include the YAML parser's own message) |
-| E101 | `title` missing |
-| E102 | `slug` is not lowercase ASCII hyphenated |
-| E103 | `slug` already exists in the vault, or twice in one paste — resolved in the app (overwrite, or a suffixed slug; see `DATA-FLOW.md`), never sent to the AI in the fix-request block |
-| E104 | `lang` not `fr` or `en` |
-| E105 | `family` set without `variant`, or `variant` without `family` |
-| E106 | `source.type` not in the allowed list |
-| E107 | `difficulty` or `rating` outside 1–5 |
-| E108 | `servings` not a positive integer, or `servings_max` ≤ `servings` |
-| E109 | `times.*` not in the duration format: `30m`, `1h`, `1h15m`, range `45m-50m` |
-| E111 | `oven.unit` not `F` or `C`, or `oven.temp` not a number |
-| E112 | `status` or `added` written in a pasted file — the app sets these (auto-fixed on the paste path: stripped with a note, not rejected) |
-| E110 | `schema` missing, or a version this app does not know |
-| E200 | `ingredients` missing or empty |
-| E201 | `unit` not in the canonical unit list — the message lists the Quebec abbreviation mapping (`tasse` → `cup`, `livre` → `lb`, `c. à thé` → `tsp`) |
-| E202 | `unit` present without `qty` |
-| E203 | `qty` present without `unit` |
-| E204 | `qty` neither a number nor a fraction string (`"1 1/2"`, `"2/3"`) |
-| E205 | `qty_max` present without `qty`, or `qty_max` ≤ `qty` |
-| E206 | `to_taste: true` together with `qty` or `unit` |
-| E207 | ingredient entry has no `name` |
-| E208 | `ingredients` is a flat list rather than groups with `items` |
-| E209 | duplicate ingredient `name` within one group |
-| E210 | `name` contains digits followed by a unit — quantity smuggled into the name |
-| E211 | `name` contains a comma and no `note`/`prep` — probably merged ingredients |
-| E212 | `buy_instead` present without `recipe` |
-| E214 | `alt` present without both `qty` and `unit` inside it, or with a key other than `qty`, `qty_max`, `unit` |
-| E215 | `or` not a list, or an entry that is neither a string nor a valid ingredient object (same rules as any ingredient entry, `name` required) |
-| E216 | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit`. Not fired when `unit` is a count or container unit (`piece`, `clove`, `leaf`, `sprig`, `stalk`, `bunch`, `slice`, `can`, `packet`) and the note holds a single size (`796 ml`, `environ 450 g`). Always fired when `unit` is absent or a measure, when the note holds more than one amount, or when it gives an alternative (`ou`/`or` + a quantity — that belongs in `or`) |
-| E217 | an unknown bracket marker — only `[?]`, `[?: …]`, `[illisible]`, `[+]` are allowed. Also catches prose uncertainty (`lecture incertaine`, `incertain`) and asks for `[?]` |
-| E213 | sub-recipe cycle — `A` uses `B` uses `A` |
-| E301 | a body heading is unrecognized *and* no recognized method heading exists |
+A value that *starts* with an unquoted marker (`name: [illisible]`) is read by
+YAML as a list, not text. Whichever code fires on that field, its fix is the
+same: wrap the value in double quotes (`name: "[illisible]"`).
+
+| Code | Fixed by | Condition |
+|---|---|---|
+| E001 | ai | not valid markdown with a YAML frontmatter block |
+| E002 | ai | frontmatter is not valid YAML (include the YAML parser's own message) |
+| E101 | ai | `title` missing |
+| E102 | ai | `slug` is not lowercase ASCII hyphenated |
+| E103 | app | `slug` already exists in the vault, or twice in one paste — resolved in the app: overwrite, or a suffixed slug (see `DATA-FLOW.md`) |
+| E104 | ai | `lang` not `fr` or `en` |
+| E105 | ai | `family` set without `variant`, or `variant` without `family` |
+| E106 | ai | `source.type` not in the allowed list |
+| E107 | ai | `difficulty` or `rating` outside 1–5 |
+| E108 | ai | `servings` not a positive integer, or `servings_max` ≤ `servings` |
+| E109 | ai | `times.*` not in the duration format: `30m`, `1h`, `1h15m`, range `45m-50m` |
+| E111 | ai | `oven.unit` not `F` or `C`, or `oven.temp` not a number |
+| E112 | app | `status` or `added` written in a pasted file — the app sets these (auto-fixed on the paste path: stripped with a note, not rejected) |
+| E110 | ai | `schema` missing, or a version this app does not know |
+| E200 | ai | `ingredients` missing or empty |
+| E201 | ai | `unit` not in the canonical unit list — the message lists the Quebec abbreviation mapping (`tasse` → `cup`, `livre` → `lb`, `c. à thé` → `tsp`) |
+| E202 | ai | `unit` present without `qty` |
+| E203 | ai | `qty` present without `unit` |
+| E204 | ai | `qty` neither a number nor a fraction string (`"1 1/2"`, `"2/3"`) |
+| E205 | ai | `qty_max` present without `qty`, or `qty_max` ≤ `qty` |
+| E206 | ai | `to_taste: true` together with `qty` or `unit` |
+| E207 | ai | ingredient entry has no `name`, or `name` is not text |
+| E208 | ai | `ingredients` is a flat list rather than groups with `items` |
+| E209 | ai | duplicate ingredient `name` within one group |
+| E210 | ai | `name` contains digits followed by a unit — quantity smuggled into the name |
+| E211 | ai | `name` contains a comma and no `note`/`prep` — probably merged ingredients |
+| E212 | ai | `buy_instead` present without `recipe` |
+| E214 | ai | `alt` present without both `qty` and `unit` inside it, or with a key other than `qty`, `qty_max`, `unit` |
+| E215 | ai | `or` not a list, or an entry that is neither a string nor a valid ingredient object (same rules as any ingredient entry, `name` required) |
+| E216 | ai | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit`. Not fired when `unit` is a count or container unit (`piece`, `clove`, `leaf`, `sprig`, `stalk`, `bunch`, `slice`, `can`, `packet`, `bottle`, `jar`, `bag`) and the note holds a single size (`796 ml`, `environ 450 g`). Always fired when `unit` is absent or a measure, when the note holds more than one amount, or when it gives an alternative (`ou`/`or` + a quantity — that belongs in `or`) |
+| E217 | ai | an unknown bracket marker — only `[?]`, `[?: …]`, `[illisible]`, `[+]` are allowed. Also catches prose uncertainty (`lecture incertaine`, `incertain`) and asks for `[?]` |
+| E213 | ai | sub-recipe cycle — `A` uses `B` uses `A` |
+| E301 | ai | a body heading is unrecognized *and* no recognized method heading exists |
 
 Warnings. Save, mark `needs-review`.
 
-| Code | Condition |
-|---|---|
-| W302 | `name` ends in a known preparation participle (`émincé`, `râpé`, `haché`) |
-| W303 | `name` matches no registry alias and fuzzy matching found no candidate |
-| W304 | `name` starts with a known size descriptor (`gros`, `petit`, `grande`) |
-| W305 | ingredient resolved by fuzzy match rather than exact alias — confirm |
-| W306 | `recipe:` points at a slug not in the vault yet |
-| W401 | no method section in the body |
-| W402 | a step exceeds ~400 characters — probably several steps merged |
-| W501 | tag not in the vocabulary, closest canonical suggested |
-| W502 | `family` within edit distance 2 of an existing family — drift suspected |
-| W503 | near-identical `title` already in the vault — duplicate paste |
-| W601 | no `servings` |
-| W602 | no `times` |
-| W603 | no dish photo |
-| W604 | `source` entirely absent — provenance lost |
-| W605 | `[?]`, `[?: …]`, or `[illisible]` present — each location listed |
-| W606 | `to_taste: true` on something the registry does not class as seasoning or fat — probably should be a plain name without amount |
-| W607 | `name` contains a word from the known-brands list — suggest `brand:` |
-| W608 | same title as an existing recipe — offer to make both members of a family |
-| W609 | step text mentions an oven temperature but `oven` is absent |
-| W610 | unknown frontmatter key (`serving:`, `temps:`), in the frontmatter or inside `source`, `times`, `oven`, `yield`, `media`, a group or an ingredient entry — its value is ignored; the closest allowed key is suggested |
+| Code | Fixed by | Condition |
+|---|---|---|
+| W302 | ai | `name` ends in a known preparation participle (`émincé`, `râpé`, `haché`) |
+| W303 | app | `name` matches no registry alias and fuzzy matching found no candidate |
+| W304 | ai | `name` starts with a known size descriptor (`gros`, `petit`, `grande`) |
+| W305 | app | ingredient resolved by fuzzy match rather than exact alias — confirm |
+| W306 | app | `recipe:` points at a slug not in the vault yet |
+| W401 | ai | no method section in the body |
+| W402 | ai | a step exceeds ~400 characters — probably several steps merged |
+| W501 | app | tag not in the vocabulary, closest canonical suggested |
+| W502 | app | `family` within edit distance 2 of an existing family — drift suspected |
+| W503 | app | near-identical `title` already in the vault — duplicate paste |
+| W601 | app | no `servings` |
+| W602 | app | no `times` |
+| W603 | app | no dish photo |
+| W604 | app | `source` entirely absent — provenance lost |
+| W605 | app | `[?]`, `[?: …]`, or `[illisible]` present — each location listed |
+| W606 | ai | `to_taste: true` on something the registry does not class as seasoning or fat — probably should be a plain name without amount |
+| W607 | ai | `name` contains a word from the known-brands list — suggest `brand:` |
+| W608 | app | same title as an existing recipe — offer to make both members of a family |
+| W609 | ai | step text mentions an oven temperature but `oven` is absent |
+| W610 | ai | unknown frontmatter key (`serving:`, `temps:`), in the frontmatter or inside `source`, `times`, `oven`, `yield`, `media`, a group or an ingredient entry — its value is ignored; the closest allowed key is suggested |
 
 `E210` and `E211` are heuristics, deliberately hard errors rather than warnings.
 They catch the two AI mistakes that quietly corrupt the ingredient index, and a

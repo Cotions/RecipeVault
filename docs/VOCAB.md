@@ -137,6 +137,9 @@ bunch:  [botte, bouquet, bunch]
 slice:  [tranche, tranches, slice, slices]
 can:    [boîte, boite, bte, conserve, can, tin]
 packet: [sachet, paquet, enveloppe, packet, sachets, pqt]
+bottle: [bouteille, bouteilles, bottle, bottles]
+jar:    [pot, pots, jar, jars]
+bag:    [sac, sacs, bag, bags]
 ```
 
 "branche" alone is deliberately in no list: *branche de céleri* is a stalk,
@@ -156,6 +159,9 @@ No conversions between mass and volume without a per-ingredient `density`, and n
 generic mass for `tbsp`/`tsp` — a tablespoon of flour and one of honey are not the
 same weight. See `INGREDIENTS.md`.
 
-`clove`, `leaf`, `sprig`, `bunch`, `slice`, `can`, `packet` exist because real
+`clove`, `leaf`, `sprig`, `bunch`, `slice`, `can`, `packet`, `bottle`, `jar`, `bag` exist because real
 recipes use them constantly and folding them into `piece` loses the information
 that makes a price computable: one clove of garlic is not one garlic.
+
+`boîte` stays an alias of `can` only: on a Québec card it almost always means a
+can, not a box. `pot` is a jar (*1 pot de moutarde*).

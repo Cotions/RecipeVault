@@ -78,9 +78,10 @@ INGREDIENTS — in frontmatter, never as prose bullets
      2 · 0.5 · "1 1/2" · "2/3" · "1/8".  Range: qty plus qty_max.
 8. unit must be exactly one of:
      g, kg, ml, cl, l, cup, tbsp, tsp, pinch, drop, lb, oz, piece, clove,
-     leaf, sprig, stalk, bunch, slice, can, packet, qt, pint
+     leaf, sprig, stalk, bunch, slice, can, packet, bottle, jar, bag, qt, pint
    qty requires unit, unit requires qty. Countable things use unit: piece.
    A branch of celery is "stalk"; a sprig of thyme is "sprig".
+   "boîte" is a can; "pot" (1 pot de moutarde) is a jar; "sac" a bag.
 9. When the source gives two measures ("1 t (250 ml)"): metric goes in
    qty/unit, the other in alt:
      - { qty: 250, unit: ml, name: bouillon, alt: { qty: 1, unit: cup } }
