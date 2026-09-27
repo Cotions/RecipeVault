@@ -1,10 +1,10 @@
 // The one save path (docs/DATA-FLOW.md, "SAVE, in order"): check with the
 // vault's entries → refuse on any error → set status/added/updated →
 // serialize → write atomically → one git commit → index → push in background.
-// Order matters: a failed write indexes nothing; a failed index write leaves
-// the file and commit in place for `vault sync` to recover.
+// Order matters: a failed write or commit is rolled back and indexes nothing;
+// a failed index write leaves the file and commit in place for `vault sync`.
 
-import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDocument } from 'yaml';
 import { checkBatch, checkFile, hasErrors } from '../vault/check';
@@ -14,8 +14,8 @@ import { serialize } from '../vault/serialize';
 import type { Diagnostic, Recipe } from '../vault/types';
 import type { VaultEntry } from '../vault/rules/batch';
 import type { VaultContext } from './context';
-import { commitPaths } from './git';
-import { sha256 } from './index/build';
+import { commitPaths, unstage } from './git';
+import { refreshFamilies, sha256 } from './index/build';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
 import { loadVocab } from './vocab';
 
@@ -69,10 +69,16 @@ export function setFrontmatter(text: string, changes: Record<string, string>): s
 	if (lines[0]?.trimEnd() !== '---') return text;
 	const end = lines.findIndex((l, i) => i > 0 && l.trimEnd() === '---');
 	if (end === -1) return text;
-	const doc = parseDocument(lines.slice(1, end).join('\n'), { version: '1.2' });
-	if (doc.errors.length) return text;
-	for (const [k, v] of Object.entries(changes)) doc.set(k, v);
-	return ['---', doc.toString().replace(/\n$/, ''), ...lines.slice(end)].join('\n');
+	// Unresolved or self-referencing aliases throw on toString(): leave the text
+	// as written, and the checker reports E002 for it.
+	try {
+		const doc = parseDocument(lines.slice(1, end).join('\n'), { version: '1.2' });
+		if (doc.errors.length) return text;
+		for (const [k, v] of Object.entries(changes)) doc.set(k, v);
+		return ['---', doc.toString().replace(/\n$/, ''), ...lines.slice(end)].join('\n');
+	} catch {
+		return text;
+	}
 }
 
 /** Slugs taken in the vault, with what batch rules need: live recipes, files that fail to parse, the trash. */
@@ -126,22 +132,55 @@ function commitMessage(ready: Ready[]): string {
 	return joined.length <= 72 ? joined : `save: ${ready.length} recipes\n\n${lines.join('\n')}`;
 }
 
-/** Write the files, commit them together, index them, push in the background. Caller holds the lock. */
+/**
+ * Write the files, commit them together, index them, push in the background.
+ * Caller holds the lock. A failed write or commit puts every file back as it
+ * was (removed if new) and throws: a file the app wrote but git never
+ * recorded would be ignored by the watcher and never committed.
+ */
 async function writeCommitIndex(ctx: VaultContext, ready: Ready[], message = commitMessage(ready)): Promise<{ commit?: string; indexError?: string }> {
 	const paths = ready.map((r) => recipePath(r.slug));
-	for (const r of ready) {
-		const rel = recipePath(r.slug);
-		const abs = join(ctx.paths.root, rel);
-		const tmp = join(ctx.paths.recipes, `.${r.slug}.md.${process.pid}.tmp`);
-		writeFileSync(tmp, r.text);
-		ctx.ownWrites.set(rel, sha256(r.text));
-		renameSync(tmp, abs);
+	const written: { rel: string; abs: string; previous?: Buffer }[] = [];
+	const rollback = async () => {
+		for (const w of written.reverse()) {
+			ctx.ownWrites.delete(w.rel);
+			try {
+				if (w.previous) writeFileSync(w.abs, w.previous);
+				else rmSync(w.abs, { force: true });
+			} catch (e) {
+				ctx.log(`recipevault: could not put ${w.rel} back: ${(e as Error).message}`);
+			}
+		}
+		await unstage(ctx.paths.root, paths);
+	};
+	const plural = ready.length > 1;
+	try {
+		for (const r of ready) {
+			const rel = recipePath(r.slug);
+			const abs = join(ctx.paths.root, rel);
+			const tmp = join(ctx.paths.recipes, `.${r.slug}.md.${process.pid}.tmp`);
+			const previous = existsSync(abs) ? readFileSync(abs) : undefined;
+			try {
+				writeFileSync(tmp, r.text);
+				ctx.ownWrites.set(rel, sha256(r.text));
+				renameSync(tmp, abs);
+			} catch (e) {
+				ctx.ownWrites.delete(rel);
+				rmSync(tmp, { force: true });
+				throw e;
+			}
+			written.push({ rel, abs, previous });
+		}
+	} catch (e) {
+		await rollback();
+		throw new SaveError(`could not write the file${plural ? 's' : ''}, nothing was saved: ${(e as Error).message}`);
 	}
 	let commit: string | undefined;
 	try {
 		commit = await commitPaths(ctx.paths.root, paths, message, ctx.author);
 	} catch (e) {
-		throw new SaveError(`the file${ready.length > 1 ? 's were' : ' was'} written but the git commit failed: ${(e as Error).message}`);
+		await rollback();
+		throw new SaveError(`the git commit failed, nothing was saved: ${(e as Error).message}`);
 	}
 	let indexError: string | undefined;
 	try {
@@ -149,6 +188,7 @@ async function writeCommitIndex(ctx: VaultContext, ready: Ready[], message = com
 		const vocab = loadVocab(ctx.paths.vocab);
 		ctx.db.transaction(() => {
 			for (const r of ready) indexText(ctx.db, vocab, recipePath(r.slug), r.text);
+			refreshFamilies(ctx.db, vocab);
 		})();
 	} catch (e) {
 		indexError = (e as Error).message;

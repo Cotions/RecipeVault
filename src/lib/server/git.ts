@@ -2,6 +2,8 @@
 // goes through here, attributed to the configured author.
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { GitAuthor } from './config';
 
 export class GitError extends Error {
@@ -32,15 +34,44 @@ export function git(cwd: string, args: string[], author?: GitAuthor): Promise<st
 }
 
 /**
+ * The paths git can stage: those on disk, and those it tracks (a deletion).
+ * A path that is neither — a file moved away before it was ever committed —
+ * would make `git add` and `git commit` fail with "pathspec did not match".
+ */
+async function stageable(cwd: string, paths: string[]): Promise<string[]> {
+	const missing = paths.filter((p) => !existsSync(join(cwd, p)));
+	if (!missing.length) return paths;
+	const inHead = await git(cwd, ['ls-tree', '-r', '-z', '--name-only', 'HEAD', '--', ...missing]).catch(() => '');
+	const tracked = (await git(cwd, ['ls-files', '-z', '--', ...missing]) + inHead).split('\0').filter(Boolean);
+	const known = (p: string) => tracked.some((t) => t === p || t.startsWith(p.replace(/\/$/, '') + '/'));
+	return paths.filter((p) => existsSync(join(cwd, p)) || known(p));
+}
+
+/**
  * Stage exactly these paths (additions, changes and deletions) and commit only
  * them. Returns the new commit hash, or undefined when nothing changed.
  */
-export async function commitPaths(cwd: string, paths: string[], message: string, author: GitAuthor): Promise<string | undefined> {
+export async function commitPaths(cwd: string, all: string[], message: string, author: GitAuthor): Promise<string | undefined> {
+	const paths = await stageable(cwd, all);
+	if (!paths.length) return undefined;
 	await git(cwd, ['add', '-A', '--', ...paths]);
 	const staged = await git(cwd, ['diff', '--cached', '--name-only', '--', ...paths]);
 	if (!staged.trim()) return undefined;
 	await git(cwd, ['commit', '--quiet', '--no-verify', '-m', message, '--', ...paths], author);
 	return (await git(cwd, ['rev-parse', 'HEAD'])).trim();
+}
+
+/**
+ * Undo `git add` for these paths after a failed commit whose files were put
+ * back. Best effort: the next commit of the same paths restages them anyway.
+ */
+export async function unstage(cwd: string, all: string[]): Promise<void> {
+	try {
+		const paths = await stageable(cwd, all);
+		if (paths.length) await git(cwd, ['reset', '-q', '--', ...paths]);
+	} catch {
+		// the lock that failed the commit may still be there
+	}
 }
 
 /** True when the path has uncommitted changes (or is untracked). */

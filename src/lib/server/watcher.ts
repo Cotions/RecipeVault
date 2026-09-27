@@ -11,9 +11,9 @@ import { parse } from 'yaml';
 import { parseRecipe } from '../vault/parse';
 import { stripMarkers } from '../vault/markers';
 import type { VaultContext } from './context';
-import { commitPaths, isDirty } from './git';
+import { commitPaths, git, isDirty } from './git';
 import { refreshFamilies, retag, sha256 } from './index/build';
-import { isRecipeFile, syncFile, type FileOutcome } from './index/sync';
+import { isRecipeFile, syncFile, tagsHash, type FileOutcome } from './index/sync';
 import { INGREDIENTS, RECIPES, VOCAB } from './vault';
 import { loadVocab } from './vocab';
 
@@ -115,7 +115,7 @@ export class Watcher {
 		if (kind === 'vocab') {
 			const vocab = loadVocab(ctx.paths.vocab);
 			ctx.db.transaction(() => {
-				retag(ctx.db, vocab);
+				retag(ctx.db, vocab, tagsHash(ctx.paths.vocab));
 				refreshFamilies(ctx.db, vocab);
 			})();
 		}
@@ -125,7 +125,12 @@ export class Watcher {
 	private async handleRecipe(rel: string, text: string | undefined): Promise<void> {
 		const { ctx } = this;
 		const before = ctx.db.prepare('SELECT title FROM recipes WHERE file_path = ?').pluck().get(rel) as string | undefined;
-		const outcome = syncFile(ctx.db, ctx.paths, rel);
+		const vocab = loadVocab(ctx.paths.vocab);
+		const outcome = ctx.db.transaction(() => {
+			const o = syncFile(ctx.db, ctx.paths, rel, vocab);
+			if (o !== 'unchanged' && o !== 'problem') refreshFamilies(ctx.db, vocab);
+			return o;
+		})();
 		if (outcome === 'problem') {
 			this.opts.onHandled?.(rel, 'flagged');
 			return;
@@ -143,6 +148,40 @@ export class Watcher {
 		if (commit) ctx.pusher.schedule();
 		return !!commit;
 	}
+}
+
+/**
+ * Startup: commit recipe files edited, added or deleted while the app was
+ * stopped (the watcher only sees live events). Only files the index read
+ * cleanly are committed; a file that fails the checker stays uncommitted and
+ * flagged, as it would live. Call after `syncVault`, holding the lock.
+ */
+export async function commitExternalEdits(ctx: VaultContext): Promise<string | undefined> {
+	const { root } = ctx.paths;
+	const tokens = (await git(root, ['status', '--porcelain', '-z', '--untracked-files=all', '--', RECIPES])).split('\0');
+	const paths: string[] = [];
+	const titles: string[] = [];
+	for (let i = 0; i < tokens.length; i++) {
+		const t = tokens[i];
+		if (t.length < 4) continue;
+		if (t[0] === 'R' || t[0] === 'C') i++; // the source path follows
+		const rel = t.slice(3);
+		if (!rel.startsWith(`${RECIPES}/`) || !isRecipeFile(rel.slice(RECIPES.length + 1))) continue;
+		if (!existsSync(join(root, rel))) {
+			paths.push(rel);
+			titles.push(`delete (external): ${rel}`);
+			continue;
+		}
+		const title = ctx.db.prepare('SELECT title FROM recipes WHERE file_path = ? AND broken_json IS NULL').pluck().get(rel) as string | undefined;
+		if (title === undefined || ctx.db.prepare('SELECT 1 FROM problems WHERE file_path = ?').get(rel)) continue;
+		paths.push(rel);
+		titles.push(`edit (external): ${stripMarkers(title)}`);
+	}
+	if (!paths.length) return undefined;
+	const message = titles.length === 1 ? titles[0] : `edit (external): ${titles.length} recipes\n\n${titles.join('\n')}`;
+	const commit = await commitPaths(root, paths, message, ctx.author);
+	if (commit) ctx.pusher.schedule();
+	return commit;
 }
 
 function parses(fn: () => unknown): boolean {

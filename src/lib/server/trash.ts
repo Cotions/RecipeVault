@@ -1,14 +1,15 @@
 // Soft delete (docs/DATA-FLOW.md, "Delete"): never unlink. The file and its
 // media folder move to _trash/, one commit, index rows dropped. Restore
-// reverses it, refused if the slug has been taken again.
+// reverses it, refused if the slug has been taken again. A failed commit
+// moves everything back, so disk, git and index never disagree.
 
 import { existsSync, readdirSync, readFileSync, renameSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkFile } from '../vault/check';
 import { stripMarkers } from '../vault/markers';
 import type { VaultContext } from './context';
-import { commitPaths } from './git';
-import { deleteRecipeRows, sha256 } from './index/build';
+import { commitPaths, unstage } from './git';
+import { deleteRecipeRows, refreshFamilies, sha256 } from './index/build';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
 import { MEDIA, TRASH } from './vault';
 import { loadVocab } from './vocab';
@@ -37,11 +38,24 @@ export function remove(ctx: VaultContext, slug: string, expectedHash?: string): 
 		const now = new Date();
 		utimesSync(to, now, now); // the trash lists by deletion time
 		const media = join(root, MEDIA, slug);
-		if (existsSync(media)) renameSync(media, join(root, TRASH, slug));
-		const commit = await commitPaths(root, [recipePath(slug), trashPath(slug)], `delete: ${titleOf(text, slug)}`, ctx.author);
+		const mediaTrash = join(root, TRASH, slug);
+		const movedMedia = existsSync(media);
+		if (movedMedia) renameSync(media, mediaTrash);
+		const paths = [recipePath(slug), trashPath(slug)];
+		let commit: string | undefined;
+		try {
+			commit = await commitPaths(root, paths, `delete: ${titleOf(text, slug)}`, ctx.author);
+		} catch (e) {
+			// Put everything back: a delete that git did not record did not happen.
+			renameSync(to, from);
+			if (movedMedia) renameSync(mediaTrash, media);
+			await unstage(root, paths);
+			throw new TrashError(`la suppression n’a pas pu être enregistrée (git) ; rien n’a changé : ${(e as Error).message}`);
+		}
 		ctx.db.transaction(() => {
 			deleteRecipeRows(ctx.db, slug);
 			ctx.db.prepare('DELETE FROM problems WHERE file_path = ?').run(recipePath(slug));
+			refreshFamilies(ctx.db, loadVocab(ctx.paths.vocab));
 		})();
 		ctx.pusher.schedule();
 		return { commit };
@@ -60,11 +74,27 @@ export function restore(ctx: VaultContext, slug: string): Promise<{ commit?: str
 		const media = join(root, MEDIA, slug);
 		if (existsSync(mediaTrash) && existsSync(media)) throw new TrashError(`media/${slug} existe déjà`);
 		renameSync(from, to);
-		if (existsSync(mediaTrash)) renameSync(mediaTrash, media);
+		const movedMedia = existsSync(mediaTrash);
+		if (movedMedia) renameSync(mediaTrash, media);
 		const text = readFileSync(to, 'utf8');
-		ctx.ownWrites.set(recipePath(slug), sha256(text));
-		const commit = await commitPaths(root, [trashPath(slug), recipePath(slug)], `restore: ${titleOf(text, slug)}`, ctx.author);
-		indexText(ctx.db, loadVocab(ctx.paths.vocab), recipePath(slug), text);
+		const rel = recipePath(slug);
+		ctx.ownWrites.set(rel, sha256(text));
+		const paths = [trashPath(slug), rel];
+		let commit: string | undefined;
+		try {
+			commit = await commitPaths(root, paths, `restore: ${titleOf(text, slug)}`, ctx.author);
+		} catch (e) {
+			ctx.ownWrites.delete(rel);
+			renameSync(to, from);
+			if (movedMedia) renameSync(media, mediaTrash);
+			await unstage(root, paths);
+			throw new TrashError(`la restauration n’a pas pu être enregistrée (git) ; rien n’a changé : ${(e as Error).message}`);
+		}
+		const vocab = loadVocab(ctx.paths.vocab);
+		ctx.db.transaction(() => {
+			indexText(ctx.db, vocab, rel, text);
+			refreshFamilies(ctx.db, vocab);
+		})();
 		ctx.pusher.schedule();
 		return { commit };
 	});

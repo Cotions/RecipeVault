@@ -5,7 +5,7 @@ import { loadConfig, type Config } from './config';
 import { openVault, type VaultContext } from './context';
 import { syncVault, type SyncReport } from './index/sync';
 import { PasteLog } from './pastelog';
-import { Watcher } from './watcher';
+import { commitExternalEdits, Watcher } from './watcher';
 
 export interface App {
 	config: Config;
@@ -27,6 +27,9 @@ export function startApp(): App {
 	);
 	const watcher = new Watcher(ctx);
 	watcher.start();
+	ctx.lock
+		.run(() => commitExternalEdits(ctx))
+		.catch((e) => console.warn(`recipevault: could not commit edits made while the app was stopped: ${(e as Error).message}`));
 	ctx.pusher.schedule();
 	app = { config, ctx, watcher, pasteLog: new PasteLog(ctx.paths.pasteLog), startup };
 	return app;

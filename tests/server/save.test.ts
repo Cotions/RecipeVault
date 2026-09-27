@@ -126,6 +126,14 @@ describe('save', () => {
 		expect(row('fudge')).toMatchObject({ title: 'Fudge' });
 	});
 
+	it('setFrontmatter leaves a file with a broken alias as written, and the save is rejected with E002', async () => {
+		const text = recipe('X', 'note: *facultatif*\n');
+		expect(setFrontmatter(text, { slug: 'x-2' })).toBe(text);
+		const r = await save(v.ctx, [{ text, slug: 'x-2' }]);
+		expect(r.files[0].status).toBe('rejected');
+		expect(r.files[0].diagnostics.map((d) => d.code)).toContain('E002');
+	});
+
 	it('setFrontmatter keeps the rest of the file', () => {
 		const out = setFrontmatter(recipe('X'), { slug: 'x-2' });
 		expect(out).toContain('title: X\n');

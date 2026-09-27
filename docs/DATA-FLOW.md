@@ -33,7 +33,12 @@ paths at once.
 5. Generate thumbnails for any new images.
 
 Order is not arbitrary. File write fails → nothing indexed. Index write fails →
-the file exists and `vault sync` recovers it. Never the reverse.
+the file exists and `vault sync` recovers it. Never the reverse. A failed write
+or commit (a `.git/index.lock` left by another git command, say) puts every file
+back as it was — a new file removed, an edited one restored — and the save
+reports that nothing was saved: a file the app wrote but git never recorded
+would otherwise sit uncommitted, and the watcher, which ignores the app's own
+writes, would never commit it. Delete and restore roll back the same way.
 
 ### The paste box
 
@@ -47,12 +52,16 @@ offers to set `family`/`variant` on the new file (the existing file is left
 untouched in P1). The fix-request block holds only `ai` codes.
 
 **Web import.** A URL typed above the box is fetched by the server — `http`/`https`
-only, 10 s, 5 MB, redirects re-checked, and never a host resolving to a private,
+only, 10 s for the whole fetch (redirects and body included, not only while
+idle), 5 MB, redirects re-checked, and never a host resolving to a private,
 loopback, link-local or CGNAT address (checked on the address actually
-connected to). The page's schema.org `Recipe` JSON-LD is mapped to the schema
+connected to; an IPv4 address inside an IPv6 one — `::ffff:7f00:1`, NAT64,
+6to4 — is checked as IPv4). The page's schema.org `Recipe` JSON-LD is mapped to the schema
 (`extracted_by: web`, `source.type: website`, `source.url`); ingredient lines go
 through the quantity and unit parser, and a line that does not read cleanly
-becomes `{ name: "<the whole line> [?]" }` so the checker flags it. The result
+becomes `{ name: "<the whole line> [?]" }` so the checker flags it — including
+a quantity followed by a unit word the vocabulary does not know
+(`2 cuillères à soupe …`), which is never read as `piece`. The result
 lands in the box for review; it is never saved directly. No JSON-LD → the page
 says to use the AI path.
 
@@ -67,7 +76,7 @@ real use. Losing the log is fine.
 ### Delete
 
 Never unlink. Move the file to `_trash/<slug>.md` and its `media/<slug>/` folder alongside it, commit, remove the
-index rows. A trash view (`/corbeille`) restores it — refused if the slug has been
+index rows (a file git never tracked is moved and committed all the same). A trash view (`/corbeille`) restores it — refused if the slug has been
 taken again. A slug in the trash counts as taken for a new paste (`E103`, offered
 only the suffixed slug), so a deleted slug is never silently reused. Combined
 with the git history this means no single click she makes is unrecoverable.
@@ -128,9 +137,10 @@ and rebuilt (it is a cache). In outline:
 |---|---|---|
 | `recipes` | recipe | the columns below, plus `data_json` (the parsed recipe, so a page renders without a disk read), `body_md`, `file_hash`, `uncertain` (count of `[?]`/`[?: …]`/`[illisible]`), `photo`, and `broken_json` while the file on disk fails the checker |
 | `problems` | file failing the checker | codes and paths; the file's last good `recipes` rows, if any, stay searchable |
-| `families` | family in use or in `vocab/families.yaml` | labels from the vocabulary |
-| `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten |
-| `seasons` | recipe × season | |
+| `families` | family in use or in `vocab/families.yaml` | labels from the vocabulary; refreshed on every save, delete, restore, outside edit and sync |
+| `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten. A vocabulary change recomputes every row and the FTS `tags` column |
+| `seasons` | recipe × season | canonical value (`printemps`, `ete`, `automne`, `hiver`); aliases from `VOCAB.md` mapped at index time |
+| `meta` | key | index bookkeeping: `tags_hash`, the hash of `vocab/tags.yaml` at the last retag |
 | `ingredients` | ingredient item | `group_idx`, `group_name`, `group_optional`, `qty`, `qty_max` (numeric), `unit`, `name` (as written), `optional`, `recipe` (sub-recipe slug), `item` (normalized name: lowercase, NFC, no accents, markers stripped — registry resolution replaces it in P1.5) |
 | `media` | recipe × media file | |
 | `recipes_fts` | recipe | FTS5 over title, body, ingredient names, author, tags |
@@ -163,7 +173,10 @@ unchanged unless `--force`. Reparse new and changed files. Drop index rows whose
 file no longer exists. Report counts plus every file that failed to parse. A file
 that fails keeps its last good rows, flagged with its codes; the recipe page shows
 them in a banner. A file whose `slug` differs from its file name is not indexed
-(the slug is the file name). `vault reindex` deletes the index and rebuilds it.
+(the slug is the file name). When `vocab/tags.yaml` differs from the one the
+index last used (its hash is kept in `meta`), every tag row is recomputed even
+though no recipe file changed — a `git pull` of the vocabulary while the app was
+down. `vault reindex` deletes the index and rebuilds it.
 
 With hashing, a no-op sync over 5000 files is a couple of seconds. Run it on app
 startup so hand-edits in a text editor are always picked up.
@@ -189,7 +202,11 @@ and `prices.csv`:
 - Ignore the app's own writes (it knows the hash it just wrote), or every save would
   echo back as an external edit.
 
-`vault sync` on startup still covers edits made while the app was stopped.
+`vault sync` on startup still covers edits made while the app was stopped, and
+the app then commits every recipe file git shows as changed, new or deleted,
+if it reads cleanly, as `edit (external): <title>` (several in one commit) —
+the watcher only sees live events. A file that fails the checker stays
+uncommitted and flagged, as it would live.
 
 ## Family diff table
 
@@ -237,3 +254,11 @@ home network; outside access and HTTPS come from `tailscale serve`
 and `cache/` are never served (photos go through `/media/…`, images only), and a
 writing request is refused unless its `Origin` names the host it was sent to
 (CSRF), which works for both the LAN address and the Tailscale name.
+
+Because the Origin check compares two headers a page controls, it does not stop
+**DNS rebinding**: a page on `evil.example` whose name is re-pointed at the LAN
+address becomes same-origin with the app. So every request, reads included, must
+carry a `Host` the app is served on, else `421`: `localhost`, any IP literal
+(v4 or v6 — rebinding needs a name), the machine's own name and `<name>.local`,
+any `*.ts.net` name (Tailscale's DNS, not the attacker's), and the names listed
+in the config's `hosts` (`DEPLOY.md`).
