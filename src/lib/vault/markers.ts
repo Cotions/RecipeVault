@@ -50,3 +50,26 @@ export function findBadMarkers(s: string): BadMarker[] {
 	for (const m of noBrackets.matchAll(PROSE_RE)) out.push({ kind: 'prose', text: m[0] });
 	return out;
 }
+
+/**
+ * A value that starts with a marker and was not quoted is read by YAML as a
+ * list: `name: [illisible]` → ['illisible'], `[?]` → [{ '': null }],
+ * `[?: porc]` → [{ '?': 'porc' }], `[+]` → ['+']. Returns the marker as it was
+ * written, or undefined for any other value.
+ */
+export function misreadMarker(v: unknown): string | undefined {
+	if (!Array.isArray(v) || v.length !== 1) return undefined;
+	const x: unknown = v[0];
+	if (x === 'illisible') return '[illisible]';
+	if (x === '+') return '[+]';
+	if (x === '?') return '[?]';
+	if (typeof x === 'string' && x.startsWith('?:')) return `[${x}]`;
+	if (typeof x === 'object' && x !== null && !Array.isArray(x)) {
+		const entries = Object.entries(x);
+		if (entries.length !== 1) return undefined;
+		const [k, val] = entries[0];
+		if (k === '' && val === null) return '[?]';
+		if (k === '?' && (typeof val === 'string' || typeof val === 'number')) return `[?: ${val}]`;
+	}
+	return undefined;
+}

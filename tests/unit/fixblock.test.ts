@@ -75,6 +75,15 @@ describe('renderFixBlock', () => {
 		expect(renderFixBlock([{ text, diagnostics: [e103] }], [])).toBe('');
 	});
 
+	it('shows only ai codes: app warnings stay out', () => {
+		const text = fixture('invalid/E201-tasse.md').replace('author: Grand-maman Lucienne', 'author: Grand-maman Lucienne [?]').replace('servings: 8\n', 'serving: 8\n');
+		const block = renderFixBlock([{ text, diagnostics: checkRecipe(text).diagnostics }], []);
+		expect(block).toContain('[E201]');
+		expect(block).toContain('[W610]');
+		expect(block).not.toContain('W605');
+		expect(block).not.toContain('W601');
+	});
+
 	it('never shows info diagnostics', () => {
 		expect(blockFor('invalid/E112-status-added.md')).not.toContain('E112');
 	});

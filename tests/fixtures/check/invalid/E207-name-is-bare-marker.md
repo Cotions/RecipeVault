@@ -1,19 +1,3 @@
-RECIPEVAULT — FILE REJECTED
-
-Your previous output did not validate. Fix every ERROR below, then return the
-COMPLETE corrected file inside one ```markdown fence. Output nothing else. Do
-not explain the changes. Do not return a partial file or a diff.
-
-ERRORS — must fix:
-  [E210] ingredients[0].items[0].name: `name: "1 tasse de farine"` contains a
-         quantity.
-         Move it: `{ qty: 1, unit: cup, name: farine }`
-
-WARNINGS — fix if you can, the file will save without them:
-  [W610] serving: unknown key `serving`; its value is ignored.
-         Did you mean `servings`?
-
---- YOUR FILE ---
 ---
 schema: 3
 title: Pouding chômeur
@@ -26,12 +10,12 @@ times:
   prep: 15m
   cook: 40m
 oven: { temp: 350, unit: F }
-serving: 8
+servings: 8
 tags: [dessert, quebecois]
 ingredients:
   - group: Pâte
     items:
-      - { name: 1 tasse de farine }
+      - { qty: 1, unit: cup, name: [illisible] }
       - { qty: "1/2", unit: cup, name: sucre }
       - { qty: 2, unit: tsp, name: poudre à pâte }
       - { qty: "1/2", unit: cup, name: lait }
@@ -49,4 +33,3 @@ extracted_by: ai
 2. Verser la pâte dans un moule beurré.
 3. Faire fondre la cassonade dans l'eau bouillante avec le beurre, verser sur la pâte.
 4. Cuire 40 min.
---- END FILE ---

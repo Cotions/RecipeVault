@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { findBadMarkers, findMarkers, stripMarkers } from '../../src/lib/vault/markers';
+import { parse } from 'yaml';
+import { findBadMarkers, findMarkers, misreadMarker, stripMarkers } from '../../src/lib/vault/markers';
 
 describe('findMarkers', () => {
 	it('finds all four kinds', () => {
@@ -49,5 +50,23 @@ describe('findBadMarkers', () => {
 		'Pourquoi pas?'
 	])('accepts %s', (s) => {
 		expect(findBadMarkers(s)).toEqual([]);
+	});
+});
+
+describe('misreadMarker', () => {
+	it.each([
+		['[illisible]', '[illisible]'],
+		['[?]', '[?]'],
+		['[+]', '[+]'],
+		['[?: porc]', '[?: porc]'],
+		['[?:porc]', '[?:porc]']
+	])('recognizes unquoted %s read by YAML as a list', (written, back) => {
+		const value = parse(`v: ${written}`, { version: '1.2' }).v;
+		expect(Array.isArray(value)).toBe(true);
+		expect(misreadMarker(value)).toBe(back);
+	});
+
+	it.each([['a', 'b'], ['illisible', 'x'], ['farine'], [{ a: 1 }], 'illisible', null])('ignores %j', (v) => {
+		expect(misreadMarker(v)).toBeUndefined();
 	});
 });

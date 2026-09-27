@@ -41,6 +41,9 @@ export const UNITS = [
 	'slice',
 	'can',
 	'packet',
+	'bottle',
+	'jar',
+	'bag',
 	'qt',
 	'pint'
 ] as const;

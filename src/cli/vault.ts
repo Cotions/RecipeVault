@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
 	addOutsideText,
 	aiErrors,
+	fixerOf,
 	checkBatch,
 	hasErrors,
 	parseRecipe,
@@ -171,7 +172,7 @@ function titleOf(text: string): string | undefined {
 }
 
 function printFixBlock(result: BatchResult, inputs: { name: string; text: string }[]): void {
-	// Files whose only errors the app resolves (E103) need nothing from the AI:
+	// Files whose only errors are `app` codes need nothing from the AI:
 	// they count as passed so the AI does not resend them.
 	const forAi = (i: number) => aiErrors(result.files[i].diagnostics).length > 0;
 	const failed = result.files
@@ -239,7 +240,7 @@ function printHuman(result: BatchResult, o: CheckOptions): void {
 			for (const s of result.summary) {
 				const tint = s.severity === 'error' ? red : s.severity === 'warning' ? yellow : dim;
 				const files = new Set(all.filter((d) => d.code === s.code).map((d) => d.file)).size;
-				console.log(`  ${tint(s.code.padEnd(5))} ${String(s.count).padStart(4)}  in ${plural(files, 'file')}`);
+				console.log(`  ${tint(s.code.padEnd(5))} ${String(s.count).padStart(4)}  in ${plural(files, 'file').padEnd(9)}  ${dim(fixerOf(s.code) === 'app' ? 'app' : 'ai')}`);
 			}
 		}
 		console.log('');

@@ -2,6 +2,7 @@
 
 import type { BodyChunk } from '../body';
 import type { Body, Diagnostic, Lang, Severity } from '../types';
+import { misreadMarker } from '../markers';
 import { suggestKey } from '../vocab';
 
 export interface RuleContext {
@@ -27,6 +28,13 @@ export function createContext(
 		bodyChunks,
 		lang: fm.lang === 'en' ? 'en' : 'fr',
 		report(code, path, message, fix, severity) {
+			// Whatever the rule, a marker read as a list has one cause and one fix.
+			const marker = path ? misreadMarker(valueAt(fm, path)) : undefined;
+			if (marker && path) {
+				const key = path.replace(/^.*\./, '').replace(/\[\d+\]$/, '');
+				message = `\`${key}: ${marker}\` was read as a list, not text — a value starting with a marker must be quoted.`;
+				fix = `Wrap the value in double quotes: \`${key}: "${marker}"\`.`;
+			}
 			const d: Diagnostic = { code, severity: severity ?? severityOf(code), path, message };
 			if (fix) d.fix = fix;
 			out.push(d);
@@ -89,7 +97,20 @@ export function checkKeys(
 
 /** Every string value in a data tree, with its path. */
 export function* strings(v: unknown, path: string): Generator<{ path: string; value: string }> {
+	// A marker misread as a list is reported by the rule for its field, not as text.
+	if (misreadMarker(v)) return;
 	if (typeof v === 'string') yield { path, value: v };
 	else if (Array.isArray(v)) for (let i = 0; i < v.length; i++) yield* strings(v[i], join(path, i));
 	else if (isMap(v)) for (const [k, x] of Object.entries(v)) yield* strings(x, join(path, k));
+}
+
+/** The value at a diagnostic path like 'ingredients[0].items[3].name', if any. */
+export function valueAt(root: unknown, path: string): unknown {
+	let cur: unknown = root;
+	for (const part of path.match(/[^.[\]]+|\[\d+\]/g) ?? []) {
+		if (part.startsWith('[')) cur = Array.isArray(cur) ? cur[Number(part.slice(1, -1))] : undefined;
+		else cur = isMap(cur) ? cur[part] : undefined;
+		if (cur === undefined) return undefined;
+	}
+	return cur;
 }

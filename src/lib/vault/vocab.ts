@@ -50,7 +50,10 @@ export const UNIT_ALIASES: Record<Unit, string[]> = {
 	bunch: ['botte', 'bouquet', 'bunch'],
 	slice: ['tranche', 'tranches', 'slice', 'slices'],
 	can: ['boîte', 'boite', 'bte', 'conserve', 'can', 'tin'],
-	packet: ['sachet', 'paquet', 'enveloppe', 'packet', 'sachets', 'pqt']
+	packet: ['sachet', 'paquet', 'enveloppe', 'packet', 'sachets', 'pqt'],
+	bottle: ['bouteille', 'bouteilles', 'bottle', 'bottles'],
+	jar: ['pot', 'pots', 'jar', 'jars'],
+	bag: ['sac', 'sacs', 'bag', 'bags']
 };
 
 export function isUnit(v: unknown): v is Unit {
@@ -144,7 +147,20 @@ export function findAllQtyUnits(text: string): QtyUnitMatch[] {
 }
 
 /** Units that count or contain rather than measure: a size in `note` is fine with these. */
-export const COUNT_UNITS: readonly Unit[] = ['piece', 'clove', 'leaf', 'sprig', 'stalk', 'bunch', 'slice', 'can', 'packet'];
+export const COUNT_UNITS: readonly Unit[] = [
+	'piece',
+	'clove',
+	'leaf',
+	'sprig',
+	'stalk',
+	'bunch',
+	'slice',
+	'can',
+	'packet',
+	'bottle',
+	'jar',
+	'bag'
+];
 
 /** Body headings, docs/RECIPE-SCHEMA.md. Matched case- and diacritic-insensitively. */
 export const HEADING_ALIASES: Record<Exclude<SectionKind, 'other'>, string[]> = {

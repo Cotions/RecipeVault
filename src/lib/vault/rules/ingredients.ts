@@ -93,7 +93,9 @@ function checkItem(ctx: RuleContext, item: unknown, path: string): void {
 	checkKeys(ctx, item, path, ALLOWED_KEYS.item);
 
 	const name = item.name;
-	if (typeof name !== 'string' || name.trim() === '') {
+	if (!isBlank(name) && typeof name !== 'string') {
+		ctx.report('E207', join(path, 'name'), `\`name: ${show(name)}\` is not text.`, 'Write the name as text, e.g. `name: farine`.');
+	} else if (typeof name !== 'string' || name.trim() === '') {
 		ctx.report('E207', path, 'ingredient entry has no `name`.', 'Add `name:` — the generic ingredient, e.g. `name: farine`.');
 	} else {
 		checkNameText(ctx, name, join(path, 'name'), item);
@@ -146,7 +148,7 @@ export function checkAmount(ctx: RuleContext, obj: Record<string, unknown>, path
 			ctx.report(
 				'E204',
 				join(path, 'qty'),
-				`\`qty: ${show(obj.qty)}\` is not a number or a fraction string (${q.reason}).`,
+				`\`qty: ${show(obj.qty)}\` is not a number or a fraction string${detail(q.reason)}.`,
 				q.suggestion
 					? `Write \`qty: ${q.suggestion}\`.`
 					: 'Use a number (`2`, `0.5`) or a fraction in quotes as written (`"1 1/2"`, `"2/3"`); a range is `qty` plus `qty_max`.'
@@ -175,7 +177,7 @@ export function checkAmount(ctx: RuleContext, obj: Record<string, unknown>, path
 			ctx.report(
 				'E204',
 				join(path, 'qty_max'),
-				`\`qty_max: ${show(obj.qty_max)}\` is not a number or a fraction string (${m.reason}).`,
+				`\`qty_max: ${show(obj.qty_max)}\` is not a number or a fraction string${detail(m.reason)}.`,
 				m.suggestion ? `Write \`qty_max: ${m.suggestion}\`.` : 'Use a number or a fraction in quotes, like `qty`.'
 			);
 		else if (qtyValue !== undefined && m.value <= qtyValue)
@@ -285,6 +287,10 @@ function entryFromText(text: string, lang: Lang, extra = ''): string {
 		.trim();
 	const qty = fmt(m.qty.replace(/\s+/g, ' ').replace(',', '.'));
 	return `{ qty: ${qty}, unit: ${unit}, name: ${rest || '…'}${extra} }`;
+}
+
+function detail(reason: string): string {
+	return reason === 'not a number or a fraction string' ? '' : ` (${reason})`;
 }
 
 function pick(item: Record<string, unknown>, keys: string[]): string {

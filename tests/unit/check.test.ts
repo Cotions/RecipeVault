@@ -150,6 +150,23 @@ describe('markers', () => {
 	});
 });
 
+describe('a value starting with an unquoted marker', () => {
+	it('fires the field\'s own code with the quote fix', () => {
+		const text = edit('title: Pouding chômeur', 'title: [?: Pouding]').replace('{ qty: 1, unit: cup, name: farine }', '{ qty: [?], unit: cup, name: farine }');
+		const ds = checkRecipe(text).diagnostics;
+		expect(ds.map((d) => [d.code, d.path, d.fix])).toEqual([
+			['E204', 'ingredients[0].items[0].qty', 'Wrap the value in double quotes: `qty: "[?]"`.'],
+			['E101', 'title', 'Wrap the value in double quotes: `title: "[?: Pouding]"`.']
+		]);
+	});
+
+	it('followed by text it breaks the YAML: E002 names the value to quote', () => {
+		const [d] = checkRecipe(edit('{ qty: 1, unit: cup, name: farine }', '{ qty: 1, unit: cup, name: [+] farine }')).diagnostics;
+		expect(d.code).toBe('E002');
+		expect(d.fix).toContain('`name: "[+] farine"`');
+	});
+});
+
 describe('body rules', () => {
 	it('W401 when there is no method and no other heading', () => {
 		expect(codes(BASE.slice(0, BASE.indexOf('## Préparation')))).toEqual(['W401']);

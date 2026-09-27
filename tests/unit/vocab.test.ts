@@ -34,6 +34,9 @@ describe('unitForAlias', () => {
 		['L', 'fr', 'l'],
 		['gousses', 'fr', 'clove'],
 		['boîte', 'fr', 'can'],
+		['bouteille', 'fr', 'bottle'],
+		['pot', 'fr', 'jar'],
+		['sacs', 'fr', 'bag'],
 		['t.', 'fr', 'cup'],
 		['t', 'fr', 'cup'],
 		['t', 'en', 'tsp'],
@@ -62,7 +65,8 @@ describe('findQtyUnit', () => {
 		['environ 1 1/2 livre', '1 1/2', 'livre'],
 		['ou 1 ml piment', '1', 'ml'],
 		['2 Tasses', '2', 'Tasses'],
-		['250ml', '250', 'ml']
+		['250ml', '250', 'ml'],
+		['1 pot de moutarde', '1', 'pot']
 	])('%s', (text, qty, unit) => {
 		const m = findQtyUnit(text);
 		expect(m?.qty).toBe(qty);
