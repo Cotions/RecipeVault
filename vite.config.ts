@@ -12,7 +12,11 @@ export default defineConfig({
 			},
 
 			// Self-hosted on the home network: a plain Node server (see docs/DEPLOY.md).
-			adapter: adapter()
+			adapter: adapter(),
+			// The app is reached as http://<lan-host>:3370 and through Tailscale
+			// HTTPS, so no single origin is right. hooks.server.ts checks instead
+			// that a writing request's Origin names the host it was sent to.
+			csrf: { trustedOrigins: ['*'] }
 		})
 	]
 });
