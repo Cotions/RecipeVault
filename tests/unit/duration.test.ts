@@ -43,14 +43,18 @@ describe('suggestDuration', () => {
 		['1h 15m', '1h15m'],
 		['1 h 30', '1h30m'],
 		['30 min', '30m'],
-		['1 à 2 heures', '1h-2h'],
-		[30, '30m']
+		['1 à 2 heures', '1h-2h']
 	])('%j → %s', (input, out) => {
 		expect(suggestDuration(input)).toBe(out);
 	});
 
 	it('gives up on text it cannot read', () => {
 		expect(suggestDuration('toute la nuit')).toBeUndefined();
+	});
+
+	it('does not guess the unit of a bare number', () => {
+		expect(suggestDuration(30)).toBeUndefined();
+		expect(suggestDuration(1.5)).toBeUndefined();
 	});
 });
 

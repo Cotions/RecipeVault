@@ -29,8 +29,12 @@ export function parseBody(text: string): ParsedBody {
 		if (FENCE_RE.test(line)) inFence = !inFence;
 		const h = inFence ? null : line.match(HEADING_RE);
 		// Level 1–2 headings open sections; deeper ones are sub-headings inside
-		// the current section, unless no section is open yet.
-		if (h && (h[1].length <= 2 || sections.length === 0)) {
+		// the current section, unless no section is open yet, or the heading is a
+		// method heading under an unrecognized one (`## Tarte` then `### Préparation`).
+		const current = sections[sections.length - 1];
+		const opens =
+			!!h && (h[1].length <= 2 || !current || (current.kind === 'other' && headingKind(h[2]) === 'method'));
+		if (h && opens) {
 			sections.push({ kind: headingKind(h[2]), heading: h[2], level: h[1].length, text: '', lines: [] });
 			continue;
 		}

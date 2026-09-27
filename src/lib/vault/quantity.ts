@@ -52,10 +52,12 @@ function suggest(s: string): string | undefined {
 		const frac = VULGAR[m[2]];
 		return m[1] ? `"${m[1]} ${frac}"` : `"${frac}"`;
 	}
+	// '1-1/2' as recipe cards write one and a half.
+	if ((m = t.match(/^(\d+)\s*-\s*(\d+)\/(\d+)$/)) && +m[2] < +m[3]) return `"${m[1]} ${m[2]}/${m[3]}"`;
 	if ((m = t.match(/^(\S+)\s*(?:-|–|à|to|ou|or)\s*(\S+)$/))) {
 		const a = parseQuantity(m[1]);
 		const b = parseQuantity(m[2]);
-		if (a.ok && b.ok) return `${fmt(m[1])}, qty_max: ${fmt(m[2])}`;
+		if (a.ok && b.ok && b.value > a.value) return `${fmt(m[1])}, qty_max: ${fmt(m[2])}`;
 	}
 	return undefined;
 }

@@ -97,7 +97,8 @@ export function unitForAlias(alias: string, lang: Lang): Unit | null | undefined
 // Pattern for "a number, then a unit alias" inside free text (E210, E216). Run
 // against accent-stripped text; all aliases of both languages are included since
 // this only detects, it does not convert.
-const NUMBER_SRC = String.raw`(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔⅛]|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])`;
+// '1-1/2' is a mixed number as recipe cards write it, not a range.
+const NUMBER_SRC = String.raw`(\d+-\d+\/\d+|\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔⅛]|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])`;
 const ALIAS_SRC = [...new Set(UNITS.flatMap((u) => UNIT_ALIASES[u]).map((a) => stripAccents(a)))]
 	.sort((a, b) => b.length - a.length)
 	.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*'))

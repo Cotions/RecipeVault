@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkRecipe, sortDiagnostics } from '../../src/lib/vault/check';
+import { checkBatch, checkRecipe, sortDiagnostics } from '../../src/lib/vault/check';
 import type { Diagnostic } from '../../src/lib/vault/types';
 
 const BASE = readFileSync('tests/fixtures/check/invalid/E201-tasse.md', 'utf8').replace('unit: tasse', 'unit: cup');
@@ -115,6 +115,19 @@ describe('E210 / E216 fixes', () => {
 		expect(codes(item(entry))).toEqual(['E216']);
 	});
 
+	it.each([
+		['{ qty: 1, unit: piece, name: courge, note: "environ 450 g, ou 2 t. de restes" }', '`or: [{ qty: 2, unit: cup, name: … }]`'],
+		['{ qty: 1, unit: can, name: lait, note: "385 ml ou environ 1 t." }', '`or: [{ qty: 1, unit: cup, name: … }]`']
+	])('puts the amount after ou in or: %s', (entry, fix) => {
+		const [d] = find(item(entry), 'E216');
+		expect(d.fix).toContain(fix);
+	});
+
+	it('reads 1-1/2 in a name as a mixed number', () => {
+		const [d] = find(edit('{ qty: 1, unit: cup, name: farine }', '{ name: 1-1/2 tasse de farine }'), 'E210');
+		expect(d.fix).toBe('Move it: `{ qty: "1 1/2", unit: cup, name: farine }`');
+	});
+
 	it('allows a can size in note', () => {
 		expect(codes(edit('{ qty: 2, unit: tbsp, name: beurre }', '{ qty: 1, unit: can, name: lait évaporé, note: "385 ml" }'))).toEqual([]);
 	});
@@ -167,6 +180,55 @@ describe('a value starting with an unquoted marker', () => {
 	});
 });
 
+describe('a list entry starting with an unquoted marker', () => {
+	it('quotes only that entry, keeping the list', () => {
+		const tags = find(edit('tags: [dessert, quebecois]', 'tags: [dessert, [illisible], quebecois]'), 'E218');
+		expect(tags.map((d) => [d.path, d.fix])).toEqual([['tags[1]', 'Wrap the entry in double quotes: `tags: [dessert, "[illisible]", quebecois]`.']]);
+		const [or] = find(edit('{ qty: 2, unit: tbsp, name: beurre }', '{ qty: 2, unit: tbsp, name: beurre, or: [[?]] }'), 'E215');
+		expect(or.fix).toBe('Wrap the entry in double quotes: `or: ["[?]"]`.');
+	});
+});
+
+describe('fixes are valid YAML', () => {
+	it.each([
+		['123', '"123"'],
+		['true', '"true"']
+	])('quotes a slug that would not read as text: %s', (slug, fixed) => {
+		const [d] = find(edit('slug: pouding-chomeur', `slug: ${slug}`), 'E102');
+		expect(d.fix).toBe(`Write \`slug: ${fixed}\`.`);
+	});
+
+	it('never shows [object Object] for a mapping title', () => {
+		const [d] = find(edit('title: Pouding chômeur', 'title:\n  fr: Pouding\n  en: Pudding'), 'E101');
+		expect(d.fix).not.toContain('[object Object]');
+	});
+});
+
+describe('E002 on YAML alias errors', () => {
+	it.each([
+		['an unresolved alias', 'servings: *huit*', 'Unresolved alias'],
+		['a self-referencing anchor', 'x: &x { y: *x }', 'refers to itself'],
+		['too many aliases', `a: &a [${'x,'.repeat(10)}]\nb: &b [${'*a,'.repeat(10)}]\nc: [${'*b,'.repeat(11)}]`, 'alias count']
+	])('%s', (_, yaml, message) => {
+		const [d] = checkRecipe(edit('servings: 8', yaml)).diagnostics;
+		expect(d.code).toBe('E002');
+		expect(d.message).toContain(message);
+	});
+
+	it('names the value to quote', () => {
+		const [d] = checkRecipe(edit('servings: 8', 'servings: *huit*')).diagnostics;
+		expect(d.fix).toContain('`servings: "*huit*"`');
+	});
+
+	it('does not stop a batch', () => {
+		const r = checkBatch([
+			{ name: 'a.md', text: edit('servings: 8', 'servings: *huit*') },
+			{ name: 'b.md', text: BASE.replace('slug: pouding-chomeur', 'slug: autre') }
+		]);
+		expect(r.files.map((f) => f.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code))).toEqual([['E002'], []]);
+	});
+});
+
 describe('E218 text fields', () => {
 	it('fires on a list, mapping or boolean in a text field, with its path', () => {
 		const text = edit('tags: [dessert, quebecois]', 'tags: [dessert, true]').replace('name: eau, note: bouillante', 'name: eau, prep: { a: 1 }');
@@ -202,6 +264,26 @@ describe('body rules', () => {
 	it('W609 on a temperature in a step without oven', () => {
 		const [d] = find(edit('oven: { temp: 350, unit: F }\n', '').replace('4. Cuire 40 min.', '4. Cuire à 375°F, 40 min.'), 'W609');
 		expect(d.fix).toBe('Add `oven: { temp: 375, unit: F }`.');
+	});
+
+	it.each([
+		['Cuire à 350º, 40 min.', 350],
+		['Bake at 350 degrees for 40 minutes.', 350],
+		['Préchauffer le four à 375.', 375],
+		['Four 350, 40 min.', 350],
+		['Preheat the oven to 400.', 400]
+	])('W609 on %s', (step, temp) => {
+		const [d] = find(edit('oven: { temp: 350, unit: F }\n', '').replace('4. Cuire 40 min.', `4. ${step}`), 'W609');
+		expect(d?.fix).toBe(`Add \`oven: { temp: ${temp}, unit: F }\`.`);
+	});
+
+	it('no E301 for a method heading under a title heading', () => {
+		expect(codes(edit('## Préparation', '## Pouding\n\n### Préparation'))).toEqual([]);
+	});
+
+	it('E109 gives no guessed value for a bare number', () => {
+		const [d] = find(edit('  cook: 40m', '  cook: 1.5'), 'E109');
+		expect(d.fix).toBe('Durations are written `30m`, `1h`, `1h15m`; ranges `45m-50m`.');
 	});
 });
 

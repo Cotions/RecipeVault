@@ -3,7 +3,9 @@
 
 import { normalizeText } from './normalize';
 
-const OPEN_RE = /^ {0,3}(`{3,}|~{3,})\s*([^\s`]*)\s*$/;
+// The info string's first word is the language (CommonMark); the rest, like
+// `title="pain.md"`, is ignored.
+const OPEN_RE = /^ {0,3}(`{3,}|~{3,})[ \t]*([^\s`]*)(?:[ \t]+[^`]*)?$/;
 
 export interface SplitPaste {
 	files: string[];

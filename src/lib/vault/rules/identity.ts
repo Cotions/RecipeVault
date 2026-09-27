@@ -1,5 +1,6 @@
 // Identity and bookkeeping: E101, E102, E104, E105, E107, E110, E112, W610.
 
+import { parse } from 'yaml';
 import { slugify, SLUG_RE } from '../slug';
 import { ALLOWED_KEYS, MISPLACED_TOP_KEYS, SCHEMA_VERSIONS } from '../vocab';
 import { checkKeys, isBlank, isMap, show, type RuleContext } from './context';
@@ -19,7 +20,11 @@ export function checkIdentity(ctx: RuleContext): void {
 	if (isBlank(title)) {
 		ctx.report('E101', 'title', '`title` is missing and is required.', 'Add `title:` as written on the source; if it has none, make one and mark it `[+]`.');
 	} else if (!titleOk) {
-		ctx.report('E101', 'title', `\`title: ${show(title)}\` is not text.`, `Write the title in quotes: \`title: "${String(title)}"\`.`);
+		const fix =
+			typeof title === 'object'
+				? 'Write the title as one line of text in quotes, `title: "…"`, in the language of the recipe.'
+				: `Write the title in quotes: \`title: "${String(title)}"\`.`;
+		ctx.report('E101', 'title', `\`title: ${show(title)}\` is not text.`, fix);
 	}
 
 	if (!isBlank(fm.slug)) {
@@ -29,7 +34,7 @@ export function checkIdentity(ctx: RuleContext): void {
 				'E102',
 				'slug',
 				`\`slug: ${show(fm.slug)}\` is not lowercase ASCII words joined by hyphens.`,
-				better ? `Write \`slug: ${better}\`.` : 'Use lowercase letters, digits and hyphens only, no accents.'
+				better ? `Write \`slug: ${yamlText(better)}\`.` : 'Use lowercase letters, digits and hyphens only, no accents.'
 			);
 		}
 	} else if (titleOk && slugify(title as string) === '') {
@@ -69,4 +74,9 @@ export function checkIdentity(ctx: RuleContext): void {
 	}
 
 	if (isMap(fm.media)) checkKeys(ctx, fm.media, 'media', ALLOWED_KEYS.media);
+}
+
+/** A string as a YAML value: quoted when it would read as a number, boolean or null. */
+function yamlText(s: string): string {
+	return typeof parse(s, { version: '1.2' }) === 'string' ? s : `"${s}"`;
 }

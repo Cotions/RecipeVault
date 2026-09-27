@@ -3,8 +3,10 @@
 import { isBlank, type RuleContext } from './context';
 
 const LONG_STEP = 400;
-// A 3-digit temperature: '350 °F', '180°C', '350F', '375°', '350 degrés'.
-const TEMP_RE = /(?<!\d)(\d{3})\s*(?:°\s*([FC])?|degr[ée]s?\s*([FC])?|([FC]))(?!\p{L})/iu;
+// A 3-digit temperature: '350 °F', '180°C', '350F', '375°', '350º', '350 degrés',
+// '350 degrees'; or one right after the oven: 'four à 350', 'Four 350', 'oven to 350'.
+const TEMP_RE = /(?<!\d)(\d{3})\s*(?:[°º]\s*([FC])?|(?:degr[ée]s?|degrees?)\s*([FC])?|([FC]))(?!\p{L})/iu;
+const OVEN_TEMP_RE = /(?<!\p{L})(?:four|oven)\s+(?:(?:à|a|to|at)\s+)?(\d{3})(?!\d)/iu;
 
 export function checkBody(ctx: RuleContext): void {
 	const { body } = ctx;
@@ -32,7 +34,8 @@ export function checkBody(ctx: RuleContext): void {
 
 	if (isBlank(ctx.fm.oven)) {
 		for (let i = 0; i < body.steps.length; i++) {
-			const m = body.steps[i].text.match(TEMP_RE);
+			const text = body.steps[i].text;
+			const m = text.match(TEMP_RE) ?? text.match(OVEN_TEMP_RE);
 			if (!m) continue;
 			const unit = (m[2] ?? m[3] ?? m[4] ?? 'F').toUpperCase();
 			ctx.report(

@@ -65,6 +65,12 @@ describe('parseBody', () => {
 		expect(parseBody('## Notes\n\n```\n## Préparation\n```\n').body.sections).toHaveLength(1);
 	});
 
+	it('opens a method section on a deep heading under an unrecognized one', () => {
+		const { body } = parseBody('## Tarte\n\n### Préparation\n\n1. X\n\n### Glaçage\n\n1. Y\n');
+		expect(body.sections.map((s) => s.kind)).toEqual(['other', 'method']);
+		expect(body.steps.map((s) => s.subheading)).toEqual([undefined, 'Glaçage']);
+	});
+
 	it('opens a section on a deep heading when none is open yet', () => {
 		expect(parseBody('### Préparation\n1. X\n').body.steps).toHaveLength(1);
 	});

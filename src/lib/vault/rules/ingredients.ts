@@ -99,8 +99,9 @@ function checkItem(ctx: RuleContext, item: unknown, path: string): void {
 		ctx.report('E207', path, 'ingredient entry has no `name`.', 'Add `name:` — the generic ingredient, e.g. `name: farine`.');
 	} else {
 		checkNameText(ctx, name, join(path, 'name'), item);
-		if (name.includes(',') && isBlank(item.note) && isBlank(item.prep)) {
-			const parts = name.split(',').map((p) => p.trim()).filter(Boolean);
+		// A comma inside a `[?: …]` marker is part of the reading, not a list.
+		if (stripMarkers(name).includes(',') && isBlank(item.note) && isBlank(item.prep)) {
+			const parts = name.split(/,(?![^[]*\])/).map((p) => p.trim()).filter(Boolean);
 			ctx.report(
 				'E211',
 				join(path, 'name'),
@@ -221,22 +222,36 @@ function checkNameText(ctx: RuleContext, name: string, path: string, item?: Reco
 /** E216: a quantity and unit in `note`, which belong in qty/unit. */
 function checkNote(ctx: RuleContext, item: Record<string, unknown>, path: string): void {
 	const note = item.note as string;
-	const amounts = findAllQtyUnits(note);
+	// A `[?: 769 ml]` marker is another reading of the same size, not a second amount.
+	const text = stripMarkers(note);
+	const amounts = findAllQtyUnits(text);
 	if (!amounts.length) return;
-	const alternative = amounts.some((m) => /(?:^|[\s,;(])(?:ou|or)\s/i.test(note.slice(0, m.start)));
+	// An alternative is `ou`/`or` then a quantity, not any `ou` before one:
+	// "frais ou surgelés, 300 g" holds one size.
+	const alternative = amounts.find((m) => ALTERNATIVE_RE.test(text.slice(0, m.start)));
 	// One size on a counted or contained item is what `note` is for:
 	// `{ qty: 1, unit: can, note: "796 ml" }`.
 	if (!alternative && amounts.length === 1 && (COUNT_UNITS as readonly unknown[]).includes(item.unit)) return;
-	const m = amounts[0];
+	const m = alternative ?? amounts[0];
 	const unit = unitForAlias(m.unitText, ctx.lang) ?? '<unit>';
 	const name = typeof item.name === 'string' ? item.name : '…';
-	const amount = `qty: ${fmt(m.qty.replace(/\s+/g, ' '))}, unit: ${unit}`;
+	const amount = `qty: ${qtyText(m.qty)}, unit: ${unit}`;
 	const fix = alternative
 		? `A replacement with its own amount goes in \`or\`: \`or: [{ ${amount}, name: … }]\`.`
 		: amounts.length > 1 && (COUNT_UNITS as readonly unknown[]).includes(item.unit)
 			? '`note` may hold one size only; move the other amounts to `qty`/`unit` or `alt`, or into `or` if they are a replacement.'
 			: `Move it: \`{ ${amount}, name: ${name} }\`; a second measure of the same amount goes in \`alt: { ${amount} }\`.`;
 	ctx.report('E216', path, `\`note: ${show(note)}\` contains a quantity and unit.`, fix);
+}
+
+// Text before an amount that makes it an alternative: ends in `ou`/`or`, maybe
+// followed by an approximation word.
+const ALTERNATIVE_RE =
+	/(?:^|[\s,;(])(?:ou|or)\s+(?:(?:environ|env\.|approx\.?|approximativement|about|around|roughly|approximately)\s+)?$/i;
+
+/** A qty as found in text, written for YAML: '1-1/2' → "1 1/2", '1,5' → 1.5. */
+function qtyText(q: string): string {
+	return fmt(q.replace(/^(\d+)-(?=\d+\/)/, '$1 ').replace(/\s+/g, ' ').replace(',', '.'));
 }
 
 function checkAlt(ctx: RuleContext, alt: unknown, path: string): void {
@@ -285,8 +300,7 @@ function entryFromText(text: string, lang: Lang, extra = ''): string {
 		.replace(/^\s*(?:de |d['’]|of )/i, '')
 		.replace(/\s+/g, ' ')
 		.trim();
-	const qty = fmt(m.qty.replace(/\s+/g, ' ').replace(',', '.'));
-	return `{ qty: ${qty}, unit: ${unit}, name: ${rest || '…'}${extra} }`;
+	return `{ qty: ${qtyText(m.qty)}, unit: ${unit}, name: ${rest || '…'}${extra} }`;
 }
 
 function detail(reason: string): string {

@@ -32,14 +32,29 @@ export function createContext(
 			const marker = path ? misreadMarker(valueAt(fm, path)) : undefined;
 			if (marker && path) {
 				const key = path.replace(/^.*\./, '').replace(/\[\d+\]$/, '');
-				message = `\`${key}: ${marker}\` was read as a list, not text — a value starting with a marker must be quoted.`;
-				fix = `Wrap the value in double quotes: \`${key}: "${marker}"\`.`;
+				const list = /\[\d+\]$/.test(path) ? valueAt(fm, path.replace(/\[\d+\]$/, '')) : undefined;
+				if (Array.isArray(list)) {
+					// An element of a list: quote that element, keep the list.
+					message = `the \`${key}\` entry \`${marker}\` was read as a list, not text — a value starting with a marker must be quoted.`;
+					fix = `Wrap the entry in double quotes: \`${key}: [${list.map(flowItem).join(', ')}]\`.`;
+				} else {
+					message = `\`${key}: ${marker}\` was read as a list, not text — a value starting with a marker must be quoted.`;
+					fix = `Wrap the value in double quotes: \`${key}: "${marker}"\`.`;
+				}
 			}
 			const d: Diagnostic = { code, severity: severity ?? severityOf(code), path, message };
 			if (fix) d.fix = fix;
 			out.push(d);
 		}
 	};
+}
+
+/** A list element as written in a flow list, a misread marker quoted. */
+function flowItem(v: unknown): string {
+	const marker = misreadMarker(v);
+	if (marker) return `"${marker}"`;
+	if (typeof v === 'string' && /^\p{L}[\p{L}\p{N} '’-]*$/u.test(v) && v.trim() === v && !/^(?:true|false|null)$/i.test(v)) return v;
+	return show(v);
 }
 
 export function severityOf(code: string): Severity {

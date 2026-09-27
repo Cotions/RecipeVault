@@ -64,7 +64,7 @@ function freeMinutes(s: string, defaultUnit?: 'h' | 'm'): number | undefined {
  * ('de réfrigération') are dropped; the caller says where they belong.
  */
 export function suggestDuration(v: unknown): string | undefined {
-	if (typeof v === 'number' && v > 0) return formatDuration(v * 60);
+	// A bare number has no unit: 1.5 may be hours or minutes. No guess.
 	if (typeof v !== 'string') return undefined;
 	let s = stripAccents(stripMarkers(v)).toLowerCase().trim();
 	s = s.replace(/\s+(?:de|d'|of|pour|for|au|dans|in)\b.*$/, '').trim();

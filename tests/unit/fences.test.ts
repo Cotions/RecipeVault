@@ -16,6 +16,13 @@ describe('splitPaste', () => {
 		expect(splitPaste('```markdown\n' + FILE + '```\n')).toEqual({ files: [FILE], outside: '' });
 	});
 
+	it('reads the first word of the info string as the language', () => {
+		expect(splitPaste('```markdown title="un.md"\n' + FILE + '```\n\nQUESTIONS\n1. ?')).toEqual({ files: [FILE], outside: 'QUESTIONS\n1. ?' });
+		const r = splitPaste(`\`\`\`markdown\n${FILE}\`\`\`\n\n\`\`\`markdown title="deux.md"\n${FILE}\`\`\`\n\n\`\`\`markdown\n${FILE}\`\`\`\n`);
+		expect(r.files).toHaveLength(3);
+		expect(r.outside).toBe('');
+	});
+
 	it('extracts several fences and keeps text before, between and after', () => {
 		const r = splitPaste(`Voici :\n\n\`\`\`markdown\n${FILE}\`\`\`\n\nEt :\n\n\`\`\`md\n${FILE}\`\`\`\n\nQUESTIONS\n1. ?`);
 		expect(r.files).toEqual([FILE, FILE]);

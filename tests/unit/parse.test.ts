@@ -52,5 +52,7 @@ describe('parseRecipe', () => {
 		expect(a.diagnostics[0].fix).toContain('`author: "Jeanne Tremblay [?: Tremblé]"`');
 		const b = parseRecipe(wrap('ingredients:\n  - items:\n      - { qty: 1, unit: cup, name: farine [?] }'));
 		expect(b.diagnostics[0].fix).toContain('`name: "farine [?]"`');
+		const c = parseRecipe(wrap("ingredients:\n  - items:\n      - { qty: 1, unit: cup, name: pâte d'amande [?] }"));
+		expect(c.diagnostics[0].fix).toContain('`name: "pâte d\'amande [?]"`');
 	});
 });

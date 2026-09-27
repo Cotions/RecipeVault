@@ -30,10 +30,17 @@ describe('parseQuantity', () => {
 		['½', '"1/2"'],
 		['1½', '"1 1/2"'],
 		['1-2', '1, qty_max: 2'],
-		['2 à 3', '2, qty_max: 3']
+		['2 à 3', '2, qty_max: 3'],
+		['1-1/2', '"1 1/2"']
 	])('suggests a fix for %j', (input, suggestion) => {
 		const r = parseQuantity(input);
 		expect(r.ok).toBe(false);
 		if (!r.ok) expect(r.suggestion).toBe(suggestion);
+	});
+
+	it.each([['3-1'], ['2 à 2'], ['1-1/2 à 1']])('suggests no range whose high end is not higher: %j', (input) => {
+		const r = parseQuantity(input);
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.suggestion).toBeUndefined();
 	});
 });

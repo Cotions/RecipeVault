@@ -26,7 +26,8 @@ function e001(message: string): ParsedFile {
 const GENERIC_YAML_FIX =
 	'Quote any value containing `: ` or starting with `[`, `{`, `*`, `&`, `!`, `%`, `@` or a backtick; keep the indentation consistent.';
 
-const MARKER_VALUE_RE = /([\w-]+):[ \t]+([^"'{},\n]*?\[(?:\?|illisible|\+)[^\n]*?)(?=\s*[,}]|\s*$)/;
+// The value may hold apostrophes (`pâte d'amande [?]`) but not start with a quote.
+const MARKER_VALUE_RE = /([\w-]+):[ \t]+((?!["'])[^"{},\n]*?\[(?:\?|illisible|\+)[^\n]*?)(?=\s*[,}]|\s*$)/;
 
 /**
  * A marker in an unquoted value breaks YAML: `[?: other]` reads as a nested
@@ -38,6 +39,25 @@ function markerQuoteFix(line: string): string | undefined {
 	const m = line.match(MARKER_VALUE_RE);
 	const example = m ? `\`${m[1]}: "${m[2].trim().replace(/"/g, '\\"')}"\`` : '`name: "beurre [illisible]"`';
 	return `A value holding a marker must be in double quotes: ${example}.`;
+}
+
+// A value starting with `*` or `&` is an alias or an anchor, not text.
+const ALIAS_VALUE_RE = /(?:^|[\s{,])([\w-]+):[ \t]+([*&][^,{}[\]\n]*?)[ \t]*(?=[,}]|$)/m;
+
+function aliasQuoteFix(yamlText: string): string | undefined {
+	const m = yamlText.match(ALIAS_VALUE_RE);
+	if (!m) return undefined;
+	return `A value starting with \`*\` or \`&\` must be in double quotes: \`${m[1]}: "${m[2].replace(/"/g, '\\"')}"\`.`;
+}
+
+/** True when an alias points back into its own anchor, as in `x: &x { y: *x }`. */
+function circular(v: unknown, seen = new Set<unknown>()): boolean {
+	if (typeof v !== 'object' || v === null) return false;
+	if (seen.has(v)) return true;
+	seen.add(v);
+	const found = Object.values(v).some((x) => circular(x, seen));
+	seen.delete(v);
+	return found;
 }
 
 /**
@@ -78,7 +98,24 @@ export function parseRecipe(text: string): ParsedFile {
 			]
 		};
 	}
-	const data: unknown = doc.toJS() ?? {};
+	// Alias errors (`note: *facultatif*` reads as an alias) surface only here.
+	let data: unknown;
+	try {
+		data = doc.toJS() ?? {};
+		if (circular(data)) throw new Error('an anchor refers to itself');
+	} catch (e) {
+		return {
+			diagnostics: [
+				{
+					code: 'E002',
+					severity: 'error',
+					path: null,
+					message: `the frontmatter is not valid YAML: ${e instanceof Error ? e.message : String(e)}`,
+					fix: aliasQuoteFix(yamlText) ?? GENERIC_YAML_FIX
+				}
+			]
+		};
+	}
 	if (typeof data !== 'object' || Array.isArray(data)) {
 		return {
 			diagnostics: [
