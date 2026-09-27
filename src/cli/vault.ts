@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	addOutsideText,
+	aiErrors,
 	checkBatch,
 	hasErrors,
 	parseRecipe,
@@ -163,15 +164,26 @@ function check(args: string[]): number {
 	return failed ? 1 : 0;
 }
 
+/** The title of a file that failed only on app-resolved errors, for the "already saved" line. */
+function titleOf(text: string): string | undefined {
+	const t = parseRecipe(text).frontmatter?.title;
+	return typeof t === 'string' ? t : undefined;
+}
+
 function printFixBlock(result: BatchResult, inputs: { name: string; text: string }[]): void {
+	// Files whose only errors the app resolves (E103) need nothing from the AI:
+	// they count as passed so the AI does not resend them.
+	const forAi = (i: number) => aiErrors(result.files[i].diagnostics).length > 0;
 	const failed = result.files
 		.map((f, i) => ({ text: inputs[i].text, diagnostics: f.diagnostics }))
-		.filter((f) => hasErrors(f.diagnostics));
+		.filter((_, i) => forAi(i));
 	if (!failed.length) {
-		console.error('vault: no failing files, no fix-request block.');
+		console.error('vault: nothing for the AI to fix, no fix-request block.');
 		return;
 	}
-	const passed = result.files.filter((f) => !hasErrors(f.diagnostics)).map((f) => f.recipe?.title ?? f.name);
+	const passed = result.files
+		.filter((_, i) => !forAi(i))
+		.map((f) => f.recipe?.title ?? titleOf(inputs[result.files.indexOf(f)].text) ?? f.name);
 	let spec: string | undefined;
 	try {
 		spec = readPrompt();

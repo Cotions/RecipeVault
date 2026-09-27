@@ -40,6 +40,9 @@ describe('checkBatch', () => {
 		});
 		expect(r.files[0].diagnostics.map((d) => d.code)).toEqual(['E103']);
 		expect(r.files[0].diagnostics[0].message).toContain('already in the vault');
+		expect(r.files[0].diagnostics[0].fix).toBe(
+			'Resolve in the app: overwrite the vault recipe, or save this one as `tarte-au-sucre-2`.'
+		);
 	});
 
 	it('W306 for a sub-recipe in neither the batch nor the vault', () => {

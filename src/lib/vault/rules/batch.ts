@@ -75,7 +75,14 @@ export function checkBatchRules(items: BatchItem[], vault: VaultEntry[]): void {
 	const slugs = items.map((it) => (it.frontmatter ? fileSlug(it.frontmatter) : undefined));
 	const vaultBySlug = new Map(vault.map((v) => [v.slug, v]));
 
-	// E103 — the same slug twice in the batch, or already in the vault.
+	// E103 — the same slug twice in the batch, or already in the vault. Settled
+	// in the app (overwrite, or a suffixed slug), never sent back to the AI.
+	const taken = new Set([...vaultBySlug.keys(), ...slugs.filter((s): s is string => !!s)]);
+	const suffixed = (slug: string) => {
+		let n = 2;
+		while (taken.has(`${slug}-${n}`)) n++;
+		return `${slug}-${n}`;
+	};
 	items.forEach((item, i) => {
 		const slug = slugs[i];
 		if (!slug) return;
@@ -90,7 +97,9 @@ export function checkBatchRules(items: BatchItem[], vault: VaultEntry[]): void {
 			'E103',
 			'slug',
 			`\`slug: ${slug}\` is ${where}.`,
-			`If this is a different recipe, give it its own slug (e.g. \`${slug}-<what makes it different>\`); if it is the same recipe, do not send it again.`
+			inVault
+				? `Resolve in the app: overwrite the vault recipe, or save this one as \`${suffixed(slug)}\`.`
+				: `Resolve in the app: keep one, or save the other as \`${suffixed(slug)}\`.`
 		);
 	});
 

@@ -66,6 +66,15 @@ describe('renderFixBlock', () => {
 		expect(block.match(/--- YOUR FILE ---/g)).toHaveLength(2);
 	});
 
+	it('leaves E103 out: the app resolves slug collisions', () => {
+		const text = fixture('invalid/E201-tasse.md');
+		const e103 = { code: 'E103', severity: 'error' as const, path: 'slug', message: 'collision.', fix: 'Resolve in the app.' };
+		const withBoth = renderFixBlock([{ text, diagnostics: [e103, ...checkRecipe(text).diagnostics] }], []);
+		expect(withBoth).toContain('[E201]');
+		expect(withBoth).not.toContain('E103');
+		expect(renderFixBlock([{ text, diagnostics: [e103] }], [])).toBe('');
+	});
+
 	it('never shows info diagnostics', () => {
 		expect(blockFor('invalid/E112-status-added.md')).not.toContain('E112');
 	});

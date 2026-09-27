@@ -20,6 +20,17 @@ export interface FixBlockOptions {
 const WIDTH = 80;
 const INDENT = '         ';
 
+/**
+ * Errors the app settles itself, never sent to the AI: a slug collision is
+ * resolved by overwriting or suffixing the slug (docs/DATA-FLOW.md).
+ */
+export const APP_RESOLVED_CODES: readonly string[] = ['E103'];
+
+/** Errors the AI must fix — the ones that belong in the fix-request block. */
+export function aiErrors(diagnostics: Diagnostic[]): Diagnostic[] {
+	return diagnostics.filter((d) => d.severity === 'error' && !APP_RESOLVED_CODES.includes(d.code));
+}
+
 /** Several E2xx at once in one file suggests the AI is not following the format. */
 const SPEC_E2XX_THRESHOLD = 3;
 
@@ -27,11 +38,20 @@ export function needsSpec(failed: FailedFile[]): boolean {
 	return failed.some(
 		(f) =>
 			f.diagnostics.some((d) => d.code === 'E001') ||
-			f.diagnostics.filter((d) => d.severity === 'error' && /^E2\d\d$/.test(d.code)).length >= SPEC_E2XX_THRESHOLD
+			aiErrors(f.diagnostics).filter((d) => /^E2\d\d$/.test(d.code)).length >= SPEC_E2XX_THRESHOLD
 	);
 }
 
-export function renderFixBlock(failed: FailedFile[], passed: string[], opts: FixBlockOptions = {}): string {
+/**
+ * Render the block for the files that failed. App-resolved errors (E103) are
+ * dropped; a file left with no error for the AI is dropped too — callers list
+ * it in `passed` so the AI does not resend it.
+ */
+export function renderFixBlock(allFailed: FailedFile[], passed: string[], opts: FixBlockOptions = {}): string {
+	const failed = allFailed
+		.map((f) => ({ ...f, diagnostics: f.diagnostics.filter((d) => !APP_RESOLVED_CODES.includes(d.code)) }))
+		.filter((f) => aiErrors(f.diagnostics).length > 0);
+	if (!failed.length) return '';
 	const many = failed.length > 1;
 	const out: string[] = [];
 	out.push(many ? `RECIPEVAULT — ${failed.length} FILES REJECTED` : 'RECIPEVAULT — FILE REJECTED', '');

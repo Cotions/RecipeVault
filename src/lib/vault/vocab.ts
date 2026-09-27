@@ -99,9 +99,9 @@ const ALIAS_SRC = [...new Set(UNITS.flatMap((u) => UNIT_ALIASES[u]).map((a) => s
 	.sort((a, b) => b.length - a.length)
 	.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*'))
 	.join('|');
-const QTY_UNIT_RE = new RegExp(
+const QTY_UNIT_RE_ALL = new RegExp(
 	String.raw`(?<![\p{L}\p{N}])${NUMBER_SRC}\s*(${ALIAS_SRC})(?![\p{L}\p{N}])`,
-	'iu'
+	'giu'
 );
 
 export interface QtyUnitMatch {
@@ -116,8 +116,13 @@ export interface QtyUnitMatch {
 
 /** Find "number followed by a unit" in text, e.g. '2 lbs', '1/2 tasse'. */
 export function findQtyUnit(text: string): QtyUnitMatch | undefined {
+	return findAllQtyUnits(text)[0];
+}
+
+/** Every "number followed by a unit" in text, in order. */
+export function findAllQtyUnits(text: string): QtyUnitMatch[] {
 	// Strip accents char by char, remembering where each flat char came from, so
-	// the match can be cut out of the original text with its accents intact.
+	// matches can be cut out of the original text with their accents intact.
 	const src = text.normalize('NFC');
 	let flat = '';
 	const origin: number[] = [];
@@ -129,19 +134,17 @@ export function findQtyUnit(text: string): QtyUnitMatch | undefined {
 		i += ch.length;
 	}
 	origin.push(src.length);
-	const m = QTY_UNIT_RE.exec(flat);
-	if (!m) return undefined;
-	const start = origin[m.index];
-	const end = origin[m.index + m[0].length];
-	const unitStart = origin[m.index + m[0].length - m[2].length];
-	return {
-		match: src.slice(start, end),
-		qty: m[1],
-		unitText: src.slice(unitStart, end),
-		start,
-		end
-	};
+	return [...flat.matchAll(QTY_UNIT_RE_ALL)].map((m) => {
+		const at = m.index ?? 0;
+		const start = origin[at];
+		const end = origin[at + m[0].length];
+		const unitStart = origin[at + m[0].length - m[2].length];
+		return { match: src.slice(start, end), qty: m[1], unitText: src.slice(unitStart, end), start, end };
+	});
 }
+
+/** Units that count or contain rather than measure: a size in `note` is fine with these. */
+export const COUNT_UNITS: readonly Unit[] = ['piece', 'clove', 'leaf', 'sprig', 'stalk', 'bunch', 'slice', 'can', 'packet'];
 
 /** Body headings, docs/RECIPE-SCHEMA.md. Matched case- and diacritic-insensitively. */
 export const HEADING_ALIASES: Record<Exclude<SectionKind, 'other'>, string[]> = {

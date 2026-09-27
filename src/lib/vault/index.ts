@@ -17,7 +17,7 @@ export {
 	type BatchFileResult,
 	type BatchOptions
 } from './check';
-export { renderFixBlock, needsSpec, type FailedFile, type FixBlockOptions } from './fixblock';
+export { renderFixBlock, needsSpec, aiErrors, APP_RESOLVED_CODES, type FailedFile, type FixBlockOptions } from './fixblock';
 export { vaultEntryFor, type VaultEntry } from './rules/batch';
 export { DEFERRED_RULES } from './rules/deferred';
 export { normalizeText } from './normalize';

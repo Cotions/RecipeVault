@@ -94,6 +94,27 @@ describe('E210 / E216 fixes', () => {
 		expect(d.fix).toContain('`or: [{ qty: 1, unit: tbsp, name: … }]`');
 	});
 
+	const item = (s: string) => edit('{ qty: 2, unit: tbsp, name: beurre }', s);
+
+	it.each([
+		'{ qty: 1, unit: piece, name: fromage, note: environ 450 g }',
+		'{ qty: 1, unit: piece, name: fromage, note: "format familial, environ 450 g" }',
+		'{ qty: 1, unit: packet, name: levure, note: 8 g }',
+		'{ qty: 2, unit: slice, name: bacon, note: 1/4 lb en tout }'
+	])('allows one size on a counted or contained item: %s', (entry) => {
+		expect(codes(item(entry))).toEqual([]);
+	});
+
+	it.each([
+		['measure unit', '{ qty: 250, unit: g, name: fromage, note: environ 450 g }'],
+		['no unit', '{ name: fromage, note: environ 450 g }'],
+		['two amounts', '{ qty: 1, unit: can, name: épices, note: "4 ml (3/4 c. à thé)" }'],
+		['alternative, French', '{ qty: 1, unit: packet, name: bouillon, note: ou 1 sachet de bouillon }'],
+		['alternative mid-note', '{ qty: 1, unit: piece, name: citron, note: "gros, or 2 tbsp juice" }']
+	])('still fires E216: %s', (_, entry) => {
+		expect(codes(item(entry))).toEqual(['E216']);
+	});
+
 	it('allows a can size in note', () => {
 		expect(codes(edit('{ qty: 2, unit: tbsp, name: beurre }', '{ qty: 1, unit: can, name: lait évaporé, note: "385 ml" }'))).toEqual([]);
 	});

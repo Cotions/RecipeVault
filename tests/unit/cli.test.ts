@@ -43,6 +43,13 @@ describe('vault check', () => {
 		expect(r.out).toContain('--- YOUR FILE ---');
 	});
 
+	it('--fix-block has nothing for the AI when the only error is E103', () => {
+		const r = vault(['check', '--fix-block', '--dir', join(DIR, 'batch', 'E103-same-slug')]);
+		expect(r.code).toBe(1);
+		expect(r.out).toBe('');
+		expect(r.err).toContain('nothing for the AI to fix');
+	});
+
 	it('reads a paste from stdin', () => {
 		const r = vault(['check', '-'], readFileSync(join(DIR, 'paste', 'two-recipes-one-failing.txt'), 'utf8'));
 		expect(r.code).toBe(1);
@@ -82,5 +89,15 @@ describe('vault prompt', () => {
 		expect(r.out.startsWith('You convert photographs of recipes')).toBe(true);
 		expect(r.out).toContain('SKELETON');
 		expect(r.out).not.toContain('````');
+	});
+
+	it('every frontmatter example holding a marker is valid YAML', async () => {
+		const { parse } = await import('yaml');
+		const examples = vault(['prompt'])
+			.out.split('\n')
+			.map((l) => l.replace(/^\s*(Examples:)?\s*/, ''))
+			.filter((l) => /^(- \{|[a-z_]+: )/.test(l) && /\[(\?|illisible|\+)/.test(l));
+		expect(examples.length).toBeGreaterThanOrEqual(3);
+		for (const line of examples) expect(() => parse(line, { version: '1.2' }), line).not.toThrow();
 	});
 });

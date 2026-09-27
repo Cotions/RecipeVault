@@ -5,7 +5,7 @@ import { stripMarkers } from '../markers';
 import { fold } from '../normalize';
 import { fmt, parseQuantity } from '../quantity';
 import type { Lang } from '../types';
-import { ALLOWED_KEYS, UNITS, findQtyUnit, isUnit, unitForAlias } from '../vocab';
+import { ALLOWED_KEYS, COUNT_UNITS, UNITS, findAllQtyUnits, findQtyUnit, isUnit, unitForAlias } from '../vocab';
 import { checkKeys, isBlank, isMap, join, show, type RuleContext } from './context';
 
 const UNIT_LIST = `Allowed units: ${UNITS.join(', ')}.`;
@@ -219,16 +219,21 @@ function checkNameText(ctx: RuleContext, name: string, path: string, item?: Reco
 /** E216: a quantity and unit in `note`, which belong in qty/unit. */
 function checkNote(ctx: RuleContext, item: Record<string, unknown>, path: string): void {
 	const note = item.note as string;
-	// A can or packet size is exactly what `note` is for: `note: "796 ml"`.
-	if (item.unit === 'can' || item.unit === 'packet') return;
-	const m = findQtyUnit(note);
-	if (!m) return;
+	const amounts = findAllQtyUnits(note);
+	if (!amounts.length) return;
+	const alternative = amounts.some((m) => /(?:^|[\s,;(])(?:ou|or)\s/i.test(note.slice(0, m.start)));
+	// One size on a counted or contained item is what `note` is for:
+	// `{ qty: 1, unit: can, note: "796 ml" }`.
+	if (!alternative && amounts.length === 1 && (COUNT_UNITS as readonly unknown[]).includes(item.unit)) return;
+	const m = amounts[0];
 	const unit = unitForAlias(m.unitText, ctx.lang) ?? '<unit>';
 	const name = typeof item.name === 'string' ? item.name : '…';
 	const amount = `qty: ${fmt(m.qty.replace(/\s+/g, ' '))}, unit: ${unit}`;
-	const fix = /^\s*(ou|or)\b/i.test(note)
-		? `If it is a replacement, write it in \`or\`: \`or: [{ ${amount}, name: … }]\`; otherwise \`{ ${amount}, name: ${name} }\`.`
-		: `Move it: \`{ ${amount}, name: ${name} }\`; a second measure of the same amount goes in \`alt: { ${amount} }\`.`;
+	const fix = alternative
+		? `A replacement with its own amount goes in \`or\`: \`or: [{ ${amount}, name: … }]\`.`
+		: amounts.length > 1 && (COUNT_UNITS as readonly unknown[]).includes(item.unit)
+			? '`note` may hold one size only; move the other amounts to `qty`/`unit` or `alt`, or into `or` if they are a replacement.'
+			: `Move it: \`{ ${amount}, name: ${name} }\`; a second measure of the same amount goes in \`alt: { ${amount} }\`.`;
 	ctx.report('E216', path, `\`note: ${show(note)}\` contains a quantity and unit.`, fix);
 }
 
