@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { getApp } from '$lib/server/app';
-import { savePaste } from '$lib/server/paste';
-import { SaveError, type SaveFile } from '$lib/server/save';
+import { slugOf } from '$lib/server/paste';
+import { save, SaveError, type SaveFile } from '$lib/server/save';
 import { SLUG_RE } from '$lib/vault/slug';
 import type { RequestHandler } from './$types';
 
@@ -18,12 +18,44 @@ function valid(f: unknown): f is SaveFile {
 	return true;
 }
 
+/** A file of the same attempt that stayed in the box: its codes only, never its content. */
+interface Unsent {
+	codes: string[];
+	slug?: string;
+}
+
+function validUnsent(u: unknown): u is Unsent {
+	if (typeof u !== 'object' || u === null) return false;
+	const o = u as Record<string, unknown>;
+	return (
+		Array.isArray(o.codes) &&
+		o.codes.length <= 200 &&
+		o.codes.every((c) => typeof c === 'string' && /^[EWI]\d{3}$/.test(c)) &&
+		(o.slug === undefined || typeof o.slug === 'string')
+	);
+}
+
 export const POST: RequestHandler = async ({ request }) => {
 	const body = await request.json().catch(() => null);
 	if (!body || !Array.isArray(body.files) || !body.files.length || body.files.length > 50 || !body.files.every(valid))
 		error(400, 'files: { text, slug?, overwrite?, family? }[]');
+	const unsent: unknown[] = body.unsent ?? [];
+	if (!Array.isArray(unsent) || unsent.length > 50 || !unsent.every(validUnsent)) error(400, 'unsent: { codes: string[], slug?: string }[]');
+	const app = getApp();
 	try {
-		return json(await savePaste(getApp(), body.files));
+		const result = await save(app.ctx, body.files);
+		// One paste-log line per save attempt (docs/DATA-FLOW.md), with the
+		// files that stayed in the box as 'rejected'. Same entries as savePaste,
+		// plus those.
+		app.pasteLog.append('save', [
+			...result.files.map((r, i) => ({
+				codes: r.diagnostics.map((d) => d.code),
+				outcome: r.status,
+				slug: r.status === 'rejected' ? slugOf(body.files[i].text) : r.slug
+			})),
+			...(unsent as Unsent[]).map((u) => ({ codes: u.codes, outcome: 'rejected' as const, slug: u.slug }))
+		]);
+		return json(result);
 	} catch (e) {
 		if (e instanceof SaveError) error(500, e.message);
 		throw e;

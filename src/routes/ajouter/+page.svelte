@@ -3,12 +3,12 @@
 	// valid, Ctrl+Enter, next. Live checks run in the browser; the server
 	// re-checks with the vault (collisions, sub-recipes, same titles) and is the
 	// only judge on save.
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import templateDoc from '../../../docs/AI-TEMPLATE.md?raw';
 	import { t } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import Marked from '$lib/components/Marked.svelte';
-	import { checkBatch, hasErrors } from '$lib/vault/check';
+	import { checkBatch, checkFile, hasErrors } from '$lib/vault/check';
 	import { splitPaste } from '$lib/vault/fences';
 	import { aiErrors, renderFixBlock } from '$lib/vault/fixblock';
 	import { fixerOf } from '$lib/vault/codes';
@@ -29,14 +29,29 @@
 	let box: HTMLTextAreaElement | undefined = $state();
 	let server = $state<{ for: string; files: ServerCheckFile[] } | null>(null);
 	let saving = $state(false);
-	let toast = $state<{ message: string; links?: { slug: string; title: string }[]; error?: boolean } | null>(null);
+	let toast = $state<{ message: string; links?: { slug: string; title: string }[]; note?: string; error?: boolean } | null>(null);
 	let savedTitles = $state<string[]>([]);
 	let importUrl = $state('');
 	let importing = $state(false);
-	let staleFiles = $state<Set<number>>(new Set());
+	/** Files whose replace was refused because the vault recipe changed, by file key. */
+	let staleFiles = $state<Set<string>>(new Set());
+	/** Bumped to run the server check again on the same text (after a save). */
+	let recheck = $state(0);
 
-	/** Per file (by position): what to do on a collision, and the family offer. */
-	let choices = $state<Record<number, { mode?: 'replace' | 'suffix'; family?: boolean; familySlug?: string; variant?: string }>>({});
+	interface Choice {
+		mode?: 'replace' | 'suffix';
+		/** For 'replace': the hash of the vault file the person chose to replace. */
+		target?: string;
+		family?: boolean;
+		familySlug?: string;
+		variant?: string;
+	}
+	/**
+	 * Per file, by its key (slug and rank among the files with that slug), not
+	 * by position: a new paste or a file inserted above must not inherit
+	 * another file's choice.
+	 */
+	let choices = $state<Record<string, Choice>>({});
 
 	// --- live check in the browser --------------------------------------------
 
@@ -44,10 +59,38 @@
 	const files = $derived(text.trim() ? (split.files.length ? split.files : [text]) : []);
 	const local = $derived(checkBatch(files.map((f, i) => ({ name: t.add.recipeN(i + 1), text: f }))));
 
+	function slugIn(f: string): string | undefined {
+		const fm = parseRecipe(f).frontmatter;
+		return fm ? fileSlug(fm) : undefined;
+	}
+	/** 'slug#rank' for each file; '#position' when it has no slug. */
+	function keysOf(texts: string[]): string[] {
+		const seen = new Map<string, number>();
+		return texts.map((f, i) => {
+			const slug = slugIn(f);
+			if (!slug) return `#${i}`;
+			const n = seen.get(slug) ?? 0;
+			seen.set(slug, n + 1);
+			return `${slug}#${n}`;
+		});
+	}
+	const keys = $derived(keysOf(files));
+
+	// Forget the choices of files no longer in the box.
+	$effect(() => {
+		const present = new Set(keys);
+		const current = untrack(() => choices);
+		const kept = Object.fromEntries(Object.entries(current).filter(([k]) => present.has(k)));
+		if (Object.keys(kept).length !== Object.keys(current).length) choices = kept;
+	});
+
 	let checkTimer: ReturnType<typeof setTimeout> | undefined;
+	let checkSeq = 0;
 	$effect(() => {
 		const current = files;
+		void recheck;
 		const key = current.join('\u0000');
+		const seq = ++checkSeq;
 		clearTimeout(checkTimer);
 		if (!current.length) {
 			server = null;
@@ -60,7 +103,11 @@
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ files: current })
 				});
-				if (res.ok) server = { for: key, files: (await res.json()).files };
+				// Only the latest check counts: an older answer may predate a save.
+				if (res.ok && seq === checkSeq) {
+					const body = await res.json();
+					if (seq === checkSeq) server = { for: key, files: body.files };
+				}
 			} catch {
 				// offline: the browser's own check still shows
 			}
@@ -71,23 +118,57 @@
 
 	interface FileView {
 		index: number;
+		key: string;
 		text: string;
 		title: string;
 		diagnostics: Diagnostic[];
 		ok: boolean;
 		recipe: (typeof local.files)[number]['recipe'];
 		server?: ServerCheckFile;
+		/** The collision choice that applies now (a 'replace' only for the recipe it was chosen for). */
+		mode?: 'replace' | 'suffix';
+		/** First file of the paste with a slug no other recipe has: it takes the slug, no choice needed. */
+		firstFree: boolean;
+	}
+
+	/** The choice for a file, when it still fits its collision. */
+	function modeOf(c: Choice | undefined, col: ServerCheckFile['collision']): FileView['mode'] {
+		if (!c?.mode || !col) return undefined;
+		if (c.mode === 'replace') return col.existing && !col.inTrash && c.target === col.existing.hash ? 'replace' : undefined;
+		return 'suffix';
 	}
 
 	const views = $derived<FileView[]>(
 		files.map((f, i) => {
 			const s = serverFresh?.[i];
-			const diagnostics = s ? s.diagnostics : local.files[i].diagnostics;
+			const key = keys[i];
+			const col = s?.collision;
+			const mode = modeOf(choices[key], col);
+			// Two new files with one slug (docs/DATA-FLOW.md): the first saves under
+			// it, only the later ones wait for a choice. Without the server's
+			// answer yet, a local E103 can only be such a clash inside the paste.
+			const firstFree = key.endsWith('#0') && !mode && (s ? !!col && !col.existing && !col.inTrash : true);
+			let diagnostics = s ? s.diagnostics : local.files[i].diagnostics;
+			if (firstFree) diagnostics = diagnostics.filter((d) => d.code !== 'E103');
 			const fm = parseRecipe(f).frontmatter;
-			const title = local.files[i].recipe?.title ?? (typeof fm?.title === 'string' ? fm.title : t.add.recipeN(i + 1));
+			// A batch error (E103 between two pasted files) withholds the batch's
+			// recipe; the file's own is enough here, as every error left still blocks.
+			const recipe = local.files[i].recipe ?? checkFile(f).recipe;
+			const title = recipe?.title ?? (typeof fm?.title === 'string' ? fm.title : t.add.recipeN(i + 1));
 			// E103 is settled by a choice here, not by the AI.
-			const blocking = diagnostics.filter((d) => d.severity === 'error' && !(d.code === 'E103' && choices[i]?.mode));
-			return { index: i, text: f, title, diagnostics, ok: blocking.length === 0 && !!local.files[i].recipe, recipe: local.files[i].recipe, server: s };
+			const blocking = diagnostics.filter((d) => d.severity === 'error' && !(d.code === 'E103' && mode));
+			return {
+				index: i,
+				key,
+				text: f,
+				title,
+				diagnostics,
+				ok: blocking.length === 0 && !!recipe,
+				recipe,
+				server: s,
+				mode,
+				firstFree
+			};
 		})
 	);
 
@@ -128,15 +209,20 @@
 		}).catch(() => {});
 	}
 
-	/** Rebuild the box from the files left to deal with. */
-	function keepOnly(indices: number[]) {
+	/** Rebuild the box from the files left to deal with; choices and stale flags follow their files. */
+	function keepOnly(indices: number[], stale: Set<string>) {
 		const left = indices.map((i) => files[i]);
+		const oldKeys = indices.map((i) => keys[i]);
+		const newKeys = keysOf(left);
 		text = left.length === 0 ? '' : left.length === 1 && !split.files.length ? left[0] : left.map((f) => '```markdown\n' + f.trimEnd() + '\n```').join('\n\n') + '\n';
 		const next: typeof choices = {};
-		indices.forEach((old, i) => {
-			if (choices[old]) next[i] = choices[old];
+		const nextStale = new Set<string>();
+		oldKeys.forEach((old, i) => {
+			if (choices[old]) next[newKeys[i]] = choices[old];
+			if (stale.has(old)) nextStale.add(newKeys[i]);
 		});
 		choices = next;
+		staleFiles = nextStale;
 	}
 
 	async function saveAll() {
@@ -144,16 +230,23 @@
 		saving = true;
 		const sending = views.filter((v) => v.ok);
 		const payload = sending.map((v) => {
-			const c = choices[v.index] ?? {};
+			const c = choices[v.key] ?? {};
 			const f: { text: string; slug?: string; overwrite?: string; family?: { family: string; variant: string } } = { text: v.text };
 			const col = v.server?.collision;
-			if (c.mode === 'replace' && col?.existing) f.overwrite = col.existing.hash;
-			if (c.mode === 'suffix' && col) f.slug = col.suggested;
+			if (v.mode === 'replace' && col?.existing) f.overwrite = col.existing.hash;
+			if (v.mode === 'suffix' && col) f.slug = col.suggested;
 			if (c.family && c.familySlug && slugify(c.familySlug) && c.variant?.trim()) f.family = { family: slugify(c.familySlug), variant: c.variant.trim() };
 			return f;
 		});
+		// The files still to fix are part of this save attempt too: their codes go
+		// to the paste log (never their content).
+		const unsent = views.filter((v) => !v.ok).map((v) => ({ codes: v.diagnostics.map((d) => d.code), slug: slugIn(v.text) }));
 		try {
-			const res = await fetch('/api/save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ files: payload }) });
+			const res = await fetch('/api/save', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ files: payload, unsent })
+			});
 			if (!res.ok) {
 				const msg = (await res.json().catch(() => null))?.message ?? res.statusText;
 				flash(`${t.add.error} ${msg}`, { error: true });
@@ -161,17 +254,24 @@
 			}
 			const result: SaveResult = await res.json();
 			const saved = result.files.flatMap((r) => (r.status === 'saved' ? [{ slug: r.slug, title: r.title }] : []));
-			const stale = new Set<number>();
+			const refused = result.files.filter((r) => r.status !== 'saved').length;
+			const stale = new Set<string>();
 			result.files.forEach((r, k) => {
-				if (r.status === 'stale') stale.add(sending[k].index);
+				if (r.status === 'stale') stale.add(sending[k].key);
 			});
-			staleFiles = stale;
 			savedTitles = [...savedTitles, ...saved.map((s) => s.title)];
 			const savedIdx = new Set(result.files.flatMap((r, k) => (r.status === 'saved' ? [sending[k].index] : [])));
-			keepOnly(files.map((_, i) => i).filter((i) => !savedIdx.has(i)));
-			if (saved.length) flash(t.add.saved(saved.length), { links: saved });
-			if (result.indexError) flash(t.add.indexError, { links: saved, error: true });
-			server = null;
+			keepOnly(
+				files.map((_, i) => i).filter((i) => !savedIdx.has(i)),
+				stale
+			);
+			const note = refused ? t.add.notSaved(refused) : undefined;
+			if (result.indexError) flash(t.add.indexError, { links: saved, note, error: true });
+			else if (saved.length) flash(t.add.saved(saved.length), { links: saved, note });
+			else if (note) flash(note, { error: true });
+			// The server judged again: check again, so a collision or an error it
+			// found shows here with its choice.
+			recheck++;
 			await tick();
 			box?.focus();
 		} catch (e) {
@@ -193,6 +293,8 @@
 				return;
 			}
 			text = '```markdown\n' + body.markdown + '```\n';
+			choices = {};
+			staleFiles = new Set();
 			importUrl = '';
 			flash(t.add.imported);
 			await tick();
@@ -209,8 +311,8 @@
 		}
 	}
 
-	function setChoice(i: number, patch: (typeof choices)[number]) {
-		choices = { ...choices, [i]: { ...choices[i], ...patch } };
+	function setChoice(key: string, patch: Choice) {
+		choices = { ...choices, [key]: { ...choices[key], ...patch } };
 	}
 
 	const group = (ds: Diagnostic[], sev: string) => ds.filter((d) => d.severity === sev);
@@ -275,11 +377,11 @@
 			<span class="state" class:okay={v.ok}>{v.ok ? t.add.valid : t.add.invalid}</span>
 		</header>
 
-		{#if staleFiles.has(v.index)}
+		{#if staleFiles.has(v.key)}
 			<p class="warn">{t.add.stale}</p>
 		{/if}
 
-		{#if col}
+		{#if col && !v.firstFree}
 			<div class="choice">
 				{#if col.inTrash}
 					<p>{t.add.collisionTrash(v.server?.slug ?? '')}</p>
@@ -288,27 +390,37 @@
 				{/if}
 				<div class="options" role="radiogroup">
 					{#if col.existing && !col.inTrash}
-						<label><input type="radio" name="choice-{v.index}" checked={choices[v.index]?.mode === 'replace'} onchange={() => setChoice(v.index, { mode: 'replace' })} /> {t.add.replace}</label>
+						<label
+								><input
+									type="radio"
+									name="choice-{v.index}"
+									checked={v.mode === 'replace'}
+									onchange={() => setChoice(v.key, { mode: 'replace', target: col.existing?.hash })}
+								/> {t.add.replace}</label
+							>
 					{/if}
-					<label><input type="radio" name="choice-{v.index}" checked={choices[v.index]?.mode === 'suffix'} onchange={() => setChoice(v.index, { mode: 'suffix' })} /> {t.add.saveAs(col.suggested)}</label>
+					<label
+							><input type="radio" name="choice-{v.index}" checked={v.mode === 'suffix'} onchange={() => setChoice(v.key, { mode: 'suffix', target: undefined })} />
+							{t.add.saveAs(col.suggested)}</label
+						>
 				</div>
 			</div>
 		{/if}
 
-		{#if sameTitle && choices[v.index]?.mode !== 'replace'}
+		{#if sameTitle && v.mode !== 'replace'}
 			<div class="choice">
 				<label class="check">
 					<input
 						type="checkbox"
-						checked={!!choices[v.index]?.family}
-						onchange={(e) => setChoice(v.index, { family: e.currentTarget.checked, familySlug: choices[v.index]?.familySlug ?? slugify(v.title) })}
+						checked={!!choices[v.key]?.family}
+						onchange={(e) => setChoice(v.key, { family: e.currentTarget.checked, familySlug: choices[v.key]?.familySlug ?? slugify(v.title) })}
 					/>
 					{t.add.sameTitle}
 				</label>
-				{#if choices[v.index]?.family}
+				{#if choices[v.key]?.family}
 					<div class="family-fields">
-						<label>{t.add.family} <input type="text" value={choices[v.index]?.familySlug} oninput={(e) => setChoice(v.index, { familySlug: e.currentTarget.value })} /></label>
-						<label>{t.add.variant} <input type="text" value={choices[v.index]?.variant ?? ''} oninput={(e) => setChoice(v.index, { variant: e.currentTarget.value })} /></label>
+						<label>{t.add.family} <input type="text" value={choices[v.key]?.familySlug} oninput={(e) => setChoice(v.key, { familySlug: e.currentTarget.value })} /></label>
+						<label>{t.add.variant} <input type="text" value={choices[v.key]?.variant ?? ''} oninput={(e) => setChoice(v.key, { variant: e.currentTarget.value })} /></label>
 					</div>
 				{/if}
 			</div>
@@ -349,6 +461,7 @@
 		{#if toast.links}
 			{#each toast.links as l, i (l.slug)}{i ? ', ' : ' '}<a href="/r/{l.slug}"><Marked text={l.title} /></a>{/each}
 		{/if}
+		{#if toast.note}<br />{toast.note}{/if}
 	</div>
 {/if}
 

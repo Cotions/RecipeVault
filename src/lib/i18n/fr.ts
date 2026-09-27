@@ -195,6 +195,8 @@ export const fr = {
 		variant: 'Version',
 		makeFamily: 'Mettre en famille',
 		stale: 'La recette à remplacer a changé entre-temps. Vérifiez puis réessayez.',
+		notSaved: (n: number) =>
+			n === 1 ? '1 recette n’a pas été enregistrée : voyez ce qui la retient ci-dessous.' : `${n} recettes n’ont pas été enregistrées : voyez ce qui les retient ci-dessous.`,
 		outside: 'Texte hors des blocs (ignoré — l’IA a peut-être posé une question) :',
 		indexError: 'Enregistré, mais l’index n’a pas suivi ; il sera reconstruit au prochain démarrage.',
 		error: 'L’enregistrement a échoué :',
