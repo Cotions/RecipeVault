@@ -26,3 +26,10 @@ dist/
 *.swp
 .idea/
 .vscode/
+
+# SvelteKit / Vite
+.output
+/.svelte-kit
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+Thumbs.db
