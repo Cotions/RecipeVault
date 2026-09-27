@@ -125,7 +125,7 @@ handle than an empty one.
 | `alt` | no | the same amount in another measure, when the source gives both: `{ qty: 1, unit: cup }`, optionally with `qty_max`. `qty`/`unit` hold the metric one. |
 | `brand` | no | `Heinz`, `St-Hubert`. Ignored by pantry search and resolution. |
 | `or` | no | acceptable replacements named by the source. Each entry is a plain name (`or: [huile]`) or, when the replacement has its own amount or detail, an ingredient object (`or: [{ qty: 1, unit: tbsp, name: sauge, note: séchée }]`). Pantry search accepts any of them; cost uses the main one. |
-| `note` | no | descriptor that is not the name: `gros`, `bien mûr`, can size `796 ml` |
+| `note` | no | descriptor that is not the name: `gros`, `bien mûr`. May hold one size when `unit` counts or contains (`piece`, `can`, `packet`, …): can size `796 ml`, `environ 450 g`. Never an alternative's amount — that goes in `or` |
 | `prep` | no | what is done to it: `émincé`, `râpé`, `en dés` |
 | `to_taste` | no | `true` for seasoning and cooking fat with no amount only. Removes the ingredient from pantry search. |
 | `optional` | no | `true` if the recipe works without it |
@@ -162,6 +162,11 @@ fraction-string quantities (`qty: "250 [?]"`):
 | `[?: other]` | uncertain, with another plausible reading | highlighted, alternative shown on hover; `needs-review` |
 | `[illisible]` | unreadable | highlighted; `needs-review` |
 | `[+]` | added by whoever transcribed it, not on the source | shown in a distinct style so original and added text are always distinguishable; does not change status |
+
+In the frontmatter, any value containing a marker must be double-quoted:
+`author: "Jeanne Tremblay [?: Tremblé]"`, `{ qty: 1, unit: cup, name: "farine [?]" }`.
+Unquoted, `[?: …]` reads as a nested `key: value` and any `[` inside `{ … }`
+opens a list — the file no longer parses (`E002`).
 
 Markers are stripped before slugs, search, and resolution, so `boeuf [?]` still
 resolves to `boeuf`. Clearing a `[?]` in the app (confirming or correcting the

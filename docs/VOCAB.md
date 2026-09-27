@@ -111,7 +111,7 @@ Absent means year-round. Aliases: `spring`, `summer`/`été`, `autumn`/`fall`,
 ## Units
 
 Canonical list. The validator rejects anything else (`E201`), so this list is the
-authority and must match `AI-TEMPLATE.md` rule 12 exactly.
+authority and must match `AI-TEMPLATE.md` rule 8 exactly.
 
 ```yaml
 g:      [g, gr, gramme, grammes, gram, grams]

@@ -1,8 +1,8 @@
 # Master template — the prompt given to an AI to produce a recipe file
 
-Draft 3. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
+Draft 3.1. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
 years old, through a free chat AI); draft 3 after round 2, the same ten re-run with
-draft 2. What changed and why is at the end.
+draft 2; draft 3.1 after the checker's first run. What changed and why is at the end.
 
 This file is the contract. The parser, the validator, cost, and pantry search all
 assume output matching it exactly.
@@ -56,8 +56,10 @@ TRANSCRIBE, AND MARK EVERYTHING THAT IS NOT A PLAIN READING
      [?: other]    same, and gives the other plausible reading
      [illisible]   you cannot read it at all
      [+]           text you added that is NOT on the source
-   Examples:  author: Jeanne Tremblay [?: Tremblé]
-              - { qty: "250 [?]", unit: ml, name: lait }
+   In the frontmatter, EVERY value that contains a marker goes in double
+   quotes — unquoted, "[?: other]" and any marker inside { } break the file:
+   Examples:  author: "Jeanne Tremblay [?: Tremblé]"
+              - { qty: "250 [?]", unit: ml, name: "lait [?]" }
               1. Mélanger tous les ingrédients. [+]
 3. You MAY add, marked [+], only what is obvious and harmless:
    - a missing "mix the ingredients" step when the card jumps straight to baking
@@ -121,7 +123,7 @@ INGREDIENTS — in frontmatter, never as prose bullets
 FRONTMATTER
 16. First line is always schema: 3.
 17. title: as written on the source. If there is none, make one and mark it:
-    title: Bouchées au canard [+]
+    title: "Bouchées au canard [+]"
 18. slug: lowercase, ASCII, hyphenated, no accents, from the title without markers.
 19. family / variant: set them ONLY if the source presents itself as a version of
     a dish, or if the user says so. The app detects same-named recipes itself.
@@ -298,6 +300,12 @@ Round 2 — the same ten with draft 2. Units, fractions, times, oven, markers, a
 | A serving suggestion's steps turned into a "Suggestion:" step | Its steps go under a `###` sub-heading named like the group |
 | An untitled clipping lost `source.type` entirely | Keep `type` alone when only the kind of source is evident |
 | Both "Pain de viande" cards got the slug `pain-de-viande` | Correct per the rules — the app catches the collision (`E103`) and offers a family (`W608`). Kept as a test case |
+
+Draft 3.1 — found by the checker (`docs/plans/01-checker.md`), not by a new round:
+
+| Found | Fix |
+|---|---|
+| `[?: other]` in an unquoted value is invalid YAML (it reads as a nested `key: value`), and any marker inside a `{ … }` entry opens a list. The prompt's own example `author: Jeanne Tremblay [?: Tremblé]` did not parse | Every frontmatter value containing a marker is double-quoted; examples fixed. The checker's `E002` names the value to quote |
 
 ## Failure modes to watch for
 

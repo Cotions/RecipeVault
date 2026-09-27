@@ -50,15 +50,18 @@ one time they do it should not be silent.
 
 ## Validation
 
+The full list, with codes, is `VALIDATION.md`; this is the summary.
+
 Hard errors — refuse to save:
 - malformed YAML frontmatter (paste path only; the form cannot produce this)
 - missing `title`
+- `ingredients` missing or empty (`E200`), or any malformed ingredient entry —
+  bad unit, qty without unit, quantity inside the name, and the rest of `E2xx`
 - `slug` already exists → offer overwrite, or a suffixed slug
 - `family` set without `variant`, or `variant` without `family`
 
 Warnings — save anyway, mark the recipe `needs-review`:
-- no ingredients section or no method section
-- ingredient lines whose quantity failed to parse (list them explicitly)
+- no method section
 - a tag not in the vocabulary → suggest closest canonical, else store `pending`
 - a `family` close to an existing one (catches `lasagne` vs `lasagna`)
 - another recipe has a near-identical title (duplicate paste — expected at 5000)

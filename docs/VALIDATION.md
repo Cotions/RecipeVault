@@ -22,8 +22,8 @@ explain the changes. Do not return a partial file or a diff.
 
 ERRORS — must fix:
   [E201] ingredients[0].items[3]: `unit: "cuillere"` is not allowed.
-         Allowed units: g, kg, ml, cl, l, tbsp, tsp, pinch, drop, piece, clove,
-         leaf, sprig, bunch, slice, can, packet
+         Allowed units: g, kg, ml, cl, l, cup, tbsp, tsp, pinch, drop, lb, oz,
+         piece, clove, leaf, sprig, stalk, bunch, slice, can, packet, qt, pint
   [E203] ingredients[0].items[6]: `qty: 2` present but `unit` missing.
          Every qty needs a unit. Countable items use `unit: piece`.
   [E210] ingredients[1].items[2]: `name: "500 g de lait"` contains a quantity.
@@ -57,6 +57,11 @@ Design choices that matter:
 - **Errors and warnings separated**, with warnings explicitly marked non-blocking,
   so the AI does not restructure a valid file chasing a suggestion.
 
+Errors the app resolves itself are left out of the block: `E103` (slug collision)
+is settled in the app by overwriting or suffixing the slug, not by the AI. A file
+whose only errors are of that kind is not in the block at all, and counts among
+the recipes the AI must not resend.
+
 The block includes the spec only when an error suggests the AI never had it —
 several `E2xx` at once, or the output not being markdown at all. Otherwise the
 codes and fixes are enough, and pasting the whole of `AI-TEMPLATE.md` every time
@@ -81,7 +86,7 @@ Hard errors. Refuse to save.
 | E002 | frontmatter is not valid YAML (include the YAML parser's own message) |
 | E101 | `title` missing |
 | E102 | `slug` is not lowercase ASCII hyphenated |
-| E103 | `slug` already exists in the vault |
+| E103 | `slug` already exists in the vault, or twice in one paste — resolved in the app (overwrite, or a suffixed slug; see `DATA-FLOW.md`), never sent to the AI in the fix-request block |
 | E104 | `lang` not `fr` or `en` |
 | E105 | `family` set without `variant`, or `variant` without `family` |
 | E106 | `source.type` not in the allowed list |
@@ -106,7 +111,7 @@ Hard errors. Refuse to save.
 | E212 | `buy_instead` present without `recipe` |
 | E214 | `alt` present without both `qty` and `unit` inside it, or with a key other than `qty`, `qty_max`, `unit` |
 | E215 | `or` not a list, or an entry that is neither a string nor a valid ingredient object (same rules as any ingredient entry, `name` required) |
-| E216 | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit` |
+| E216 | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit`. Not fired when `unit` is a count or container unit (`piece`, `clove`, `leaf`, `sprig`, `stalk`, `bunch`, `slice`, `can`, `packet`) and the note holds a single size (`796 ml`, `environ 450 g`). Always fired when `unit` is absent or a measure, when the note holds more than one amount, or when it gives an alternative (`ou`/`or` + a quantity — that belongs in `or`) |
 | E217 | an unknown bracket marker — only `[?]`, `[?: …]`, `[illisible]`, `[+]` are allowed. Also catches prose uncertainty (`lecture incertaine`, `incertain`) and asks for `[?]` |
 | E213 | sub-recipe cycle — `A` uses `B` uses `A` |
 | E301 | a body heading is unrecognized *and* no recognized method heading exists |
