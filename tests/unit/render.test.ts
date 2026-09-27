@@ -121,6 +121,33 @@ describe('markers and markdown', () => {
 	});
 });
 
+describe('method steps display', () => {
+	const BODY = '## Préparation\n\n1. Un.\n1. Deux.\n- Trois.\n  - détail\n\n### Glaçage\n\n4) Quatre.\n\n## Variantes\n\n- Autre.\n';
+
+	it('shows steps as bullets by default, whatever the file wrote', () => {
+		const html = renderMarkdown(BODY);
+		expect(html).not.toContain('<ol');
+		expect(html.match(/<ul class="steps">/g)).toHaveLength(3);
+		expect(html).toContain('<ul class="steps">\n<li>Trois.\n<ul>\n<li>détail</li>');
+		expect(html).toContain('<h2>Variantes</h2>\n<ul>\n<li>Autre.</li>');
+	});
+
+	it('numbers steps 1…n across the method when asked', () => {
+		const html = renderMarkdown(BODY, { numbered: true });
+		expect([...html.matchAll(/<li value="(\d+)">/g)].map((m) => m[1])).toEqual(['1', '2', '3', '4']);
+		expect(html).not.toContain('start=');
+		expect(html.match(/<ol class="steps">/g)).toHaveLength(3);
+		// Nested and non-method lists stay bullets.
+		expect(html).toContain('<li value="3">Trois.\n<ul>\n<li>détail</li>');
+		expect(html).toContain('<h2>Variantes</h2>\n<ul>\n<li>Autre.</li>');
+	});
+
+	it('finds the method under a title heading, as the parser does', () => {
+		expect(renderMarkdown('## Tarte\n\n### Préparation\n\n- Cuire.\n', { numbered: true })).toContain('<ol class="steps">\n<li value="1">Cuire.</li>');
+		expect(renderMarkdown('## Notes\n\n- Froid.\n', { numbered: true })).toContain('<ul>\n<li>Froid.</li>');
+	});
+});
+
 describe('timers', () => {
 	const found = (s: string) => findDurations(s).map((d) => [d.text, d.seconds, d.maxSeconds]);
 	it('finds durations in step text', () => {

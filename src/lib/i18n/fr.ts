@@ -125,6 +125,8 @@ export const fr = {
 		legendAdded: 'ajouté à la transcription',
 		cookMode: 'Cuisiner',
 		print: 'Imprimer',
+		/** Device setting: method steps numbered instead of bullets, on screen and in print. */
+		numberSteps: 'Numéroter les étapes',
 		verify: 'Vérifié',
 		verifyHelp: 'Marquer comme relue contre l’original',
 		verifyBlocked: 'Réglez d’abord les lectures incertaines ([?], [illisible]).',

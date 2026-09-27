@@ -29,7 +29,7 @@ extracted_by: ai
 
 ## Préparation
 
-1. Faire tremper les fèves 12 heures.
-2. Blanchir 30 minutes, égoutter.
-3. Mettre dans un pot en grès avec le lard, l'oignon, la mélasse, la cassonade et la moutarde.
-4. Couvrir d'eau et cuire 6 h au four, en ajoutant de l'eau au besoin.
+- Faire tremper les fèves 12 heures.
+- Blanchir 30 minutes, égoutter.
+- Mettre dans un pot en grès avec le lard, l'oignon, la mélasse, la cassonade et la moutarde.
+- Couvrir d'eau et cuire 6 h au four, en ajoutant de l'eau au besoin.

@@ -1,6 +1,7 @@
 <script lang="ts">
 	// A recipe as read: used by the recipe page and, identically, by the paste
 	// box preview. Quantities rescale with the servings adjuster, in print too.
+	import { onMount } from 'svelte';
 	import { t, tagLabel, familyLabel } from '$lib/i18n/fr';
 	import { formatDurationValue, formatSeconds } from '$lib/render/duration';
 	import { formatAmount } from '$lib/render/ingredient';
@@ -8,7 +9,9 @@
 	import { MULTIPLIERS } from '$lib/render/scale';
 	import { formatOven } from '$lib/render/temperature';
 	import { formatNumber } from '$lib/render/fraction';
+	import { parseBody } from '$lib/vault/body';
 	import { findMarkers } from '$lib/vault/markers';
+	import { loadStepStyle, setNumbered, stepStyle } from '$lib/stepstyle.svelte';
 	import type { Recipe } from '$lib/vault/types';
 	import IngredientLine from './IngredientLine.svelte';
 	import Marked from './Marked.svelte';
@@ -36,7 +39,9 @@
 
 	const lang = $derived(recipe.lang);
 	const factor = $derived(recipe.servings ? servings / recipe.servings : multiplier);
-	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s] }));
+	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s], numbered: stepStyle.numbered }));
+	const hasSteps = $derived(parseBody(body).body.steps.length > 0);
+	onMount(loadStepStyle);
 	const oven = $derived(recipe.oven ? formatOven(recipe.oven) : null);
 	/** The markers of number fields written with one (`servings: "4 [?]"`), shown after the number. */
 	const markersOf = (...raw: (string | undefined)[]) =>
@@ -214,6 +219,12 @@
 		</section>
 
 		<section class="method">
+			{#if hasSteps}
+				<label class="step-style no-print">
+					<input type="checkbox" checked={stepStyle.numbered} onchange={(e) => setNumbered(e.currentTarget.checked)} />
+					{t.recipe.numberSteps}
+				</label>
+			{/if}
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it with html: false -->
 			{@html html}
 		</section>
@@ -429,15 +440,29 @@
 		font-size: var(--step-1);
 		margin: 1.25rem 0 0.25rem;
 	}
-	.method :global(ol) {
+	.step-style {
+		display: flex;
+		justify-content: flex-end;
+		align-items: center;
+		gap: 0.4rem;
+		margin-bottom: 0.25rem;
+		font-family: var(--sans);
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+		cursor: pointer;
+	}
+	.method :global(ol),
+	.method :global(ul.steps) {
 		padding-left: 1.6rem;
 		margin: 0.5rem 0;
 	}
-	.method :global(ol li) {
+	.method :global(ol li),
+	.method :global(ul.steps > li) {
 		padding-left: 0.3rem;
 		margin-bottom: 0.6rem;
 	}
-	.method :global(ol li::marker) {
+	.method :global(ol li::marker),
+	.method :global(ul.steps > li::marker) {
 		font-family: var(--sans);
 		font-weight: 700;
 		color: var(--rule-red);

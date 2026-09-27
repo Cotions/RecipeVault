@@ -48,3 +48,13 @@ test('kitchen mode: a sub-recipe expands inline', async ({ page }) => {
 	await expect(page.locator('.sub')).toContainText('Pâte brisée');
 	await expect(page.locator('.sub')).toContainText('graisse végétale');
 });
+
+test('kitchen mode: bullet steps are shown one at a time', async ({ page }) => {
+	await page.goto('/r/feves-au-lard/cuisine');
+	await page.getByRole('button', { name: 'Commencer →' }).click();
+	await expect(page.getByText('Étape 1 sur 4')).toBeVisible();
+	await expect(page.locator('.stage')).toContainText('Faire tremper les fèves');
+	await page.getByRole('button', { name: /Étape suivante/ }).click();
+	await expect(page.getByText('Étape 2 sur 4')).toBeVisible();
+	await expect(page.locator('.stage')).toContainText('égoutter');
+});

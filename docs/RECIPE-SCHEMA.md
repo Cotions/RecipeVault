@@ -272,6 +272,9 @@ Rules:
   step. A `---` or `* * *` line is a break, not a step.
 - A method section with text but no step line warns (`W403`): its text would
   not show one step at a time in kitchen mode.
+- Display does not depend on how steps were written: the recipe page and its
+  print show them as bullets, or numbered 1…n if the device is set to (a
+  setting kept in the browser). Kitchen mode shows one step at a time.
 - `### Sub-headings` under the method group steps by component.
 - Only `## Préparation` is required in the body.
 - Sections beyond these four: allowed, ignored by the parser, still rendered.
