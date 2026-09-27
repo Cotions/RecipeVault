@@ -31,6 +31,14 @@ beforeAll(async () => {
 		} else if (req.url === '/big') {
 			res.writeHead(200, { 'Content-Type': 'text/html' });
 			res.end('x'.repeat(2000));
+		} else if (req.url === '/drip') {
+			// One byte at a time, never idle long enough for a socket timeout.
+			res.writeHead(200, { 'Content-Type': 'text/html' });
+			const t = setInterval(() => res.write('x'), 50);
+			setTimeout(() => {
+				clearInterval(t);
+				res.end();
+			}, 1500);
 		} else if (req.url === '/slow') {
 			setTimeout(() => res.end('<html></html>'), 2000);
 		} else {
@@ -48,6 +56,14 @@ describe('address checks', () => {
 		for (const ip of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.1.10', '169.254.169.254', '100.101.102.103', '0.0.0.0', '::1', 'fe80::1', 'fd12::3', '::ffff:127.0.0.1', '::ffff:192.168.0.1'])
 			expect(isBlockedAddress(ip), ip).toBe(true);
 		for (const ip of ['8.8.8.8', '151.101.1.1', '2606:4700::1111']) expect(isBlockedAddress(ip), ip).toBe(false);
+	});
+	it('checks an IPv4 address embedded in IPv6 in any form', () => {
+		// WHATWG URL rewrites [::ffff:127.0.0.1] as [::ffff:7f00:1].
+		for (const ip of ['::ffff:7f00:1', '::ffff:a00:1', '::ffff:c0a8:101', '::ffff:a9fe:a9fe', '::127.0.0.1', '::7f00:1', '0:0:0:0:0:ffff:7f00:1', '::ffff:0:7f00:1', '64:ff9b::a00:1', '2002:c0a8:101::1', '::', 'fe80::1%eth0', 'fec0::1', 'ff02::1', 'not:an:ip::x:y:z:w:v'])
+			expect(isBlockedAddress(ip), ip).toBe(true);
+		for (const ip of ['::ffff:808:808', '::ffff:8.8.8.8', '2002:808:808::1']) expect(isBlockedAddress(ip), ip).toBe(false);
+		for (const u of ['http://[::ffff:127.0.0.1]:3370/', 'http://[::ffff:10.0.0.1]/', 'http://[::ffff:a9fe:a9fe]/', 'http://[0:0:0:0:0:ffff:192.168.1.1]/'])
+			expect(() => checkUrl(u), u).toThrow(/locale ou privée/);
 	});
 	it('refuses other schemes and local names before fetching', () => {
 		expect(() => checkUrl('file:///etc/passwd')).toThrow(ImportError);
@@ -69,6 +85,11 @@ describe('fetch limits', () => {
 		await expect(fetchPage(`${base}/big`, { allowPrivate: true, maxBytes: 1000 })).rejects.toThrow(/volumineuse/);
 		await expect(fetchPage(`${base}/slow`, { allowPrivate: true, timeoutMs: 200 })).rejects.toThrow(/délai/);
 	});
+	it('bounds the whole fetch, body included, not only the idle time', async () => {
+		const t0 = Date.now();
+		await expect(fetchPage(`${base}/drip`, { allowPrivate: true, timeoutMs: 400 })).rejects.toThrow(/délai/);
+		expect(Date.now() - t0).toBeLessThan(1200);
+	});
 });
 
 describe('mapping', () => {
@@ -88,6 +109,11 @@ describe('mapping', () => {
 		expect(parseIngredientLine('sel et poivre', 'fr')).toEqual({ name: 'sel et poivre' });
 		expect(parseIngredientLine('2 tbsp butter, melted', 'en')).toMatchObject({ unit: 'tbsp', name: 'butter', prep: 'melted' });
 		expect(parseIngredientLine('3 gousses d’ail hachées 500 g', 'fr')).toEqual({ name: '3 gousses d’ail hachées 500 g [?]' });
+		// A unit word that is not an alias: kept whole with [?], never read as `piece`.
+		expect(parseIngredientLine('2 cuillères à soupe de beurre', 'fr')).toEqual({ name: '2 cuillères à soupe de beurre [?]' });
+		expect(parseIngredientLine('2 c à soupe d’huile', 'fr')).toEqual({ name: '2 c à soupe d’huile [?]' });
+		expect(parseIngredientLine('2 tablespoons butter', 'en')).toEqual({ name: '2 tablespoons butter [?]' });
+		expect(parseIngredientLine('2 carottes', 'fr')).toMatchObject({ unit: 'piece', name: 'carottes' });
 	});
 
 	it('imports a page into a file the checker reads, marked extracted_by: web', async () => {

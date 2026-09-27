@@ -13,7 +13,7 @@ import type { Readable } from 'node:stream';
 import { parseBody } from '../vault/body';
 import { parseDuration } from '../vault/duration';
 import { stripMarkers } from '../vault/markers';
-import { normalizeText } from '../vault/normalize';
+import { fold, normalizeText } from '../vault/normalize';
 import { parseQuantity } from '../vault/quantity';
 import { serialize } from '../vault/serialize';
 import { slugify } from '../vault/slug';
@@ -49,7 +49,33 @@ const V4_BLOCKED: [string, number][] = [
 	['240.0.0.0', 4]
 ];
 
-/** True for any address the server must not fetch from. */
+/** An IPv6 address as 8 16-bit groups (an embedded dotted quad included), or undefined. */
+function v6Groups(ip: string): number[] | undefined {
+	let a = ip.toLowerCase().replace(/%.*$/, ''); // zone id
+	const quad = a.match(/(\d+\.\d+\.\d+\.\d+)$/);
+	if (quad) {
+		if (isIP(quad[1]) !== 4) return undefined;
+		const n = v4ToInt(quad[1]);
+		a = a.slice(0, -quad[1].length) + `${(n >>> 16).toString(16)}:${(n & 0xffff).toString(16)}`;
+	}
+	const halves = a.split('::');
+	if (halves.length > 2) return undefined;
+	const part = (s: string) => (s ? s.split(':').map((g) => parseInt(g, 16)) : []);
+	const head = part(halves[0]);
+	const tail = halves.length === 2 ? part(halves[1]) : [];
+	const fill = 8 - head.length - tail.length;
+	if (halves.length === 1 ? fill !== 0 : fill < 0) return undefined;
+	const groups = [...head, ...Array(fill).fill(0), ...tail];
+	return groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff) ? groups : undefined;
+}
+
+const v4Of = (hi: number, lo: number) => `${hi >>> 8}.${hi & 0xff}.${lo >>> 8}.${lo & 0xff}`;
+
+/**
+ * True for any address the server must not fetch from. IPv6 is normalised
+ * first, so an IPv4 address embedded in any form (`::ffff:7f00:1`,
+ * `::ffff:127.0.0.1`, `::127.0.0.1`, NAT64, 6to4) is checked as IPv4.
+ */
 export function isBlockedAddress(ip: string): boolean {
 	const kind = isIP(ip);
 	if (kind === 4) {
@@ -57,15 +83,19 @@ export function isBlockedAddress(ip: string): boolean {
 		return V4_BLOCKED.some(([base, bits]) => (n >>> (32 - bits)) === (v4ToInt(base) >>> (32 - bits)));
 	}
 	if (kind === 6) {
-		const a = ip.toLowerCase();
-		const mapped = a.match(/^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/) ?? a.match(/^::(\d+\.\d+\.\d+\.\d+)$/);
-		if (mapped) return isBlockedAddress(mapped[1]);
-		if (a === '::' || a === '::1') return true;
-		const first = parseInt(a.split(':')[0] || '0', 16);
-		if ((first & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
-		if ((first & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
-		if ((first & 0xff00) === 0xff00) return true; // multicast
-		if (a.startsWith('64:ff9b:') || a.startsWith('2001:db8:')) return true;
+		const g = v6Groups(ip);
+		if (!g) return true;
+		const zero = (n: number) => g.slice(0, n).every((x) => x === 0);
+		// ::/96 (IPv4-compatible, :: and ::1 included), ::ffff:0:0/96 (mapped), ::ffff:0:0:0/96 (translated)
+		if (zero(6) || (zero(5) && g[5] === 0xffff) || (zero(4) && g[4] === 0xffff && g[5] === 0)) return isBlockedAddress(v4Of(g[6], g[7])) || zero(6);
+		if (g[0] === 0x64 && g[1] === 0xff9b) return true; // 64:ff9b::/96 and /48 NAT64
+		if (g[0] === 0x2002) return isBlockedAddress(v4Of(g[1], g[2])); // 6to4
+		if (g[0] === 0x2001 && g[1] === 0) return true; // Teredo
+		if (g[0] === 0x2001 && g[1] === 0xdb8) return true; // documentation
+		if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+		if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+		if ((g[0] & 0xffc0) === 0xfec0) return true; // fec0::/10 site-local (deprecated)
+		if ((g[0] & 0xff00) === 0xff00) return true; // multicast
 		return false;
 	}
 	return true;
@@ -120,7 +150,7 @@ export async function fetchPage(raw: string, opts: FetchOptions = {}): Promise<{
 	const deadline = Date.now() + timeoutMs;
 	let url = opts.allowPrivate ? new URL(raw) : checkUrl(raw);
 	for (let hop = 0; hop <= LIMITS.maxRedirects; hop++) {
-		const res = await request(url, Math.max(1, deadline - Date.now()), maxBytes, !!opts.allowPrivate);
+		const res = await request(url, deadline, maxBytes, !!opts.allowPrivate);
 		if (res.redirect) {
 			url = opts.allowPrivate ? new URL(res.redirect, url) : checkUrl(new URL(res.redirect, url).href);
 			continue;
@@ -130,8 +160,27 @@ export async function fetchPage(raw: string, opts: FetchOptions = {}): Promise<{
 	throw new ImportError('trop de redirections');
 }
 
-function request(url: URL, timeoutMs: number, maxBytes: number, allowPrivate: boolean): Promise<{ redirect?: string; body?: string }> {
+/**
+ * One hop. `deadline` bounds the whole fetch — connection, headers and body —
+ * not only the time between two packets: a page that drips a byte at a time
+ * is cut off at the deadline like one that never answers.
+ */
+function request(url: URL, deadline: number, maxBytes: number, allowPrivate: boolean): Promise<{ redirect?: string; body?: string }> {
+	const timeoutMs = Math.max(1, deadline - Date.now());
 	return new Promise((resolve, reject) => {
+		let stream: Readable | undefined;
+		const timer = setTimeout(() => {
+			const e = new ImportError('délai dépassé (10 s)');
+			stream?.destroy();
+			req.destroy(e);
+			reject(e);
+		}, timeoutMs);
+		const done = <T>(fn: (v: T) => void) => (v: T) => {
+			clearTimeout(timer);
+			fn(v);
+		};
+		resolve = done(resolve);
+		reject = done(reject);
 		const lib = url.protocol === 'https:' ? https : http;
 		const req = lib.request(
 			url,
@@ -166,24 +215,25 @@ function request(url: URL, timeoutMs: number, maxBytes: number, allowPrivate: bo
 					return reject(new ImportError('page trop volumineuse (plus de 5 Mo)'));
 				}
 				const enc = String(res.headers['content-encoding'] ?? '').toLowerCase();
-				let stream: Readable = res;
-				if (enc === 'gzip') stream = res.pipe(createGunzip());
-				else if (enc === 'deflate') stream = res.pipe(createInflate());
-				else if (enc === 'br') stream = res.pipe(createBrotliDecompress());
+				let body: Readable = res;
+				if (enc === 'gzip') body = res.pipe(createGunzip());
+				else if (enc === 'deflate') body = res.pipe(createInflate());
+				else if (enc === 'br') body = res.pipe(createBrotliDecompress());
+				stream = body;
 				const chunks: Buffer[] = [];
 				let size = 0;
-				stream.on('data', (c: Buffer) => {
+				body.on('data', (c: Buffer) => {
 					size += c.length;
 					if (size > maxBytes) {
 						req.destroy();
-						stream.destroy();
+						body.destroy();
 						reject(new ImportError('page trop volumineuse (plus de 5 Mo)'));
 						return;
 					}
 					chunks.push(c);
 				});
-				stream.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf8') }));
-				stream.on('error', (e) => reject(new ImportError(`lecture impossible : ${e.message}`)));
+				body.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf8') }));
+				body.on('error', (e) => reject(new ImportError(`lecture impossible : ${e.message}`)));
 			}
 		);
 		req.on('timeout', () => req.destroy(new ImportError('délai dépassé (10 s)')));
@@ -289,6 +339,22 @@ function leadingUnit(rest: string, lang: Lang): { unit: Unit; rest: string } | u
 	return undefined;
 }
 
+/** A word folded for the measure-word test: no accents, no trailing dot, no plural s/x. */
+const measureKey = (w: string) => {
+	const f = fold(w).replace(/\.+$/, '');
+	return f.length > 2 ? f.replace(/[sx]$/, '') : f;
+};
+/** First words of every unit alias, plus spellings that are not aliases but still a measure. */
+const MEASURE_WORDS = new Set(
+	[...ALIASES.map((a) => a.split(/\s+/)[0]), 'cuillère', 'cuillerée', 'cuiller', 'cuil', 'c', 'cs', 'ct', 'tbs', 'tbl'].map(measureKey)
+);
+
+/** The line reads like "<qty> <a unit word we cannot place> …": defaulting to `piece` would be a guess. */
+function looksLikeUnit(rest: string): boolean {
+	const word = rest.match(/^[^\s,()]+/)?.[0];
+	return !!word && MEASURE_WORDS.has(measureKey(word));
+}
+
 /**
  * One ingredient line from a web page → an entry. A line that does not read
  * cleanly becomes `{ name: "<the whole line> [?]" }` so the checker flags it
@@ -307,6 +373,7 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 		if (!qty || (lead[2] && (!qtyMax || qtyMax.value <= qty.value))) return fallback;
 		let rest = lead[3];
 		const u = leadingUnit(rest, lang);
+		if (!u && looksLikeUnit(rest)) return fallback;
 		it = { name: '', qty, unit: u?.unit ?? 'piece' };
 		if (qtyMax) it.qtyMax = qtyMax;
 		rest = u ? u.rest : rest;
