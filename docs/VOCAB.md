@@ -106,7 +106,8 @@ two dialects actually disagree:
 
 Fixed, four values plus none: `printemps`, `ete`, `automne`, `hiver`.
 Absent means year-round. Aliases: `spring`, `summer`/`été`, `autumn`/`fall`,
-`winter`.
+`winter`. Any other value is a warning (`W504`); `season` must be a list
+(`season: [hiver]`, `E218`).
 
 ## Units
 

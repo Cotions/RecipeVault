@@ -296,6 +296,17 @@ describe('E218 text fields', () => {
 		]);
 	});
 
+	it.each([
+		['tags: dessert', 'tags', 'Write it as a list: `tags: [dessert]`.'],
+		['tags: dessert, hiver', 'tags', 'Write it as a list: `tags: [dessert, hiver]`.'],
+		['tags: [dessert, quebecois]\nseason: hiver', 'season', 'Write it as a list: `season: [hiver]`.'],
+		['tags: [dessert, quebecois]\nseason: { a: 1 }', 'season', 'Write it as a list: `season: [automne, hiver]`.'],
+		['tags: [dessert, quebecois]\nmedia: final.jpg', 'media', 'Write `media: { final: final.jpg }`.']
+	])('fires on a list or mapping field holding a single value: %s', (to, path, fix) => {
+		const ds = checkRecipe(edit('tags: [dessert, quebecois]', to)).diagnostics;
+		expect(ds.map((d) => [d.code, d.path, d.fix])).toEqual([['E218', path, fix]]);
+	});
+
 	it('keeps a number in a text field as text', () => {
 		const r = checkRecipe(edit('name: eau, note: bouillante', 'name: eau, note: 796'));
 		expect(r.diagnostics).toEqual([]);
@@ -368,5 +379,24 @@ describe('sortDiagnostics', () => {
 			'W605 body.steps[0]',
 			'I701 title'
 		]);
+	});
+});
+
+describe('W504 season', () => {
+	const seasons = (list: string) => checkRecipe(edit('tags: [dessert, quebecois]', `tags: [dessert, quebecois]\nseason: ${list}`));
+
+	it('accepts the four seasons and their aliases', () => {
+		const r = seasons('[printemps, été, Summer, fall, autumn, winter, "hiver [?]"]');
+		expect(r.diagnostics.filter((d) => d.code !== 'W605')).toEqual([]);
+	});
+
+	it('warns on anything else, suggesting the closest season', () => {
+		const ds = seasons('[hivers, noël]').diagnostics;
+		expect(ds.map((d) => [d.code, d.path, d.severity])).toEqual([
+			['W504', 'season[0]', 'warning'],
+			['W504', 'season[1]', 'warning']
+		]);
+		expect(ds[0].fix).toMatch(/^Did you mean `hiver`\?/);
+		expect(ds[1].fix).not.toContain('Did you mean');
 	});
 });

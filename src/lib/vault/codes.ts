@@ -54,6 +54,7 @@ export const CODE_FIXERS: Readonly<Record<string, Fixer>> = {
 	W501: 'app',
 	W502: 'app',
 	W503: 'app',
+	W504: 'ai',
 	W601: 'app',
 	W602: 'app',
 	W603: 'app',

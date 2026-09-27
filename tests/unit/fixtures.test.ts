@@ -36,7 +36,11 @@ describe('invalid fixtures', () => {
 	it.each(files)('%s fires its code and no other error', (f) => {
 		const code = f.slice(0, 4);
 		const { diagnostics } = checkRecipe(read(`${DIR}/invalid`, f).text);
-		if (code === 'E112') {
+		if (code[0] === 'W') {
+			// A warning: the file saves, the warning is there.
+			expect(errorCodes(diagnostics)).toEqual([]);
+			expect(diagnostics.some((d) => d.code === code)).toBe(true);
+		} else if (code === 'E112') {
 			// Stripped with a note on the paste path, not a rejection.
 			expect(diagnostics.filter((d) => d.code === 'E112').every((d) => d.severity === 'info')).toBe(true);
 			expect(diagnostics.some((d) => d.code === 'E112')).toBe(true);
@@ -48,7 +52,7 @@ describe('invalid fixtures', () => {
 
 	it.each(md(`${DIR}/invalid`).map((f) => [f]))('%s: every error states a fix', (f) => {
 		const { diagnostics } = checkRecipe(read(`${DIR}/invalid`, f).text);
-		for (const d of diagnostics.filter((x) => x.severity === 'error')) expect(d.fix, d.code).toBeTruthy();
+		for (const d of diagnostics.filter((x) => x.severity === 'error' || x.code === f.slice(0, 4))) expect(d.fix, d.code).toBeTruthy();
 	});
 });
 

@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { stripMarkers } from '../../vault/markers';
 import { fold } from '../../vault/normalize';
 import type { Diagnostic, Duration, Recipe } from '../../vault/types';
+import { seasonFor } from '../../vault/vocab';
 import { canonicalTag, type VaultVocab } from '../vocab';
 import type { DB } from './db';
 
@@ -25,21 +26,8 @@ export function totalSeconds(r: Recipe): number | null {
 	return parts.length ? parts.reduce((n, d) => n + secs(d)!, 0) : null;
 }
 
-/** docs/VOCAB.md "Seasons": the four values and their aliases. */
-const SEASON_ALIASES: Record<string, string> = {
-	printemps: 'printemps',
-	spring: 'printemps',
-	ete: 'ete',
-	summer: 'ete',
-	automne: 'automne',
-	autumn: 'automne',
-	fall: 'automne',
-	hiver: 'hiver',
-	winter: 'hiver'
-};
-
 /** A season as the index stores it: canonical when known, else folded. */
-export const canonicalSeason = (s: string) => SEASON_ALIASES[fold(s)] ?? fold(s);
+export const canonicalSeason = (s: string) => seasonFor(s) ?? fold(s);
 
 export interface IndexInput {
 	recipe: Recipe;

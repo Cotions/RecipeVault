@@ -190,6 +190,39 @@ export const SOURCE_TYPES: readonly SourceType[] = [
 
 export const SEASONS = ['printemps', 'ete', 'automne', 'hiver'] as const;
 
+/** docs/VOCAB.md "Seasons": each value and alias, folded, → the canonical season. */
+export const SEASON_ALIASES: Readonly<Record<string, (typeof SEASONS)[number]>> = {
+	printemps: 'printemps',
+	spring: 'printemps',
+	ete: 'ete',
+	summer: 'ete',
+	automne: 'automne',
+	autumn: 'automne',
+	fall: 'automne',
+	hiver: 'hiver',
+	winter: 'hiver'
+};
+
+/** The canonical season for a value or alias (`été`, `Winter`), else undefined. */
+export function seasonFor(v: string): (typeof SEASONS)[number] | undefined {
+	return SEASON_ALIASES[fold(v)];
+}
+
+/** The closest season to an unknown value, within edit distance 2. */
+export function suggestSeason(v: string): (typeof SEASONS)[number] | undefined {
+	const k = fold(v);
+	let best: string | undefined;
+	let bestD = Infinity;
+	for (const a of Object.keys(SEASON_ALIASES)) {
+		const d = editDistance(k, a);
+		if (d < bestD) {
+			bestD = d;
+			best = a;
+		}
+	}
+	return best !== undefined && bestD <= 2 ? SEASON_ALIASES[best] : undefined;
+}
+
 /** Values of `extracted_by`: typed by a person, read by an AI, imported from a web page's JSON-LD. */
 export const EXTRACTED_BY = ['hand', 'ai', 'web'] as const;
 

@@ -140,7 +140,7 @@ out (the whole amount for `qty`/`unit`, the whole `alt`, the whole `oven` for
 | E215 | ai | `or` not a list, or an entry that is neither a string nor a valid ingredient object (same rules as any ingredient entry, `name` required) |
 | E216 | ai | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit`. Not fired when `unit` is a count or container unit (`piece`, `clove`, `leaf`, `sprig`, `stalk`, `bunch`, `slice`, `can`, `packet`, `bottle`, `jar`, `bag`) and the note holds a single size (`796 ml`, `environ 450 g`) — or one size followed by its equivalent in another unit in parentheses (`19 oz (540 ml)`, `540 ml (19 oz)`), as Canadian cans print it. Always fired when `unit` is absent or a measure, when the note holds any other second amount (two sizes, `796 ml (540 ml)`), or when it gives an alternative (`ou`/`or` + a quantity — that belongs in `or`) |
 | E217 | ai | an unknown bracket marker — only `[?]`, `[?: …]`, `[illisible]`, `[+]` are allowed. Also catches prose uncertainty (`lecture incertaine`, `incertain`) and asks for `[?]` |
-| E218 | ai | a text field (`note`, `prep`, `brand`, `recipe`, `group`, `source.author`, a tag, …) holds a list, a mapping or `true`/`false` — usually a value starting with an unquoted marker (`note: [illisible]`); fixed by quoting it. Fields with their own code (`title` E101, `name` E207, `qty` E204) keep it |
+| E218 | ai | a field of the wrong shape. A text field (`note`, `prep`, `brand`, `recipe`, `group`, `source.author`, a tag, …) holds a list, a mapping or `true`/`false` — usually a value starting with an unquoted marker (`note: [illisible]`); fixed by quoting it. Or a list field (`tags`, `season`) or the `media` mapping holds a single value (`tags: dessert`, `media: final.jpg`); fixed by writing the list or mapping (`tags: [dessert]`, `media: { final: final.jpg }`). Fields with their own code (`title` E101, `name` E207, `qty` E204) keep it |
 | E213 | ai | sub-recipe cycle — `A` uses `B` uses `A` |
 | E301 | ai | a body heading is unrecognized *and* no recognized method heading exists |
 
@@ -158,6 +158,7 @@ Warnings. Save, mark `needs-review`.
 | W501 | app | tag not in the vocabulary, closest canonical suggested |
 | W502 | app | `family` within edit distance 2 of an existing family — drift suspected |
 | W503 | app | near-identical `title` already in the vault — duplicate paste |
+| W504 | ai | a `season` value not in the fixed list of `VOCAB.md` — `printemps`, `ete`, `automne`, `hiver` or one of their aliases (`été`, `summer`, `fall`, …); the closest season is suggested |
 | W601 | app | no `servings` |
 | W602 | app | no `times` |
 | W603 | app | no dish photo |

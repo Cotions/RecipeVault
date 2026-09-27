@@ -1,9 +1,11 @@
-// Identity and bookkeeping: E101, E102, E104, E105, E107, E110, E112, W610.
+// Identity, classification and bookkeeping: E101, E102, E104, E105, E107, E110,
+// E112, W504, W610.
 
 import { parse } from 'yaml';
 import { slugify, SLUG_RE } from '../slug';
-import { ALLOWED_KEYS, MISPLACED_TOP_KEYS, SCHEMA_VERSIONS } from '../vocab';
-import { checkKeys, isBlank, isMap, show, type RuleContext } from './context';
+import { stripMarkers } from '../markers';
+import { ALLOWED_KEYS, MISPLACED_TOP_KEYS, SCHEMA_VERSIONS, SEASONS, seasonFor, suggestSeason } from '../vocab';
+import { checkKeys, isBlank, isMap, join, show, type RuleContext } from './context';
 
 export function checkIdentity(ctx: RuleContext): void {
 	const { fm } = ctx;
@@ -74,6 +76,21 @@ export function checkIdentity(ctx: RuleContext): void {
 	}
 
 	if (isMap(fm.media)) checkKeys(ctx, fm.media, 'media', ALLOWED_KEYS.media);
+
+	// W504: the four seasons of docs/VOCAB.md, or their aliases. A value that is
+	// not text is E218's.
+	if (Array.isArray(fm.season)) {
+		fm.season.forEach((v, i) => {
+			if (typeof v !== 'string' || v.trim() === '' || seasonFor(stripMarkers(v))) return;
+			const guess = suggestSeason(stripMarkers(v));
+			ctx.report(
+				'W504',
+				join('season', i),
+				`\`${show(v)}\` is not a season.`,
+				`${guess ? `Did you mean \`${guess}\`? ` : ''}Seasons are ${SEASONS.map((x) => `\`${x}\``).join(', ')}; leave \`season\` out for a recipe made all year.`
+			);
+		});
+	}
 }
 
 /** A string as a YAML value: quoted when it would read as a number, boolean or null. */
