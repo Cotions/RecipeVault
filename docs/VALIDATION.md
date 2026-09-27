@@ -159,6 +159,7 @@ Warnings. Save, mark `needs-review`.
 | W306 | app | `recipe:` points at a slug not in the vault yet |
 | W401 | ai | no method section in the body |
 | W402 | ai | a step exceeds ~400 characters — probably several steps merged |
+| W403 | ai | a method section has text but no steps — no numbered (`1.`) or `-` / `*` bullet line. Its text would not be shown one step at a time in kitchen mode, nor checked by `W402` and `W609`. Fix: write each step as a numbered or `-` line |
 | W501 | app | tag not in the vocabulary, closest canonical suggested |
 | W502 | app | `family` within edit distance 2 of an existing family — drift suspected |
 | W503 | app | near-identical `title` already in the vault — duplicate paste |

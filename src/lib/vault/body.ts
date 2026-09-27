@@ -1,5 +1,10 @@
-// Line-based body parsing: headings, sections, numbered steps. No Markdown
-// library — validation needs only headings and list items.
+// Line-based body parsing: headings, sections, steps. No Markdown library —
+// validation needs only headings and list items.
+//
+// In a method section every list line is a step: numbered (`1.`, `2)`) or a
+// `-` / `*` bullet, mixed freely, in source order (the app renumbers). A list
+// line indented to the text of the step above is nested under it, as in
+// Markdown, and joins that step instead of starting one.
 
 import { headingKind } from './vocab';
 import type { Body, Section, Step } from './types';
@@ -17,7 +22,10 @@ export interface ParsedBody {
 }
 
 const HEADING_RE = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
-const STEP_RE = /^\s{0,3}(\d+)[.)]\s+(.*)$/;
+// A step line: up to 3 spaces, then `1.` / `1)` or `-` / `*`, then the text.
+const STEP_RE = /^(\s{0,3})(?:(\d+)[.)]|[-*])\s+(.*)$/;
+// `---`, `* * *`: a thematic break, not a bullet.
+const BREAK_RE = /^\s{0,3}([-*])(?:[ \t]*\1){2,}[ \t]*$/;
 const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})/;
 
 export function parseBody(text: string): ParsedBody {
@@ -51,18 +59,23 @@ export function parseBody(text: string): ParsedBody {
 		const rest: string[] = [];
 		if (section.kind === 'method') {
 			let current: Step | null = null;
+			// Column where the current step's text starts: a list line indented
+			// that far is nested in it (Markdown), not a new step.
+			let column = 0;
 			let subheading: string | undefined;
 			let blank = false;
 			for (const line of section.lines) {
 				const h = line.match(HEADING_RE);
-				const s = line.match(STEP_RE);
+				const s = BREAK_RE.test(line) ? null : line.match(STEP_RE);
 				if (h) {
 					subheading = h[2];
 					current = null;
 					rest.push(line);
-				} else if (s) {
-					current = { number: Number(s[1]), text: s[2].trim() };
+				} else if (s && !(current && s[1].length >= column)) {
+					current = { text: s[3].trim(), section: si };
+					if (s[2] !== undefined) current.number = Number(s[2]);
 					if (subheading) current.subheading = subheading;
+					column = line.length - s[3].length;
 					steps.push(current);
 				} else if (line.trim() === '') {
 					blank = true;

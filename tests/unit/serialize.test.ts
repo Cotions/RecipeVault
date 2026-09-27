@@ -64,6 +64,14 @@ describe('serialize', () => {
 		expect(out).not.toContain('Méthode');
 	});
 
+	it('keeps bullet steps as written', () => {
+		const a = load(readFileSync('tests/fixtures/check/valid/bullet-steps.md', 'utf8'));
+		const out = serialize(a.recipe, a.body);
+		expect(out).toContain("## Préparation\n\n- Mettre les pommes et l'eau dans une casserole.\n- Cuire à feu doux 20 min,\n  en brassant de temps en temps.\n* Ajouter le sucre");
+		expect(out).toContain('### Garniture\n\n- Saupoudrer');
+		expect(a.body.steps).toHaveLength(4);
+	});
+
 	it('quotes what YAML could misread', () => {
 		for (const s of ['no', 'Yes', 'off', 'null', '1:30', '010', '3.5', '[?] beurre', 'a: b', 'x #y', '#tag', '', ' pad', '- dash', '@at', '1e3'])
 			expect(scalar(s), s).toMatch(/^"/);

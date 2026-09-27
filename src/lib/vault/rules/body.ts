@@ -1,4 +1,4 @@
-// Body rules: E003, E301, W401, W402, W609.
+// Body rules: E003, E301, W401, W402, W403, W609.
 
 import { isBlank, type RuleContext } from './context';
 
@@ -40,6 +40,18 @@ export function checkBody(ctx: RuleContext): void {
 	} else if (!hasMethod) {
 		ctx.report('W401', null, 'no `## Préparation` section found.', 'Add `## Préparation` (or `## Instructions` in English) with the numbered steps.');
 	}
+
+	// W403: a method section with text but no step line — its text would be
+	// neither shown one step at a time nor checked as steps.
+	body.sections.forEach((s, i) => {
+		if (s.kind !== 'method' || !s.text || body.steps.some((step) => step.section === i)) return;
+		ctx.report(
+			'W403',
+			`body.sections[${i}]`,
+			`the \`${'#'.repeat(s.level)} ${s.heading}\` section has text but no steps.`,
+			'Write each step as a numbered (`1.`) or `-` line.'
+		);
+	});
 
 	body.steps.forEach((step, i) => {
 		if (step.text.length > LONG_STEP) {

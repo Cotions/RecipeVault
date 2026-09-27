@@ -190,10 +190,12 @@ export interface Section {
 }
 
 export interface Step {
-	/** The number as written; the app renumbers, so repeated `1.` is fine. */
-	number: number;
+	/** The number as written; the app renumbers, so repeated `1.` is fine. Absent on a `-` / `*` bullet step. */
+	number?: number;
 	/** Step text, continuation lines joined with a space. */
 	text: string;
+	/** Index in `Body.sections` of the method section holding the step. */
+	section: number;
 	/** The `###` heading the step sits under, if any. */
 	subheading?: string;
 }
@@ -202,6 +204,6 @@ export interface Body {
 	/** Text before the first heading. */
 	preamble: string;
 	sections: Section[];
-	/** Numbered steps of the method section. */
+	/** Steps of the method sections in order: numbered and `-` / `*` bullet lines. */
 	steps: Step[];
 }

@@ -262,7 +262,16 @@ Meilleur réchauffé le lendemain.
 ```
 
 Rules:
-- Steps numbered. The app renumbers, so `1.` on every line is acceptable.
+- Steps are numbered (`1.` or `1)`) — what the AI writes. `-` / `*` bullet lines
+  are accepted as steps too, same as numbered lines, continuation lines included.
+  The app renumbers, so `1.` on every line is acceptable.
+- A section may mix both: every numbered or bullet line at the start of a line
+  (up to 3 spaces) is one step, in source order. A list line indented to the
+  text of the step above it is nested in that step (as in Markdown) and joins
+  it — `1. Préparer la garniture :` followed by indented `- pommes` lines is one
+  step. A `---` or `* * *` line is a break, not a step.
+- A method section with text but no step line warns (`W403`): its text would
+  not show one step at a time in kitchen mode.
 - `### Sub-headings` under the method group steps by component.
 - Only `## Préparation` is required in the body.
 - Sections beyond these four: allowed, ignored by the parser, still rendered.

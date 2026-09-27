@@ -363,6 +363,55 @@ describe('body rules', () => {
 		expect(d?.fix).toBe(`Add \`oven: { temp: ${temp}, unit: F }\`.`);
 	});
 
+	/** The base card with its numbered steps as `-` bullets. */
+	const bullets = (text: string) => text.replace(/^\d+\. /gm, '- ');
+
+	it('bullet steps are steps: no warning on the clean card', () => {
+		expect(codes(bullets(BASE))).toEqual([]);
+	});
+
+	it('W402 and W609 see bullet step text', () => {
+		expect(codes(bullets(edit('4. Cuire 40 min.', `4. ${'Cuire longtemps. '.repeat(30)}`)))).toEqual(['W402']);
+		const [d] = find(bullets(edit('oven: { temp: 350, unit: F }\n', '').replace('4. Cuire 40 min.', '* Cuire à 375°F, 40 min.')), 'W609');
+		expect(d?.path).toBe('body.steps[3]');
+		expect(d?.fix).toBe('Add `oven: { temp: 375, unit: F }`.');
+	});
+
+	it('W403 when a method section has text but no steps', () => {
+		const text = BASE.replace(/^\d+\. /gm, '');
+		const [d] = find(text, 'W403');
+		expect(d.path).toBe('body.sections[0]');
+		expect(d.fix).toBe('Write each step as a numbered (`1.`) or `-` line.');
+		expect(codes(text)).toEqual(['W403']);
+	});
+
+	it('no W403 for an empty method section or one with steps under a sub-heading', () => {
+		const head = BASE.slice(0, BASE.indexOf('## Préparation'));
+		expect(codes(`${head}## Préparation
+`)).toEqual([]);
+		expect(codes(`${head}## Préparation
+
+### Pâte
+
+- Mélanger.
+`)).toEqual([]);
+	});
+
+	it('W403 names each method section without steps', () => {
+		const head = BASE.slice(0, BASE.indexOf('## Préparation'));
+		const text = `${head}## Tarte
+
+### Préparation
+
+Tout mélanger.
+
+## Instructions
+
+1. Cuire.
+`;
+		expect(find(text, 'W403').map((d) => d.path)).toEqual(['body.sections[1]']);
+	});
+
 	it('no E301 for a method heading under a title heading', () => {
 		expect(codes(edit('## Préparation', '## Pouding\n\n### Préparation'))).toEqual([]);
 	});
