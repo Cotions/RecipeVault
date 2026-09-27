@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { getApp } from '$lib/server/app';
-import { slugOf } from '$lib/server/paste';
-import { save, SaveError, type SaveFile } from '$lib/server/save';
+import { savePaste, type Unsent } from '$lib/server/paste';
+import { SaveError, type SaveFile } from '$lib/server/save';
 import { SLUG_RE } from '$lib/vault/slug';
 import type { RequestHandler } from './$types';
 
@@ -16,12 +16,6 @@ function valid(f: unknown): f is SaveFile {
 		if (typeof fam?.family !== 'string' || !SLUG_RE.test(fam.family) || typeof fam.variant !== 'string' || !fam.variant.trim()) return false;
 	}
 	return true;
-}
-
-/** A file of the same attempt that stayed in the box: its codes only, never its content. */
-interface Unsent {
-	codes: string[];
-	slug?: string;
 }
 
 function validUnsent(u: unknown): u is Unsent {
@@ -43,18 +37,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!Array.isArray(unsent) || unsent.length > 50 || !unsent.every(validUnsent)) error(400, 'unsent: { codes: string[], slug?: string }[]');
 	const app = getApp();
 	try {
-		const result = await save(app.ctx, body.files);
-		// One paste-log line per save attempt (docs/DATA-FLOW.md), with the
-		// files that stayed in the box as 'rejected'. Same entries as savePaste,
-		// plus those.
-		app.pasteLog.append('save', [
-			...result.files.map((r, i) => ({
-				codes: r.diagnostics.map((d) => d.code),
-				outcome: r.status,
-				slug: r.status === 'rejected' ? slugOf(body.files[i].text) : r.slug
-			})),
-			...(unsent as Unsent[]).map((u) => ({ codes: u.codes, outcome: 'rejected' as const, slug: u.slug }))
-		]);
+		const result = await savePaste(app, body.files, unsent as Unsent[]);
 		return json(result);
 	} catch (e) {
 		if (e instanceof SaveError) error(500, e.message);

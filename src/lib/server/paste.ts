@@ -49,15 +49,25 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 	});
 }
 
-export async function savePaste(app: App, files: SaveFile[]): Promise<SaveResult> {
+/** A file of the same attempt that stayed in the box: its codes only, never its content. */
+export interface Unsent {
+	codes: string[];
+	slug?: string;
+}
+
+/**
+ * Save, then append one paste-log line for the attempt (docs/DATA-FLOW.md):
+ * the saved files, plus the ones that stayed in the box as 'rejected'.
+ */
+export async function savePaste(app: App, files: SaveFile[], unsent: Unsent[] = []): Promise<SaveResult> {
 	const result = await save(app.ctx, files);
-	app.pasteLog.append(
-		'save',
-		result.files.map((r, i) => ({
+	app.pasteLog.append('save', [
+		...result.files.map((r, i) => ({
 			codes: r.diagnostics.map((d) => d.code),
 			outcome: r.status,
 			slug: r.status === 'rejected' ? slugOf(files[i].text) : r.slug
-		}))
-	);
+		})),
+		...unsent.map((u) => ({ codes: u.codes, outcome: 'rejected' as const, slug: u.slug }))
+	]);
 	return result;
 }
