@@ -5,7 +5,7 @@ import { stripMarkers } from '../markers';
 import { fold } from '../normalize';
 import { fmt, parseQuantity } from '../quantity';
 import type { Lang } from '../types';
-import { ALLOWED_KEYS, COUNT_UNITS, UNITS, findAllQtyUnits, findQtyUnit, isUnit, unitForAlias } from '../vocab';
+import { ALLOWED_KEYS, COUNT_UNITS, UNITS, findAllQtyUnits, findQtyUnit, isUnit, unitForAlias, type QtyUnitMatch } from '../vocab';
 import { checkKeys, isBlank, isMap, join, show, type RuleContext } from './context';
 
 const UNIT_LIST = `Allowed units: ${UNITS.join(', ')}.`;
@@ -230,8 +230,11 @@ function checkNote(ctx: RuleContext, item: Record<string, unknown>, path: string
 	// "frais ou surgelés, 300 g" holds one size.
 	const alternative = amounts.find((m) => ALTERNATIVE_RE.test(text.slice(0, m.start)));
 	// One size on a counted or contained item is what `note` is for:
-	// `{ qty: 1, unit: can, note: "796 ml" }`.
-	if (!alternative && amounts.length === 1 && (COUNT_UNITS as readonly unknown[]).includes(item.unit)) return;
+	// `{ qty: 1, unit: can, note: "796 ml" }`, or `"19 oz (540 ml)"` when the
+	// source prints it in two measures.
+	if (!alternative && (COUNT_UNITS as readonly unknown[]).includes(item.unit)) {
+		if (amounts.length === 1 || isSizeWithEquivalent(text, amounts, ctx.lang)) return;
+	}
 	const m = alternative ?? amounts[0];
 	const unit = unitForAlias(m.unitText, ctx.lang) ?? '<unit>';
 	const name = typeof item.name === 'string' ? item.name : '…';
@@ -239,9 +242,23 @@ function checkNote(ctx: RuleContext, item: Record<string, unknown>, path: string
 	const fix = alternative
 		? `A replacement with its own amount goes in \`or\`: \`or: [{ ${amount}, name: … }]\`.`
 		: amounts.length > 1 && (COUNT_UNITS as readonly unknown[]).includes(item.unit)
-			? '`note` may hold one size only; move the other amounts to `qty`/`unit` or `alt`, or into `or` if they are a replacement.'
+			? '`note` may hold one size only, or one size with its equivalent in another measure in parentheses (`19 oz (540 ml)`); move the other amounts to `qty`/`unit` or `alt`, or into `or` if they are a replacement.'
 			: `Move it: \`{ ${amount}, name: ${name} }\`; a second measure of the same amount goes in \`alt: { ${amount} }\`.`;
 	ctx.report('E216', path, `\`note: ${show(note)}\` contains a quantity and unit.`, fix);
+}
+
+/**
+ * One size plus its equivalent in another measure, the second in parentheses
+ * right after the first: `19 oz (540 ml)`, `540 ml (19 oz)`. Two amounts in
+ * the same unit are two sizes, not one.
+ */
+function isSizeWithEquivalent(text: string, amounts: QtyUnitMatch[], lang: Lang): boolean {
+	if (amounts.length !== 2) return false;
+	const [a, b] = amounts;
+	if (!/^\s*\(\s*$/.test(text.slice(a.end, b.start)) || !/^\s*\)/.test(text.slice(b.end))) return false;
+	const ua = unitForAlias(a.unitText, lang);
+	const ub = unitForAlias(b.unitText, lang);
+	return !!ua && !!ub && ua !== ub;
 }
 
 // Text before an amount that makes it an alternative: ends in `ou`/`or`, maybe

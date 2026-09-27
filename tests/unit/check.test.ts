@@ -100,7 +100,10 @@ describe('E210 / E216 fixes', () => {
 		'{ qty: 1, unit: piece, name: fromage, note: environ 450 g }',
 		'{ qty: 1, unit: piece, name: fromage, note: "format familial, environ 450 g" }',
 		'{ qty: 1, unit: packet, name: levure, note: 8 g }',
-		'{ qty: 2, unit: slice, name: bacon, note: 1/4 lb en tout }'
+		'{ qty: 2, unit: slice, name: bacon, note: 1/4 lb en tout }',
+		'{ qty: 1, unit: can, name: pois chiches, note: "19 oz (540 ml)" }',
+		'{ qty: 1, unit: can, name: pois chiches, note: "540 ml (19 oz), égouttés" }',
+		'{ qty: 1, unit: can, name: épices, note: "4 ml (3/4 c. à thé)" }'
 	])('allows one size on a counted or contained item: %s', (entry) => {
 		expect(codes(item(entry))).toEqual([]);
 	});
@@ -108,7 +111,10 @@ describe('E210 / E216 fixes', () => {
 	it.each([
 		['measure unit', '{ qty: 250, unit: g, name: fromage, note: environ 450 g }'],
 		['no unit', '{ name: fromage, note: environ 450 g }'],
-		['two amounts', '{ qty: 1, unit: can, name: épices, note: "4 ml (3/4 c. à thé)" }'],
+		['two amounts', '{ qty: 1, unit: can, name: tomates, note: "796 ml, 540 ml" }'],
+		['two sizes in one unit, one in parentheses', '{ qty: 1, unit: can, name: tomates, note: "796 ml (540 ml)" }'],
+		['a parenthesised equivalent followed by another size', '{ qty: 1, unit: can, name: tomates, note: "19 oz (540 ml) + 2 oz" }'],
+		['an alternative in parentheses', '{ qty: 1, unit: can, name: tomates, note: "19 oz (ou 540 ml)" }'],
 		['alternative, French', '{ qty: 1, unit: packet, name: bouillon, note: ou 1 sachet de bouillon }'],
 		['alternative mid-note', '{ qty: 1, unit: piece, name: citron, note: "gros, or 2 tbsp juice" }']
 	])('still fires E216: %s', (_, entry) => {

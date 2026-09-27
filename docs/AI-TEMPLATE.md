@@ -1,8 +1,9 @@
 # Master template — the prompt given to an AI to produce a recipe file
 
-Draft 3.1. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
+Draft 3.2. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
 years old, through a free chat AI); draft 3 after round 2, the same ten re-run with
-draft 2; draft 3.1 after the checker's first run. What changed and why is at the end.
+draft 2; draft 3.1 after the checker's first run; draft 3.2 after the decisions on
+the checker's stress test. What changed and why is at the end.
 
 This file is the contract. The parser, the validator, cost, and pantry search all
 assume output matching it exactly.
@@ -100,7 +101,9 @@ INGREDIENTS — in frontmatter, never as prose bullets
     Never replace a brand with what you think the product is — the app maps
     names to products.
 11. Size of a can or pack goes in note: { qty: 1, unit: can, name: tomates,
-    note: "796 ml" }.
+    note: "796 ml" }. A size printed in two measures keeps both, the second
+    in parentheses: note: "19 oz (540 ml)". One size only — an alternative
+    amount goes in or.
 12. "X ou Y" for one ingredient → { name: X, or: [Y] }. When the alternative
     has its own amount or detail, write it as an object:
       "2 ml cannelle ou 1 ml piment de la Jamaïque" →
@@ -307,6 +310,12 @@ Draft 3.1 — found by the checker (`docs/plans/01-checker.md`), not by a new ro
 | Found | Fix |
 |---|---|
 | `[?: other]` in an unquoted value is invalid YAML (it reads as a nested `key: value`), and any marker inside a `{ … }` entry opens a list. The prompt's own example `author: Jeanne Tremblay [?: Tremblé]` did not parse | Every frontmatter value containing a marker is double-quoted; examples fixed. The checker's `E002` names the value to quote |
+
+Draft 3.2 — decisions on cases the checker's stress test left open (invented files):
+
+| Found | Fix |
+|---|---|
+| A can size printed in two measures (`19 oz (540 ml)`) was rejected as two amounts (`E216`); dropping one breaks rule 1, and `alt` is the amount, not the container size | One size plus its parenthesised equivalent is one size (rule 11) |
 
 ## Failure modes to watch for
 
