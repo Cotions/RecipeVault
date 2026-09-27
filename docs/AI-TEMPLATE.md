@@ -1,7 +1,8 @@
 # Master template — the prompt given to an AI to produce a recipe file
 
-Draft 2, revised after P0: ten real recipes (Quebec cards and clippings, some 35+
-years old) run through a free chat AI. What changed and why is at the end.
+Draft 3. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
+years old, through a free chat AI); draft 3 after round 2, the same ten re-run with
+draft 2. What changed and why is at the end.
 
 This file is the contract. The parser, the validator, cost, and pantry search all
 assume output matching it exactly.
@@ -61,7 +62,9 @@ TRANSCRIBE, AND MARK EVERYTHING THAT IS NOT A PLAIN READING
 3. You MAY add, marked [+], only what is obvious and harmless:
    - a missing "mix the ingredients" step when the card jumps straight to baking
    - a title for an untitled clipping, based on its ingredients
-   - an ingredient named only in the steps ("servir sur des nouilles")
+   Moving something that IS on the source to its proper place is not adding:
+   an ingredient named only in the steps goes in the ingredient list with no
+   [+], because it is written on the card.
 4. NEVER invent quantities, times, temperatures, ingredients, or names of
    people. Leave them absent and ask in QUESTIONS.
 
@@ -79,23 +82,39 @@ INGREDIENTS — in frontmatter, never as prose bullets
 9. When the source gives two measures ("1 t (250 ml)"): metric goes in
    qty/unit, the other in alt:
      - { qty: 250, unit: ml, name: bouillon, alt: { qty: 1, unit: cup } }
+   alt may have its own qty_max: alt: { qty: 2, qty_max: 3, unit: tsp }
 10. name is the generic ingredient only — no quantity, no preparation, no size,
     no brand:
       "2 lbs de boeuf en cubes" → { qty: 2, unit: lb, name: boeuf, prep: en cubes }
       "1 gros oignon"           → { qty: 1, unit: piece, name: oignon, note: gros }
       "ketchup Heinz"           → { name: ketchup, brand: Heinz }
-    When a product is only known by its brand (Cool Whip, Jell-O, Minute Rice),
-    keep it as the name.
+    Split out the brand ONLY when what remains still names the product exactly.
+    Otherwise keep the whole thing as the name:
+      "fromage Philadelphia" → { name: fromage Philadelphia }   ("fromage" alone
+                                 would mean any cheese; it is cream cheese)
+      "gâteau Duncan Hines"  → { name: gâteau Duncan Hines }    (a cake mix)
+      "Cool Whip", "Jell-O", "Minute Rice" → keep as the name
+    Never replace a brand with what you think the product is — the app maps
+    names to products.
 11. Size of a can or pack goes in note: { qty: 1, unit: can, name: tomates,
     note: "796 ml" }.
-12. "X ou Y" for one ingredient → { name: X, or: [Y] }. Do not repeat it in
-    ## Alternatives.
+12. "X ou Y" for one ingredient → { name: X, or: [Y] }. When the alternative
+    has its own amount or detail, write it as an object:
+      "2 ml cannelle ou 1 ml piment de la Jamaïque" →
+        { qty: 2, unit: ml, name: cannelle,
+          or: [{ qty: 1, unit: ml, name: piment de la Jamaïque }] }
+      "10 feuilles de sauge ou 1 c. à soupe si séchée" →
+        { qty: 10, unit: leaf, name: sauge,
+          or: [{ qty: 1, unit: tbsp, name: sauge, note: séchée }] }
+    Do not repeat any of it in ## Alternatives or in note.
 13. to_taste: true ONLY for seasoning and cooking fat with no amount (salt,
     pepper, oil for the pan). Anything else with no amount — noodles to serve,
     bread slices — gets just a name, no qty, no to_taste.
 14. Group ingredients by component with group:. A serving suggestion that has
     its own ingredients (a mayonnaise, a sauce) becomes its own group with
-    optional: true. A suggestion with no ingredients goes in ## Notes.
+    optional: true, and its steps go under a ### sub-heading with the same name
+    at the end of the method — not as a "Suggestion:" step. A suggestion with
+    no ingredients goes in ## Notes.
 15. If an ingredient is another recipe on the same source ("pâte, voir p. 12"),
     add recipe: with that recipe's slug.
 
@@ -116,7 +135,9 @@ FRONTMATTER
       author: the person the recipe comes from — a name in the corner of a card,
               a website user. Not the guests of a TV show; put those in note.
       title, page, url, note as available.
-    Nothing about origin on the source → omit source entirely. Never guess.
+    If only the kind of source is evident (a printed magazine clipping, a
+    printed web page), keep just source: { type: magazine }. Nothing at all →
+    omit source. Never guess a name or title.
 24. tags: 3 to 6 plain lowercase words: course, method, main ingredient, cuisine.
     Do not repeat the family or the title as a tag.
 25. extracted_by: ai. Do not write status or added — the app sets them.
@@ -264,6 +285,19 @@ Ten real recipes exposed these problems in draft 1. All fixed above.
 | AI deciding family/variant for one of two same-named recipes but not the other | Family is decided in the app, which sees the whole vault |
 | TV show guests recorded as recipe authors | `author` is the recipe's origin; guests go in `note` |
 | AI questions had nowhere to go | `QUESTIONS` section after the fences, ignored by the app |
+
+Round 2 — the same ten with draft 2. Units, fractions, times, oven, markers, and
+`alt` all came back correct. Remaining:
+
+| Found | Fix |
+|---|---|
+| Ingredients lifted from the steps marked `[+]` although they are on the card | `[+]` only for content not on the source; moving is not adding |
+| An alternative with its own amount ("ou 1 ml piment de la Jamaïque", "1 c. à soupe si séchée") could not fit in `or:` and leaked into `note` and Alternatives | `or:` entries may be full ingredient objects |
+| `alt` needed a range | `alt` may carry `qty_max` |
+| Brand splitting left vague names: Philadelphia → `fromage` (any cheese), Duncan Hines → `gâteau` | Split only when the rest still names the product exactly |
+| A serving suggestion's steps turned into a "Suggestion:" step | Its steps go under a `###` sub-heading named like the group |
+| An untitled clipping lost `source.type` entirely | Keep `type` alone when only the kind of source is evident |
+| Both "Pain de viande" cards got the slug `pain-de-viande` | Correct per the rules — the app catches the collision (`E103`) and offers a family (`W608`). Kept as a test case |
 
 ## Failure modes to watch for
 

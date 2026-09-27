@@ -104,8 +104,8 @@ Hard errors. Refuse to save.
 | E210 | `name` contains digits followed by a unit — quantity smuggled into the name |
 | E211 | `name` contains a comma and no `note`/`prep` — probably merged ingredients |
 | E212 | `buy_instead` present without `recipe` |
-| E214 | `alt` present without both `qty` and `unit` inside it |
-| E215 | `or` not a list of strings |
+| E214 | `alt` present without both `qty` and `unit` inside it, or with a key other than `qty`, `qty_max`, `unit` |
+| E215 | `or` not a list, or an entry that is neither a string nor a valid ingredient object (same rules as any ingredient entry, `name` required) |
 | E216 | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit` |
 | E217 | an unknown bracket marker — only `[?]`, `[?: …]`, `[illisible]`, `[+]` are allowed. Also catches prose uncertainty (`lecture incertaine`, `incertain`) and asks for `[?]` |
 | E213 | sub-recipe cycle — `A` uses `B` uses `A` |

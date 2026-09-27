@@ -122,9 +122,9 @@ handle than an empty one.
 | `name` | yes | generic ingredient, in the recipe's language. No quantity, prep, size, or brand. |
 | `qty` | no | a number (`2`, `0.5`) or a fraction string exactly as written (`"1 1/2"`, `"2/3"`). Ranges: `qty` plus `qty_max`. |
 | `unit` | no | canonical unit from `VOCAB.md`. Required whenever `qty` is present. |
-| `alt` | no | the same amount in another measure, when the source gives both: `{ qty: 1, unit: cup }`. `qty`/`unit` hold the metric one. |
+| `alt` | no | the same amount in another measure, when the source gives both: `{ qty: 1, unit: cup }`, optionally with `qty_max`. `qty`/`unit` hold the metric one. |
 | `brand` | no | `Heinz`, `St-Hubert`. Ignored by pantry search and resolution. |
-| `or` | no | list of acceptable replacements named by the source: `or: [huile]`. Pantry search accepts any of them. |
+| `or` | no | acceptable replacements named by the source. Each entry is a plain name (`or: [huile]`) or, when the replacement has its own amount or detail, an ingredient object (`or: [{ qty: 1, unit: tbsp, name: sauge, note: séchée }]`). Pantry search accepts any of them; cost uses the main one. |
 | `note` | no | descriptor that is not the name: `gros`, `bien mûr`, can size `796 ml` |
 | `prep` | no | what is done to it: `émincé`, `râpé`, `en dés` |
 | `to_taste` | no | `true` for seasoning and cooking fat with no amount only. Removes the ingredient from pantry search. |

@@ -420,8 +420,16 @@ Everything found, and the fix for each, is the table at the end of
 
 Readings to confirm (a person or a name) are for her, not for the template.
 
-Next: re-run the same ten recipes with draft 2 of the template, and check whether
-the problems are gone before starting on the checker.
+**Round 2** — the same ten re-run with template draft 2: roughly 90% clean. Units,
+fractions, times, oven temperatures, markers, and dual measures all came back
+right. Six small remaining issues fixed in template draft 3 (alternatives with
+their own amounts, over-eager brand splitting, `[+]` on moved ingredients — see
+the round 2 table in `docs/AI-TEMPLATE.md`). The format is considered settled;
+changes from here are additive.
+
+The twenty inbox files (both rounds) stay in the private vault inbox as the
+checker's first real test corpus. They never go into this public repository;
+the public fixtures are invented.
 
 ## Gaps review — 2026-09-26
 
