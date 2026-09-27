@@ -16,7 +16,8 @@ network is the boundary. See `DATA-FLOW.md`, "Authentication".
   "port": 3370,
   "host": "0.0.0.0",
   "git_author": { "name": "Your Name", "email": "you@example.com" },
-  "git_push": true
+  "git_push": true,
+  "hosts": ["recettes.maison.lan"]
 }
 ```
 
@@ -24,6 +25,15 @@ Lookup order: `RECIPEVAULT_CONFIG`, then `~/.config/recipevault/config.json`,
 then `config.json` at the repository root (gitignored). `RECIPEVAULT_PORT`
 overrides the port. A missing `vault_directory` is a startup error: create a
 vault with `npx vault init <dir>`, never by hand.
+
+`hosts` (optional) lists extra names the app is reached by. Every request must
+name, in its `Host` header, one the app knows — a guard against DNS rebinding,
+where a web page re-points its own name at the LAN address to read and write
+the vault. Always accepted without configuration: `localhost`, any IP address
+(`http://192.168.1.20:3370`), the machine's host name and `<hostname>.local`,
+and any Tailscale `*.ts.net` name. Anything else — a router DNS name, a
+`/etc/hosts` alias — goes in `hosts`, exactly or as `*.maison.lan`; otherwise
+the page answers `421 Unknown host`.
 
 `host: "127.0.0.1"` keeps the app off the LAN entirely, reachable only through
 Tailscale (step 4) — the stricter choice.
@@ -67,7 +77,8 @@ over plain `http://` on the LAN the screen may lock (kitchen mode says so once).
 Install Tailscale on the phone and tablet used in the kitchen.
 
 The app accepts writes from pages served by the same host it is reached on, so
-both `http://<lan-host>:3370` and the Tailscale name work.
+both `http://<lan-host>:3370` and the Tailscale name work — as long as the name
+is one of the allowed hosts (step 1).
 
 ## 5. Backups
 

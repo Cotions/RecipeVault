@@ -19,6 +19,8 @@ export interface Config {
 	host: string;
 	gitAuthor: GitAuthor;
 	gitPush: boolean;
+	/** Extra host names the app is reached on, besides the defaults (see hosts.ts). */
+	hosts: string[];
 }
 
 export class ConfigError extends Error {}
@@ -80,12 +82,16 @@ export function loadConfig(opts: ConfigEnv = {}): Config {
 		name: typeof author?.name === 'string' && author.name ? author.name : 'RecipeVault',
 		email: typeof author?.email === 'string' && author.email ? author.email : 'recipevault@localhost'
 	};
+	const hosts = raw.hosts ?? [];
+	if (!Array.isArray(hosts) || hosts.some((h) => typeof h !== 'string' || !h.trim()))
+		throw new ConfigError(`${file}: "hosts" must be a list of host names, like ["recettes.example.lan"].`);
 	return {
 		file,
 		vaultDirectory: resolve(dir),
 		port,
 		host: typeof raw.host === 'string' && raw.host ? raw.host : DEFAULT_HOST,
 		gitAuthor,
-		gitPush: raw.git_push !== false
+		gitPush: raw.git_push !== false,
+		hosts: hosts as string[]
 	};
 }

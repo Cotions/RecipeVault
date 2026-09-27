@@ -31,7 +31,7 @@ describe('config', () => {
 	it('applies defaults and RECIPEVAULT_PORT', () => {
 		write('repo/config.json', { vault_directory: vault });
 		const c = load({ RECIPEVAULT_PORT: '3399' });
-		expect(c).toMatchObject({ vaultDirectory: vault, port: 3399, host: '0.0.0.0', gitPush: true });
+		expect(c).toMatchObject({ vaultDirectory: vault, port: 3399, host: '0.0.0.0', gitPush: true, hosts: [] });
 		expect(load().port).toBe(3370);
 	});
 
@@ -44,5 +44,14 @@ describe('config', () => {
 		write('repo/config.json', { vault_directory: join(root, 'repo') });
 		expect(() => load()).toThrow(/not a vault/);
 		expect(() => load({ RECIPEVAULT_CONFIG: join(root, 'nope.json') })).toThrow(/does not exist/);
+	});
+
+	it('reads extra hosts, and refuses a hosts value that is not a list of names', () => {
+		write('repo/config.json', { vault_directory: vault, hosts: ['recettes.maison.lan'] });
+		expect(load().hosts).toEqual(['recettes.maison.lan']);
+		write('repo/config.json', { vault_directory: vault, hosts: 'recettes.maison.lan' });
+		expect(() => load()).toThrow(/"hosts"/);
+		write('repo/config.json', { vault_directory: vault, hosts: [''] });
+		expect(() => load()).toThrow(/"hosts"/);
 	});
 });
