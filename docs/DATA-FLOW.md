@@ -38,15 +38,19 @@ the file exists and `vault sync` recovers it. Never the reverse.
 ### Delete
 
 Never unlink. Move the file to `_trash/<slug>.md` and its `media/<slug>/` folder alongside it, commit, remove the
-index rows. A trash view restores it. Combined with the git history this means no
-single click she makes is unrecoverable.
+index rows. A trash view (`/corbeille`) restores it — refused if the slug has been
+taken again. A slug in the trash counts as taken for a new paste (`E103`, offered
+only the suffixed slug), so a deleted slug is never silently reused. Combined
+with the git history this means no single click she makes is unrecoverable.
 
 ### Concurrent edit
 
-Files mean last-write-wins, which silently eats an edit. Cheap guard: the edit
-form carries the `updated` timestamp it loaded; if the file on disk is newer,
-refuse and show what changed. Two users at this scale will rarely collide, but the
-one time they do it should not be silent.
+Files mean last-write-wins, which silently eats an edit. Cheap guard: every
+edit carries the hash of the file it was based on — the paste box's
+"Remplacer", the "Vérifié" button, delete — and the save refuses when the file
+on disk no longer has that hash. (A hash rather than `updated`: `updated` is a
+date, too coarse to see two edits on the same day.) Two users at this scale will
+rarely collide, but the one time they do it should not be silent.
 
 ## Validation
 
@@ -70,8 +74,13 @@ Warnings — save anyway, mark the recipe `needs-review`:
 Conveniences:
 - `slug` absent → derive from `title`: lowercase, strip accents, hyphenate
 - `lang` absent → `fr`
-- `added` absent → today; `updated` → always now
-- `status` absent → `draft` if any warning fired, else `verified`
+- `added` → today on a new recipe, kept on an edit; `updated` → today on every save
+- `status` → set by the app on every paste, never taken from the file: an AI file
+  is never auto-`verified`. `needs-review` if any `[?]`, `[?: …]` or
+  `[illisible]` remains (W605), otherwise `draft`. `verified` is set only by a
+  person, with the "Vérifié" button on the recipe page — a one-field edit
+  through the normal save path, committed as `verify: <title>`, refused while an
+  uncertain marker remains.
 - `extracted_by` absent → `hand`
 
 Her form never shows a raw error. Invalid states are prevented structurally —

@@ -47,7 +47,7 @@ Data splits by how it changes, because each kind wants a different format:
 │   ├── index.db                     # SQLite search/filter index
 │   └── img/                         # thumbnails + web-friendly copies
 ├── .obsidian/                       # only if opened in Obsidian; optional
-├── .gitignore                       # written by the app: media/ cache/ .obsidian/workspace*.json
+├── .gitignore                       # written by `vault init`: media/ _trash/*/ cache/ inbox/ .obsidian/workspace*.json
 └── .git/                            # pushed to private Cotions/RecipeVault-recipes
 ```
 
@@ -221,7 +221,7 @@ Rules that keep the two from fighting:
 | `vocab/` | yes | yes | recovered from either |
 | `prices.csv` | yes | yes | recovered from either |
 | `media/` | no | yes | **only restic has it** |
-| `_trash/` | yes (text) | yes | recovered from either |
+| `_trash/` | yes (text; trashed media folders `_trash/*/` are ignored) | yes | recovered from either |
 | `cache/` | no | no | rebuilt by `vault sync` |
 | `~/.config/recipevault/` | no | yes (separate path) | re-create accounts |
 

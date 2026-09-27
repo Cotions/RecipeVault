@@ -1,0 +1,165 @@
+// One recipe → its index rows. Every write here is idempotent: upsert
+// replaces whatever rows the slug had.
+
+import { createHash } from 'node:crypto';
+import { stripMarkers } from '../../vault/markers';
+import { fold, normalizeText } from '../../vault/normalize';
+import type { Diagnostic, Duration, Recipe } from '../../vault/types';
+import { canonicalTag, type VaultVocab } from '../vocab';
+import type { DB } from './db';
+
+export const sha256 = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
+
+/** The body of a recipe file: everything after the closing `---`. */
+export function bodyOf(text: string): string {
+	const lines = normalizeText(text).split('\n');
+	const end = lines.findIndex((l, i) => i > 0 && l.trimEnd() === '---');
+	return end === -1 ? '' : lines.slice(end + 1).join('\n').trim();
+}
+
+/** Folded text for search: no accents, œ → oe, markers stripped. */
+export const searchText = (s: string) => fold(stripMarkers(s));
+
+const secs = (d?: Duration) => (d ? (d.maxSeconds ?? d.seconds) : null);
+
+export function totalSeconds(r: Recipe): number | null {
+	const t = r.times;
+	if (!t) return null;
+	if (t.total) return secs(t.total);
+	const parts = [t.prep, t.cook, t.rest].filter((d): d is Duration => !!d);
+	return parts.length ? parts.reduce((n, d) => n + secs(d)!, 0) : null;
+}
+
+export interface IndexInput {
+	recipe: Recipe;
+	/** The raw body Markdown. */
+	body: string;
+	filePath: string;
+	hash: string;
+}
+
+export function deleteRecipeRows(db: DB, slug: string): void {
+	const row = db.prepare('SELECT id FROM recipes WHERE slug = ?').get(slug) as { id: number } | undefined;
+	if (row) db.prepare('DELETE FROM recipes_fts WHERE rowid = ?').run(row.id);
+	db.prepare('DELETE FROM recipes WHERE slug = ?').run(slug);
+	for (const t of ['tags', 'seasons', 'ingredients', 'media']) db.prepare(`DELETE FROM ${t} WHERE slug = ?`).run(slug);
+}
+
+/** Replace every row of one recipe. Call inside a transaction when batching. */
+export function upsertRecipe(db: DB, vocab: VaultVocab, { recipe: r, body, filePath, hash }: IndexInput): void {
+	const existing = db.prepare('SELECT id FROM recipes WHERE slug = ?').get(r.slug) as { id: number } | undefined;
+	deleteRecipeRows(db, r.slug);
+	const s = r.source;
+	const values = {
+		slug: r.slug,
+		title: r.title,
+		title_sort: searchText(r.title),
+		lang: r.lang,
+		family: r.family ?? null,
+		variant: r.variant ?? null,
+		source_type: s?.type ?? null,
+		author: s?.author ? stripMarkers(s.author) : null,
+		source_url: s?.url ?? null,
+		source_title: s?.title ?? null,
+		source_page: s?.page !== undefined ? String(s.page) : null,
+		prep_s: secs(r.times?.prep),
+		cook_s: secs(r.times?.cook),
+		rest_s: secs(r.times?.rest),
+		total_s: totalSeconds(r),
+		servings: r.servings ?? null,
+		servings_max: r.servingsMax ?? null,
+		difficulty: r.difficulty ?? null,
+		rating: r.rating ?? null,
+		status: r.status ?? null,
+		added: r.added ?? null,
+		updated: r.updated ?? null,
+		extracted_by: r.extractedBy ?? null,
+		photo: r.media?.final ?? null,
+		uncertain: r.markers.filter((m) => m.kind !== 'added').length,
+		file_path: filePath,
+		file_hash: hash,
+		body_md: body,
+		data_json: JSON.stringify(r)
+	};
+	const cols = Object.keys(values);
+	const info = db
+		.prepare(
+			`INSERT INTO recipes (${existing ? 'id, ' : ''}${cols.join(', ')}) VALUES (${existing ? '@id, ' : ''}${cols.map((c) => '@' + c).join(', ')})`
+		)
+		.run(existing ? { id: existing.id, ...values } : values);
+	const id = existing?.id ?? Number(info.lastInsertRowid);
+
+	const tagRows = new Map<string, boolean>();
+	for (const t of r.tags) {
+		const c = canonicalTag(vocab, stripMarkers(t));
+		if (c.tag) tagRows.set(c.tag, (tagRows.get(c.tag) ?? true) && c.pending);
+	}
+	const insTag = db.prepare('INSERT INTO tags (slug, tag, pending) VALUES (?, ?, ?)');
+	for (const [tag, pending] of tagRows) insTag.run(r.slug, tag, pending ? 1 : 0);
+
+	const insSeason = db.prepare('INSERT OR IGNORE INTO seasons (slug, season) VALUES (?, ?)');
+	for (const season of r.season) insSeason.run(r.slug, fold(season));
+
+	const insIng = db.prepare(
+		`INSERT INTO ingredients (slug, position, group_idx, group_name, group_optional, qty, qty_max, unit, name, optional, recipe, item)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	);
+	let position = 0;
+	const names: string[] = [];
+	r.ingredients.forEach((g, gi) => {
+		for (const it of g.items) {
+			names.push(it.name, ...(it.or ?? []).map((o) => o.name));
+			insIng.run(
+				r.slug,
+				position++,
+				gi,
+				g.group ?? null,
+				g.optional ? 1 : 0,
+				it.qty?.value ?? null,
+				it.qtyMax?.value ?? null,
+				it.unit ?? null,
+				it.name,
+				it.optional ? 1 : 0,
+				it.recipe ?? null,
+				it.item ?? searchText(it.name)
+			);
+		}
+	});
+
+	const insMedia = db.prepare('INSERT OR IGNORE INTO media (slug, kind, path) VALUES (?, ?, ?)');
+	for (const [kind, path] of Object.entries(r.media ?? {})) insMedia.run(r.slug, kind, path);
+
+	db.prepare('INSERT INTO recipes_fts (rowid, title, body, ingredients, author, tags) VALUES (?, ?, ?, ?, ?, ?)').run(
+		id,
+		searchText(r.title),
+		searchText(body),
+		searchText(names.join(' · ')),
+		searchText(s?.author ?? ''),
+		searchText([...r.tags, ...tagRows.keys()].join(' '))
+	);
+	db.prepare('DELETE FROM problems WHERE file_path = ?').run(filePath);
+}
+
+/** Record a file that fails the checker; its last good rows (if any) are kept and flagged. */
+export function recordProblem(db: DB, filePath: string, hash: string, slug: string | null, diagnostics: Diagnostic[]): void {
+	const slim = diagnostics
+		.filter((d) => d.severity === 'error')
+		.map((d) => ({ code: d.code, path: d.path, message: d.message }));
+	const json = JSON.stringify(slim);
+	db.prepare(
+		`INSERT INTO problems (file_path, slug, file_hash, diagnostics) VALUES (?, ?, ?, ?)
+		 ON CONFLICT(file_path) DO UPDATE SET slug = excluded.slug, file_hash = excluded.file_hash, diagnostics = excluded.diagnostics`
+	).run(filePath, slug, hash, json);
+	db.prepare('UPDATE recipes SET broken_json = ? WHERE file_path = ?').run(json, filePath);
+}
+
+/** Refresh the families table: every family in use, with labels from vocab/families.yaml. */
+export function refreshFamilies(db: DB, vocab: VaultVocab): void {
+	const used = db.prepare('SELECT DISTINCT family FROM recipes WHERE family IS NOT NULL').pluck().all() as string[];
+	db.prepare('DELETE FROM families').run();
+	const ins = db.prepare('INSERT INTO families (slug, label_fr, label_en) VALUES (?, ?, ?)');
+	for (const slug of new Set([...used, ...vocab.families.keys()])) {
+		const l = vocab.families.get(slug);
+		ins.run(slug, l?.fr ?? null, l?.en ?? null);
+	}
+}

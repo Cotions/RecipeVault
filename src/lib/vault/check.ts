@@ -12,7 +12,7 @@ import { checkMarkers, collectMarkers } from './rules/markers';
 import { checkSource } from './rules/source';
 import { checkTextFields } from './rules/text';
 import { checkOven, checkServings, checkTimes } from './rules/times';
-import type { Diagnostic, Recipe, Severity } from './types';
+import type { Body, Diagnostic, Recipe, Severity } from './types';
 
 export interface CheckResult {
 	/** The typed recipe, present only when there is no error. */
@@ -23,6 +23,8 @@ export interface CheckResult {
 /** Also carries the raw frontmatter, which batch rules read even when the file has errors. */
 export interface FileCheck extends CheckResult {
 	frontmatter?: Record<string, unknown>;
+	/** The parsed body, present whenever the frontmatter parsed. */
+	body?: Body;
 }
 
 const RULES = [checkIdentity, checkSource, checkTimes, checkServings, checkOven, checkIngredients, checkTextFields, checkMarkers, checkBody];
@@ -35,7 +37,7 @@ export function checkFile(text: string): FileCheck {
 	const diagnostics: Diagnostic[] = [];
 	const ctx = createContext(parsed.frontmatter, parsed.body, parsed.bodyChunks, diagnostics);
 	for (const rule of RULES) rule(ctx);
-	const result: FileCheck = { frontmatter: parsed.frontmatter, diagnostics: sortDiagnostics(diagnostics) };
+	const result: FileCheck = { frontmatter: parsed.frontmatter, body: parsed.body, diagnostics: sortDiagnostics(diagnostics) };
 	if (!hasErrors(diagnostics)) result.recipe = buildRecipe(parsed.frontmatter, collectMarkers(ctx));
 	return result;
 }

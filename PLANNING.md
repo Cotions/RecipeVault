@@ -359,10 +359,12 @@ after the read app: resolution quality depends on having a few hundred real reci
 to resolve against, and the resolve queue is worth building only once there is a
 backlog to work through.
 
+Soft delete and the trash (`/corbeille`) come forward from P2 into P1: a paste
+box without delete forces hand-editing the vault for every mistake.
+
 **P2 — her write path**
 Form UI: repeatable ingredient and step rows, family picker showing existing
-families, photo upload from a phone, no markdown anywhere. Soft delete, undo via
-git. Auth. This is a substantial chunk of work — it is deliberately after the read
+families, photo upload from a phone, no markdown anywhere. Undo via git. Auth. This is a substantial chunk of work — it is deliberately after the read
 app so the data model is proven before building forms on top of it.
 
 **P3 — only if actually wanted**

@@ -1,6 +1,7 @@
 // The `vault` command. Node-only code lives here; the library stays browser-safe.
 
-import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -17,6 +18,13 @@ import {
 	type Diagnostic,
 	type VaultEntry
 } from '../lib/vault/index';
+import { extractPrompt } from '../lib/vault/prompt';
+import { findConfig, loadConfig, type GitAuthor } from '../lib/server/config';
+import { openVault } from '../lib/server/context';
+import { syncVault } from '../lib/server/index/sync';
+import { PasteLog, pasteStats, readPasteLog } from '../lib/server/pastelog';
+import { save } from '../lib/server/save';
+import { initVault, vaultPaths } from '../lib/server/vault';
 
 const USAGE = `Usage:
   vault check <file...>          check files; '-' reads a paste from stdin
@@ -26,6 +34,12 @@ const USAGE = `Usage:
         --fix-block              print the fix-request block for failing files
         --quiet                  only the summary line
   vault prompt                   print the prompt from docs/AI-TEMPLATE.md
+  vault init <dir>               create a new vault (layout, vocab seed, git)
+  vault add <file...>            save files through the app's save path
+  vault sync [--force]           bring the index in line with the files
+  vault reindex                  delete the index and rebuild it
+  vault stats                    code frequency over the paste log
+        --vault <dir>            (add, sync, reindex, stats) instead of the config's vault
 
 Exit codes: 0 no errors (warnings allowed), 1 any error, 2 usage or IO failure.`;
 
@@ -33,10 +47,15 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 class UsageError extends Error {}
 
-function main(argv: string[]): number {
+async function main(argv: string[]): Promise<number> {
 	const [command, ...rest] = argv;
 	try {
 		if (command === 'check') return check(rest);
+		if (command === 'init') return await init(rest);
+		if (command === 'add') return await add(rest);
+		if (command === 'sync') return sync(rest, false);
+		if (command === 'reindex') return sync(rest, true);
+		if (command === 'stats') return stats(rest);
 		if (command === 'prompt') {
 			process.stdout.write(readPrompt());
 			return 0;
@@ -60,19 +79,130 @@ function main(argv: string[]): number {
 
 /** The fenced block under `## The prompt` in docs/AI-TEMPLATE.md, read at runtime. */
 export function readPrompt(): string {
-	const doc = readFileSync(join(REPO, 'docs/AI-TEMPLATE.md'), 'utf8').replace(/\r\n?/g, '\n');
-	const lines = doc.split('\n');
-	const start = lines.findIndex((l) => /^##\s+The prompt\s*$/.test(l));
-	if (start === -1) throw new Error('docs/AI-TEMPLATE.md has no "## The prompt" section');
-	for (let i = start + 1; i < lines.length && !/^##\s/.test(lines[i]); i++) {
-		const open = lines[i].match(/^(`{3,}|~{3,})/);
-		if (!open) continue;
-		const fence = open[1];
-		const end = lines.findIndex((l, j) => j > i && l.trimEnd() === fence);
-		if (end === -1) break;
-		return lines.slice(i + 1, end).join('\n') + '\n';
+	return extractPrompt(readFileSync(join(REPO, 'docs/AI-TEMPLATE.md'), 'utf8'));
+}
+
+// --- vault init / add / sync / reindex / stats ------------------------------
+
+/** The git author: the config's `git_author` if a config exists, else git's own user. */
+function readAuthor(): GitAuthor {
+	try {
+		const f = findConfig();
+		const a = f ? JSON.parse(readFileSync(f, 'utf8')).git_author : undefined;
+		if (a?.name && a?.email) return { name: a.name, email: a.email };
+	} catch {
+		// fall through
 	}
-	throw new Error('no fenced block under "## The prompt" in docs/AI-TEMPLATE.md');
+	const cfg = (k: string) => {
+		try {
+			return execFileSync('git', ['config', k], { encoding: 'utf8' }).trim();
+		} catch {
+			return '';
+		}
+	};
+	return { name: cfg('user.name') || 'RecipeVault', email: cfg('user.email') || 'recipevault@localhost' };
+}
+
+/** Split `--vault <dir>` and flags off the arguments. */
+function vaultArgs(args: string[], flags: string[] = []): { dir?: string; rest: string[]; set: Set<string> } {
+	const rest: string[] = [];
+	const set = new Set<string>();
+	let dir: string | undefined;
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === '--vault') {
+			dir = args[++i];
+			if (!dir) throw new UsageError('--vault needs a directory');
+		} else if (flags.includes(args[i])) set.add(args[i]);
+		else if (args[i].startsWith('--')) throw new UsageError(`unknown option ${args[i]}`);
+		else rest.push(args[i]);
+	}
+	return { dir, rest, set };
+}
+
+function openFromArgs(dir: string | undefined) {
+	if (dir) {
+		const root = resolve(dir);
+		if (!existsSync(join(root, 'recipes'))) throw new Error(`${root} is not a vault (no recipes/ folder)`);
+		return openVault({ root, author: readAuthor(), push: false });
+	}
+	const config = loadConfig();
+	return openVault({ root: config.vaultDirectory, author: config.gitAuthor, push: config.gitPush });
+}
+
+async function init(args: string[]): Promise<number> {
+	if (args.length !== 1) throw new UsageError('vault init needs exactly one directory');
+	const dir = resolve(args[0]);
+	await initVault(dir, readFileSync(join(REPO, 'docs/VOCAB.md'), 'utf8'), readAuthor());
+	console.log(`vault created at ${dir}`);
+	return 0;
+}
+
+async function add(args: string[]): Promise<number> {
+	const { dir, rest } = vaultArgs(args);
+	if (!rest.length) throw new UsageError('vault add needs files');
+	const ctx = openFromArgs(dir);
+	syncVault(ctx.db, ctx.paths);
+	const inputs: { name: string; text: string }[] = [];
+	for (const f of rest) {
+		const text = f === '-' ? readFileSync(0, 'utf8') : readFileSync(f, 'utf8');
+		const split = splitPaste(text);
+		const files = split.files.length ? split.files : [text];
+		files.forEach((t, i) => inputs.push({ name: files.length > 1 ? `${f} #${i + 1}` : f, text: t }));
+	}
+	const result = await save(ctx, inputs.map((i) => ({ text: i.text })));
+	const log = new PasteLog(ctx.paths.pasteLog);
+	log.append('save', result.files.map((r, i) => ({
+		codes: r.diagnostics.map((d) => d.code),
+		outcome: r.status,
+		slug: r.status === 'rejected' ? undefined : r.slug
+	})));
+	let failed = 0;
+	result.files.forEach((r, i) => {
+		const name = inputs[i].name;
+		if (r.status === 'saved') console.log(`${green('✓')} ${name} → recipes/${r.slug}.md (${r.recipeStatus})`);
+		else {
+			failed++;
+			const codes = [...new Set(r.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code))].join(', ');
+			const why = r.status === 'collision' ? `slug ${r.slug} taken${r.inTrash ? ' (in the trash)' : ''}; free: ${r.suggested}` : r.status === 'stale' ? 'changed on disk' : codes;
+			console.log(`${red('✗')} ${name}  ${r.status}: ${why}`);
+		}
+	});
+	if (result.indexError) console.error(`vault: index update failed (run vault sync): ${result.indexError}`);
+	await ctx.pusher.idle();
+	ctx.db.close();
+	console.log(`${plural(result.files.length, 'file')}: ${result.files.length - failed} saved, ${failed} not saved`);
+	return failed ? 1 : 0;
+}
+
+function sync(args: string[], rebuild: boolean): number {
+	const { dir, set } = vaultArgs(args, ['--force']);
+	let ctx = openFromArgs(dir);
+	if (rebuild) {
+		ctx.db.close();
+		for (const suffix of ['', '-wal', '-shm']) rmSync(ctx.paths.index + suffix, { force: true });
+		ctx = openFromArgs(dir);
+	}
+	const r = syncVault(ctx.db, ctx.paths, { force: set.has('--force') || rebuild });
+	ctx.db.close();
+	console.log(`${r.scanned} files: ${r.indexed} indexed, ${r.unchanged} unchanged, ${r.removed} removed, ${r.problems.length} with errors (${r.ms} ms)`);
+	for (const p of r.problems) console.log(`  ${red('✗')} ${p.file}  ${p.codes.map((c) => c || 'slug ≠ file name').join(', ')}`);
+	return r.problems.length ? 1 : 0;
+}
+
+function stats(args: string[]): number {
+	const { dir } = vaultArgs(args);
+	const root = dir ? resolve(dir) : loadConfig().vaultDirectory;
+	const s = pasteStats(readPasteLog(vaultPaths(root).pasteLog));
+	console.log(`${plural(s.entries, 'paste')}, ${plural(s.files, 'file')}: ${Object.entries(s.outcomes).map(([k, n]) => `${n} ${k}`).join(', ') || 'nothing logged yet'}`);
+	if (s.codes.length) {
+		console.log('');
+		console.log(bold('By code, most frequent first:'));
+		for (const c of s.codes) {
+			const tint = c.code.startsWith('E') ? red : c.code.startsWith('W') ? yellow : dim;
+			console.log(`  ${tint(c.code.padEnd(5))} ${String(c.count).padStart(4)}  in ${plural(c.files, 'file').padEnd(9)}  ${dim(c.fixer)}`);
+		}
+	}
+	return 0;
 }
 
 // --- vault check ------------------------------------------------------------
@@ -252,4 +382,4 @@ function printHuman(result: BatchResult, o: CheckOptions): void {
 	);
 }
 
-process.exitCode = main(process.argv.slice(2));
+process.exitCode = await main(process.argv.slice(2));
