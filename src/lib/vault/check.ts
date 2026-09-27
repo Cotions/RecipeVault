@@ -10,6 +10,7 @@ import { checkIdentity } from './rules/identity';
 import { checkIngredients } from './rules/ingredients';
 import { checkMarkers, collectMarkers } from './rules/markers';
 import { checkSource } from './rules/source';
+import { checkTextFields } from './rules/text';
 import { checkOven, checkServings, checkTimes } from './rules/times';
 import type { Diagnostic, Recipe, Severity } from './types';
 
@@ -24,7 +25,7 @@ export interface FileCheck extends CheckResult {
 	frontmatter?: Record<string, unknown>;
 }
 
-const RULES = [checkIdentity, checkSource, checkTimes, checkServings, checkOven, checkIngredients, checkMarkers, checkBody];
+const RULES = [checkIdentity, checkSource, checkTimes, checkServings, checkOven, checkIngredients, checkTextFields, checkMarkers, checkBody];
 
 export function checkFile(text: string): FileCheck {
 	const parsed = parseRecipe(text);

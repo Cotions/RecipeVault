@@ -167,6 +167,29 @@ describe('a value starting with an unquoted marker', () => {
 	});
 });
 
+describe('E218 text fields', () => {
+	it('fires on a list, mapping or boolean in a text field, with its path', () => {
+		const text = edit('tags: [dessert, quebecois]', 'tags: [dessert, true]').replace('name: eau, note: bouillante', 'name: eau, prep: { a: 1 }');
+		expect(checkRecipe(text).diagnostics.map((d) => [d.code, d.path])).toEqual([
+			['E218', 'ingredients[1].items[1].prep'],
+			['E218', 'tags[1]']
+		]);
+	});
+
+	it('checks or objects too', () => {
+		const text = edit('{ qty: 2, unit: tbsp, name: beurre }', '{ qty: 2, unit: tbsp, name: beurre, or: [{ name: margarine, note: [?] }] }');
+		expect(checkRecipe(text).diagnostics.map((d) => [d.code, d.path, d.fix])).toEqual([
+			['E218', 'ingredients[1].items[2].or[0].note', 'Wrap the value in double quotes: `note: "[?]"`.']
+		]);
+	});
+
+	it('keeps a number in a text field as text', () => {
+		const r = checkRecipe(edit('name: eau, note: bouillante', 'name: eau, note: 796'));
+		expect(r.diagnostics).toEqual([]);
+		expect(r.recipe?.ingredients[1].items[1].note).toBe('796');
+	});
+});
+
 describe('body rules', () => {
 	it('W401 when there is no method and no other heading', () => {
 		expect(codes(BASE.slice(0, BASE.indexOf('## Préparation')))).toEqual(['W401']);

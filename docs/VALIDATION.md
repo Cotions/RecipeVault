@@ -128,6 +128,7 @@ same: wrap the value in double quotes (`name: "[illisible]"`).
 | E215 | ai | `or` not a list, or an entry that is neither a string nor a valid ingredient object (same rules as any ingredient entry, `name` required) |
 | E216 | ai | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit`. Not fired when `unit` is a count or container unit (`piece`, `clove`, `leaf`, `sprig`, `stalk`, `bunch`, `slice`, `can`, `packet`, `bottle`, `jar`, `bag`) and the note holds a single size (`796 ml`, `environ 450 g`). Always fired when `unit` is absent or a measure, when the note holds more than one amount, or when it gives an alternative (`ou`/`or` + a quantity — that belongs in `or`) |
 | E217 | ai | an unknown bracket marker — only `[?]`, `[?: …]`, `[illisible]`, `[+]` are allowed. Also catches prose uncertainty (`lecture incertaine`, `incertain`) and asks for `[?]` |
+| E218 | ai | a text field (`note`, `prep`, `brand`, `recipe`, `group`, `source.author`, a tag, …) holds a list, a mapping or `true`/`false` — usually a value starting with an unquoted marker (`note: [illisible]`); fixed by quoting it. Fields with their own code (`title` E101, `name` E207, `qty` E204) keep it |
 | E213 | ai | sub-recipe cycle — `A` uses `B` uses `A` |
 | E301 | ai | a body heading is unrecognized *and* no recognized method heading exists |
 

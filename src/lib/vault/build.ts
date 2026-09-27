@@ -19,7 +19,12 @@ import type {
 import { isUnit } from './vocab';
 import { isMap } from './rules/context';
 
-const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v : undefined);
+// Text fields: a number is kept as text (`note: 796`); anything else that is not
+// a string was already rejected by E218.
+const str = (v: unknown): string | undefined =>
+	typeof v === 'number' ? String(v) : typeof v === 'string' && v.trim() ? v : undefined;
+const strs = (v: unknown): string[] =>
+	Array.isArray(v) ? v.map(str).filter((s): s is string => s !== undefined) : [];
 const int = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
 
 function qty(v: unknown): Quantity | undefined {
@@ -69,8 +74,8 @@ export function buildRecipe(fm: Record<string, unknown>, markers: Marker[]): Rec
 		slug: str(fm.slug) ?? slugify(title),
 		slugDerived: str(fm.slug) === undefined,
 		lang: fm.lang === 'en' ? 'en' : 'fr',
-		tags: Array.isArray(fm.tags) ? fm.tags.filter((t): t is string => typeof t === 'string') : [],
-		season: Array.isArray(fm.season) ? fm.season.filter((t): t is string => typeof t === 'string') : [],
+		tags: strs(fm.tags),
+		season: strs(fm.season),
 		ingredients: (fm.ingredients as Record<string, unknown>[]).map((g): IngredientGroup => {
 			const group: IngredientGroup = {
 				items: (g.items as Record<string, unknown>[]).map(ingredient)
