@@ -1,6 +1,10 @@
 # Recipe file schema
 
-Draft 4. Adds `schema` version and sub-recipes. Draft 3 broke from draft 2: ingredients moved from prose body lines into
+Draft 5, revised after P0 (ten real Quebec recipes): imperial units, fractions as
+written, `alt`, `or`, `brand`, optional groups, `oven`, `servings_max`, `yield`,
+one duration format, and uncertainty markers. `schema: 3` stays the version number
+until P0 ends — no vault file exists yet to migrate. Draft 4 added `schema` and
+sub-recipes. Draft 3 broke from draft 2: ingredients moved from prose body lines into
 structured frontmatter. Reason below.
 
 One recipe per file: `recipes/<slug>.md`. Slug is lowercase, hyphenated, ASCII.
@@ -57,10 +61,13 @@ times:
   cook: 45m
   rest: 10m
   total: 1h25m                       # optional, computed if absent
+                                     # format: 30m, 1h, 1h15m; ranges 45m-50m
+oven: { temp: 350, unit: F }         # F | C; range with temp_max
 
 # quantity
-servings: 6
+servings: 6                          # integer; range with servings_max: 8
 servings_note: "or 4 hungry people"
+yield: "24 biscuits"                 # instead of servings when not counted in portions
 
 # classification — canonical values only, see VOCAB.md
 tags: [pasta, italien, four, plat-principal]
@@ -96,7 +103,7 @@ ingredients:
 media:
   final: final.jpg                   # optional photo of the finished dish
 
-# bookkeeping
+# bookkeeping — status and added are set by the app, never by the AI
 status: verified                     # draft | needs-review | verified
 added: 2026-09-26
 updated: 2026-09-26
@@ -112,12 +119,15 @@ handle than an empty one.
 
 | Field | Required | Meaning |
 |---|---|---|
-| `name` | yes | as written, in the recipe's language. Display text. |
-| `qty` | no | number. Fractions as decimals: `0.5`, not `1/2`. Ranges: use `qty` plus `qty_max`. |
+| `name` | yes | generic ingredient, in the recipe's language. No quantity, prep, size, or brand. |
+| `qty` | no | a number (`2`, `0.5`) or a fraction string exactly as written (`"1 1/2"`, `"2/3"`). Ranges: `qty` plus `qty_max`. |
 | `unit` | no | canonical unit from `VOCAB.md`. Required whenever `qty` is present. |
-| `note` | no | descriptor that is not the name: `gros`, `bien mûr`, `à température` |
+| `alt` | no | the same amount in another measure, when the source gives both: `{ qty: 1, unit: cup }`. `qty`/`unit` hold the metric one. |
+| `brand` | no | `Heinz`, `St-Hubert`. Ignored by pantry search and resolution. |
+| `or` | no | list of acceptable replacements named by the source: `or: [huile]`. Pantry search accepts any of them. |
+| `note` | no | descriptor that is not the name: `gros`, `bien mûr`, can size `796 ml` |
 | `prep` | no | what is done to it: `émincé`, `râpé`, `en dés` |
-| `to_taste` | no | `true` for salt, pepper, oil — no quantity, and that is correct |
+| `to_taste` | no | `true` for seasoning and cooking fat with no amount only. Removes the ingredient from pantry search. |
 | `optional` | no | `true` if the recipe works without it |
 | `recipe` | no | slug of another recipe used as an ingredient — see sub-recipes below |
 | `item` | no | manual override only — forces this entry to a registry slug when the name is ambiguous. Normally absent: resolution comes from registry aliases at index time and is never written back. See `STORAGE.md`. |
@@ -127,12 +137,35 @@ Rules:
 - `qty` without `unit` is an error. Countable things use `unit: piece`.
 - `unit` without `qty` is an error.
 - `to_taste: true` and `qty` together is an error — pick one.
+- An ingredient with no amount that is not seasoning (noodles to serve, bread
+  slices) has just a `name` — not `to_taste`, or pantry search would ignore it.
+- Fractions stay as written: `"2/3"`, not `0.667`. The app parses them and displays
+  them as fractions; forcing an AI to do arithmetic invites mistakes.
 - Never put the quantity inside `name`. `name: 500 g de farine` is wrong.
 - Never put the preparation inside `name`. `name: oignon émincé` is wrong; use
   `prep: émincé`. Otherwise the pantry index holds two different ingredients for
   one onion.
 - `group` is optional. A recipe with no components can be a single group with
   `group:` omitted.
+- A group may have `optional: true` — a serving suggestion with its own
+  ingredients, like a sauce or a mayonnaise. Excluded from pantry search and cost
+  totals, shown separately.
+
+### Markers
+
+Four inline markers, allowed in any string value — title, names, notes, steps, and
+fraction-string quantities (`qty: "250 [?]"`):
+
+| Marker | Meaning | App behaviour |
+|---|---|---|
+| `[?]` | uncertain reading of the word or number before it | highlighted; recipe set to `needs-review` |
+| `[?: other]` | uncertain, with another plausible reading | highlighted, alternative shown on hover; `needs-review` |
+| `[illisible]` | unreadable | highlighted; `needs-review` |
+| `[+]` | added by whoever transcribed it, not on the source | shown in a distinct style so original and added text are always distinguishable; does not change status |
+
+Markers are stripped before slugs, search, and resolution, so `boeuf [?]` still
+resolves to `boeuf`. Clearing a `[?]` in the app (confirming or correcting the
+reading) removes the marker from the file.
 
 ### Schema version
 

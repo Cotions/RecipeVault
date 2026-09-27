@@ -119,9 +119,9 @@ means `farine-t45`). Rare, intentional, and visible in the diff.
 
 ```csv
 date,ingredient,amount,currency,pack_qty,pack_unit,shop,note
-2026-09-26,tomates-concassees,0.89,EUR,400,g,Leclerc,
-2026-09-26,oeuf,2.10,EUR,6,piece,Leclerc,calibre moyen
-2026-11-02,tomates-concassees,0.95,EUR,400,g,Leclerc,
+2026-09-26,tomates-concassees,0.89,CAD,400,g,IGA,
+2026-09-26,oeuf,2.10,CAD,6,piece,IGA,calibre moyen
+2026-11-02,tomates-concassees,0.95,CAD,400,g,IGA,
 ```
 
 - Current price = latest row per ingredient. History and trends come free, and so

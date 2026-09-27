@@ -62,6 +62,15 @@ several `E2xx` at once, or the output not being markdown at all. Otherwise the
 codes and fixes are enough, and pasting the whole of `AI-TEMPLATE.md` every time
 wastes the AI's context on a one-line fix.
 
+## Info
+
+Not problems; shown so nothing is silent.
+
+| Code | Condition |
+|---|---|
+| I701 | `[+]` present — text added by the transcriber, rendered distinctly |
+| I702 | a `QUESTIONS` section or other text found outside the fences — ignored, shown to the user in case the AI asked something |
+
 ## Error codes
 
 Hard errors. Refuse to save.
@@ -77,14 +86,16 @@ Hard errors. Refuse to save.
 | E105 | `family` set without `variant`, or `variant` without `family` |
 | E106 | `source.type` not in the allowed list |
 | E107 | `difficulty` or `rating` outside 1–5 |
-| E108 | `servings` not a positive integer |
-| E109 | `times.*` not a parseable duration (`30m`, `1h25m`, `90min`) |
+| E108 | `servings` not a positive integer, or `servings_max` ≤ `servings` |
+| E109 | `times.*` not in the duration format: `30m`, `1h`, `1h15m`, range `45m-50m` |
+| E111 | `oven.unit` not `F` or `C`, or `oven.temp` not a number |
+| E112 | `status` or `added` written in a pasted file — the app sets these (auto-fixed on the paste path: stripped with a note, not rejected) |
 | E110 | `schema` missing, or a version this app does not know |
 | E200 | `ingredients` missing or empty |
-| E201 | `unit` not in the canonical unit list |
+| E201 | `unit` not in the canonical unit list — the message lists the Quebec abbreviation mapping (`tasse` → `cup`, `livre` → `lb`, `c. à thé` → `tsp`) |
 | E202 | `unit` present without `qty` |
 | E203 | `qty` present without `unit` |
-| E204 | `qty` not a number — fractions must be decimals |
+| E204 | `qty` neither a number nor a fraction string (`"1 1/2"`, `"2/3"`) |
 | E205 | `qty_max` present without `qty`, or `qty_max` ≤ `qty` |
 | E206 | `to_taste: true` together with `qty` or `unit` |
 | E207 | ingredient entry has no `name` |
@@ -93,6 +104,10 @@ Hard errors. Refuse to save.
 | E210 | `name` contains digits followed by a unit — quantity smuggled into the name |
 | E211 | `name` contains a comma and no `note`/`prep` — probably merged ingredients |
 | E212 | `buy_instead` present without `recipe` |
+| E214 | `alt` present without both `qty` and `unit` inside it |
+| E215 | `or` not a list of strings |
+| E216 | a quantity and unit found inside `note` (`note: 2 lbs`) — should be `qty`/`unit` |
+| E217 | an unknown bracket marker — only `[?]`, `[?: …]`, `[illisible]`, `[+]` are allowed. Also catches prose uncertainty (`lecture incertaine`, `incertain`) and asks for `[?]` |
 | E213 | sub-recipe cycle — `A` uses `B` uses `A` |
 | E301 | a body heading is unrecognized *and* no recognized method heading exists |
 
@@ -114,7 +129,11 @@ Warnings. Save, mark `needs-review`.
 | W602 | no `times` |
 | W603 | no dish photo |
 | W604 | `source` entirely absent — provenance lost |
-| W605 | `[illisible]` / `[illegible]` present in the file |
+| W605 | `[?]`, `[?: …]`, or `[illisible]` present — each location listed |
+| W606 | `to_taste: true` on something the registry does not class as seasoning or fat — probably should be a plain name without amount |
+| W607 | `name` contains a word from the known-brands list — suggest `brand:` |
+| W608 | same title as an existing recipe — offer to make both members of a family |
+| W609 | step text mentions an oven temperature but `oven` is absent |
 
 `E210` and `E211` are heuristics, deliberately hard errors rather than warnings.
 They catch the two AI mistakes that quietly corrupt the ingredient index, and a

@@ -229,13 +229,13 @@ Ranking, tiers, and the substitution logic: `docs/INGREDIENTS.md`.
 
 ## Cost
 
-Ingredient prices are stored per pack (`400 g for €0.89`), and recipe cost is
+Ingredient prices are stored per pack (`400 g for $0.89`), and recipe cost is
 computed. Two numbers, never conflated: **consumed cost** (pro-rata, what the
 recipe uses) and **shopping cost** (whole packs, what you must buy). Consumed cost
 per serving is the headline on a recipe page.
 
 Partial pricing is the normal state, so totals always show coverage —
-`≈ €4.20 · 9 of 12 ingredients priced` — and never a number that looks complete
+`≈ $4.20 · 9 of 12 ingredients priced` — and never a number that looks complete
 when it is not. Mass-to-volume conversion only happens with an explicit density;
 otherwise the ingredient counts as unpriceable. A wrong price is worse than an
 absent one, because an absent price is visibly absent.
@@ -289,6 +289,9 @@ away, and not touching the screen much.
 - **Works offline** once opened. Kitchen wifi is often the worst in the house; the
   recipe and its images are cached on open.
 - **Dark mode option,** high contrast either way.
+- **Oven temperature in both units.** Old Quebec cards are all °F (`oven:` field);
+  kitchen mode shows `350 °F · 180 °C`.
+- **Fractions displayed as fractions.** `"2/3"` shows as ⅔ tasse, never 0.667.
 
 Wake Lock needs HTTPS (or `localhost`) to work in browsers. On a LAN-only setup
 over plain HTTP it silently does nothing — one more reason for the reverse proxy
@@ -372,7 +375,7 @@ shopping list with whole-pack costs, meal planner, price history charts.
    internet? She is a writer now, so this decides the auth model: LAN-only can be
    a single shared password, internet-facing needs real accounts, HTTPS, and
    rate limiting on the login. See `docs/DATA-FLOW.md`.
-2. **Currency and shop** — EUR assumed. Prices are shop-specific; one price per
+2. **Currency and shop** — CAD (Quebec). Prices are shop-specific; one price per
    ingredient, or per shop? One price with a `source` label is the simple answer,
    and probably right — comparing shops is a different app.
 3. **Who prices ingredients?** Entering a few hundred prices is tedious. Her, from
@@ -384,6 +387,41 @@ shopping list with whole-pack costs, meal planner, price history charts.
    as `pending` until mapped.
 5. **Photo per recipe, or several?** Schema allows several; the form is simpler
    with one. Start with one, schema already supports more.
+
+## P0 findings — 2026-09-27
+
+Ten real recipes run through a free chat AI with template draft 1: handwritten
+family cards (some 35+ years old), a magazine clipping, a printed recipe website
+page, a printed TV show page. The AI mostly followed the template correctly; the
+template was wrong.
+
+**The collection is Québécois, and the template was written for France.** Cups,
+pounds, °F, *c. à thé*, *piment vert*, *fèves*, brand-name products (St-Hubert,
+Minute Rice, Cool Whip). With no `cup` or `lb` unit, most quantities on the cards
+ended up as text in `note` — invisible to cost, scaling, and pantry search.
+Currency is CAD.
+
+Everything found, and the fix for each, is the table at the end of
+`docs/AI-TEMPLATE.md`. Headlines:
+
+- Imperial units added; Quebec abbreviations spelled out in the prompt.
+- Fractions stay as written (`"1 1/2"`), not converted to decimals by the AI.
+- Uncertainty as four fixed markers — `[?]`, `[?: other]`, `[illisible]`, `[+]` —
+  instead of free prose. The app highlights them and derives `needs-review`.
+- **Inference policy.** Cards skip obvious steps ("mix everything") and name
+  ingredients only in the steps. The AI may fill in the obvious, marked `[+]`,
+  shown in a distinct style so her original is always visible as original. It may
+  never invent quantities, times, temperatures, or people — it asks instead, in a
+  `QUESTIONS` section after the fences, which the paste box ignores.
+- New fields: `brand`, `or`, `alt`, optional groups, `oven`, `servings_max`,
+  `yield`. One duration format.
+- The app, not the AI, sets `status`, `added`, and family membership — the AI
+  sees one card, the app sees the whole vault.
+
+Readings to confirm (a person or a name) are for her, not for the template.
+
+Next: re-run the same ten recipes with draft 2 of the template, and check whether
+the problems are gone before starting on the checker.
 
 ## Gaps review — 2026-09-26
 

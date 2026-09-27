@@ -1,5 +1,8 @@
 # Controlled vocabularies
 
+Region: the collection is from Quebec. Aliases below cover Quebec French first
+(c. à thé, tasse, livre, piment vert), France French and English second.
+
 These lists are the **seed** copied into `vocab/` when a new vault is created. From
 then on the live vocabulary is data in the vault, edited by the app. The rules in
 this doc still apply. See `STORAGE.md`.
@@ -17,9 +20,9 @@ here.
 
 ```yaml
 # canonical: [aliases...]
-plat-principal:   [main, main-course, main course, plat principal]
+plat-principal:   [plat, main, main-course, main course, plat principal, repas]
 entree:           [starter, appetizer, entrée, hors-doeuvre]
-dessert:          [dessert, pudding, sweet]
+dessert:          [dessert, pudding, pouding, sweet]
 accompagnement:   [side, side-dish, garniture]
 soupe:            [soup, potage, veloute, velouté]
 salade:           [salad]
@@ -55,6 +58,7 @@ chocolat:         [chocolate]
 # cuisine
 italien:          [italian, italienne]
 francais:         [french, française, francaise]
+quebecois:        [québécois, québécoise, quebec, québec, traditionnel]
 asiatique:        [asian, asiatique]
 marocain:         [moroccan, marocaine]
 ```
@@ -81,6 +85,23 @@ three). Handling:
 - Creating a near-duplicate family is a warning, not a block — sometimes two
   similar names really are different things.
 
+## Regional ingredient names
+
+Quebec French names map to the same registry entries as France French ones — this
+lives in the ingredient registry's alias lists, noted here because it is where the
+two dialects actually disagree:
+
+| Quebec | France | Registry note |
+|---|---|---|
+| piment vert / rouge | poivron vert / rouge | **not** a chili pepper — the most likely mistake |
+| fèves (vertes, jaunes, rouges) | haricots | *fèves* in Quebec are beans, not broad beans |
+| blé d'Inde | maïs | |
+| patates | pommes de terre | |
+| cassonade | sucre brun / vergeoise | |
+| sauce soya | sauce soja | |
+| crème 35 % / 15 % | crème entière / légère | the percentage matters |
+| steak haché | bœuf haché | |
+
 ## Seasons
 
 Fixed, four values plus none: `printemps`, `ete`, `automne`, `hiver`.
@@ -98,19 +119,38 @@ kg:     [kg, kilo, kilos, kilogramme]
 ml:     [ml, millilitre, millilitres]
 cl:     [cl, centilitre]
 l:      [l, litre, litres, liter, L]
-tbsp:   [c. à soupe, cuillère à soupe, cuillere a soupe, cas, cs, tablespoon, tbsp]
-tsp:    [c. à café, cuillère à café, cuillere a cafe, cac, cc, teaspoon, tsp]
+cup:    [tasse, tasses, t., t, cup, cups, c.]
+tbsp:   [c. à table, c. à soupe, c.s., c. à s., cuillère à soupe, cuil. à soupe, tablespoon, tbsp, T]
+tsp:    [c. à thé, c.t., c. à café, cuillère à thé, cuillère à café, cuil. à thé, teaspoon, tsp]
 pinch:  [pincée, pincee, pinch]
 drop:   [goutte, gouttes, drop, drops]
+lb:     [lb, lbs, livre, livres, pound, pounds]
+oz:     [oz, once, onces, ounce, ounces]
+qt:     [pinte, pintes, quart, qt]
+pint:   [chopine, chopines, pint]
 piece:  [pièce, piece, pcs, unité, unite]
 clove:  [gousse, gousses, clove, cloves]
 leaf:   [feuille, feuilles, leaf, leaves]
-sprig:  [brin, brins, sprig, branche]
+sprig:  [brin, brins, sprig]
+stalk:  [branche de céleri, tige, stalk]
 bunch:  [botte, bouquet, bunch]
 slice:  [tranche, tranches, slice, slices]
-can:    [boîte, boite, conserve, can, tin]
-packet: [sachet, paquet, packet, sachets]
+can:    [boîte, boite, bte, conserve, can, tin]
+packet: [sachet, paquet, enveloppe, packet, sachets, pqt]
 ```
+
+"branche" alone is deliberately in no list: *branche de céleri* is a stalk,
+*branche de thym* is a sprig. The unit depends on the ingredient, so the AI decides
+from context.
+
+`cup` means the Canadian metric cup, 250 ml, for conversion. Canadian recipes
+printed after metrication give "1 t (250 ml)". Very old cards may predate that
+(an imperial cup is ~227 ml); the difference is under 10% and irrelevant to cost.
+
+`tbsp` alias `T` (capital) and `tsp` alias `t` (lowercase) is an English convention
+that collides with French `t.` = tasse. French recipes: `t.` is a cup. English
+recipes: `T` is a tablespoon, `t` a teaspoon. The parser picks by the recipe's
+`lang`.
 
 No conversions between mass and volume without a per-ingredient `density`, and no
 generic mass for `tbsp`/`tsp` — a tablespoon of flour and one of honey are not the

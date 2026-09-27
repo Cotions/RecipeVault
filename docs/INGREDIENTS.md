@@ -62,15 +62,15 @@ frequent first. Resolving `farine T55` once fixes it in 200 recipes.
 
 ## Cost
 
-Prices are not stored in ingredient files. They are rows in the append-only
+Currency is CAD. Prices are not stored in ingredient files. They are rows in the append-only
 `prices.csv` — date, ingredient, amount, pack size, shop — and the current price is
 the latest row. Pack size belongs to the purchase, not the ingredient: the same
 tomatoes come in 400 g and 800 g tins. See `STORAGE.md`.
 
 Two numbers, both honest, never conflated:
 
-- **Consumed cost** — what the recipe actually uses. 800 g of tomatoes at €0.89 per
-  400 g pack = €1.78. Pro-rata, fractional packs allowed.
+- **Consumed cost** — what the recipe actually uses. 800 g of tomatoes at $0.89 per
+  400 g pack = $1.78. Pro-rata, fractional packs allowed.
 - **Shopping cost** — what you must buy if the cupboard is empty. 150 g of parmesan
   when it is sold in 200 g blocks = one block, not 0.75 of one.
 
@@ -82,7 +82,7 @@ on a shopping list, where whole packs are what you carry home.
 Most ingredients will have no price for a long time. So:
 
 - Never display a total as if complete. Show coverage:
-  `≈ €4.20 · 9 of 12 ingredients priced`.
+  `≈ $4.20 · 9 of 12 ingredients priced`.
 - Exclude `to_taste` and `staple` ingredients from the coverage denominator — they
   are pennies and would make coverage look permanently broken.
 - A recipe below ~70% coverage shows a range or a "not enough prices yet" state
@@ -90,7 +90,8 @@ Most ingredients will have no price for a long time. So:
 
 ### Unit conversion
 
-- Within mass (`g`, `kg`) and within volume (`ml`, `cl`, `l`): always safe.
+- Within mass (`g`, `kg`, `lb`, `oz`) and within volume (`ml`, `cl`, `l`, `cup`,
+  `qt`, `pint`, and `tbsp`/`tsp` *as volumes*): always safe. `cup` = 250 ml.
 - Mass to volume: only when the ingredient has an explicit `density`. Never guess.
 - `tbsp`, `tsp`, `pinch`: convert only via a per-ingredient table, because a
   tablespoon of flour and a tablespoon of honey are not the same mass. When no
@@ -115,6 +116,8 @@ close they are to cookable.
 ```
 have      = selected ingredient slugs  (+ all staples, if "assume staples" is on)
 required  = recipe ingredients where NOT optional AND NOT to_taste AND NOT staple
+            AND NOT in an optional group
+            (an entry with or: [...] is matched if ANY of its options is in have)
 matched   = required ∩ have
 missing   = required − have
 coverage  = |matched| / |required|

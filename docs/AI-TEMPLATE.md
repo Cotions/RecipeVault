@@ -1,83 +1,138 @@
 # Master template — the prompt given to an AI to produce a recipe file
 
-Draft 1. This file is the contract. Everything downstream — the parser, the
-validator, the cost engine, pantry search — assumes output matching it exactly.
+Draft 2, revised after P0: ten real recipes (Quebec cards and clippings, some 35+
+years old) run through a free chat AI. What changed and why is at the end.
+
+This file is the contract. The parser, the validator, cost, and pantry search all
+assume output matching it exactly.
 
 How it is used: paste the prompt below into any chat AI (ChatGPT free tier,
-Claude, anything that reads images), attach the recipe photo, copy the markdown it
-returns into RecipeVault's paste box. The app has no AI built in.
+Claude, Gemini — anything that reads images), attach the recipe photo, copy the
+markdown it returns into RecipeVault's paste box. The app has no AI built in.
 
-Keep the prompt in this file and have the app render it with a copy button — never
-retyped from memory. Free tiers forget long instructions over a long chat, so start
-a fresh chat every ~10 recipes, pasting the prompt again.
+The app extracts only the ```` ```markdown ```` fences from a paste and ignores all
+other text, so the AI may talk around them — questions, remarks — without breaking
+anything.
+
+Keep the prompt here and have the app render it with a copy button; never retype
+it. Free tiers forget long instructions over a long chat, so start a fresh chat
+every ~10 recipes and paste the prompt again.
 
 ---
 
 ## The prompt
 
 ````text
-You convert photographs of recipes into a strict Markdown format. Output one
-markdown file per recipe, each inside its own ```markdown fence. Output nothing
-else — no commentary, no explanation before or after.
+You convert photographs of recipes into a strict Markdown format.
 
-- Several images may belong to ONE recipe (front and back of a card, two pages
-  of a book). Combine them into a single file, in order.
-- One image may contain SEVERAL recipes (a magazine page, a notebook spread).
-  Output one fenced file per recipe.
-- If you cannot tell whether two images are one recipe or two, treat them as two
-  and add a `## Notes` line saying so.
+OUTPUT
+- One markdown file per recipe, each inside its own ```markdown fence.
+- Several images may be ONE recipe (front and back of a card, two pages):
+  combine them into one file, in order.
+- One image may hold SEVERAL recipes: one fence per recipe.
+- After the fences, you MAY add a section titled QUESTIONS with at most 5
+  questions — only things the owner can answer that would change the file (a
+  missing quantity, a name you cannot read). Nothing else outside the fences.
+- When the user answers, output the complete corrected file(s) again.
 
-RULES
+REGION
+Most recipes are handwritten cards and clippings from Quebec, in Quebec French,
+some decades old. Read them with Quebec conventions:
+- "t." / "tasse" = cup · "c. à thé" / "c.t." = teaspoon ·
+  "c. à table" / "c. à soupe" / "c.s." = tablespoon ·
+  "lb" / "livre" = pound · "oz" / "once" = ounce
+- An oven temperature with no unit ("350", "350°") is Fahrenheit.
+- A ditto mark (") under a word repeats that word.
+- Keep Quebec words exactly as written: "piment vert", "fèves", "blé d'Inde",
+  "soya", "cassonade". Do not translate them to France French.
 
-1. Transcribe, do not improve. Keep the original wording, quantities, and order.
-   Do not add steps, do not modernize, do not convert units, do not round.
-2. Write in the language of the source recipe. Set `lang: fr` or `lang: en`
-   accordingly.
-3. Illegible text: write the part you can read, put `[illisible]` / `[illegible]`
-   where you cannot, and set `status: needs-review`. Never guess a quantity.
-4. Ingredients go in frontmatter as structured entries. Never as prose bullets.
-5. ONE INGREDIENT PER ENTRY. A line reading "olive oil, salt, pepper" becomes
-   three separate entries.
-6. Never put a quantity inside `name`. Wrong: `name: 500 g flour`.
-   Right: `qty: 500, unit: g, name: flour`.
-7. Never put preparation inside `name`. Wrong: `name: minced onion`.
-   Right: `qty: 1, unit: piece, name: onion, prep: minced`.
-8. Never put a size descriptor inside `name`. Wrong: `name: large onion`.
-   Right: `qty: 1, unit: piece, name: onion, note: large`.
-9. `qty` requires `unit`, and `unit` requires `qty`. Countable things use
-   `unit: piece`.
-10. Ingredients with no quantity given — salt, pepper, oil to taste — use
-    `to_taste: true` and no `qty`, no `unit`.
-11. Fractions as decimals: `0.5`, never `1/2`. Ranges: `qty` plus `qty_max`.
-12. `unit` must be exactly one of:
-    g, kg, ml, cl, l, tbsp, tsp, pinch, drop, piece, clove, leaf, sprig, bunch,
-    slice, can, packet
-13. Group ingredients with `group:` when the recipe has components (sauce, dough,
-    topping). If it has none, use one group and omit the `group:` key.
-14. Steps: numbered list under `## Préparation` (fr) or `## Instructions` (en).
-    One action per step, in source order.
-15. `## Notes` for remarks that are not steps. `## Variantes` for variations the
-    source mentions. `## Alternatives` for substitutions it mentions. Omit any
-    section the source does not contain — do not invent content to fill them.
-16. Anything written about who the recipe came from — a name, a book, a magazine,
-    a website — goes in `source`. This matters; do not drop it.
-17. `slug`: lowercase, ASCII, hyphenated, no accents, derived from the title. If
-    the recipe is clearly a variant of a dish family (lasagna, tarte, soup), set
-    `family` to the family slug and `variant` to what distinguishes this one, and
-    prefix the slug with the family.
-18. `tags`: 3 to 6 plain words describing course, method, main ingredient, and
-    cuisine. Lowercase, singular, in the recipe's language. Do not invent
-    elaborate tags.
-19. `status: draft` always, unless rule 3 applies, in which case
-    `status: needs-review`.
-20. `extracted_by: ai`.
-21. Omit any key you have no value for. Never write an empty value.
-22. First frontmatter line is always `schema: 3`.
-23. If an ingredient is itself a recipe written elsewhere on the same source
-    ("pâte brisée, voir page 12"), add `recipe:` with that recipe's slug. If the
-    source says a bought one is fine, add `buy_instead: true`.
+TRANSCRIBE, AND MARK EVERYTHING THAT IS NOT A PLAIN READING
+1. Copy the source faithfully: wording, quantities, order of steps. Do not
+   modernize, do not convert units, do not round.
+2. Use exactly these inline markers, nothing else, never prose like
+   "(lecture incertaine)":
+     [?]           you are unsure of the word or number just before it
+     [?: other]    same, and gives the other plausible reading
+     [illisible]   you cannot read it at all
+     [+]           text you added that is NOT on the source
+   Examples:  author: Jeanne Tremblay [?: Tremblé]
+              - { qty: "250 [?]", unit: ml, name: lait }
+              1. Mélanger tous les ingrédients. [+]
+3. You MAY add, marked [+], only what is obvious and harmless:
+   - a missing "mix the ingredients" step when the card jumps straight to baking
+   - a title for an untitled clipping, based on its ingredients
+   - an ingredient named only in the steps ("servir sur des nouilles")
+4. NEVER invent quantities, times, temperatures, ingredients, or names of
+   people. Leave them absent and ask in QUESTIONS.
 
-OUTPUT SKELETON
+INGREDIENTS — in frontmatter, never as prose bullets
+5. One ingredient per entry. "sel, poivre" is two entries.
+6. Fields, all optional except name:
+     qty, qty_max, unit, name, brand, note, prep, alt, or, optional, to_taste
+7. qty: a number, or a fraction in quotes exactly as written:
+     2 · 0.5 · "1 1/2" · "2/3" · "1/8".  Range: qty plus qty_max.
+8. unit must be exactly one of:
+     g, kg, ml, cl, l, cup, tbsp, tsp, pinch, drop, lb, oz, piece, clove,
+     leaf, sprig, stalk, bunch, slice, can, packet, qt, pint
+   qty requires unit, unit requires qty. Countable things use unit: piece.
+   A branch of celery is "stalk"; a sprig of thyme is "sprig".
+9. When the source gives two measures ("1 t (250 ml)"): metric goes in
+   qty/unit, the other in alt:
+     - { qty: 250, unit: ml, name: bouillon, alt: { qty: 1, unit: cup } }
+10. name is the generic ingredient only — no quantity, no preparation, no size,
+    no brand:
+      "2 lbs de boeuf en cubes" → { qty: 2, unit: lb, name: boeuf, prep: en cubes }
+      "1 gros oignon"           → { qty: 1, unit: piece, name: oignon, note: gros }
+      "ketchup Heinz"           → { name: ketchup, brand: Heinz }
+    When a product is only known by its brand (Cool Whip, Jell-O, Minute Rice),
+    keep it as the name.
+11. Size of a can or pack goes in note: { qty: 1, unit: can, name: tomates,
+    note: "796 ml" }.
+12. "X ou Y" for one ingredient → { name: X, or: [Y] }. Do not repeat it in
+    ## Alternatives.
+13. to_taste: true ONLY for seasoning and cooking fat with no amount (salt,
+    pepper, oil for the pan). Anything else with no amount — noodles to serve,
+    bread slices — gets just a name, no qty, no to_taste.
+14. Group ingredients by component with group:. A serving suggestion that has
+    its own ingredients (a mayonnaise, a sauce) becomes its own group with
+    optional: true. A suggestion with no ingredients goes in ## Notes.
+15. If an ingredient is another recipe on the same source ("pâte, voir p. 12"),
+    add recipe: with that recipe's slug.
+
+FRONTMATTER
+16. First line is always schema: 3.
+17. title: as written on the source. If there is none, make one and mark it:
+    title: Bouchées au canard [+]
+18. slug: lowercase, ASCII, hyphenated, no accents, from the title without markers.
+19. family / variant: set them ONLY if the source presents itself as a version of
+    a dish, or if the user says so. The app detects same-named recipes itself.
+20. times: only times the source states, as 30m, 1h, 1h15m; ranges as 45m-50m.
+    Keys: prep, cook, rest. What the rest is for ("au frigo") goes in the steps.
+21. oven: { temp: 350, unit: F } when a temperature is given. Range: temp_max.
+22. servings: an integer; range with servings_max. Things not counted in
+    portions ("24 biscuits", "1 moule 9x13") go in yield: as text instead.
+23. source: everything the source says about where the recipe came from.
+      type: family | book | website | magazine | tv | invented
+      author: the person the recipe comes from — a name in the corner of a card,
+              a website user. Not the guests of a TV show; put those in note.
+      title, page, url, note as available.
+    Nothing about origin on the source → omit source entirely. Never guess.
+24. tags: 3 to 6 plain lowercase words: course, method, main ingredient, cuisine.
+    Do not repeat the family or the title as a tag.
+25. extracted_by: ai. Do not write status or added — the app sets them.
+26. Omit any key you have no value for. Never write an empty value.
+
+BODY
+27. ## Préparation (French) or ## Instructions (English): numbered steps in
+    source order, one action per step.
+28. ## Notes: remarks that are not steps, including the source author's own
+    comments ("un classique chez nous"), quoted as written.
+    ## Variantes: variations the source mentions.
+    ## Alternatives: substitutions the source mentions that are not already an
+    or: on an ingredient.
+    Omit any section the source does not have.
+
+SKELETON
 
 ```markdown
 ---
@@ -85,30 +140,25 @@ schema: 3
 title:
 slug:
 lang: fr
-family:
-variant:
 source:
-  type:            # family | book | website | magazine | tv | invented
+  type:
   author:
-  url:
   title:
   page:
+  url:
   note:
 times:
   prep:
   cook:
   rest:
+oven: { temp: , unit: F }
 servings:
 tags: []
-season: []
-difficulty:        # 1 easy - 5 hard, your judgement
-rating:            # only if the source shows one
+difficulty:        # 1 easy – 5 hard, your judgement
 ingredients:
   - group:
     items:
       - { qty: , unit: , name: , note: , prep: }
-status: draft
-added:             # today, YYYY-MM-DD
 extracted_by: ai
 ---
 
@@ -128,66 +178,106 @@ extracted_by: ai
 
 ## Worked example
 
-**Source:** a handwritten card, stained, reading roughly —
+Invented card, typical of the collection.
+
+**Source:**
 
 ```
-Lasagnes de Mamie Jeanne (pour 6)
-500g boeuf hache - 1 gros oignon emince - 2 gousses ail
-1 grosse boite tomates (800g) - 2 cs concentre
-laurier, huile d'olive, sel poivre
-bechamel: 50g beurre 50g farine 1/2 L lait muscade
-12 feuilles lasagne, 100g parmesan rape
-Faire revenir oignon, ajouter ail et viande, colorer.
-Tomates + concentre + laurier, reduire 25 min.
-Bechamel classique. Monter en alternant. Four 180 45min.
-Repos 10 min. Meilleur le lendemain !
+Pâté chinois (tante Rita)
+1 1/2 lb boeuf haché - 1 oignon
+1 boite blé d'Inde en crème
+1  "     "     "  en grains
+5 patates, pilées avec beurre et lait
+Dorer viande et oignon. Étager boeuf, blé d'Inde, patates.
+Four 350, 30-35 min.
 ```
 
-**Expected output** — note how each rule bites:
+**Expected output:**
 
-```yaml
+```markdown
+---
+schema: 3
+title: Pâté chinois
+slug: pate-chinois
+lang: fr
+source:
+  type: family
+  author: tante Rita
+times:
+  cook: 30m-35m
+oven: { temp: 350, unit: F }
+tags: [plat, boeuf, four, québécois]
+difficulty: 1
 ingredients:
-  - group: Sauce bolognaise
+  - group: Viande
     items:
-      - { qty: 500, unit: g, name: bœuf haché }
-      - { qty: 1, unit: piece, name: oignon, note: gros, prep: émincé }   # rules 7, 8
-      - { qty: 2, unit: clove, name: ail }                                # rule 12
-      - { qty: 800, unit: g, name: tomates concassées }
-      - { qty: 2, unit: tbsp, name: concentré de tomate }
-      - { qty: 1, unit: leaf, name: laurier }
-      - { name: huile d'olive, to_taste: true }                           # rules 5, 10
-      - { name: sel, to_taste: true }
-      - { name: poivre, to_taste: true }
-  - group: Béchamel
+      - { qty: "1 1/2", unit: lb, name: boeuf haché }
+      - { qty: 1, unit: piece, name: oignon }
+  - group: Blé d'Inde
     items:
-      - { qty: 50, unit: g, name: beurre }
-      - { qty: 50, unit: g, name: farine }
-      - { qty: 500, unit: ml, name: lait }                                # 1/2 L → 500 ml
-      - { qty: 1, unit: pinch, name: muscade }
+      - { qty: 1, unit: can, name: blé d'Inde en crème }
+      - { qty: 1, unit: can, name: blé d'Inde en grains }
+  - group: Purée
+    items:
+      - { qty: 5, unit: piece, name: patates, prep: pilées }
+      - { name: beurre }
+      - { name: lait }
+extracted_by: ai
+---
+
+## Préparation
+
+1. Dorer la viande et l'oignon.
+2. Piler les patates avec le beurre et le lait. [+]
+3. Étager le boeuf, le blé d'Inde et les patates.
+4. Cuire au four à 350 °F, 30 à 35 min.
 ```
 
-Plus `family: lasagna`, `variant: bolognaise`, `slug: lasagna-bolognaise`,
-`source: {type: family, author: Mamie Jeanne}`, `servings: 6`, and
-"Meilleur le lendemain !" under `## Notes`, not as a step.
+What each rule did:
+- `"1 1/2"` kept as written, `lb` as a real unit — no quantity lost in a note.
+- The ditto line became a second can of blé d'Inde, not a guess.
+- `beurre` and `lait` for the purée have no amount on the card: named, no qty, and
+  *not* `to_taste` — they are not seasoning.
+- Step 2 is implied by the ingredient line but not written as a step, so it is
+  marked `[+]`.
+- `350` with no unit is °F, and lives in `oven:` where kitchen mode can show °C too.
 
-The full expected file is `tests/fixtures/vault/recipes/lasagna-bolognaise.md`.
+## Revisions after P0
 
-## Failure modes seen in practice
+Ten real recipes exposed these problems in draft 1. All fixed above.
 
-Worth watching for when reviewing AI output, because the validator cannot catch
-all of them:
+| Found | Fix |
+|---|---|
+| No `cup` or `lb` unit, so most quantities on Quebec cards ended up as text in `note`, invisible to cost, scaling, and pantry search | Units `cup`, `lb`, `oz`, `qt`, `pint`, `stalk` added; Quebec abbreviations spelled out in the prompt |
+| "Fractions as decimals" forced the AI to do arithmetic (`2/3` → `0.667`) and contradicted "do not convert" | Fractions kept as written in quotes; the app parses them |
+| Both cups and ml on one line — which wins? | Metric in `qty`/`unit`, the other in `alt:` |
+| Uncertainty written as free prose, three different ways | Four fixed markers: `[?]`, `[?: other]`, `[illisible]`, `[+]` |
+| Cards that skip obvious steps ("mix everything") | Obvious steps may be added, marked `[+]`. Quantities, times, and people never are |
+| `to_taste` used for any ingredient without an amount (noodles, bread) | `to_taste` restricted to seasoning and cooking fat — it removes an ingredient from pantry search |
+| Brands inside names (`ketchup Heinz`) would split pantry search by brand | `brand:` field |
+| "beurre ou huile", "agneau ou veau" hidden in notes, repeated in Alternatives | `or:` field |
+| Serving suggestions with their own ingredients crammed into Notes | Their own group, `optional: true` |
+| Times as `2 hrs`, `1 1/4 heure`, `45-50 minutes`, `2 heures de réfrigération` | One format: `1h15m`, ranges `45m-50m` |
+| Oven temperature only in step text, in four spellings | `oven:` field |
+| `servings: 8-10` | `servings_max` |
+| AI writing `added` dates it cannot know, and choosing `status` | The app sets both; `needs-review` comes from markers and warnings |
+| AI deciding family/variant for one of two same-named recipes but not the other | Family is decided in the app, which sees the whole vault |
+| TV show guests recorded as recipe authors | `author` is the recipe's origin; guests go in `note` |
+| AI questions had nowhere to go | `QUESTIONS` section after the fences, ignored by the app |
 
-- **Invented precision.** A source saying "un peu de crème" becomes
-  `qty: 100, unit: ml`. Should be `to_taste: true`. The validator cannot detect
-  this — only glancing at the photo can.
-- **Merged ingredients** surviving rule 5, usually `sel et poivre` as one entry.
-- **Preparation smuggled into the name**, which silently splits the pantry index
-  into `tomate` and `tomate pelée`.
-- **Dropped provenance.** A grandmother's name in the corner of a card is the part
-  that cannot be recovered later. Rule 16 exists because it is the easiest thing
-  to lose and the most painful.
-- **Helpful additions.** Steps the source never had, because the dish "needs" them.
+## Failure modes to watch for
+
+The validator cannot catch these; a glance at the photo can.
+
+- **Invented precision.** "un peu de crème" becoming `qty: 100, unit: ml`.
+- **Confident misreading of numbers.** French `1` with its hook read as `7`,
+  `4` versus `9`. On old handwriting, check every quantity against the photo.
+- **Unmarked guesses.** The markers only work if the AI uses them; an illegible
+  word replaced by a plausible one with no `[?]` looks exactly like a clean read.
+- **Dropped provenance.** A name in the corner of a card is the easiest thing to
+  lose and cannot be recovered once the card is gone.
+- **Unmarked additions.** A step the source never had, without `[+]`.
 
 This is why every AI-extracted recipe is marked `extracted_by: ai` and starts as
-`draft` rather than `verified`: a quick look at the photo before marking it verified
-catches what the validator cannot.
+`draft`: a quick look at the photo before marking it verified catches what the
+validator cannot.
