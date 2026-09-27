@@ -79,6 +79,15 @@
 
 	const heic = $derived(!!photo && /\.hei[cf]$/i.test(photo));
 
+	/** Only http(s) becomes a link: a `javascript:` URL in a file must never be clickable. */
+	function webUrl(url: string): boolean {
+		try {
+			return ['http:', 'https:'].includes(new URL(url).protocol);
+		} catch {
+			return false;
+		}
+	}
+
 	function host(url: string): string {
 		try {
 			return new URL(url).hostname || url;
@@ -103,7 +112,7 @@
 				{#if src.author && (sourceParts.length || src.url || src.type)}<span aria-hidden="true"> — </span>{/if}
 				{#if !src.author}{t.source[src.type] ?? src.type}{#if sourceParts.length || src.url}<span aria-hidden="true"> — </span>{/if}{/if}
 				{#each sourceParts as part, i (i)}{#if i > 0}, {/if}<Marked text={part} />{/each}
-				{#if src.url}{#if sourceParts.length}, {/if}<a href={src.url} rel="noopener noreferrer external">{host(src.url)}</a>{/if}
+				{#if src.url}{#if sourceParts.length}, {/if}{#if webUrl(src.url)}<a href={src.url} rel="noopener noreferrer external">{host(src.url)}</a>{:else}<span class="url">{src.url}</span>{/if}{/if}
 			</p>
 		{/if}
 		<p class="status"><StatusBadge status={recipe.status} /></p>
