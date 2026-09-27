@@ -10,7 +10,7 @@ const errorCodes = (ds: { code: string; severity: string }[]) => [...new Set(ds.
 
 /** Every E-code this checker implements; each needs an invalid fixture. */
 const IMPLEMENTED = [
-	'E001', 'E002', 'E101', 'E102', 'E103', 'E104', 'E105', 'E106', 'E107', 'E108', 'E109', 'E110', 'E111', 'E112',
+	'E001', 'E002', 'E003', 'E101', 'E102', 'E103', 'E104', 'E105', 'E106', 'E107', 'E108', 'E109', 'E110', 'E111', 'E112',
 	'E200', 'E201', 'E202', 'E203', 'E204', 'E205', 'E206', 'E207', 'E208', 'E209', 'E210', 'E211', 'E212', 'E213',
 	'E214', 'E215', 'E216', 'E217', 'E218', 'E301'
 ];

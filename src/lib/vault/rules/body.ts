@@ -1,4 +1,4 @@
-// Body rules: E301, W401, W402, W609.
+// Body rules: E003, E301, W401, W402, W609.
 
 import { isBlank, type RuleContext } from './context';
 
@@ -8,8 +8,23 @@ const LONG_STEP = 400;
 const TEMP_RE = /(?<!\d)(\d{3})\s*(?:[°º]\s*([FC])?|(?:degr[ée]s?|degrees?)\s*([FC])?|([FC]))(?!\p{L})/iu;
 const OVEN_TEMP_RE = /(?<!\p{L})(?:four|oven)\s+(?:(?:à|a|to|at)\s+)?(\d{3})(?!\d)/iu;
 
+// A `---` line with `schema:` as the next non-blank line: a second file's frontmatter.
+const MERGED_RE = /^---[ \t]*\n(?:[ \t]*\n)*[ \t]*schema[ \t]*:/m;
+
 export function checkBody(ctx: RuleContext): void {
 	const { body } = ctx;
+
+	// E003: several files pasted as one (bare `---` files, or a fence left open).
+	const parts = [{ path: 'body.preamble', text: body.preamble }, ...body.sections.map((s, i) => ({ path: `body.sections[${i}]`, text: s.text }))];
+	const merged = parts.find((p) => MERGED_RE.test(p.text));
+	if (merged) {
+		ctx.report(
+			'E003',
+			merged.path,
+			'the body holds the start of another recipe file (a `---` line followed by `schema:`) — two files were merged into one.',
+			'Return each file in its own ```markdown fence, closed with ``` before the next one opens.'
+		);
+	}
 	const hasMethod = body.sections.some((s) => s.kind === 'method');
 	const unknown = body.sections
 		.map((s, i) => ({ s, i }))

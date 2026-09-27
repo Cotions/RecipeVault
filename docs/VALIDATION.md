@@ -112,6 +112,7 @@ out (the whole amount for `qty`/`unit`, the whole `alt`, the whole `oven` for
 |---|---|---|
 | E001 | ai | not valid markdown with a YAML frontmatter block |
 | E002 | ai | frontmatter is not valid YAML (include the YAML parser's own message) |
+| E003 | ai | the body holds another recipe file — a line that is exactly `---` with `schema:` as the next non-blank line: several files pasted without fences, or a fence left open. Fix: return each file in its own ```` ```markdown ```` fence |
 | E101 | ai | `title` missing |
 | E102 | ai | `slug` is not lowercase ASCII hyphenated |
 | E103 | app | `slug` already exists in the vault, or twice in one paste — resolved in the app: overwrite, or a suffixed slug (see `DATA-FLOW.md`) |
@@ -181,7 +182,10 @@ false positive costs one manual override — far cheaper than discovering at rec
 
 One photo can hold several recipes, so the AI may return several fenced files in
 one answer. The paste box accepts that: each fence is validated and saved as its
-own recipe. The fix-request block then covers only the failing ones, each with its
+own recipe. A ```` ```markdown ```` (or ```` ```md ````) opener line always starts
+a new file, even when the previous recipe fence was never closed — it cannot
+occur inside a recipe. Files pasted bare, one after the other, are not split:
+they arrive as one file and fail with `E003`. The fix-request block then covers only the failing ones, each with its
 own file included, and says which recipes already saved so the AI does not resend
 them.
 

@@ -44,6 +44,20 @@ describe('splitPaste', () => {
 		expect(splitPaste('```markdown\n' + FILE).files).toEqual([FILE]);
 	});
 
+	it('starts a new file at a ```markdown opener even if the previous fence is not closed', () => {
+		const r = splitPaste(`\`\`\`markdown\n${FILE}\n\`\`\`markdown\n${FILE}\`\`\`\n\nQUESTIONS\n1. ?`);
+		expect(r.files).toEqual([FILE, FILE]);
+		expect(r.outside).toBe('QUESTIONS\n1. ?');
+		expect(splitPaste(`\`\`\`md\n${FILE}\`\`\`md\n${FILE}\`\`\`md\n${FILE}`).files).toEqual([FILE, FILE, FILE]);
+		expect(splitPaste(`\`\`\`\n${FILE}\`\`\`markdown\n${FILE}\`\`\`\n`).files).toEqual([FILE, FILE]);
+	});
+
+	it('leaves a ```markdown line inside another kind of fence alone', () => {
+		const r = splitPaste('```text\nexemple :\n```markdown\n```\n\n```markdown\n' + FILE + '```\n');
+		expect(r.files).toEqual([FILE]);
+		expect(r.outside).toBe('```text\nexemple :\n```markdown\n```');
+	});
+
 	it('treats a paste without fences that starts with --- as one file', () => {
 		expect(splitPaste('\n\n' + FILE)).toEqual({ files: [FILE], outside: '' });
 	});

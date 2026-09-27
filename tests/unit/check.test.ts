@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkBatch, checkRecipe, sortDiagnostics } from '../../src/lib/vault/check';
+import { checkBatch, checkPaste, checkRecipe, sortDiagnostics } from '../../src/lib/vault/check';
 import type { Diagnostic } from '../../src/lib/vault/types';
 
 const BASE = readFileSync('tests/fixtures/check/invalid/E201-tasse.md', 'utf8').replace('unit: tasse', 'unit: cup');
@@ -311,6 +311,30 @@ describe('E218 text fields', () => {
 		const r = checkRecipe(edit('name: eau, note: bouillante', 'name: eau, note: 796'));
 		expect(r.diagnostics).toEqual([]);
 		expect(r.recipe?.ingredients[1].items[1].note).toBe('796');
+	});
+});
+
+describe('E003 files merged into one', () => {
+	const second = BASE.replace('title: Pouding chômeur', 'title: Pouding deux').replace('slug: pouding-chomeur', 'slug: pouding-deux');
+
+	it('fires on bare files pasted one after the other', () => {
+		const r = checkPaste(`${BASE}\n${second}`);
+		expect(r.files).toHaveLength(1);
+		const [d] = r.files[0].diagnostics.filter((x) => x.severity === 'error');
+		expect(d.code).toBe('E003');
+		expect(d.path).toBe('body.sections[0]');
+		expect(d.fix).toContain('its own ```markdown fence');
+	});
+
+	it('an unclosed fence before the next opener is split, not merged', () => {
+		const r = checkPaste('```markdown\n' + BASE + '\n```markdown\n' + second + '```\n');
+		expect(r.files.map((f) => f.recipe?.title)).toEqual(['Pouding chômeur', 'Pouding deux']);
+		expect(r.files.flatMap((f) => f.diagnostics)).toEqual([]);
+	});
+
+	it('leaves a horizontal rule alone', () => {
+		expect(codes(edit('4. Cuire 40 min.', '4. Cuire 40 min.\n\n---\n\nservir chaud.'))).toEqual([]);
+		expect(codes(`${BASE}\n---\n\nschema du montage : voir la photo.\n`)).toEqual([]);
 	});
 });
 

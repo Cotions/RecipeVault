@@ -7,6 +7,13 @@ import { normalizeText } from './normalize';
 // `title="pain.md"`, is ignored.
 const OPEN_RE = /^ {0,3}(`{3,}|~{3,})[ \t]*([^\s`]*)(?:[ \t]+[^`]*)?$/;
 
+const MARKDOWN_RE = /^(markdown|md)$/i;
+
+function isMarkdownOpener(line: string): boolean {
+	const m = line.match(OPEN_RE);
+	return !!m && MARKDOWN_RE.test(m[2]);
+}
+
 export interface SplitPaste {
 	files: string[];
 	/** Text found outside the recipe fences, trimmed; '' when there is none. */
@@ -26,15 +33,20 @@ export function splitPaste(text: string): SplitPaste {
 		}
 		const [, fence, info] = open;
 		const close = new RegExp(`^ {0,3}${fence[0] === '`' ? '`' : '~'}{${fence.length},}\\s*$`);
+		// A ```markdown opener cannot occur inside a recipe: in a recipe fence
+		// (or a bare one) it starts the next file, even if this one was never
+		// closed.
+		const mayHoldRecipe = info === '' || MARKDOWN_RE.test(info);
 		let j = i + 1;
-		while (j < lines.length && !close.test(lines[j])) j++;
+		while (j < lines.length && !close.test(lines[j]) && !(mayHoldRecipe && isMarkdownOpener(lines[j]))) j++;
+		const unclosed = j < lines.length && !close.test(lines[j]);
 		const content = lines.slice(i + 1, j);
 		// A bare fence counts when what it holds starts like a recipe file.
 		const firstLine = content.find((l) => l.trim() !== '');
-		const isRecipe = /^(markdown|md)$/i.test(info) || (info === '' && firstLine?.trim() === '---');
+		const isRecipe = MARKDOWN_RE.test(info) || (info === '' && firstLine?.trim() === '---');
 		if (isRecipe) files.push(tidy(content));
-		else outside.push(...lines.slice(i, j + 1));
-		i = j + 1;
+		else outside.push(...lines.slice(i, unclosed ? j : j + 1));
+		i = unclosed ? j : j + 1;
 	}
 	if (files.length === 0 && outside.join('\n').trimStart().startsWith('---')) {
 		return { files: [tidy(outside)], outside: '' };
