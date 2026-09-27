@@ -228,3 +228,11 @@ Simplest safe answer, and the recommendation: keep it LAN-only, and reach it fro
 outside over a WireGuard or Tailscale tunnel. That removes the public attack
 surface entirely and makes the in-app auth a convenience rather than the only
 thing standing between the vault and the internet.
+
+**Decided (plan 02): LAN plus Tailscale, no login in P1.** The app listens on the
+home network; outside access and HTTPS come from `tailscale serve`
+(`docs/DEPLOY.md`). Until accounts arrive in P2, every commit is attributed to
+`git_author` from the config. What P1 still guarantees: the vault folder, `.git`
+and `cache/` are never served (photos go through `/media/…`, images only), and a
+writing request is refused unless its `Origin` names the host it was sent to
+(CSRF), which works for both the LAN address and the Tailscale name.

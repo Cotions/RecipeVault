@@ -1,0 +1,25 @@
+# systemd user unit for RecipeVault. Install:
+#   cp deploy/recipevault.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now recipevault
+#   loginctl enable-linger "$USER"      # keep it running when logged out
+# Adjust WorkingDirectory and the node path (`which node`) to this machine.
+
+[Unit]
+Description=RecipeVault — family recipe archive
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/Perso/RecipeVault
+# systemd does not load a shell profile: with nvm, give node's full path, e.g.
+# ExecStart=%h/.nvm/versions/node/v24.20.0/bin/node bin/serve.js
+ExecStart=/usr/bin/env node bin/serve.js
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=5
+# The config is read from ~/.config/recipevault/config.json.
+
+[Install]
+WantedBy=default.target

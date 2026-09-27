@@ -192,6 +192,7 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 
 	const results: FileResult[] = [];
 	const ready: Ready[] = [];
+	const claimed = new Set<string>();
 	checked.files.forEach((f, i) => {
 		const diagnostics = f.diagnostics;
 		const errors = diagnostics.filter((d) => d.severity === 'error');
@@ -202,7 +203,10 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 			results.push({ status: 'rejected', diagnostics });
 			return;
 		}
-		if (collision) {
+		// Two files with one slug in the same paste, neither in the vault: the
+		// first takes the slug, only the later ones wait for a choice.
+		const batchOnly = collision && !entries.some((e) => e.slug === slug) && !claimed.has(slug);
+		if (collision && !batchOnly) {
 			const cur = currentFile(ctx, slug);
 			const existing = cur ? { title: entries.find((e) => e.slug === slug)?.title ?? slug, hash: cur.hash } : undefined;
 			results.push({ status: 'collision', slug, suggested: suffixed(slug, taken), existing, inTrash: trash.has(slug), diagnostics });
@@ -220,6 +224,7 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 			results.push({ status: 'stale', slug, diagnostics });
 			return;
 		}
+		claimed.add(slug);
 		const previous = cur ? checkFile(cur.text).recipe : undefined;
 		const final: Recipe = {
 			...recipe,

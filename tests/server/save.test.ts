@@ -96,6 +96,13 @@ describe('save', () => {
 		expect(v.read('recipes/chili-2.md')).toContain('slug: chili-2\n');
 	});
 
+	it('saves the first of two same-slug files in one paste and holds the second', async () => {
+		const r = await save(v.ctx, [{ text: recipe('Pain de maïs') }, { text: recipe('Pain de maïs', 'servings: 2\n') }]);
+		expect(r.files.map((f) => f.status)).toEqual(['saved', 'collision']);
+		expect(r.files[1]).toMatchObject({ slug: 'pain-de-mais', suggested: 'pain-de-mais-2' });
+		expect(v.read('recipes/pain-de-mais.md')).not.toContain('servings');
+	});
+
 	it('offers a family for a same-title recipe (W608) and sets it on the new file only', async () => {
 		await save(v.ctx, [{ text: recipe('Sauce brune') }]);
 		const r = await save(v.ctx, [{ text: recipe('Sauce brune'), slug: 'sauce-brune-2', family: { family: 'sauce-brune', variant: 'maman' } }]);

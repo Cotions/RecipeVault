@@ -1,6 +1,6 @@
 # RecipeVault — Planning
 
-Status: design phase, nothing built. Last updated 2026-09-26.
+Status: P1 (read app) built — see Phases. Last updated 2026-09-27.
 
 ## Goal
 
@@ -346,11 +346,14 @@ English, one with vague quantities. The schema was designed in a vacuum, so it i
 wrong somewhere; real recipes say where. More important at 5000 recipes, not less — a schema mistake found at
 recipe 400 is a migration.
 
-**P1 — read app**
+**P1 — read app** — *built 2026-09-27 (`docs/plans/02-read-app.md`).*
 Browse, search, filter, sort. Family pages with the variant diff table. Recipe
 page. Print view (she will want paper in the kitchen). Mobile first. Plus the
 paste box with validation and the fix-request block, and `vault sync`. Kitchen
-mode — see its section above.
+mode — see its section above. Also: web import (schema.org JSON-LD), the
+"Vérifié" button (an AI file is never auto-verified), soft delete and the
+trash, a codes-only paste log with `vault stats`, and an offline service worker
+for kitchen mode. The UI is in French, all strings in `src/lib/i18n/fr.ts`.
 
 **P1.5 — ingredients**
 Registry, name resolution with the resolve queue, ingredient view, ingredient index
@@ -373,10 +376,12 @@ shopping list with whole-pack costs, meal planner, price history charts.
 
 ## Open questions
 
-1. **Hosting** — local network only, or reachable from her house over the
-   internet? She is a writer now, so this decides the auth model: LAN-only can be
-   a single shared password, internet-facing needs real accounts, HTTPS, and
-   rate limiting on the login. See `docs/DATA-FLOW.md`.
+1. **Hosting** — *decided 2026-09-27 (plan 02):* home network plus Tailscale.
+   The app listens on the LAN; outside access and HTTPS come from
+   `tailscale serve` (HTTPS is also what makes Wake Lock work in kitchen mode).
+   No public exposure. No login in P1 — acceptable only because the network is
+   the boundary; commits are attributed to `git_author` from the config.
+   Accounts come in P2. See `docs/DEPLOY.md` and `docs/DATA-FLOW.md`.
 2. **Currency and shop** — CAD (Quebec). Prices are shop-specific; one price per
    ingredient, or per shop? One price with a `source` label is the simple answer,
    and probably right — comparing shops is a different app.
