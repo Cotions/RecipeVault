@@ -111,7 +111,8 @@ export interface IngredientGroup {
 export type SourceType = 'family' | 'book' | 'website' | 'magazine' | 'tv' | 'invented';
 
 export interface Source {
-	type: SourceType;
+	/** Optional: absent when the kind of source is not evident. */
+	type?: SourceType;
 	author?: string;
 	url?: string;
 	title?: string;

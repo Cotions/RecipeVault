@@ -48,7 +48,7 @@ variant: bolognaise
 
 # provenance
 source:
-  type: family                       # family | book | website | magazine | tv | invented
+  type: family                       # family | book | website | magazine | tv | invented — optional
   author: Mamie Jeanne
   url:
   title:                             # book or magazine name
@@ -110,6 +110,10 @@ updated: 2026-09-26
 extracted_by: hand                   # free text, not checked: hand | ai | web — which parses to distrust
 ---
 ```
+
+Every `source` field is optional, `type` included: a source whose kind is not
+evident has no `type`, and the app shows it as of unknown type. When `type` is
+present it must be one of the six values (`E106`).
 
 Only `schema`, `title` and `ingredients` are required; `slug` is derived from the title when
 absent. Omit keys rather than leaving them blank — an absent key is cleaner to

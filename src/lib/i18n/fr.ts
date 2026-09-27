@@ -100,6 +100,8 @@ export const fr = {
 	recipe: {
 		by: 'de',
 		source: 'Provenance',
+		/** A `source` without `type`: the kind of source was not evident. */
+		sourceUnknown: 'Type de source inconnu',
 		page: 'p.',
 		prep: 'Préparation',
 		cook: 'Cuisson',

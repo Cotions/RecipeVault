@@ -33,6 +33,20 @@ test('paste an invalid recipe: the fix-request block is copied, with only ai cod
 	expect(clip).not.toContain('W602');
 });
 
+test('preview: a source with no type, and markers on servings and oven', async ({ page }) => {
+	await page.goto('/ajouter');
+	const text = fenced('Muffins sans provenance inventés', 'oven: { temp: "375 [?]", unit: F }\n')
+		.replace('source: { type: invented }', 'source: { note: coupure de journal }')
+		.replace('servings: 4', 'servings: "12 [?]"');
+	await paste(page, text);
+	await expect(page.getByText('Valide')).toBeVisible();
+	const preview = page.locator('.preview');
+	await expect(preview.locator('.source')).toContainText('Type de source inconnu');
+	await expect(preview.locator('.source')).toContainText('coupure de journal');
+	await expect(preview.locator('.facts')).toContainText('12');
+	await expect(preview.locator('.facts mark')).toHaveText(['[?]', '[?]']);
+});
+
 test('a slug collision is saved under the suffixed slug', async ({ page }) => {
 	await page.goto('/ajouter');
 	await paste(page, fenced('Pâté chinois'));

@@ -116,7 +116,7 @@
 			<p class="source">
 				{#if src.author}{t.recipe.by} <strong><Marked text={src.author} /></strong>{/if}
 				{#if src.author && (sourceParts.length || src.url || src.type)}<span aria-hidden="true"> — </span>{/if}
-				{#if !src.author}{t.source[src.type] ?? src.type}{#if sourceParts.length || src.url}<span aria-hidden="true"> — </span>{/if}{/if}
+				{#if !src.author}{src.type ? (t.source[src.type] ?? src.type) : t.recipe.sourceUnknown}{#if sourceParts.length || src.url}<span aria-hidden="true"> — </span>{/if}{/if}
 				{#each sourceParts as part, i (i)}{#if i > 0}, {/if}<Marked text={part} />{/each}
 				{#if src.url}{#if sourceParts.length}, {/if}{#if webUrl(src.url)}<a href={src.url} rel="noopener noreferrer external">{host(src.url)}</a>{:else}<span class="url">{src.url}</span>{/if}{/if}
 			</p>

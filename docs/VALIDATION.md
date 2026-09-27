@@ -115,7 +115,7 @@ out (the whole amount for `qty`/`unit`, the whole `alt`, the whole `oven` for
 | E103 | app | `slug` already exists in the vault, or twice in one paste — resolved in the app: overwrite, or a suffixed slug (see `DATA-FLOW.md`) |
 | E104 | ai | `lang` not `fr` or `en` |
 | E105 | ai | `family` set without `variant`, or `variant` without `family` |
-| E106 | ai | `source.type` not in the allowed list |
+| E106 | ai | `source` is not a mapping, or `source.type` is present and not in the allowed list. `type` is optional: absent when the kind of source is not evident |
 | E107 | ai | `difficulty` or `rating` outside 1–5 |
 | E108 | ai | `servings` not a positive integer, or `servings_max` ≤ `servings` (markers aside: `"4 [?]"` is 4) |
 | E109 | ai | `times.*` not in the duration format: `30m`, `1h`, `1h15m`, range `45m-50m` |

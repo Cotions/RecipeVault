@@ -17,7 +17,7 @@ import type {
 	YieldObject
 } from './types';
 import { isUnit } from './vocab';
-import { isMap } from './rules/context';
+import { isBlank, isMap } from './rules/context';
 
 // Text fields: a number is kept as text (`note: 796`); anything else that is not
 // a string was already rejected by E218.
@@ -90,7 +90,8 @@ export function buildRecipe(fm: Record<string, unknown>, markers: Marker[]): Rec
 	if (str(fm.variant)) recipe.variant = str(fm.variant);
 	if (isMap(fm.source)) {
 		const s = fm.source;
-		const source: Source = { type: s.type as Source['type'] };
+		const source: Source = {};
+		if (!isBlank(s.type)) source.type = s.type as Source['type'];
 		for (const k of ['author', 'url', 'title', 'note'] as const) if (str(s[k])) source[k] = str(s[k]);
 		if (typeof s.page === 'number' || str(s.page)) source.page = s.page as string | number;
 		recipe.source = source;

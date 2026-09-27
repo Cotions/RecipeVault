@@ -382,6 +382,20 @@ describe('sortDiagnostics', () => {
 	});
 });
 
+describe('source.type', () => {
+	it('is optional: a source with no type is valid and built without one', () => {
+		const r = checkRecipe(edit('  type: family\n', ''));
+		expect(r.diagnostics).toEqual([]);
+		expect(r.recipe?.source).toEqual({ author: 'Grand-maman Lucienne' });
+	});
+
+	it('is still checked when present', () => {
+		const [d] = find(edit('type: family', 'type: grand-mère'), 'E106');
+		expect(d.path).toBe('source.type');
+		expect(d.fix).toContain('leave `type` out');
+	});
+});
+
 describe('W504 season', () => {
 	const seasons = (list: string) => checkRecipe(edit('tags: [dessert, quebecois]', `tags: [dessert, quebecois]\nseason: ${list}`));
 

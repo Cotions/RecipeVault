@@ -146,8 +146,9 @@ FRONTMATTER
               a website user. Not the guests of a TV show; put those in note.
       title, page, url, note as available.
     If only the kind of source is evident (a printed magazine clipping, a
-    printed web page), keep just source: { type: magazine }. Nothing at all →
-    omit source. Never guess a name or title.
+    printed web page), keep just source: { type: magazine }. If the kind is
+    not evident, leave type out and keep the rest. Nothing at all → omit
+    source. Never guess a type, a name or a title.
 24. tags: 3 to 6 plain lowercase words: course, method, main ingredient, cuisine.
     Do not repeat the family or the title as a tag.
 25. extracted_by: ai. Do not write status or added — the app sets them.
@@ -322,6 +323,7 @@ Draft 3.2 — decisions on cases the checker's stress test left open (invented f
 | A can size printed in two measures (`19 oz (540 ml)`) was rejected as two amounts (`E216`); dropping one breaks rule 1, and `alt` is the amount, not the container size | One size plus its parenthesised equivalent is one size (rule 11) |
 | `servings: "4 [?]"` and `oven.temp: "350 [?]"` were rejected (`E108`, `E111`), so the fix dropped the marker and claimed a certainty the transcriber did not have | Markers allowed on `servings` and `oven.temp` as on `qty` (rule 2) |
 | A bare marker on `qty`, `unit`, `source.type` or a time was told "wrap it in quotes", and the quoted value failed again | An unreadable number, unit, type or time is left out and asked about (rule 2, rule 4); the checker's fix says so |
+| A `source` with an author and a note but no `type` was rejected (`E106`), pushing the AI to guess a type | `type` optional; left out when the kind of source is not evident (rule 23) |
 
 ## Failure modes to watch for
 
