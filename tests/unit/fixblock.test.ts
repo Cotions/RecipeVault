@@ -99,9 +99,29 @@ describe('renderFixBlock', () => {
 
 describe('needsSpec', () => {
 	const d = (code: string) => ({ code, severity: 'error' as const, path: null, message: '' });
-	it('on E001, or three E2xx errors in one file', () => {
+	it('on E001, or three distinct E2xx error codes', () => {
 		expect(needsSpec([{ text: '', diagnostics: [d('E001')] }])).toBe(true);
 		expect(needsSpec([{ text: '', diagnostics: [d('E201'), d('E203'), d('E210')] }])).toBe(true);
 		expect(needsSpec([{ text: '', diagnostics: [d('E201'), d('E203'), d('E109')] }])).toBe(false);
+	});
+
+	it('counts distinct codes, not occurrences', () => {
+		expect(needsSpec([{ text: '', diagnostics: [d('E201'), d('E201'), d('E201'), d('E201')] }])).toBe(false);
+		expect(needsSpec([{ text: '', diagnostics: [d('E201'), d('E201'), d('E203')] }])).toBe(false);
+	});
+
+	it('counts across the whole paste', () => {
+		const a = { text: '', diagnostics: [d('E201'), d('E203')] };
+		const b = { text: '', diagnostics: [d('E210'), d('E211')] };
+		expect(needsSpec([a])).toBe(false);
+		expect(needsSpec([b])).toBe(false);
+		expect(needsSpec([a, b])).toBe(true);
+		expect(needsSpec([a, { text: '', diagnostics: [d('E201')] }])).toBe(false);
+		expect(needsSpec([a, { text: '', diagnostics: [d('E001')] }])).toBe(true);
+	});
+
+	it('ignores warnings and app codes', () => {
+		const w = { code: 'W302', severity: 'warning' as const, path: null, message: '' };
+		expect(needsSpec([{ text: '', diagnostics: [d('E201'), d('E203'), w, d('E103')] }])).toBe(false);
 	});
 });

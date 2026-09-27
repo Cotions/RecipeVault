@@ -74,7 +74,9 @@ the recipes the AI must not resend. **Adding a code means choosing its fixer**;
 the checker's test suite fails on a code without one.
 
 The block includes the spec only when an error suggests the AI never had it —
-several `E2xx` at once, or the output not being markdown at all. Otherwise the
+three or more *different* `ai` `E2xx` error codes across the whole paste (one
+mistake repeated on many lines does not count: its own message fixes it), or
+any `E001`, the output not being markdown at all. Otherwise the
 codes and fixes are enough, and pasting the whole of `AI-TEMPLATE.md` every time
 wastes the AI's context on a one-line fix.
 

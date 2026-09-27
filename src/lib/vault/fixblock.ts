@@ -31,15 +31,19 @@ export function aiErrors(diagnostics: Diagnostic[]): Diagnostic[] {
 	return aiDiagnostics(diagnostics).filter((d) => d.severity === 'error');
 }
 
-/** Several E2xx at once in one file suggests the AI is not following the format. */
+/**
+ * Several different E2xx across the paste suggest the AI is not following the
+ * format. Distinct codes, not occurrences: one mistake repeated on every line
+ * is fixed by its own message.
+ */
 const SPEC_E2XX_THRESHOLD = 3;
 
+/** Include the format: any E001, or ≥ 3 distinct `ai` E2xx error codes across the whole paste. */
 export function needsSpec(failed: FailedFile[]): boolean {
-	return failed.some(
-		(f) =>
-			f.diagnostics.some((d) => d.code === 'E001') ||
-			aiErrors(f.diagnostics).filter((d) => /^E2\d\d$/.test(d.code)).length >= SPEC_E2XX_THRESHOLD
-	);
+	const all = failed.flatMap((f) => f.diagnostics);
+	if (all.some((d) => d.code === 'E001')) return true;
+	const e2xx = new Set(aiErrors(all).map((d) => d.code).filter((c) => /^E2\d\d$/.test(c)));
+	return e2xx.size >= SPEC_E2XX_THRESHOLD;
 }
 
 /**
