@@ -32,16 +32,14 @@ export const isRecipeFile = (name: string) => name.endsWith('.md') && !name.star
 /** Relative path of a recipe file: `recipes/<slug>.md`. */
 export const recipePath = (slug: string) => `${RECIPES}/${slug}.md`;
 
-/**
- * A file whose slug does not match its name (an outside edit). No code in
- * docs/VALIDATION.md covers it, so it carries none rather than borrowing one.
- */
+/** E113: a file whose slug does not match its name (an outside edit). */
 function slugMismatch(slug: string, file: string): Diagnostic {
 	return {
-		code: '',
+		code: 'E113',
 		severity: 'error',
 		path: 'slug',
-		message: `\`slug: ${slug}\` does not match the file name ${file}; the slug is the file name.`
+		message: `\`slug: ${slug}\` does not match the file name ${file}; the slug is the file name.`,
+		fix: `Rename the file to \`${slug}.md\`, or set \`slug\` back to the file name.`
 	};
 }
 

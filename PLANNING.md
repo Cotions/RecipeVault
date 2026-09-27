@@ -267,8 +267,8 @@ away, and not touching the screen much.
 - **Big type.** Readable at arm's length. Nothing else on screen — no navigation,
   no sidebar, no tags.
 - **Ingredients first, as a checklist.** Tap to tick off while gathering. Grouped
-  as in the recipe (sauce, béchamel, montage). Ticks are local to the session and
-  never saved.
+  as in the recipe (sauce, béchamel, montage). Ticks stay on the device
+  (`localStorage`) and are never sent to the server.
 - **One step at a time.** Current step large, previous and next dimmed. Large
   tap zones: right half of the screen advances, left half goes back — no small
   buttons to hit. Swipe works too.

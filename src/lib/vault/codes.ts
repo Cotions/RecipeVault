@@ -23,6 +23,7 @@ export const CODE_FIXERS: Readonly<Record<string, Fixer>> = {
 	E110: 'ai',
 	E111: 'ai',
 	E112: 'app',
+	E113: 'app',
 	E200: 'ai',
 	E201: 'ai',
 	E202: 'ai',

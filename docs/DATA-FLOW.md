@@ -41,7 +41,8 @@ the file exists and `vault sync` recovers it. Never the reverse.
 server re-checks with the vault (`E103`, `W306`, `W503`, `W608`) and is the only
 judge on save. Several fences in one paste are saved in one commit; files that
 fail stay in the box. A collision (`E103`) is settled inline: "Remplacer" (an
-edit, with the hash guard below) or the suffixed slug; a same title (`W608`)
+edit, with the hash guard below) or the suffixed slug. Two files in one paste with the same new slug: the first
+is saved, only the later one waits for that choice. A same title (`W608`)
 offers to set `family`/`variant` on the new file (the existing file is left
 untouched in P1). The fix-request block holds only `ai` codes.
 

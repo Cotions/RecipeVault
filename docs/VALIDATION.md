@@ -110,6 +110,7 @@ same: wrap the value in double quotes (`name: "[illisible]"`).
 | E109 | ai | `times.*` not in the duration format: `30m`, `1h`, `1h15m`, range `45m-50m` |
 | E111 | ai | `oven.unit` not `F` or `C`, or `oven.temp` not a number |
 | E112 | app | `status` or `added` written in a pasted file — the app sets these (auto-fixed on the paste path: stripped with a note, not rejected) |
+| E113 | app | a vault file's `slug` does not match its file name (an edit outside the app) — the file is not indexed until the file is renamed or `slug` set back |
 | E110 | ai | `schema` missing, or a version this app does not know |
 | E200 | ai | `ingredients` missing or empty |
 | E201 | ai | `unit` not in the canonical unit list — the message lists the Quebec abbreviation mapping (`tasse` → `cup`, `livre` → `lb`, `c. à thé` → `tsp`) |

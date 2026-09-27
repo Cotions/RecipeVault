@@ -107,7 +107,7 @@ media:
 status: verified                     # draft | needs-review | verified
 added: 2026-09-26
 updated: 2026-09-26
-extracted_by: hand                   # hand | ai | web — which parses to distrust
+extracted_by: hand                   # free text, not checked: hand | ai | web — which parses to distrust
 ---
 ```
 

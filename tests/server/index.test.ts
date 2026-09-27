@@ -43,7 +43,7 @@ describe('sync', () => {
 		writeFileSync(join(v.dir, 'recipes/autre-nom.md'), recipe('Galette', 'slug: galette\n'));
 		const r = syncVault(v.ctx.db, v.ctx.paths);
 		expect(r.removed).toBe(1);
-		expect(r.problems).toEqual([{ file: 'recipes/autre-nom.md', codes: [''] }]);
+		expect(r.problems).toEqual([{ file: 'recipes/autre-nom.md', codes: ['E113'] }]);
 		expect(getRecipe(v.ctx.db, 'crepes')).toBeUndefined();
 	});
 

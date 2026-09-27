@@ -10,8 +10,8 @@ this doc still apply. See `STORAGE.md`.
 Draft 1. Why this file exists: the vault is bilingual and will hold thousands of
 recipes. Free-text tags fragment — `four`, `oven`, and `baked` all describe one
 thing, and a filter sidebar listing all three is worse than no sidebar. So: one
-canonical term per concept, plus aliases that map onto it. Input is normalized on
-save; display uses the reader's language.
+canonical term per concept, plus aliases that map onto it. Input is mapped at
+index time — the file keeps what was written; display uses the reader's language.
 
 Starter lists, to be grown during P0 against real recipes rather than invented
 here.

@@ -185,7 +185,7 @@ function sync(args: string[], rebuild: boolean): number {
 	const r = syncVault(ctx.db, ctx.paths, { force: set.has('--force') || rebuild });
 	ctx.db.close();
 	console.log(`${r.scanned} files: ${r.indexed} indexed, ${r.unchanged} unchanged, ${r.removed} removed, ${r.problems.length} with errors (${r.ms} ms)`);
-	for (const p of r.problems) console.log(`  ${red('✗')} ${p.file}  ${p.codes.map((c) => c || 'slug ≠ file name').join(', ')}`);
+	for (const p of r.problems) console.log(`  ${red('✗')} ${p.file}  ${p.codes.join(', ')}`);
 	return r.problems.length ? 1 : 0;
 }
 
