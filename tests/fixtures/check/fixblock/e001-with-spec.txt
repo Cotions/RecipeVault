@@ -1,0 +1,27 @@
+RECIPEVAULT — FILE REJECTED
+
+Your previous output did not validate. Fix every ERROR below, then return the
+COMPLETE corrected file inside one ```markdown fence. Output nothing else. Do
+not explain the changes. Do not return a partial file or a diff.
+
+Your output does not follow the recipe format. The full format follows; apply
+all of it to the whole file.
+
+--- FORMAT ---
+You convert photographs of recipes into a strict Markdown format.
+(…the rest of the prompt…)
+--- END FORMAT ---
+
+ERRORS — must fix:
+  [E001] the file does not start with a `---` line opening the YAML frontmatter.
+         Return the complete file: a `---` line, the YAML frontmatter, a closing
+         `---` line, then the Markdown body.
+
+--- YOUR FILE ---
+## Préparation
+
+1. Mélanger la farine, le sucre et la poudre à pâte. Ajouter le lait.
+2. Verser la pâte dans un moule beurré.
+3. Faire fondre la cassonade dans l'eau bouillante avec le beurre, verser sur la pâte.
+4. Cuire 40 min.
+--- END FILE ---

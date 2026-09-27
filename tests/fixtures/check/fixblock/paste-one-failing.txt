@@ -1,0 +1,54 @@
+RECIPEVAULT — FILE REJECTED
+
+Your previous output did not validate. Fix every ERROR below, then return the
+COMPLETE corrected file inside one ```markdown fence. Output nothing else. Do
+not explain the changes. Do not return a partial file or a diff.
+
+Already saved, do not send again: Sucre à la crème.
+
+Your output does not follow the recipe format. The full format follows; apply
+all of it to the whole file.
+
+--- FORMAT ---
+You convert photographs of recipes into a strict Markdown format.
+(…the rest of the prompt…)
+--- END FORMAT ---
+
+ERRORS — must fix:
+  [E201] ingredients[0].items[0].unit: `unit: "tasse"` is not allowed; `tasse`
+         is written `cup`.
+         Write `unit: cup`.
+  [E210] ingredients[1].items[1].name: `name: "3 c. à thé de poudre à pâte"`
+         contains a quantity.
+         Move it: `{ qty: 3, unit: tsp, name: poudre à pâte }`
+  [E203] ingredients[1].items[2]: `qty: "3/4"` present but `unit` missing.
+         Every qty needs a unit. Countable items use `unit: piece`.
+
+--- YOUR FILE ---
+---
+schema: 3
+title: Grands-pères au sirop
+slug: grands-peres-au-sirop
+lang: fr
+source: { type: family }
+times: { cook: 15m }
+servings: 6
+ingredients:
+  - group: Sirop
+    items:
+      - { qty: 2, unit: tasse, name: sirop d'érable }
+      - { qty: 1, unit: cup, name: eau }
+  - group: Pâte
+    items:
+      - { qty: "1 1/2", unit: cup, name: farine }
+      - { name: 3 c. à thé de poudre à pâte }
+      - { qty: "3/4", name: lait }
+extracted_by: ai
+---
+
+## Préparation
+
+1. Porter le sirop et l'eau à ébullition.
+2. Mélanger la pâte, déposer à la cuillère dans le sirop.
+3. Couvrir et cuire 15 min sans ouvrir.
+--- END FILE ---

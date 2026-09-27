@@ -1,0 +1,56 @@
+Voici les deux recettes de la carte.
+
+```markdown
+---
+schema: 3
+title: Sucre à la crème
+slug: sucre-a-la-creme
+lang: fr
+source: { type: family }
+times: { cook: 10m }
+yield: "36 carrés"
+ingredients:
+  - items:
+      - { qty: 2, unit: cup, name: cassonade }
+      - { qty: 1, unit: cup, name: crème 35 % }
+      - { qty: 2, unit: tbsp, name: beurre }
+extracted_by: ai
+---
+
+## Préparation
+
+1. Cuire la cassonade et la crème 10 min.
+2. Ajouter le beurre, brasser et verser dans un moule.
+```
+
+```markdown
+---
+schema: 3
+title: Grands-pères au sirop
+slug: grands-peres-au-sirop
+lang: fr
+source: { type: family }
+times: { cook: 15m }
+servings: 6
+ingredients:
+  - group: Sirop
+    items:
+      - { qty: 2, unit: tasse, name: sirop d'érable }
+      - { qty: 1, unit: cup, name: eau }
+  - group: Pâte
+    items:
+      - { qty: "1 1/2", unit: cup, name: farine }
+      - { name: 3 c. à thé de poudre à pâte }
+      - { qty: "3/4", name: lait }
+extracted_by: ai
+---
+
+## Préparation
+
+1. Porter le sirop et l'eau à ébullition.
+2. Mélanger la pâte, déposer à la cuillère dans le sirop.
+3. Couvrir et cuire 15 min sans ouvrir.
+```
+
+QUESTIONS
+1. La quantité de lait est-elle 3/4 de tasse ?
