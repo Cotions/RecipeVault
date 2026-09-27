@@ -12,7 +12,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:corpus": "vitest run tests/corpus.test.ts",
+		"test:corpus": "vitest run tests/corpus.test.ts --silent=false",
 		"vault": "tsx src/cli/vault.ts"
 	},
 	"devDependencies": {
@@ -29,5 +29,8 @@
 	},
 	"dependencies": {
 		"yaml": "^2.9.1"
+	},
+	"bin": {
+		"vault": "bin/vault.js"
 	}
 }
