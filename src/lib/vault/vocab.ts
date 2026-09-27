@@ -189,6 +189,9 @@ export const SOURCE_TYPES: readonly SourceType[] = [
 
 export const SEASONS = ['printemps', 'ete', 'automne', 'hiver'] as const;
 
+/** Values of `extracted_by`: typed by a person, read by an AI, imported from a web page's JSON-LD. */
+export const EXTRACTED_BY = ['hand', 'ai', 'web'] as const;
+
 export const SCHEMA_VERSIONS = [3] as const;
 
 /** Allowed keys per object, from the frontmatter reference in docs/RECIPE-SCHEMA.md. */

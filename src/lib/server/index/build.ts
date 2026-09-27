@@ -3,19 +3,14 @@
 
 import { createHash } from 'node:crypto';
 import { stripMarkers } from '../../vault/markers';
-import { fold, normalizeText } from '../../vault/normalize';
+import { fold } from '../../vault/normalize';
 import type { Diagnostic, Duration, Recipe } from '../../vault/types';
 import { canonicalTag, type VaultVocab } from '../vocab';
 import type { DB } from './db';
 
 export const sha256 = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
 
-/** The body of a recipe file: everything after the closing `---`. */
-export function bodyOf(text: string): string {
-	const lines = normalizeText(text).split('\n');
-	const end = lines.findIndex((l, i) => i > 0 && l.trimEnd() === '---');
-	return end === -1 ? '' : lines.slice(end + 1).join('\n').trim();
-}
+export { bodyText as bodyOf } from '../../vault/parse';
 
 /** Folded text for search: no accents, œ → oe, markers stripped. */
 export const searchText = (s: string) => fold(stripMarkers(s));

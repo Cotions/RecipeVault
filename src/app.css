@@ -1,0 +1,268 @@
+/* RecipeVault — the recipe-box index card.
+   Paper, ink, the red header rule and faint blue ruled lines of a Québec
+   recipe card; highlighter yellow for uncertain readings, pencil for text the
+   transcriber added. System fonts only: the app must work offline in a
+   kitchen, and Charter / Georgia read well at arm's length. */
+
+:root {
+	--paper: #f3f5f2;
+	--card: #fffffd;
+	--ink: #1c2a42;
+	--ink-soft: #4b5567;
+	--pencil: #6d717a;
+	--rule-red: #b3302c;
+	--rule-blue: #cfdcec;
+	--link: #2a578f;
+	--link-hover: #173c69;
+	--highlight: #f6e27a;
+	--highlight-ink: #4a3b00;
+	--ok: #2f6b4f;
+	--line: #dfe3e8;
+	--focus: #2a578f;
+
+	--serif: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
+	--sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
+
+	--step--1: 0.875rem;
+	--step-0: 1rem;
+	--step-1: 1.1875rem;
+	--step-2: 1.4375rem;
+	--step-3: 1.875rem;
+	--step-4: 2.5rem;
+
+	--radius: 3px;
+	--gap: 1rem;
+	--measure: 68ch;
+
+	color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--paper);
+	color: var(--ink);
+	font-family: var(--sans);
+	font-size: var(--step-0);
+	line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+	font-family: var(--serif);
+	line-height: 1.2;
+	font-weight: 700;
+	margin: 0;
+	text-wrap: balance;
+}
+
+a {
+	color: var(--link);
+	text-underline-offset: 0.15em;
+	text-decoration-thickness: 1px;
+}
+a:hover {
+	color: var(--link-hover);
+}
+
+:focus-visible {
+	outline: 3px solid var(--focus);
+	outline-offset: 2px;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+.visually-hidden {
+	position: absolute !important;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+/* Buttons: plain, ink-bordered; the primary one is solid ink. */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	min-height: 2.5rem;
+	padding: 0.35rem 0.9rem;
+	border: 1.5px solid var(--ink);
+	border-radius: var(--radius);
+	background: var(--card);
+	color: var(--ink);
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.btn:hover {
+	background: #eef2f7;
+	color: var(--ink);
+}
+.btn.primary {
+	background: var(--ink);
+	color: #fff;
+}
+.btn.primary:hover {
+	background: #2b3d5c;
+}
+.btn.danger {
+	border-color: var(--rule-red);
+	color: var(--rule-red);
+}
+.btn.quiet {
+	border-color: transparent;
+	background: transparent;
+	color: var(--link);
+	padding-inline: 0.4rem;
+}
+.btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+.btn kbd {
+	font-family: var(--sans);
+	font-size: 0.75em;
+	font-weight: 500;
+	opacity: 0.75;
+}
+
+input[type='search'],
+input[type='text'],
+input[type='url'],
+select,
+textarea {
+	border: 1.5px solid #b7c0cc;
+	border-radius: var(--radius);
+	background: var(--card);
+	padding: 0.45rem 0.6rem;
+	min-height: 2.5rem;
+}
+input:focus,
+select:focus,
+textarea:focus {
+	border-color: var(--ink);
+	outline: none;
+	box-shadow: 0 0 0 3px rgba(42, 87, 143, 0.25);
+}
+
+/* Markers, anywhere they appear. */
+mark.mk {
+	color: inherit;
+	border-radius: 2px;
+	padding: 0 0.15em;
+	font-family: var(--sans);
+	font-size: 0.85em;
+	font-weight: 600;
+	white-space: nowrap;
+}
+mark.mk-uncertain,
+mark.mk-uncertain-alt,
+mark.mk-illegible {
+	background: var(--highlight);
+	color: var(--highlight-ink);
+	cursor: help;
+}
+mark.mk-added {
+	background: none;
+	color: var(--pencil);
+	font-style: italic;
+	font-weight: 500;
+	border-bottom: 1px dotted var(--pencil);
+	border-radius: 0;
+	cursor: help;
+}
+.wikilink.dead {
+	color: var(--ink-soft);
+	border-bottom: 1px dashed var(--pencil);
+}
+
+/* Status badges. */
+.badge {
+	display: inline-block;
+	font-size: var(--step--1);
+	font-weight: 600;
+	line-height: 1.3;
+	padding: 0.05rem 0.45rem;
+	border-radius: var(--radius);
+	white-space: nowrap;
+}
+.badge.needs-review {
+	background: var(--highlight);
+	color: var(--highlight-ink);
+}
+.badge.draft {
+	color: var(--pencil);
+	border: 1px solid var(--line);
+}
+.badge.verified {
+	color: var(--ok);
+	border: 1px solid #b9d5c6;
+}
+.badge.broken {
+	background: var(--rule-red);
+	color: #fff;
+}
+
+.toast {
+	position: fixed;
+	inset-inline: 1rem;
+	bottom: 1rem;
+	margin-inline: auto;
+	max-width: 36rem;
+	background: var(--ink);
+	color: #fff;
+	padding: 0.8rem 1rem;
+	border-radius: var(--radius);
+	box-shadow: 0 6px 24px rgba(28, 42, 66, 0.3);
+	z-index: 50;
+}
+.toast a {
+	color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		animation: none !important;
+		transition: none !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+@media print {
+	body {
+		background: #fff;
+		font-size: 11pt;
+	}
+	.no-print {
+		display: none !important;
+	}
+	a {
+		color: inherit;
+		text-decoration: none;
+	}
+	mark.mk-uncertain,
+	mark.mk-uncertain-alt,
+	mark.mk-illegible {
+		background: none;
+		border: 1px solid #000;
+	}
+}

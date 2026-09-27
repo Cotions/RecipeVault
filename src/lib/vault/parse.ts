@@ -95,3 +95,11 @@ export function parseRecipe(text: string): ParsedFile {
 	const { body, chunks } = parseBody(lines.slice(end + 1).join('\n'));
 	return { frontmatter: data as Record<string, unknown>, body, bodyChunks: chunks, diagnostics: [] };
 }
+
+/** The Markdown body of a recipe file: everything after the closing `---`, trimmed. */
+export function bodyText(text: string): string {
+	const lines = normalizeText(text).split('\n');
+	if (lines[0]?.trimEnd() !== '---') return '';
+	const end = lines.findIndex((l, i) => i > 0 && l.trimEnd() === '---');
+	return end === -1 ? '' : lines.slice(end + 1).join('\n').trim();
+}

@@ -35,6 +35,34 @@ paths at once.
 Order is not arbitrary. File write fails → nothing indexed. Index write fails →
 the file exists and `vault sync` recovers it. Never the reverse.
 
+### The paste box
+
+`/ajouter`. The browser checks every change live with the checker library; the
+server re-checks with the vault (`E103`, `W306`, `W503`, `W608`) and is the only
+judge on save. Several fences in one paste are saved in one commit; files that
+fail stay in the box. A collision (`E103`) is settled inline: "Remplacer" (an
+edit, with the hash guard below) or the suffixed slug; a same title (`W608`)
+offers to set `family`/`variant` on the new file (the existing file is left
+untouched in P1). The fix-request block holds only `ai` codes.
+
+**Web import.** A URL typed above the box is fetched by the server — `http`/`https`
+only, 10 s, 5 MB, redirects re-checked, and never a host resolving to a private,
+loopback, link-local or CGNAT address (checked on the address actually
+connected to). The page's schema.org `Recipe` JSON-LD is mapped to the schema
+(`extracted_by: web`, `source.type: website`, `source.url`); ingredient lines go
+through the quantity and unit parser, and a line that does not read cleanly
+becomes `{ name: "<the whole line> [?]" }` so the checker flags it. The result
+lands in the box for review; it is never saved directly. No JSON-LD → the page
+says to use the AI path.
+
+**Paste log.** Every save attempt, and every copy of the fix-request block,
+appends one JSON line to `cache/paste-log.jsonl`: time, number of files, and per
+file the codes and the outcome (`saved`, `rejected`, `collision`, `stale`,
+`fixed-after-N-attempts`). No title, no content: attempts at the same recipe are
+matched by a 12-character hash of the slug. `vault stats` prints the code
+frequency with the fixer of each code — which prompt rules the AI breaks in
+real use. Losing the log is fine.
+
 ### Delete
 
 Never unlink. Move the file to `_trash/<slug>.md` and its `media/<slug>/` folder alongside it, commit, remove the
