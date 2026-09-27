@@ -144,7 +144,8 @@ FRONTMATTER
       type: family | book | website | magazine | tv | invented
       author: the person the recipe comes from — a name in the corner of a card,
               a website user. Not the guests of a TV show; put those in note.
-      title, page, url, note as available.
+      title, page, url, note as available. url is the full address,
+      starting with https:// — a site name without one goes in title.
     If only the kind of source is evident (a printed magazine clipping, a
     printed web page), keep just source: { type: magazine }. If the kind is
     not evident, leave type out and keep the rest. Nothing at all → omit
@@ -316,7 +317,7 @@ Draft 3.1 — found by the checker (`docs/plans/01-checker.md`), not by a new ro
 |---|---|
 | `[?: other]` in an unquoted value is invalid YAML (it reads as a nested `key: value`), and any marker inside a `{ … }` entry opens a list. The prompt's own example `author: Jeanne Tremblay [?: Tremblé]` did not parse | Every frontmatter value containing a marker is double-quoted; examples fixed. The checker's `E002` names the value to quote |
 
-Draft 3.2 — decisions on cases the checker's stress test left open (invented files):
+Draft 3.2 — decisions on cases the checker's stress test (invented files) and the P1 review left open:
 
 | Found | Fix |
 |---|---|
@@ -324,6 +325,7 @@ Draft 3.2 — decisions on cases the checker's stress test left open (invented f
 | `servings: "4 [?]"` and `oven.temp: "350 [?]"` were rejected (`E108`, `E111`), so the fix dropped the marker and claimed a certainty the transcriber did not have | Markers allowed on `servings` and `oven.temp` as on `qty` (rule 2) |
 | A bare marker on `qty`, `unit`, `source.type` or a time was told "wrap it in quotes", and the quoted value failed again | An unreadable number, unit, type or time is left out and asked about (rule 2, rule 4); the checker's fix says so |
 | A `source` with an author and a note but no `type` was rejected (`E106`), pushing the AI to guess a type | `type` optional; left out when the kind of source is not evident (rule 23) |
+| `source.url` held a bare domain, a site name or a `javascript:` address, and nothing flagged it | `url` is the full `http(s)://` address (rule 23); anything else is `E114` |
 
 ## Failure modes to watch for
 

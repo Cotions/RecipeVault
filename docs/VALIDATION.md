@@ -125,6 +125,7 @@ out (the whole amount for `qty`/`unit`, the whole `alt`, the whole `oven` for
 | E111 | ai | `oven.unit` not `F` or `C`, or `oven.temp` not a number (markers aside: `"350 [?]"` is 350), or `oven.temp_max` ≤ `oven.temp` |
 | E112 | app | `status` or `added` written in a pasted file — the app sets these (auto-fixed on the paste path: stripped with a note, not rejected) |
 | E113 | app | a vault file's `slug` does not match its file name (an edit outside the app) — the file is not indexed until the file is renamed or `slug` set back |
+| E114 | ai | `source.url` does not start with `http://` or `https://` — a bare domain (`example.com`), a site name, or another scheme (`javascript:`); the full address is asked for |
 | E110 | ai | `schema` missing, or a version this app does not know |
 | E200 | ai | `ingredients` missing or empty |
 | E201 | ai | `unit` not in the canonical unit list — the message lists the Quebec abbreviation mapping (`tasse` → `cup`, `livre` → `lb`, `c. à thé` → `tsp`) |

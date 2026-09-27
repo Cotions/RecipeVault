@@ -113,7 +113,8 @@ extracted_by: hand                   # free text, not checked: hand | ai | web â
 
 Every `source` field is optional, `type` included: a source whose kind is not
 evident has no `type`, and the app shows it as of unknown type. When `type` is
-present it must be one of the six values (`E106`).
+present it must be one of the six values (`E106`). `url` is a full web address
+starting with `http://` or `https://` (`E114`).
 
 Only `schema`, `title` and `ingredients` are required; `slug` is derived from the title when
 absent. Omit keys rather than leaving them blank â€” an absent key is cleaner to

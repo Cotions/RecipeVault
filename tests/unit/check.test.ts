@@ -420,6 +420,28 @@ describe('source.type', () => {
 	});
 });
 
+describe('E114 source.url', () => {
+	it.each([
+		['https://recettes.example.com/pouding'],
+		['http://example.com'],
+		['HTTPS://EXAMPLE.COM/A']
+	])('accepts a web address: %s', (url) => {
+		expect(codes(edit('  type: family\n', `  type: website\n  url: ${url}\n`))).toEqual([]);
+	});
+
+	it.each([
+		['"javascript:alert(1)"', 'starting with `https://`'],
+		['ftp://example.com/x', 'starting with `https://`'],
+		['Recettes de chez nous', 'goes in `title`'],
+		['www.example.com/tarte', 'Write the full address: `url: https://www.example.com/tarte`.'],
+		['"https:// example.com"', 'starting with `https://`']
+	])('rejects anything else: %s', (url, fix) => {
+		const ds = find(edit('  type: family\n', `  type: website\n  url: ${url}\n`), 'E114');
+		expect(ds.map((d) => d.path)).toEqual(['source.url']);
+		expect(ds[0].fix).toContain(fix);
+	});
+});
+
 describe('W504 season', () => {
 	const seasons = (list: string) => checkRecipe(edit('tags: [dessert, quebecois]', `tags: [dessert, quebecois]\nseason: ${list}`));
 
