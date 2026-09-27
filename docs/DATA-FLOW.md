@@ -91,83 +91,37 @@ picker, tags from an autocomplete over the vocabulary.
 
 Derived. Regenerable. Not precious. Lives at `cache/index.db` inside the vault, excluded from git and backup. See `STORAGE.md`.
 
-```sql
-CREATE TABLE recipes (
-  slug         TEXT PRIMARY KEY,
-  title        TEXT NOT NULL,
-  lang         TEXT NOT NULL DEFAULT 'fr',
-  family       TEXT,
-  variant      TEXT,
-  source_type  TEXT,
-  author       TEXT,
-  source_url   TEXT,
-  source_title TEXT,
-  source_page  TEXT,
-  prep_s       INTEGER,        -- durations normalized to seconds, for sorting
-  cook_s       INTEGER,
-  rest_s       INTEGER,
-  total_s      INTEGER,        -- given, else prep+cook+rest
-  servings     INTEGER,
-  difficulty   INTEGER,
-  rating       INTEGER,
-  status       TEXT,
-  added        TEXT,
-  updated      TEXT,
-  file_path    TEXT NOT NULL,
-  file_hash    TEXT NOT NULL,  -- lets sync skip unchanged files
-  body_md      TEXT NOT NULL   -- cached so rendering needs no disk read
-);
+The authoritative schema is `src/lib/server/index/schema.ts`; its version is
+stored in `PRAGMA user_version`, and an index from another version is dropped
+and rebuilt (it is a cache). In outline:
 
-CREATE TABLE families (
-  slug        TEXT PRIMARY KEY,
-  label_fr    TEXT,
-  label_en    TEXT
-);
+| Table | One row per | Notes |
+|---|---|---|
+| `recipes` | recipe | the columns below, plus `data_json` (the parsed recipe, so a page renders without a disk read), `body_md`, `file_hash`, `uncertain` (count of `[?]`/`[?: …]`/`[illisible]`), `photo`, and `broken_json` while the file on disk fails the checker |
+| `problems` | file failing the checker | codes and paths; the file's last good `recipes` rows, if any, stay searchable |
+| `families` | family in use or in `vocab/families.yaml` | labels from the vocabulary |
+| `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten |
+| `seasons` | recipe × season | |
+| `ingredients` | ingredient item | `group_idx`, `group_name`, `group_optional`, `qty`, `qty_max` (numeric), `unit`, `name` (as written), `optional`, `recipe` (sub-recipe slug), `item` (normalized name: lowercase, NFC, no accents, markers stripped — registry resolution replaces it in P1.5) |
+| `media` | recipe × media file | |
+| `recipes_fts` | recipe | FTS5 over title, body, ingredient names, author, tags |
 
-CREATE TABLE tags (
-  slug        TEXT,            -- recipe slug
-  tag         TEXT,            -- canonical form, see VOCAB.md
-  pending     INTEGER DEFAULT 0,
-  PRIMARY KEY (slug, tag)
-);
+Durations are stored in seconds, the upper bound of a range; `total_s` is
+`times.total` if given, else prep + cook + rest.
 
-CREATE TABLE seasons (slug TEXT, season TEXT, PRIMARY KEY (slug, season));
+**Full-text search.** `recipes_fts` is a regular FTS5 table keyed by
+`recipes.id` (its rowid), not a contentless one: `content=''` cannot return its
+columns and needs the old values to delete a row. It costs a copy of the text,
+a few MB at 5000 recipes. Tokenizer `unicode61 remove_diacritics 2`, and text is
+**folded before it is indexed and before it is queried** (accents stripped, `œ`
+→ `oe`, `æ` → `ae`, lowercase, markers removed): `remove_diacritics` alone does
+not map the ligature `œ` to `oe`, so `boeuf` would not find `bœuf`. Each word of
+a query becomes a prefix term (`"lasag"*`), all words required, so results
+update as you type. Ranked with bm25, title weighted highest.
 
-CREATE TABLE ingredients (
-  slug       TEXT,
-  position   INTEGER,
-  group_name TEXT,             -- "Pour la sauce", NULL if ungrouped
-  raw        TEXT NOT NULL,    -- the line as written, always kept
-  qty        REAL,             -- NULL when parsing failed
-  unit       TEXT,             -- canonical unit, see VOCAB.md
-  item       TEXT,             -- normalized, for the reverse index
-  PRIMARY KEY (slug, position)
-);
-
-CREATE TABLE media (
-  slug  TEXT,
-  kind  TEXT,                  -- final | step
-  path  TEXT,
-  thumb TEXT,
-  w     INTEGER,
-  h     INTEGER,
-  PRIMARY KEY (slug, kind, path)
-);
-
-CREATE VIRTUAL TABLE recipes_fts USING fts5(
-  title, body, ingredient_text,
-  content='', tokenize='unicode61 remove_diacritics 2'
-);
-
-CREATE INDEX idx_recipes_family  ON recipes(family);
-CREATE INDEX idx_recipes_total   ON recipes(total_s);
-CREATE INDEX idx_recipes_rating  ON recipes(rating);
-CREATE INDEX idx_recipes_status  ON recipes(status);
-CREATE INDEX idx_ingredients_item ON ingredients(item);
-```
-
-`remove_diacritics 2` matters for a French vault: `boeuf` must find `bœuf`,
-`creme` must find `crème`.
+Measured on a generated vault of 5000 recipes (`scripts/gen-vault.ts --bench`):
+full `sync --force` ~5 s, no-op sync ~1.3 s, FTS query ~1 ms, a browse page
+with all facet counts ~10–13 ms.
 
 ## vault sync
 
@@ -177,7 +131,10 @@ vault sync [--force]
 
 Walk `recipes/*.md`. Hash each file, compare to the stored `file_hash`, skip if
 unchanged unless `--force`. Reparse new and changed files. Drop index rows whose
-file no longer exists. Report counts plus every file that failed to parse.
+file no longer exists. Report counts plus every file that failed to parse. A file
+that fails keeps its last good rows, flagged with its codes; the recipe page shows
+them in a banner. A file whose `slug` differs from its file name is not indexed
+(the slug is the file name). `vault reindex` deletes the index and rebuilds it.
 
 With hashing, a no-op sync over 5000 files is a couple of seconds. Run it on app
 startup so hand-edits in a text editor are always picked up.
@@ -191,7 +148,12 @@ and `prices.csv`:
 
 - Debounce ~1 s after the last change — editors save in several writes.
 - Re-parse and re-index only the changed file.
-- If it parses: commit it to the vault repo as `edit (external): <title>`.
+- If it parses: commit it to the vault repo as `edit (external): <title>`
+  (`delete (external): <title>` when the file was removed). Files under
+  `ingredients/`, `vocab/` and `prices.csv` are committed as
+  `edit (external): <path>` when they still read as Markdown with frontmatter,
+  YAML, or text respectively; a vocabulary change re-derives the tag and family
+  rows.
 - If it does not: keep the last good index rows, flag the recipe in the UI with the
   validation errors, and do not commit. A half-typed edit in Obsidian must never
   knock a recipe out of search.

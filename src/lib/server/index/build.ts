@@ -89,13 +89,7 @@ export function upsertRecipe(db: DB, vocab: VaultVocab, { recipe: r, body, fileP
 		.run(existing ? { id: existing.id, ...values } : values);
 	const id = existing?.id ?? Number(info.lastInsertRowid);
 
-	const tagRows = new Map<string, boolean>();
-	for (const t of r.tags) {
-		const c = canonicalTag(vocab, stripMarkers(t));
-		if (c.tag) tagRows.set(c.tag, (tagRows.get(c.tag) ?? true) && c.pending);
-	}
-	const insTag = db.prepare('INSERT INTO tags (slug, tag, pending) VALUES (?, ?, ?)');
-	for (const [tag, pending] of tagRows) insTag.run(r.slug, tag, pending ? 1 : 0);
+	const tagRows = insertTags(db, vocab, r);
 
 	const insSeason = db.prepare('INSERT OR IGNORE INTO seasons (slug, season) VALUES (?, ?)');
 	for (const season of r.season) insSeason.run(r.slug, fold(season));
@@ -138,6 +132,24 @@ export function upsertRecipe(db: DB, vocab: VaultVocab, { recipe: r, body, fileP
 		searchText([...r.tags, ...tagRows.keys()].join(' '))
 	);
 	db.prepare('DELETE FROM problems WHERE file_path = ?').run(filePath);
+}
+
+/** Tag rows for a recipe: canonical per the vault vocabulary, else pending. */
+function insertTags(db: DB, vocab: VaultVocab, r: Recipe): Map<string, boolean> {
+	const tagRows = new Map<string, boolean>();
+	for (const t of r.tags) {
+		const c = canonicalTag(vocab, stripMarkers(t));
+		if (c.tag) tagRows.set(c.tag, (tagRows.get(c.tag) ?? true) && c.pending);
+	}
+	const insTag = db.prepare('INSERT OR REPLACE INTO tags (slug, tag, pending) VALUES (?, ?, ?)');
+	for (const [tag, pending] of tagRows) insTag.run(r.slug, tag, pending ? 1 : 0);
+	return tagRows;
+}
+
+/** Recompute every recipe's tag rows after the vocabulary changed. No file is read. */
+export function retag(db: DB, vocab: VaultVocab): void {
+	db.prepare('DELETE FROM tags').run();
+	for (const json of db.prepare('SELECT data_json FROM recipes').pluck().all() as string[]) insertTags(db, vocab, JSON.parse(json));
 }
 
 /** Record a file that fails the checker; its last good rows (if any) are kept and flagged. */
