@@ -15,6 +15,7 @@ import { lookupKey, parseNormalizeVocab, type PluralRules } from '../src/lib/ing
 import { parseIngredient } from '../src/lib/ingredients/registry';
 import { FUZZY, nameRows, Resolver, ruleRows } from '../src/lib/ingredients/resolve';
 import type { RegistryEntry } from '../src/lib/ingredients/types';
+import type { Unit } from '../src/lib/vault/types';
 import { seedEntries } from '../src/lib/server/seed';
 import { seedVocab } from '../src/lib/server/vault';
 import { AMBIGUOUS, formLangs, loadCorpus, type Occurrence } from './helpers/corpus';
@@ -279,25 +280,30 @@ describe('resolution metrics', () => {
 			.filter((f) => f.endsWith('.md'))
 			.map((f) => parseIngredient(readFileSync(join(dir, f), 'utf8'), { fileStem: f.slice(0, -3) }).entry)
 			.filter((e): e is RegistryEntry => !!e);
-		const resolver = new Resolver(nameRows(reg, PLURALS), PLURALS);
-		const traps = (parse(readFileSync('tests/fixtures/resolve-traps.yaml', 'utf8')) as { traps: ([string, string] | { pair: [string, string]; lang: string })[] }).traps.map((t) =>
-			Array.isArray(t) ? { pair: t, lang: 'fr' } : t
-		);
-		const hit = traps.filter(({ pair: [a, b], lang }) => {
-			const x = resolver.resolve({ name: a }, lang).item;
-			return x !== null && x === resolver.resolve({ name: b }, lang).item;
-		});
-		const seed = registryResolver(SEED);
-		const seedHit = traps.filter(({ pair: [a, b], lang }) => {
-			const x = seed.resolve({ name: a }, lang).item;
-			return x !== null && x === seed.resolve({ name: b }, lang).item;
-		});
+		type Line = string | { name: string; unit?: Unit; prep?: string; note?: string };
+		const file = parse(readFileSync('tests/fixtures/resolve-traps.yaml', 'utf8')) as {
+			rules?: Pick<RegistryEntry, 'slug' | 'when'>[];
+			traps: ([Line, Line] | { pair: [Line, Line]; lang: string })[];
+		};
+		const extra = ruleRows(file.rules ?? []);
+		const resolver = new Resolver(nameRows(reg, PLURALS), PLURALS, [], [...ruleRows(reg), ...extra]);
+		const traps = file.traps.map((t) => (Array.isArray(t) ? { pair: t, lang: 'fr' } : t));
+		const line = (l: Line) => (typeof l === 'string' ? { name: l } : l);
+		const label = (l: Line) => (typeof l === 'string' ? l : [l.name, l.unit].filter(Boolean).join(' @'));
+		const springs = (R: Resolver) => (t: { pair: [Line, Line]; lang: string }) => {
+			const x = R.resolve(line(t.pair[0]), t.lang).item;
+			return x !== null && x === R.resolve(line(t.pair[1]), t.lang).item;
+		};
+		const hit = traps.filter(springs(resolver));
+		const seed = new Resolver(nameRows(SEED, PLURALS), PLURALS, [], [...ruleRows(SEED), ...extra]);
+		const seedHit = traps.filter(springs(seed));
+		const show = (t: { pair: [Line, Line] }) => t.pair.map(label).join(' / ');
 		report.push(
 			`T   ${hit.length}/${traps.length} trap pairs resolved to one entry of the fixture registry, ${seedHit.length}/${traps.length} of the seed` +
-				`${[...hit, ...seedHit].length ? `: ${[...hit, ...seedHit].map((t) => t.pair.join(' / ')).join('; ')}` : ''}`
+				`${[...hit, ...seedHit].length ? `: ${[...hit, ...seedHit].map(show).join('; ')}` : ''}`
 		);
-		expect(hit.map((t) => t.pair.join(' / '))).toEqual([]);
-		expect(seedHit.map((t) => t.pair.join(' / '))).toEqual([]);
+		expect(hit.map(show)).toEqual([]);
+		expect(seedHit.map(show)).toEqual([]);
 	});
 
 	afterAll(() => {

@@ -3,12 +3,21 @@
 # Test data, not resolver rules: the resolver knows none of these words.
 # Resolved against the fixture registry, tests/fixtures/vault/ingredients/.
 # Each pair: [name, name], or { pair: [name, name], lang: en }. Default lang: fr.
+# A name may be a line instead: { name, unit, prep, note }, for traps that only
+# a disambiguation rule could spring. `rules` are added to both registries for
+# this test only: { slug, when: [rule, ...] }; the slug need not exist.
+
+rules:
+  # A rule on the singular must not capture the plural another entry owns.
+  - { slug: pate-a-pizza, when: [{ names: [pâte], unit: [mass] }] }
 
 traps:
   # A singular that is another product than its plural.
   - [pâte, pâtes]
   - [Pâte, PÂTES]
   - [pâte à tarte, pâtes]
+  - [{ name: pâte, unit: g }, { name: pâtes, unit: g }]
+  - [{ name: pâte, unit: kg }, { name: Pâtes, unit: lb }]
   # The percentage is the product.
   - [crème 15 %, crème 35 %]
   - [crème 15%, crème 35%]

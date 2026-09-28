@@ -1,7 +1,8 @@
 // Written name → registry slug (docs/INGREDIENTS.md, "Resolution"; plan 03
 // Phase 2). First match wins:
 //   1. `item:` in the entry: a manual override, taken as is;
-//   2. a disambiguation rule (`when:` in an ingredient file) naming the key,
+//   2. a disambiguation rule (`when:` in an ingredient file) naming the key
+//      (exactly; by its singular key only when the exact key is no alias),
 //      whose conditions on the line's language, unit and prep/note words hold,
 //      when the rules that hold point at exactly one slug;
 //   3. the exact lookup key, when it maps to exactly one slug;
@@ -143,9 +144,9 @@ export class Resolver {
 		}
 	}
 
-	/** Whether any rule names this key (exactly or by its singular): its resolution then depends on the line. */
+	/** Whether any rule names this key (see rulesFor): its resolution then depends on the line. */
 	hasRules(key: string, lang: Lang | string = 'fr'): boolean {
-		return this.rulesByKey.has(key) || this.skeyRules(lang).has(this.singular(key, lang));
+		return this.rulesFor(key, lang).length > 0;
 	}
 
 	private skeyRules(lang: string): Map<string, RuleRow[]> {
@@ -161,9 +162,17 @@ export class Resolver {
 		return m;
 	}
 
-	/** The rules naming a key: exact first, else by singular key. */
+	/**
+	 * The rules naming a key: exact first, else by singular key — but only when
+	 * the exact key is no entry's alias. An exact alias is surer than a rule
+	 * reached through a plural rule: a rule on `pâte` must not capture `pâtes`,
+	 * an alias of another entry (0 wrong links).
+	 */
 	private rulesFor(key: string, lang: string): RuleRow[] {
-		return this.rulesByKey.get(key) ?? this.skeyRules(lang).get(this.singular(key, lang)) ?? [];
+		const exact = this.rulesByKey.get(key);
+		if (exact) return exact;
+		if (this.byKey.has(key)) return [];
+		return this.skeyRules(lang).get(this.singular(key, lang)) ?? [];
 	}
 
 	/** Whether a rule's conditions hold for a line. */

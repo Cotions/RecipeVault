@@ -82,7 +82,7 @@ on the recipe line.
 
 | Key | Condition |
 |---|---|
-| `names` | required: written names, matched by lookup key like aliases (exact, then singular) |
+| `names` | required: written names, matched by lookup key (exact; by singular key only when the line's exact key is no entry's alias — a rule on `pâte` never captures `pâtes` when `pâtes` is another entry's alias) |
 | `lang` | the recipe's language, `fr` or `en` |
 | `unit` | the line's canonical unit is one of these units or in one of these classes: `mass` (g, kg, lb, oz), `volume` (ml, cl, l, cup, tbsp, tsp, qt, pint, pinch, drop), `count` (piece, clove, leaf, sprig, stalk, bunch, slice), `container` (can, packet, bottle, jar, bag). A line with no unit meets no `unit` condition |
 | `words` | one of these words or phrases appears, as whole words, in the line's `prep` or `note` (folded, and singularized with the recipe language's plural rules, so `hachés` meets `haché`) |
@@ -157,9 +157,12 @@ registry. So at index time (on save, on sync, on an external edit):
    action touches a recipe file.
 3. **Sub-recipe.** An entry with `recipe:` resolves to no registry item
    (`resolution = recipe`); the sub-recipe's own ingredients count instead.
-4. **Rules.** The disambiguation rules naming the key (exactly, else by its
-   singular key) whose conditions hold on the line point at exactly one entry →
-   resolved (`rule`); at two or more → ambiguous. See "Disambiguation rules".
+4. **Rules.** The disambiguation rules naming the key whose conditions hold on
+   the line point at exactly one entry → resolved (`rule`); at two or more →
+   ambiguous. See "Disambiguation rules". A rule names the key exactly, or by
+   its singular key — the latter only when the exact key is no entry's alias:
+   an exact alias is surer than a rule reached through a plural rule, so a
+   rule on `pâte` leaves `pâtes`, another entry's alias, to step 5.
 5. **Exact key.** The key matches an alias (`ingredient_names.key`) of exactly
    one entry → resolved (`alias`). A key that is an alias of two or more entries
    is **ambiguous** and never auto-resolved.

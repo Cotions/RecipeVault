@@ -163,6 +163,22 @@ describe('disambiguation rules (`when`)', () => {
 		expect(one.resolve({ name: 'boeuf', prep: 'en cubes' }).resolution).toBe('none');
 		expect(one.candidates('boeuf')[0]).toEqual({ slug: 'boeuf-hache', score: 1 });
 	});
+
+	it('a rule reached through the singular key never beats an exact alias of another entry', () => {
+		const names = [
+			{ key: 'pates', skey: 'pate', slug: 'pates-alimentaires' },
+			{ key: 'pate', skey: 'pate', slug: 'pate-a-tarte' }
+		];
+		const P = new Resolver(names, PLURALS, [], ruleRows([{ slug: 'pate-a-pizza', when: [{ names: ['pâte'], unit: ['mass'] }] }]));
+		expect(P.resolve({ name: 'pâtes', unit: 'g' })).toMatchObject({ item: 'pates-alimentaires', resolution: 'alias' });
+		expect(P.hasRules('pates')).toBe(false);
+		// The rule's own key, and a plural no alias names, still meet it.
+		expect(P.resolve({ name: 'pâte', unit: 'g' })).toMatchObject({ item: 'pate-a-pizza', resolution: 'rule' });
+		expect(P.hasRules('pate')).toBe(true);
+		const Q = new Resolver([], PLURALS, [], ruleRows([{ slug: 'pate-a-pizza', when: [{ names: ['pâte'], unit: ['mass'] }] }]));
+		expect(Q.resolve({ name: 'pâtes', unit: 'g' })).toMatchObject({ item: 'pate-a-pizza', resolution: 'rule' });
+		expect(Q.hasRules('pates')).toBe(true);
+	});
 });
 
 describe('candidates', () => {
