@@ -15,9 +15,11 @@ import { browse } from '../src/lib/server/index/query';
 import { syncVault } from '../src/lib/server/index/sync';
 import { getResolver, reresolve } from '../src/lib/server/index/resolve';
 import { serializeIngredient } from '../src/lib/ingredients/registry';
+import { CATEGORIES, type RegistryEntry } from '../src/lib/ingredients/types';
 import { lookupKey } from '../src/lib/ingredients/normalize';
 import { loadVocab } from '../src/lib/server/vocab';
-import { queueCount, resolveQueue } from '../src/lib/server/queue';
+import { linkKey, queueCount, resolveQueue } from '../src/lib/server/queue';
+import { syncRegistry } from '../src/lib/server/registry';
 import { costOfRecipe } from '../src/lib/server/cost';
 import { ingredientView } from '../src/lib/server/ingredient';
 import { pantryQuery } from '../src/lib/server/index/pantry';
@@ -36,6 +38,10 @@ const REGISTRY = 1000;
 const PRICE_ROWS = 3000;
 /** Share of recipes using an earlier one as a sub-recipe. */
 const SUB_SHARE = 0.1;
+/** Share of ingredient lines naming an invented registry entry (one of its aliases). */
+const INVENTED_SHARE = 0.3;
+/** Share of ingredient lines naming something no entry has (plan 03: ~10 % unresolvable, with the bare seed words). */
+const UNKNOWN_SHARE = 0.05;
 const dirArg = args.indexOf('--dir');
 const dir = dirArg >= 0 ? args[dirArg + 1] : join(mkdtempSync(join(tmpdir(), 'rv-scale-')), 'vault');
 const bench = args.includes('--bench');
@@ -67,7 +73,11 @@ function recipe(i: number, earlier: readonly string[]): { slug: string; text: st
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-|-$/g, '');
 	const fam = rand() < 0.3 ? pick(FAMILIES) : undefined;
-	const items = some(ING, 4 + Math.floor(rand() * 8)).map((name) => {
+	const items = some(ING, 4 + Math.floor(rand() * 8)).map((common) => {
+		// Most lines use the common names (the seed resolves most of them), some an
+		// invented registry entry under one of its aliases, a few a name no entry has.
+		const r = rand();
+		const name = r < INVENTED_SHARE ? pick(invented) : r < INVENTED_SHARE + UNKNOWN_SHARE ? pick(unknown) : common;
 		const q = pick(QTYS);
 		return `      - { qty: ${typeof q === 'string' ? `"${q}"` : q}, unit: ${pick(UNITS)}, name: ${name} }`;
 	});
@@ -113,14 +123,34 @@ await initVault(dir, readFileSync('docs/VOCAB.md', 'utf8'), { name: 'Scale Test'
 const SYL = ['ba', 'lo', 'mi', 'ter', 'qua', 'ron', 'vel', 'si', 'du', 'pan', 'gor', 'nel', 'fi', 'tou', 'bri'];
 const word = () => Array.from({ length: 2 + Math.floor(rand() * 2) }, () => pick(SYL)).join('');
 const seeded = readdirSync(join(dir, 'ingredients')).length;
+/** Aliases of the invented entries, as recipes write them. */
+const invented: string[] = [];
+const inventedSlugs: string[] = [];
+const ALLERGENS = ['oeuf', 'lait', 'noix', 'gluten', 'soya'];
 for (let k = seeded; k < REGISTRY; k++) {
 	const name = `${word()} ${word()}`;
 	const slug = `inv-${k}-${lookupKey(name).replace(/[^a-z0-9]+/g, '-')}`;
-	writeFileSync(
-		join(dir, 'ingredients', `${slug}.md`),
-		serializeIngredient({ slug, category: 'epicerie', names: { fr: [name, `${name}s`], en: [] }, staple: false, auGout: false, weights: {}, substitutes: [], allergens: [], body: '' })
-	);
+	const en = rand() < 0.3 ? [`${word()} ${name.split(' ')[0]}`] : [];
+	const entry: RegistryEntry = {
+		slug,
+		category: pick(CATEGORIES),
+		names: { fr: [name, `${name}s`], en },
+		staple: rand() < 0.05,
+		auGout: false,
+		weights: rand() < 0.1 ? { piece: 20 + Math.floor(rand() * 200) } : {},
+		substitutes: inventedSlugs.length && rand() < 0.1 ? [pick(inventedSlugs)] : [],
+		allergens: rand() < 0.05 ? [pick(ALLERGENS)] : [],
+		body: ''
+	};
+	if (rand() < 0.2) entry.density = Number((0.3 + rand()).toFixed(2));
+	if (rand() < 0.5) entry.defaultUnit = pick(['g', 'ml', 'piece'] as const);
+	writeFileSync(join(dir, 'ingredients', `${slug}.md`), serializeIngredient(entry));
+	inventedSlugs.push(slug);
+	invented.push(name, `${name}s`, ...en);
 }
+// Names no entry has: a different syllable set, so no alias or plural matches.
+const UNK = ['zu', 'kra', 'plo', 'wen', 'yig', 'hax'];
+const unknown = Array.from({ length: 150 }, () => `${pick(UNK)}${pick(UNK)}${pick(UNK)} ${pick(UNK)}${pick(UNK)}`);
 const seen = new Set<string>();
 const written: string[] = [];
 for (let i = 1; i <= n; i++) {
@@ -176,12 +206,27 @@ if (bench) {
 	// Plan 03, Phase 2: resolution.
 	const vocab = loadVocab(ctx.paths.vocab);
 	time('re-resolve every row (direct)', () => ctx.db.transaction(() => reresolve(ctx.db, getResolver(ctx.db, vocab)))(), 5);
+	// One alias edit, as a queue action or the watcher does it: reload the
+	// registry (one file changed) and re-resolve, with no recipe file read.
 	const f = join(dir, 'ingredients', 'sucre.md');
 	let alias = 0;
+	const addAlias = () => writeFileSync(f, readFileSync(f, 'utf8').replace(/^ {2}fr: \[/m, `  fr: [sucre ${++alias}, `));
 	time(
-		'one alias edit: registry sync + re-resolve',
+		'one alias edit: registry reload + re-resolve',
 		() => {
-			writeFileSync(f, readFileSync(f, 'utf8').replace(/^ {2}fr: \[/m, `  fr: [sucre ${++alias}, `));
+			addAlias();
+			const v = loadVocab(ctx.paths.vocab);
+			ctx.db.transaction(() => {
+				if (syncRegistry(ctx.db, ctx.paths, v).changed) reresolve(ctx.db, getResolver(ctx.db, v));
+			})();
+		},
+		5
+	);
+	// The same edit picked up by `vault sync` (CLI, startup): every recipe file is hashed too.
+	time(
+		'one alias edit: through vault sync',
+		() => {
+			addAlias();
 			syncVault(ctx.db, ctx.paths);
 		},
 		5
@@ -222,6 +267,15 @@ if (bench) {
 	time('pantry query, 8 picked + avoid', () => pantryQuery(ctx.db, { have: pick, avoid: ['noix-de-grenoble'], allergens: ['arachides'] }), 50);
 	// A real vault has every file committed: git's first look at 6000 untracked files is not what an append costs.
 	await commitPaths(dir, ['recipes', 'ingredients', 'prices.csv'], 'scale fixture', { name: 'Scale Test', email: 'scale@example.invalid' });
+	// A queue click end to end: "Relier" on the top rows (write, commit, reload, re-resolve).
+	const links: number[] = [];
+	for (const row of resolveQueue(ctx.db, vocab, { limit: 5 }).rows) {
+		const t = performance.now();
+		await linkKey(ctx, row.key, inventedSlugs[links.length]);
+		links.push(performance.now() - t);
+	}
+	const lsorted = [...links].sort((a, b) => a - b);
+	console.log(`${'queue "Relier", commit included'.padEnd(34)} ${lsorted[Math.floor(lsorted.length / 2)].toFixed(1)} ms (median of ${links.length}; ${links.map((a) => a.toFixed(0)).join(', ')})`);
 	const appends: number[] = [];
 	for (let k = 0; k < 5; k++) {
 		const t = performance.now();
