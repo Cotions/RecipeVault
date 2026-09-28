@@ -177,7 +177,11 @@ update as you type. Ranked with bm25, title weighted highest.
 
 Measured on a generated vault of 5000 recipes (`scripts/gen-vault.ts --bench`):
 full `sync --force` ~5 s, no-op sync ~1.3 s, FTS query ~1 ms, a browse page
-with all facet counts ~10–13 ms.
+with all facet counts ~10–13 ms. With ingredient resolution and a registry of
+1000 entries (plan 03, Phase 2): `sync --force` ~6.5 s, no-op sync ~1.35 s,
+browse with facets ~16–19 ms (the *non reliés* facet added), re-resolving all
+~33 000 ingredient rows ~30 ms, one alias edit picked up by a full sync ~1.5 s
+(the recipe-file walk dominates), fuzzy candidates for one name ~0.1 ms.
 
 ## vault sync
 

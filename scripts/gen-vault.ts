@@ -5,17 +5,23 @@
 //
 // Everything is random combinations of invented words — no real recipe.
 
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { openVault } from '../src/lib/server/context';
 import { browse } from '../src/lib/server/index/query';
 import { syncVault } from '../src/lib/server/index/sync';
+import { getResolver, reresolve } from '../src/lib/server/index/resolve';
+import { serializeIngredient } from '../src/lib/ingredients/registry';
+import { lookupKey } from '../src/lib/ingredients/normalize';
+import { loadVocab } from '../src/lib/server/vocab';
 import { initVault } from '../src/lib/server/vault';
 
 const args = process.argv.slice(2);
 const n = Number(args.find((a) => /^\d+$/.test(a)) ?? 5000);
+/** Registry size: the seed, plus invented entries up to this many. */
+const REGISTRY = 1000;
 const dirArg = args.indexOf('--dir');
 const dir = dirArg >= 0 ? args[dirArg + 1] : join(mkdtempSync(join(tmpdir(), 'rv-scale-')), 'vault');
 const bench = args.includes('--bench');
@@ -85,7 +91,19 @@ function recipe(i: number): { slug: string; text: string } {
 	return { slug, text };
 }
 
-await initVault(dir, readFileSync('docs/VOCAB.md', 'utf8'), { name: 'Scale Test', email: 'scale@example.invalid' });
+await initVault(dir, readFileSync('docs/VOCAB.md', 'utf8'), { name: 'Scale Test', email: 'scale@example.invalid' }, readFileSync('docs/INGREDIENTS-SEED.yaml', 'utf8'));
+// Invented registry entries up to REGISTRY, with invented names (syllables).
+const SYL = ['ba', 'lo', 'mi', 'ter', 'qua', 'ron', 'vel', 'si', 'du', 'pan', 'gor', 'nel', 'fi', 'tou', 'bri'];
+const word = () => Array.from({ length: 2 + Math.floor(rand() * 2) }, () => pick(SYL)).join('');
+const seeded = readdirSync(join(dir, 'ingredients')).length;
+for (let k = seeded; k < REGISTRY; k++) {
+	const name = `${word()} ${word()}`;
+	const slug = `inv-${k}-${lookupKey(name).replace(/[^a-z0-9]+/g, '-')}`;
+	writeFileSync(
+		join(dir, 'ingredients', `${slug}.md`),
+		serializeIngredient({ slug, category: 'epicerie', names: { fr: [name, `${name}s`], en: [] }, staple: false, auGout: false, weights: {}, substitutes: [], allergens: [], body: '' })
+	);
+}
 const seen = new Set<string>();
 for (let i = 1; i <= n; i++) {
 	const r = recipe(i);
@@ -119,5 +137,24 @@ if (bench) {
 	time('browse page 1 by title', () => browse(ctx.db, { sort: 'title' }, { withFacets: false }), 50);
 	time('browse page 1 by title + facets', () => browse(ctx.db, { sort: 'title' }), 20);
 	time('browse filtered + facets', () => browse(ctx.db, { tags: ['dessert'], season: 'hiver', sort: 'time', page: 3 }), 20);
+	// Plan 03, Phase 2: resolution.
+	const vocab = loadVocab(ctx.paths.vocab);
+	time('re-resolve every row (direct)', () => ctx.db.transaction(() => reresolve(ctx.db, getResolver(ctx.db, vocab)))(), 5);
+	const f = join(dir, 'ingredients', 'sucre.md');
+	let alias = 0;
+	time(
+		'one alias edit: registry sync + re-resolve',
+		() => {
+			writeFileSync(f, readFileSync(f, 'utf8').replace(/^ {2}fr: \[/m, `  fr: [sucre ${++alias}, `));
+			syncVault(ctx.db, ctx.paths);
+		},
+		5
+	);
+	const resolver = getResolver(ctx.db, vocab);
+	const names = ['sucre brun', 'farine de ble', 'oignons verts', 'piments', 'fromage fort', 'bouillon de poulet maison', 'patattes', 'cassonnade'];
+	let i = 0;
+	time('fuzzy candidates for one name', () => resolver.candidates(lookupKey(names[i++ % names.length])), 400);
+	const rows = ctx.db.prepare('SELECT resolution, count(*) AS n FROM ingredients GROUP BY resolution ORDER BY n DESC').all() as { resolution: string; n: number }[];
+	console.log(`${'ingredient rows'.padEnd(34)} ${rows.map((r) => `${r.resolution} ${r.n}`).join(', ')}`);
 	ctx.db.close();
 }
