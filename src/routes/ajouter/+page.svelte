@@ -8,10 +8,10 @@
 	import { t } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import Marked from '$lib/components/Marked.svelte';
+	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import { checkBatch, checkFile, hasErrors } from '$lib/vault/check';
 	import { splitPaste } from '$lib/vault/fences';
 	import { aiErrors, renderFixBlock } from '$lib/vault/fixblock';
-	import { fixerOf } from '$lib/vault/codes';
 	import { bodyText } from '$lib/vault/parse';
 	import { extractPrompt } from '$lib/vault/prompt';
 	import { fileSlug } from '$lib/vault/rules/batch';
@@ -129,6 +129,8 @@
 		mode?: 'replace' | 'suffix';
 		/** First file of the paste with a slug no other recipe has: it takes the slug, no choice needed. */
 		firstFree: boolean;
+		/** The file as parsed, to name the places of its diagnostics. */
+		parsed: ReturnType<typeof parseRecipe>;
 	}
 
 	/** The choice for a file, when it still fits its collision. */
@@ -150,7 +152,8 @@
 			const firstFree = key.endsWith('#0') && !mode && (s ? !!col && !col.existing && !col.inTrash : true);
 			let diagnostics = s ? s.diagnostics : local.files[i].diagnostics;
 			if (firstFree) diagnostics = diagnostics.filter((d) => d.code !== 'E103');
-			const fm = parseRecipe(f).frontmatter;
+			const parsed = parseRecipe(f);
+			const fm = parsed.frontmatter;
 			// A batch error (E103 between two pasted files) withholds the batch's
 			// recipe; the file's own is enough here, as every error left still blocks.
 			const recipe = local.files[i].recipe ?? checkFile(f).recipe;
@@ -167,7 +170,8 @@
 				recipe,
 				server: s,
 				mode,
-				firstFree
+				firstFree,
+				parsed
 			};
 		})
 	);
@@ -433,13 +437,7 @@
 					<summary>{label} ({list.length})</summary>
 					<ul>
 						{#each list as d, k (k)}
-							<li>
-								<code class="code">{d.code}</code>
-								{#if d.path}<code class="path">{d.path}</code>{/if}
-								<span>{d.message}</span>
-								{#if d.fix}<span class="fix">{d.fix}</span>{/if}
-								{#if fixerOf(d.code) === 'app' && sev !== 'info'}<span class="who">{t.add.appOnly}</span>{/if}
-							</li>
+							<DiagnosticItem {d} file={v.parsed} who />
 						{/each}
 					</ul>
 				</details>
@@ -625,34 +623,6 @@
 		list-style: none;
 		padding: 0;
 		margin: 0.35rem 0 0;
-	}
-	.diag li {
-		padding: 0.4rem 0;
-		border-bottom: 1px solid var(--rule-blue);
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.2rem 0.5rem;
-		align-items: baseline;
-	}
-	.code {
-		font-weight: 700;
-	}
-	.diag.error .code {
-		color: var(--rule-red);
-	}
-	.path {
-		color: var(--ink-soft);
-		font-size: 0.85em;
-	}
-	.fix {
-		flex-basis: 100%;
-		color: var(--ink-soft);
-		font-size: var(--step--1);
-	}
-	.who {
-		flex-basis: 100%;
-		font-size: var(--step--1);
-		color: var(--link);
 	}
 	.preview {
 		margin-top: 1rem;

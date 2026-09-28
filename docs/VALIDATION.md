@@ -193,6 +193,26 @@ them.
 
 ## Human-facing validation
 
+**In the app, diagnostics are shown in French.** The checker's `message` and
+`fix` stay English: they are written for the AI (the fix-request block) and the
+developer (`vault check`), and both keep them. Wherever the app lists
+diagnostics — the paste box, the banner of a recipe whose file stopped
+passing, the home page list of files that fail — each one shows:
+
+- a short plain-French explanation of the code, for a non-technical cook
+  (`src/lib/i18n/diagnostics.ts`, one entry per code; a test fails on a code
+  without one, so **adding a code also means writing its French line**);
+- its place in French, from the path: `ingredients[0].items[3].unit` →
+  "Ingrédients, groupe 1, ligne 4 « farine » : unité", `body.steps[4]` →
+  "Méthode, étape 5". Group, ingredient and section names come from the parsed
+  file when there is one, else positions;
+- in the paste box, who settles it: `app` codes "se règlent ici" (the
+  collision and family choices, or nothing to do), `ai` codes go through the
+  fix-request block;
+- the English `message` and `fix`, with the raw path, behind a "Détail
+  technique" disclosure, because they carry the specifics (the value found, the
+  corrected entry).
+
 Her form UI never shows any of this. Codes and fix-request blocks exist for the
 paste path. The form prevents these states structurally —
 ingredient rows have separate `qty`, `unit`, `name`, `note`, `prep` inputs, so

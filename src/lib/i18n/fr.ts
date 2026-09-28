@@ -187,7 +187,6 @@ export const fr = {
 		infos: 'Notes',
 		fixBlock: 'Copier la demande de correction',
 		fixCopied: 'Demande copiée. Collez-la dans la conversation avec l’IA.',
-		appOnly: 'Ces points se règlent ici, pas par l’IA.',
 		preview: 'Aperçu',
 		saved: (n: number) => (n === 1 ? 'Recette enregistrée :' : `${n} recettes enregistrées :`),
 		collision: (slug: string) => `Une recette « ${slug} » existe déjà.`,
@@ -210,6 +209,12 @@ export const fr = {
 		importing: 'Import…',
 		imported: 'Recette importée dans la zone ci-dessous : relisez-la, puis enregistrez.',
 		recipeN: (i: number) => `Recette ${i}`
+	},
+	diagnostics: {
+		technical: 'Détail technique',
+		/** Under the problems of a file already in the vault (no fix-request block there). */
+		vaultHint:
+			'Corrigez le fichier dans le coffre (éditeur de texte ou Obsidian), ou faites-le corriger par l’IA et collez le résultat dans Ajouter en choisissant « Remplacer ». La page suit d’elle-même.'
 	},
 	trash: {
 		title: 'Corbeille',

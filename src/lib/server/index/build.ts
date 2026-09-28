@@ -175,7 +175,7 @@ export function setMeta(db: DB, key: string, value: string): void {
 export function recordProblem(db: DB, filePath: string, hash: string, slug: string | null, diagnostics: Diagnostic[]): void {
 	const slim = diagnostics
 		.filter((d) => d.severity === 'error')
-		.map((d) => ({ code: d.code, path: d.path, message: d.message }));
+		.map((d) => ({ code: d.code, path: d.path, message: d.message, ...(d.fix ? { fix: d.fix } : {}) }));
 	const json = JSON.stringify(slim);
 	db.prepare(
 		`INSERT INTO problems (file_path, slug, file_hash, diagnostics) VALUES (?, ?, ?, ?)

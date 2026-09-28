@@ -4,6 +4,8 @@
 	import { t, familyLabel } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import Marked from '$lib/components/Marked.svelte';
+	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
+	import { parseRecipe } from '$lib/vault/parse';
 	import { plainText } from '$lib/render/markers';
 	import type { PageProps } from './$types';
 
@@ -23,6 +25,8 @@
 		return 1;
 	});
 	let copied = $state(false);
+	/** The file on disk that fails, to name the places of its errors. */
+	const brokenFile = $derived(data.broken ? parseRecipe(data.file.text) : undefined);
 
 	const uncertain = $derived(data.recipe.markers.some((m) => m.kind !== 'added'));
 	// Always say how much: an old kitchen session must not win over what this page shows.
@@ -44,9 +48,10 @@
 		<p>{t.recipe.broken}</p>
 		<ul>
 			{#each data.broken as d, i (i)}
-				<li><code>{d.code || '—'}</code>{#if d.path} <code>{d.path}</code>{/if} {d.message}</li>
+				<DiagnosticItem {d} file={brokenFile} />
 			{/each}
 		</ul>
+		<p class="hint">{t.diagnostics.vaultHint}</p>
 	</div>
 {/if}
 
@@ -125,7 +130,13 @@
 	}
 	.banner ul {
 		margin: 0;
-		padding-left: 1.2rem;
+		padding: 0;
+	}
+	.banner p.hint {
+		font-weight: 400;
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+		margin: 0.4rem 0 0;
 	}
 	.flash {
 		padding: 0.6rem 1rem;

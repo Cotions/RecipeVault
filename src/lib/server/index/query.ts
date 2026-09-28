@@ -208,11 +208,19 @@ export interface RecipeRow {
 	uncertain: number;
 }
 
+/** A checker error as the index keeps it for a file that fails (`problems`, `broken_json`). */
+export interface ProblemDiagnostic {
+	code: string;
+	path: string | null;
+	message: string;
+	fix?: string;
+}
+
 export interface RecipeDetail {
 	row: RecipeRow;
 	recipe: Recipe;
 	/** Diagnostics while the file on disk fails the checker (watcher / sync). */
-	broken: { code: string; path: string | null; message: string }[] | null;
+	broken: ProblemDiagnostic[] | null;
 }
 
 export function getRecipe(db: DB, slug: string): RecipeDetail | undefined {
@@ -325,11 +333,14 @@ export function familyDiff(db: DB, family: string): FamilyDiff | undefined {
 }
 
 /** Files that fail the checker and have no good rows — listed on the home page. */
-export function orphanProblems(db: DB): { file_path: string; codes: string[] }[] {
+export function orphanProblems(db: DB): { file_path: string; codes: string[]; diagnostics: ProblemDiagnostic[] }[] {
 	return (
 		db.prepare(`SELECT p.file_path, p.diagnostics FROM problems p WHERE NOT EXISTS (SELECT 1 FROM recipes r WHERE r.file_path = p.file_path)`).all() as {
 			file_path: string;
 			diagnostics: string;
 		}[]
-	).map((p) => ({ file_path: p.file_path, codes: [...new Set((JSON.parse(p.diagnostics) as { code: string }[]).map((d) => d.code))] }));
+	).map((p) => {
+		const diagnostics = JSON.parse(p.diagnostics) as ProblemDiagnostic[];
+		return { file_path: p.file_path, codes: [...new Set(diagnostics.map((d) => d.code))], diagnostics };
+	});
 }

@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { t, tagLabel, familyLabel } from '$lib/i18n/fr';
+	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import RecipeCard from '$lib/components/RecipeCard.svelte';
 	import type { FacetName } from '$lib/server/index/query';
 	import type { PageProps } from './$types';
@@ -130,9 +131,15 @@
 		<summary>{t.browse.problems(data.problems.length)}</summary>
 		<ul>
 			{#each data.problems as p (p.file_path)}
-				<li><code>{p.file_path}</code> {p.codes.map((c) => c || '—').join(', ')}</li>
+				<li>
+					<code class="file">{p.file_path}</code>
+					<ul class="diags">
+						{#each p.diagnostics as d, i (i)}<DiagnosticItem {d} />{/each}
+					</ul>
+				</li>
 			{/each}
 		</ul>
+		<p class="hint">{t.diagnostics.vaultHint}</p>
 	</details>
 {/if}
 
@@ -233,6 +240,23 @@
 	.problems summary {
 		cursor: pointer;
 		font-weight: 600;
+	}
+	.problems > ul {
+		list-style: none;
+		padding: 0;
+		margin: 0.5rem 0 0;
+	}
+	.problems .file {
+		font-weight: 600;
+	}
+	.problems .diags {
+		padding: 0;
+		margin: 0.2rem 0 0.6rem;
+	}
+	.problems .hint {
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+		margin: 0.25rem 0 0;
 	}
 	.layout {
 		display: grid;
