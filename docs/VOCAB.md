@@ -30,6 +30,7 @@ petit-dejeuner:   [breakfast, petit déjeuner, brunch]
 gouter:           [snack, goûter, tea-time]
 sauce:            [sauce, dressing, condiment]
 boisson:          [drink, beverage, cocktail]
+tarte:            [pie, tart, tartes]
 
 # method
 four:             [oven, baked, baking, rôti, roast]

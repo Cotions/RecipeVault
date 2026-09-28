@@ -14,7 +14,7 @@ times:
 oven: { temp: 350, temp_max: 375, unit: F }
 servings: 8
 servings_max: 10
-tags: [dessert, tarte, quebecois]
+tags: [dessert, cabane-a-sucre, quebecois]
 season: [hiver]
 difficulty: 2
 ingredients:

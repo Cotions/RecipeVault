@@ -102,7 +102,7 @@ describe('W501 / W502', () => {
 	it('on the recipe page, re-derived when the vocabulary changes, with no recipe file read', () => {
 		expect(loadRecipePage(app(), 'tarte-au-sucre')!.vocab.map((d) => [d.code, d.path])).toEqual([['W501', 'tags[1]']]);
 		const tags = join(v.ctx.paths.vocab, 'tags.yaml');
-		writeFileSync(tags, readFileSync(tags, 'utf8') + 'tarte:            [pie, tartes]\n');
+		writeFileSync(tags, readFileSync(tags, 'utf8') + 'cabane-a-sucre:   [sugar-shack]\n');
 		const r = syncVault(v.ctx.db, v.ctx.paths);
 		expect(r.indexed).toBe(0);
 		expect(loadRecipePage(app(), 'tarte-au-sucre')!.vocab).toEqual([]);

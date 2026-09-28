@@ -128,17 +128,17 @@ describe('W501 / W502', () => {
 		expect(tagFor(tags, 'main course')).toBe('plat-principal');
 		expect(tagFor(tags, 'Plat principal')).toBe('plat-principal');
 		expect(tagFor(tags, 'dessert [?]')).toBe('dessert');
-		expect(tagFor(tags, 'tarte')).toBeUndefined();
+		expect(tagFor(tags, 'cabane')).toBeUndefined();
 	});
 
 	it('suggests the closest canonical tag, and nothing when nothing is close', () => {
 		expect(suggestTag(tags, 'desert')).toBe('dessert');
 		expect(suggestTag(tags, 'swete')).toBe('dessert');
-		expect(suggestTag(tags, 'tarte')).toBeUndefined();
+		expect(suggestTag(tags, 'cabane')).toBeUndefined();
 	});
 
 	it('W501 per unknown tag, W502 for a family within two edits of another', () => {
-		const ds = vocabDiagnostics({ tags: ['dessert', 'desert', 'tarte'], family: 'lasagnes' }, { tags, families: ['lasagna', 'tarte-au-sucre'] });
+		const ds = vocabDiagnostics({ tags: ['dessert', 'desert', 'cabane'], family: 'lasagnes' }, { tags, families: ['lasagna', 'tarte-au-sucre'] });
 		expect(ds.map((d) => [d.code, d.path])).toEqual([
 			['W501', 'tags[1]'],
 			['W501', 'tags[2]'],

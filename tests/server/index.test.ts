@@ -103,7 +103,7 @@ describe('search and browse', () => {
 	it('maps tag aliases to canonical tags and marks unknown ones pending', () => {
 		const all = browse(v.ctx.db, {}).facets.tags;
 		expect(all.find((t) => t.value === 'quebecois')?.pending).toBe(false);
-		expect(all.find((t) => t.value === 'tarte')?.pending).toBe(true); // not in the seed vocabulary
+		expect(all.find((t) => t.value === 'cabane-a-sucre')?.pending).toBe(true); // not in the seed vocabulary
 	});
 
 	it('sorts and paginates', () => {
