@@ -387,6 +387,26 @@ Depends on: Q1, Q4, Q25 (merge).
 Tests: server (link, create, ambiguous, stale refusal, commit messages,
 re-resolution). E2E: resolve the top row, then the recipes using it lose W303.
 
+**Implementation notes (Phase 3).**
+
+- Merge ("Fusionner dans…", Q25 B) is left to Phase 6, where the plan lists
+  it under the ingredient view; Phase 3 has link, create and remove-alias.
+- The queue groups by lookup key alone, across languages; the alias goes under
+  the language of most recipes using the key, and is the key's most frequent
+  written form (markers stripped). Other forms with the same key match it anyway.
+- A link picked by name from the full entry list carries no hash (the person
+  saw no file); a candidate's "C'est ça" and "Retirer" carry the entry's hash.
+- The frontmatter is edited as a YAML document (`withName` / `withoutKey` in
+  `src/lib/ingredients/registry.ts`), so hand comments survive; a new entry is
+  written by `serializeIngredient`. Either must pass `parseIngredient` first.
+- The removal commit message, not given by the plan: `ingredient: <slug> - "<form>"`.
+- `writeCommitIndex` (save.ts) and the family label writer now go through
+  `src/lib/server/files.ts` (`writeAndCommit`), which also deletes files (for
+  the Phase 6 merge).
+- The recipe-count link of a row opens `/?q=<form>&relies=non` (full-text
+  search on the name, restricted to recipes with unlinked names): there is no
+  browse filter by lookup key.
+
 ### Phase 4 — prices and the ingredient index (`/ingredients`)
 
 Depends on: Q7 (price model), Q8 (entry), Q9 (commits), Q26.

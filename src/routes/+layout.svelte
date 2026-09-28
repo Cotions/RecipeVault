@@ -4,15 +4,16 @@
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n/fr';
 
-	let { children } = $props();
+	let { children, data } = $props();
 
 	const kitchen = $derived(page.url.pathname.endsWith('/cuisine'));
-	const nav = [
+	const nav = $derived([
 		{ href: '/', label: t.app.nav.browse, match: (p: string) => p === '/' || p.startsWith('/r/') },
 		{ href: '/familles', label: t.app.nav.families, match: (p: string) => p.startsWith('/famille') },
 		{ href: '/ajouter', label: t.app.nav.add, match: (p: string) => p === '/ajouter' },
+		...(data?.toResolve ? [{ href: '/resoudre', label: t.app.nav.queue(data.toResolve), match: (p: string) => p === '/resoudre' }] : []),
 		{ href: '/corbeille', label: t.app.nav.trash, match: (p: string) => p === '/corbeille' }
-	];
+	]);
 </script>
 
 <svelte:head>

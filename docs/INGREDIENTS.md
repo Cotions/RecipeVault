@@ -120,8 +120,11 @@ Unresolved ingredients must never block saving a recipe. A recipe with an unknow
 ingredient is still a recipe; losing it to a validation wall would be worse than an
 incomplete index.
 
-A "resolve queue" screen lists every unresolved name across the vault, most
-frequent first. Resolving `farine T55` once fixes it in 200 recipes.
+A "resolve queue" screen (`/resoudre`) lists every unresolved name across the
+vault, most frequent first. Resolving `farine T55` once fixes it in 200 recipes.
+Each row offers its candidates ("C'est ça"), a link to any entry, or a new entry
+created from the name; an ambiguous name is settled by taking it off all but one
+entry. Only ingredient files change (`DATA-FLOW.md`, "Ingredient edits").
 
 ## Cost
 

@@ -4,7 +4,7 @@
 // (Vite) load it the same way.
 
 /** Bump on any change below: the index is then rebuilt from scratch. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const SCHEMA_SQL = `
 CREATE TABLE recipes (
@@ -170,6 +170,9 @@ CREATE INDEX idx_tags_tag        ON tags(tag);
 CREATE INDEX idx_ingredients_item ON ingredients(item);
 CREATE INDEX idx_ingredients_recipe ON ingredients(recipe);
 CREATE INDEX idx_ingredients_key ON ingredients(key);
+-- The resolve queue and its nav count: unresolved rows only.
+CREATE INDEX idx_ingredients_unresolved ON ingredients(key) WHERE resolution IN ('none', 'ambiguous');
+CREATE INDEX idx_or_unresolved ON ingredient_or(key) WHERE resolution IN ('none', 'ambiguous');
 CREATE INDEX idx_or_item ON ingredient_or(item);
 CREATE INDEX idx_or_key  ON ingredient_or(key);
 CREATE INDEX idx_names_key  ON ingredient_names(key);

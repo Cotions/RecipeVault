@@ -93,6 +93,31 @@ and the push scheduled. A failed commit puts the file back. The watcher
 ignores the write by its hash, like a recipe save. A `families.yaml` that no
 longer reads as YAML is not overwritten: the page says to fix it first.
 
+### Ingredient edits: the resolve queue
+
+`/resoudre` (plan 03, Phase 3) lists every unresolved or ambiguous lookup key
+across the vault, most frequent first, with its written forms, counts, the
+recipes using it (a browse link) and its candidates. Three actions, each one
+ingredient file in one commit, and never a recipe file:
+
+- **Relier** ("C'est ça" on a candidate, or any entry by name): the key's most
+  frequent written form is added to the entry's `names.<lang>`, `<lang>` being
+  the language of most recipes using it. Commit `ingredient: <slug> + "<form>"`.
+- **Créer**: a new `ingredients/<slug>.md` (slug proposed from the name,
+  category required, `staple` optional) whose first name is that form. Commit
+  `ingredient: add <slug>`. Refused if the slug is taken.
+- **Retirer** (an ambiguous key): the alias is taken off one of the entries that
+  share it. Commit `ingredient: <slug> - "<form>"`.
+
+Same order and guards as a save: a candidate carries the hash of its entry file
+and the edit is refused if the file changed since; the frontmatter is edited as
+YAML (comments, order and body kept) and must still pass its own check; the
+file is written atomically and committed, a failed write or commit puts it
+back; then the registry is reloaded and every row re-resolved from its key.
+Writes of every kind (recipes, family labels, ingredients) go through one helper,
+`src/lib/server/files.ts`. The nav shows "À relier (N)" while N > 0; `vault
+queue [--limit N]` prints the same queue.
+
 ### Concurrent edit
 
 Files mean last-write-wins, which silently eats an edit. Cheap guard: every
@@ -181,7 +206,8 @@ with all facet counts ~10–13 ms. With ingredient resolution and a registry of
 1000 entries (plan 03, Phase 2): `sync --force` ~6.5 s, no-op sync ~1.35 s,
 browse with facets ~16–19 ms (the *non reliés* facet added), re-resolving all
 ~33 000 ingredient rows ~30 ms, one alias edit picked up by a full sync ~1.5 s
-(the recipe-file walk dominates), fuzzy candidates for one name ~0.1 ms.
+(the recipe-file walk dominates; a queue action reloads the registry only), fuzzy candidates for one name ~0.1 ms, the
+resolve queue page (30 rows) ~9 ms, its nav count ~0.3 ms.
 
 ## vault sync
 

@@ -4,7 +4,7 @@
 // Order matters: a failed write or commit is rolled back and indexes nothing;
 // a failed index write leaves the file and commit in place for `vault sync`.
 
-import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDocument } from 'yaml';
 import { checkBatch, checkFile, hasErrors } from '../vault/check';
@@ -14,7 +14,7 @@ import { serialize } from '../vault/serialize';
 import type { Diagnostic, Recipe } from '../vault/types';
 import type { VaultEntry } from '../vault/rules/batch';
 import type { VaultContext } from './context';
-import { commitPaths, unstage } from './git';
+import { FileWriteError, writeAndCommit } from './files';
 import { refreshFamilies, sha256 } from './index/build';
 import { unresolvedDiagnostics } from './index/resolve';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
@@ -140,48 +140,21 @@ function commitMessage(ready: Ready[]): string {
  * recorded would be ignored by the watcher and never committed.
  */
 async function writeCommitIndex(ctx: VaultContext, ready: Ready[], message = commitMessage(ready)): Promise<{ commit?: string; indexError?: string }> {
-	const paths = ready.map((r) => recipePath(r.slug));
-	const written: { rel: string; abs: string; previous?: Buffer }[] = [];
-	const rollback = async () => {
-		for (const w of written.reverse()) {
-			ctx.ownWrites.delete(w.rel);
-			try {
-				if (w.previous) writeFileSync(w.abs, w.previous);
-				else rmSync(w.abs, { force: true });
-			} catch (e) {
-				ctx.log(`recipevault: could not put ${w.rel} back: ${(e as Error).message}`);
-			}
-		}
-		await unstage(ctx.paths.root, paths);
-	};
 	const plural = ready.length > 1;
-	try {
-		for (const r of ready) {
-			const rel = recipePath(r.slug);
-			const abs = join(ctx.paths.root, rel);
-			const tmp = join(ctx.paths.recipes, `.${r.slug}.md.${process.pid}.tmp`);
-			const previous = existsSync(abs) ? readFileSync(abs) : undefined;
-			try {
-				writeFileSync(tmp, r.text);
-				ctx.ownWrites.set(rel, sha256(r.text));
-				renameSync(tmp, abs);
-			} catch (e) {
-				ctx.ownWrites.delete(rel);
-				rmSync(tmp, { force: true });
-				throw e;
-			}
-			written.push({ rel, abs, previous });
-		}
-	} catch (e) {
-		await rollback();
-		throw new SaveError(`could not write the file${plural ? 's' : ''}, nothing was saved: ${(e as Error).message}`);
-	}
 	let commit: string | undefined;
 	try {
-		commit = await commitPaths(ctx.paths.root, paths, message, ctx.author);
+		commit = await writeAndCommit(
+			ctx,
+			ready.map((r) => ({ rel: recipePath(r.slug), text: r.text })),
+			message
+		);
 	} catch (e) {
-		await rollback();
-		throw new SaveError(`the git commit failed, nothing was saved: ${(e as Error).message}`);
+		if (!(e instanceof FileWriteError)) throw e;
+		throw new SaveError(
+			e.stage === 'write'
+				? `could not write the file${plural ? 's' : ''}, nothing was saved: ${e.message}`
+				: `the git commit failed, nothing was saved: ${e.message}`
+		);
 	}
 	let indexError: string | undefined;
 	try {

@@ -16,6 +16,7 @@ import { getResolver, reresolve } from '../src/lib/server/index/resolve';
 import { serializeIngredient } from '../src/lib/ingredients/registry';
 import { lookupKey } from '../src/lib/ingredients/normalize';
 import { loadVocab } from '../src/lib/server/vocab';
+import { queueCount, resolveQueue } from '../src/lib/server/queue';
 import { initVault } from '../src/lib/server/vault';
 
 const args = process.argv.slice(2);
@@ -154,6 +155,8 @@ if (bench) {
 	const names = ['sucre brun', 'farine de ble', 'oignons verts', 'piments', 'fromage fort', 'bouillon de poulet maison', 'patattes', 'cassonnade'];
 	let i = 0;
 	time('fuzzy candidates for one name', () => resolver.candidates(lookupKey(names[i++ % names.length])), 400);
+	time('resolve queue page (30 rows)', () => resolveQueue(ctx.db, vocab, { limit: 30 }), 20);
+	time('queue count (nav, every page)', () => queueCount(ctx.db), 50);
 	const rows = ctx.db.prepare('SELECT resolution, count(*) AS n FROM ingredients GROUP BY resolution ORDER BY n DESC').all() as { resolution: string; n: number }[];
 	console.log(`${'ingredient rows'.padEnd(34)} ${rows.map((r) => `${r.resolution} ${r.n}`).join(', ')}`);
 	ctx.db.close();

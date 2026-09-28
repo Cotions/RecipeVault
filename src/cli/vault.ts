@@ -28,6 +28,7 @@ import { initVault, vaultPaths } from '../lib/server/vault';
 import { seedVault } from '../lib/server/seed';
 import { checkRegistry, parseIngredient } from '../lib/ingredients/registry';
 import { loadVocab } from '../lib/server/vocab';
+import { resolveQueue } from '../lib/server/queue';
 
 const USAGE = `Usage:
   vault check <file...>          check files; '-' reads a paste from stdin
@@ -44,7 +45,8 @@ const USAGE = `Usage:
   vault sync [--force]           bring the index in line with the files
   vault reindex                  delete the index and rebuild it
   vault stats                    code frequency over the paste log
-        --vault <dir>            (add, sync, reindex, stats, ingredients) instead of the config's vault
+  vault queue [--limit N]        the resolve queue: unlinked ingredient names, most frequent first
+        --vault <dir>            (add, sync, reindex, stats, ingredients, queue) instead of the config's vault
 
 Exit codes: 0 no errors (warnings allowed), 1 any error, 2 usage or IO failure.`;
 
@@ -62,6 +64,7 @@ async function main(argv: string[]): Promise<number> {
 		if (command === 'reindex') return sync(rest, true);
 		if (command === 'stats') return stats(rest);
 		if (command === 'ingredients') return await ingredients(rest);
+		if (command === 'queue') return queue(rest);
 		if (command === 'prompt') {
 			process.stdout.write(readPrompt());
 			return 0;
@@ -190,6 +193,38 @@ async function add(args: string[]): Promise<number> {
 	ctx.db.close();
 	console.log(`${plural(result.files.length, 'file')}: ${result.files.length - failed} saved, ${failed} not saved`);
 	return failed ? 1 : 0;
+}
+
+function queue(args: string[]): number {
+	const i = args.indexOf('--limit');
+	let limit = 20;
+	if (i >= 0) {
+		limit = Number(args[i + 1]);
+		if (!Number.isInteger(limit) || limit < 1) throw new UsageError('--limit needs a positive whole number');
+		args = [...args.slice(0, i), ...args.slice(i + 2)];
+	}
+	const { dir, rest } = vaultArgs(args);
+	if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`);
+	const ctx = openFromArgs(dir);
+	syncVault(ctx.db, ctx.paths);
+	const vocab = loadVocab(ctx.paths.vocab);
+	const { total, rows } = resolveQueue(ctx.db, vocab, { limit });
+	const occurrences = rows.reduce((n, r) => n + r.count, 0);
+	ctx.db.close();
+	if (!total) {
+		console.log('Every ingredient name is linked to the registry.');
+		return 0;
+	}
+	const width = Math.min(32, Math.max(...rows.map((r) => r.forms[0].name.length)));
+	for (const r of rows) {
+		const cands = r.candidates.map((c) => (r.ambiguous ? c.slug : `${c.slug} ${c.score.toFixed(2)}`)).join(', ');
+		const forms = r.forms.length > 1 ? `  (${r.forms.map((f) => `${f.name} ×${f.count}`).join(', ')})` : '';
+		console.log(
+			`${String(r.count).padStart(4)}  ${r.forms[0].name.padEnd(width)}  ${plural(r.recipes, 'recipe')}, ${r.lang}  ${r.ambiguous ? yellow(`ambiguous: ${cands}`) : cands ? `→ ${cands}` : '—'}${forms}`
+		);
+	}
+	console.log(`${plural(total, 'name')} to link${total > rows.length ? `; the first ${rows.length} shown (${occurrences} uses)` : ''}.`);
+	return 0;
 }
 
 function sync(args: string[], rebuild: boolean): number {

@@ -74,6 +74,7 @@ npx vault add <file…>                 # save files through the app's save path
 npx vault sync [--force]              # bring the index in line with the files
 npx vault reindex                     # delete the index and rebuild it
 npx vault stats                       # code frequency over the paste log
+npx vault queue [--limit N]           # ingredient names not linked to the registry, most frequent first
 npx vault check recipe.md other.md    # check files
 npx vault check - < answer.txt        # a whole AI answer: every ```markdown fence is a file
 npx vault check --dir inbox/          # every .md in a folder, with a summary by code

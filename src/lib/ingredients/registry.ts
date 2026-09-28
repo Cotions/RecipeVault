@@ -3,6 +3,7 @@
 // (docs/VALIDATION.md, "Registry codes"), all settled by the person (`app`).
 // Browser-safe.
 
+import { isMap as isYamlMap, isScalar, isSeq, parseDocument, YAMLSeq, type Document, type YAMLMap } from 'yaml';
 import { parseRecipe, bodyText } from '../vault/parse';
 import { normalizeText } from '../vault/normalize';
 import { scalar } from '../vault/serialize';
@@ -238,4 +239,75 @@ export function serializeIngredient(e: RegistryEntry): string {
 	lines.push('---', '');
 	const body = normalizeText(e.body).trim();
 	return (lines.join('\n') + (body ? `\n${body}\n` : '')).normalize('NFC');
+}
+
+// --- Edits (plan 03, Phase 3: the resolve queue) ------------------------------
+// The frontmatter is edited as a YAML document, so the rest of a hand-edited
+// file (comments, order, the body) stays as it was.
+
+export class IngredientEditError extends Error {}
+
+function splitFile(text: string): { yaml: string; rest: string } {
+	const t = normalizeText(text);
+	const m = /^---\n([\s\S]*?\n)?---(\n|$)/.exec(t);
+	if (!m) throw new IngredientEditError('the ingredient file has no frontmatter.');
+	return { yaml: m[1] ?? '', rest: t.slice(m[0].length) };
+}
+
+/** `edit` returns false when it changed nothing: the file then comes back as it was. */
+function editNames(text: string, edit: (names: YAMLMap) => boolean): string {
+	const { yaml, rest } = splitFile(text);
+	const doc = parseDocument(yaml, { version: '1.2' }) as unknown as Document;
+	if (doc.errors.length || !isYamlMap(doc.contents)) throw new IngredientEditError('the ingredient file does not read.');
+	const root = doc.contents as YAMLMap;
+	let names: unknown = root.get('names', true);
+	if (!isYamlMap(names)) {
+		names = doc.createNode({});
+		root.set('names', names);
+	}
+	if (!edit(names as YAMLMap)) return text;
+	return `---\n${doc.toString({ lineWidth: 0, flowCollectionPadding: false })}---\n${rest}`.normalize('NFC');
+}
+
+/** The file with `name` added to `names.<lang>` (unchanged when an alias already has its lookup key). */
+export function withName(text: string, lang: Lang, name: string): string {
+	const clean = normalizeText(name).replace(/\s+/g, ' ').trim();
+	const key = lookupKey(clean);
+	return editNames(text, (names) => {
+		for (const l of NAME_LANGS) {
+			const seq = names.get(l, true);
+			if (isSeq(seq) && seq.items.some((n) => isScalar(n) && typeof n.value === 'string' && lookupKey(n.value) === key)) return false;
+		}
+		const seq = names.get(lang, true);
+		if (isSeq(seq)) seq.add(clean);
+		else {
+			const node = new YAMLSeq();
+			node.flow = true;
+			node.add(clean);
+			names.set(lang, node);
+		}
+		return true;
+	});
+}
+
+/** The file without the aliases whose lookup key is `key`, in any language. */
+export function withoutKey(text: string, key: string): string {
+	return editNames(text, (names) => {
+		let changed = false;
+		for (const l of NAME_LANGS) {
+			const seq = names.get(l, true);
+			if (!isSeq(seq)) continue;
+			const kept = seq.items.filter((n) => !(isScalar(n) && typeof n.value === 'string' && lookupKey(n.value) === key));
+			changed ||= kept.length !== seq.items.length;
+			seq.items = kept;
+		}
+		return changed;
+	});
+}
+
+/** A slug proposed from a written name: `Crème 35 %` → `creme-35`. */
+export function proposeSlug(name: string): string {
+	return lookupKey(name)
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-|-$/g, '');
 }

@@ -5,13 +5,11 @@
 // commit, the index's families rows refreshed, push in the background. A
 // failed commit puts the file back.
 
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { isMap, isScalar, parseDocument, type Document } from 'yaml';
 import { normalizeText } from '../vault/normalize';
 import type { VaultContext } from './context';
-import { commitPaths, unstage } from './git';
-import { refreshFamilies, sha256 } from './index/build';
+import { FileWriteError, readVaultFile, writeAndCommit } from './files';
+import { refreshFamilies } from './index/build';
 import { VOCAB } from './vault';
 import { loadVocab } from './vocab';
 
@@ -23,10 +21,7 @@ export class FamilyLabelError extends Error {}
 
 /** The families vocabulary as on disk: text and hash ('' when the file is absent). */
 export function familiesFile(ctx: VaultContext): { text: string; hash: string } {
-	const abs = join(ctx.paths.root, FAMILIES_FILE);
-	if (!existsSync(abs)) return { text: '', hash: '' };
-	const buf = readFileSync(abs);
-	return { text: buf.toString('utf8'), hash: sha256(buf) };
+	return readVaultFile(ctx, FAMILIES_FILE);
 }
 
 /** A label as stored: NFC, one line, spaces collapsed. Empty means "no label". */
@@ -79,27 +74,17 @@ export function setFamilyLabel(ctx: VaultContext, slug: string, label: string, e
 		const next = withLabel(cur.text, slug, clean);
 		if (next === cur.text) return {};
 
-		const abs = join(ctx.paths.root, FAMILIES_FILE);
-		const tmp = join(ctx.paths.vocab, `.families.yaml.${process.pid}.tmp`);
-		try {
-			writeFileSync(tmp, next);
-			ctx.ownWrites.set(FAMILIES_FILE, sha256(next));
-			renameSync(tmp, abs);
-		} catch (e) {
-			ctx.ownWrites.delete(FAMILIES_FILE);
-			rmSync(tmp, { force: true });
-			throw new FamilyLabelError(`le fichier n’a pas pu être écrit ; rien n’a changé : ${(e as Error).message}`);
-		}
 		let commit: string | undefined;
 		try {
 			const message = clean ? `family: ${slug} → ${clean}` : `family: ${slug} (label removed)`;
-			commit = await commitPaths(ctx.paths.root, [FAMILIES_FILE], message, ctx.author);
+			commit = await writeAndCommit(ctx, [{ rel: FAMILIES_FILE, text: next }], message);
 		} catch (e) {
-			ctx.ownWrites.delete(FAMILIES_FILE);
-			if (cur.hash) writeFileSync(abs, cur.text);
-			else rmSync(abs, { force: true });
-			await unstage(ctx.paths.root, [FAMILIES_FILE]);
-			throw new FamilyLabelError(`le nom n’a pas pu être enregistré (git) ; rien n’a changé : ${(e as Error).message}`);
+			if (!(e instanceof FileWriteError)) throw e;
+			throw new FamilyLabelError(
+				e.stage === 'write'
+					? `le fichier n’a pas pu être écrit ; rien n’a changé : ${e.message}`
+					: `le nom n’a pas pu être enregistré (git) ; rien n’a changé : ${e.message}`
+			);
 		}
 		try {
 			refreshFamilies(ctx.db, loadVocab(ctx.paths.vocab));

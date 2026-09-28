@@ -4,7 +4,7 @@
 export const fr = {
 	app: {
 		name: 'Recettes',
-		nav: { browse: 'Recettes', families: 'Familles', add: 'Ajouter', trash: 'Corbeille' },
+		nav: { browse: 'Recettes', families: 'Familles', add: 'Ajouter', trash: 'Corbeille', queue: (n: number) => `À relier (${n})` },
 		skip: 'Aller au contenu'
 	},
 	status: {
@@ -105,10 +105,52 @@ export const fr = {
 		labelSave: 'Enregistrer le nom',
 		labelSaved: 'Nom de la famille enregistré.'
 	},
+	queue: {
+		title: 'Ingrédients à relier',
+		intro: 'Les noms d’ingrédients des recettes qui ne correspondent à aucun ingrédient du registre, les plus fréquents d’abord. Relier un nom une fois le relie dans toutes les recettes qui l’emploient ; aucune recette n’est modifiée.',
+		empty: 'Tous les noms d’ingrédients sont reliés au registre.',
+		count: (n: number, r: number) => `${n} fois dans ${r === 1 ? '1 recette' : `${r} recettes`}`,
+		recipes: 'Voir les recettes',
+		ambiguous: 'Ce nom appartient à plusieurs ingrédients : il reste non relié tant qu’il n’en garde qu’un.',
+		suggestions: 'Suggestions',
+		none: 'Aucun ingrédient proche.',
+		thisOne: 'C’est ça',
+		owners: 'Ingrédients qui portent ce nom',
+		remove: (name: string) => `Retirer de « ${name} »`,
+		link: 'Relier à un ingrédient existant',
+		linkField: 'Ingrédient',
+		linkSubmit: 'Relier',
+		create: 'Créer un ingrédient',
+		slug: 'Identifiant',
+		slugHelp: 'Lettres minuscules sans accents, chiffres et traits d’union. Le fichier sera ingredients/<identifiant>.md.',
+		category: 'Catégorie',
+		categoryPick: 'Choisir…',
+		staple: 'Toujours à la maison (sel, farine…)',
+		createSubmit: 'Créer',
+		linked: (form: string, name: string) => `« ${form} » est relié à ${name}.`,
+		created: (slug: string) => `Ingrédient ${slug} créé.`,
+		removed: (name: string) => `Nom retiré de ${name}.`,
+		more: (n: number) => `${n} autres noms plus bas dans la liste.`,
+		lang: { fr: 'recettes en français', en: 'recettes en anglais' } as Record<string, string>
+	},
+	category: {
+		frais: 'Frais',
+		viande: 'Viande',
+		poisson: 'Poisson',
+		legume: 'Légumes',
+		fruit: 'Fruits',
+		cremerie: 'Crèmerie',
+		epicerie: 'Épicerie',
+		conserve: 'Conserves',
+		surgele: 'Surgelés',
+		epice: 'Épices',
+		boisson: 'Boissons',
+		autre: 'Autre'
+	} as Record<string, string>,
 	recipe: {
 		by: 'de',
 		unresolved: (n: number) => `Ingrédients non reliés (${n})`,
-		unresolvedHelp: 'Ces noms ne correspondent à aucun ingrédient du registre. La recette reste utilisable ; ils restent seulement hors des listes d\'épicerie et des coûts tant qu\'ils ne sont pas reliés.',
+		unresolvedHelp: 'Ces noms ne correspondent à aucun ingrédient du registre. La recette reste utilisable ; ils restent seulement hors des listes d’épicerie et des coûts tant qu’ils ne sont pas reliés.',
 		source: 'Provenance',
 		/** A `source` without `type`: the kind of source was not evident. */
 		sourceUnknown: 'Type de source inconnu',
