@@ -122,7 +122,8 @@ await initVault(dir, readFileSync('docs/VOCAB.md', 'utf8'), { name: 'Scale Test'
 // Invented registry entries up to REGISTRY, with invented names (syllables).
 const SYL = ['ba', 'lo', 'mi', 'ter', 'qua', 'ron', 'vel', 'si', 'du', 'pan', 'gor', 'nel', 'fi', 'tou', 'bri'];
 const word = () => Array.from({ length: 2 + Math.floor(rand() * 2) }, () => pick(SYL)).join('');
-const seeded = readdirSync(join(dir, 'ingredients')).length;
+const entryFiles = () => readdirSync(join(dir, 'ingredients')).filter((f) => f.endsWith('.md'));
+const seeded = entryFiles().length;
 /** Aliases of the invented entries, as recipes write them. */
 const invented: string[] = [];
 const inventedSlugs: string[] = [];
@@ -161,7 +162,7 @@ for (let i = 1; i <= n; i++) {
 	writeFileSync(join(dir, 'recipes', `${r.slug}.md`), r.text);
 }
 // Invented prices: random entries, packs and dates, a few in another currency.
-const slugs = readdirSync(join(dir, 'ingredients')).map((f) => f.replace(/\.md$/, ''));
+const slugs = entryFiles().map((f) => f.replace(/\.md$/, ''));
 const PACKS = [
 	[400, 'g'],
 	[1, 'kg'],
