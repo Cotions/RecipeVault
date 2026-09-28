@@ -543,6 +543,12 @@ Edit form, photo upload, accounts (P2). The real vault: the owner runs it.
 
 ## Open questions
 
+**Decided 2026-09-27: the owner took the recommended option on every question,
+Q1–Q26.** Implement the "Recommended" bullet of each; where a phase says
+"depends on Qn", that dependency is now settled. Doc changes that follow from a
+decision (for example Q1's rewording of W305/W303 in `VALIDATION.md`) are part
+of the phase that implements it.
+
 The docs leave each of these open or contradict themselves. For each one, the
 options are listed, and the last bullet gives the recommendation with a one-line reason. Q-numbers are
 referenced from the phases.
