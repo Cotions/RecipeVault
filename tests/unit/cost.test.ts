@@ -233,10 +233,33 @@ describe('sub-recipes (Q16 A)', () => {
 		expect(c.total).toBeCloseTo(sub[0].cost! + sub[1].cost! + 0.89);
 	});
 
-	it('by servings when the line is in pieces and there is no yield; otherwise one unpriced line', () => {
-		const base = recipe({ slug: 'base', servings: 4, ingredients: [{ items: [{ qty: 800, unit: 'g', name: 'tomates' }] }] });
+	it('"1 piece" of a sub-recipe serving several, with no yield object, is ambiguous (a portion or the whole): unpriced', () => {
+		// One crust of a pie dough that "serves 8" is not 1/8 of it.
+		const base = recipe({ slug: 'base', servings: 8, ingredients: [{ items: [{ qty: 800, unit: 'g', name: 'tomates' }] }] });
 		const one = recipe({ slug: 'one', ingredients: [{ items: [{ qty: 1, unit: 'piece', name: 'base', recipe: 'base' }] }] });
-		expect(recipeCost(one, world([one, base], { base: ['tomates'] })).total).toBeCloseTo(1.78 / 4);
+		const c = recipeCost(one, world([one, base], { base: ['tomates'] }));
+		expect(c.lines).toMatchObject([{ reason: 'no-scale', counted: true }]);
+		expect(c.total).toBe(0);
+		expect(c.enough).toBe(false);
+		// A yield written as text does not settle it either.
+		const texte = recipe({ slug: 'texte', servings: 1, yield: '2 abaisses', ingredients: [] });
+		expect(subRecipeFactor({ name: 'x', qty: { raw: 1, value: 1 }, unit: 'piece' }, texte, CONV)).toBeUndefined();
+		// Nor does a servings range, even from 1.
+		const range = recipe({ slug: 'range', servings: 1, servings_max: 2, ingredients: [] });
+		expect(subRecipeFactor({ name: 'x', qty: { raw: 1, value: 1 }, unit: 'piece' }, range, CONV)).toBeUndefined();
+	});
+
+	it('by servings only when both readings agree: the sub-recipe serves exactly one and gives no yield', () => {
+		const base = recipe({ slug: 'base', servings: 1, ingredients: [{ items: [{ qty: 800, unit: 'g', name: 'tomates' }] }] });
+		const two = recipe({ slug: 'two', ingredients: [{ items: [{ qty: 2, unit: 'piece', name: 'base', recipe: 'base' }] }] });
+		expect(recipeCost(two, world([two, base], { base: ['tomates'] })).total).toBeCloseTo(1.78 * 2);
+		// A yield object in pieces is the unambiguous way to say "makes 2 crusts".
+		const pate = recipe({ slug: 'pate2', servings: 8, yield: { qty: 2, unit: 'piece' }, ingredients: [] });
+		expect(subRecipeFactor({ name: 'x', qty: { raw: 1, value: 1 }, unit: 'piece' }, pate, CONV)).toBe(0.5);
+	});
+
+	it('a sub-recipe in another unit than its yield is one unpriced line', () => {
+		const base = recipe({ slug: 'base', servings: 4, ingredients: [{ items: [{ qty: 800, unit: 'g', name: 'tomates' }] }] });
 		const cup = recipe({ slug: 'cup', ingredients: [{ items: [{ qty: 1, unit: 'cup', name: 'base', recipe: 'base' }] }] });
 		const c = recipeCost(cup, world([cup, base], { base: ['tomates'] }));
 		expect(c.lines).toMatchObject([{ reason: 'no-scale', counted: true }]);

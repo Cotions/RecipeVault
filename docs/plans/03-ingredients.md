@@ -619,8 +619,13 @@ scaling in the browser.
   `yield` ranges scale by the lower `yield.qty` (never under-states a line).
 - Sub-recipes (Q16 A): flattened; factor = line amount / `yield` when the
   yield is an object in the same unit or the same class (fixed factors, never
-  density), else / `servings` when the line is in `piece`, else one unpriced
-  counted line (`no-scale`). A missing sub-recipe (`no-recipe`) and a cycle
+  density), else one unpriced counted line (`no-scale`). The `servings`
+  fallback for a line in `piece` is taken only when the sub-recipe gives no
+  `yield` (object or text) and serves exactly one with no range — the only
+  case where "one portion" and "the whole thing" agree (fix of 2026-09-27; it
+  first divided by any `servings`, so one crust of a pie dough serving 8 cost
+  1/8 of it). The conservative reading, per "wrong prices are worse than
+  absent". A missing sub-recipe (`no-recipe`) and a cycle
   (`cycle`, guarded by the chain of slugs) are one unpriced line too.
   `buy_instead` does not change cost. A broken recipe file is costed from its
   last good version (the recipe page hides the cost line when broken).
@@ -653,9 +658,11 @@ scaling in the browser.
   `{ qty: 1, unit: piece, recipe: … }` and the sub-recipes give `yield` as text
   (`"2 abaisses"`) or not at all, so under Q16 A they stay one unpriced line
   each. A `yield: { qty, unit }` object in the AI template (Phase 8) would make
-  them costable. Also: with Q16 A a line `{ qty: 1, unit: piece }` against a
-  sub-recipe with `servings: 8` and no `yield` costs 1/8 of it, which is right
-  for "one portion of" but wrong for "one crust of"; a `yield` object avoids it.
+  them costable. The case `{ qty: 1, unit: piece }` against a sub-recipe with
+  `servings: 8` and no `yield`, first costed as 1/8 of it, is now unpriced
+  (above); the corpus figures did not move (none of its sub-recipes had
+  `servings` alone). `gen-vault.ts` gives its recipes a `yield` object, so the
+  bench's sub-recipe chains still scale.
 - Speed (`gen-vault.ts --bench`, 5000 recipes, 1000 entries, 3000 price rows,
   10 % of recipes using an earlier one as a sub-recipe): cost of one recipe
   ~0.4 ms, ~1.0 ms with a 4-deep chain of sub-recipes (target < 5 ms);

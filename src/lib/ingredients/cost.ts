@@ -98,7 +98,15 @@ const upper = (q?: { value: number }, max?: { value: number }) => max?.value ?? 
 /**
  * How many of the sub-recipe one line of `qty unit` is (Q16 A): against a
  * `yield` object in the same unit (or the same class, by the fixed factors);
- * else against `servings` when the line counts pieces; else undefined.
+ * else, for a line in `piece`, against `servings` only when that reading is
+ * unambiguous; else undefined (the line stays unpriced).
+ *
+ * "1 piece" of a sub-recipe that serves 8 may be one portion (1/8 of it) or
+ * one crust, one cake (all of it): `servings` counts portions, not pieces, so
+ * the two readings differ and neither is taken. They agree only when the
+ * sub-recipe serves exactly one (no range) and gives no yield at all, text or
+ * object: one piece is then the whole of it. Wrong prices are worse than
+ * absent ones.
  */
 export function subRecipeFactor(item: Ingredient, sub: Recipe, conv: Conversions): number | undefined {
 	const q = upper(item.qty, item.qtyMax);
@@ -117,7 +125,7 @@ export function subRecipeFactor(item: Ingredient, sub: Recipe, conv: Conversions
 			if (f && fy) return (q * f) / (yq * fy);
 		}
 	}
-	if (unit === 'piece' && sub.servings) return q / sub.servings;
+	if (unit === 'piece' && sub.yield === undefined && sub.servings === 1 && sub.servingsMax === undefined) return q;
 	return undefined;
 }
 

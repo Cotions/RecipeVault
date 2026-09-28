@@ -231,10 +231,14 @@ Most ingredients will have no price for a long time. So:
   (Q15). `or`: the main entry is costed.
 - Sub-recipes are flattened into the parent (Q16): their lines count in its
   cost and coverage, scaled by the line's amount against the sub-recipe's
-  `yield` object (same unit, or the same class by the fixed factors), else
-  against its `servings` when the line is in `piece`. Otherwise — a `yield`
-  written as text, a unit that does not match — the sub-recipe is one unpriced
-  line. `buy_instead` does not change cost (homemade is costed).
+  `yield` object (same unit, or the same class by the fixed factors). A line
+  in `piece` against a sub-recipe with no `yield` falls back to its `servings`
+  only when it serves exactly one (no range): "1 piece" of something serving 8
+  may be one portion or the whole crust, and a guess is a wrong price.
+  Otherwise — a `yield` written as text, a unit that does not match, `servings`
+  alone above one — the sub-recipe is one unpriced line; a
+  `yield: { qty: 2, unit: piece }` makes it costable. `buy_instead` does not
+  change cost (homemade is costed).
 
 ### Unit conversion
 

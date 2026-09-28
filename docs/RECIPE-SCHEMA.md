@@ -205,7 +205,9 @@ ingredient entry can point at another recipe:
 
 - Renders as a link, optionally expandable inline.
 - Cost recurses: the sub-recipe's consumed cost, scaled by `qty` against its
-  `servings` (or `yield`, below).
+  `yield` (below); against `servings` only when it serves exactly one, since
+  "1 piece" of a dish serving 8 may be a portion or the whole (`INGREDIENTS.md`,
+  "Cost").
 - Pantry search recurses: missing flour for the pastry means missing it for the
   tarte — unless `buy_instead` is set (store-bought pastry is a legitimate answer).
 - Cycles (`A` uses `B` uses `A`) are a hard error (`E213`).

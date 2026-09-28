@@ -69,7 +69,8 @@ function recipe(i: number, earlier: readonly string[]): { slug: string; text: st
 		const q = pick(QTYS);
 		return `      - { qty: ${typeof q === 'string' ? `"${q}"` : q}, unit: ${pick(UNITS)}, name: ${name} }`;
 	});
-	// An earlier recipe only: chains, never cycles. Scaled by its servings (a piece of it).
+	// An earlier recipe only: chains, never cycles. Scaled by its `yield` object
+	// (a piece of it); `servings` alone would leave "a piece" ambiguous (Q16 A).
 	if (earlier.length && rand() < SUB_SHARE) items.push(`      - { qty: 2, unit: piece, name: base maison, recipe: ${pick(earlier)} }`);
 	const steps = Array.from({ length: 3 + Math.floor(rand() * 5) }, (_, k) => `${k + 1}. ${pick(VERBS)} ${some(ING, 2).join(' et ')} pendant ${5 + Math.floor(rand() * 40)} min.`);
 	const text = [
@@ -85,7 +86,7 @@ function recipe(i: number, earlier: readonly string[]): { slug: string; text: st
 		'times:',
 		`  prep: ${5 + Math.floor(rand() * 40)}m`,
 		`  cook: ${Math.floor(rand() * 3)}h${10 + Math.floor(rand() * 40)}m`,
-		`servings: ${2 + Math.floor(rand() * 10)}`,
+		...((n) => [`servings: ${n}`, `yield: { qty: ${n}, unit: piece }`])(2 + Math.floor(rand() * 10)),
 		`tags: [${some(TAGS, 2 + Math.floor(rand() * 3)).join(', ')}]`,
 		`season: [${some(SEASONS, 1).join(', ')}]`,
 		`rating: ${1 + Math.floor(rand() * 5)}`,
