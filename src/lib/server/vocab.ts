@@ -1,5 +1,6 @@
 // The live vocabularies in the vault's vocab/ folder (docs/VOCAB.md): tag
-// aliases, family labels, the plural rules and the allergen list. Read at index time; a missing or broken file
+// aliases, family labels, the plural rules, the allergen list and the unit
+// conversion factors. Read at index time; a missing or broken file
 // means an empty vocabulary, never a failed sync.
 
 import { readFileSync } from 'node:fs';
@@ -7,6 +8,7 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import { fold } from '../vault/normalize';
 import { parseNormalizeVocab, type NormalizeVocab } from '../ingredients/normalize';
+import { parseConversions, type Conversions } from '../ingredients/units';
 
 export interface VaultVocab {
 	/** Folded alias or canonical tag → canonical tag. */
@@ -16,6 +18,8 @@ export interface VaultVocab {
 	normalize: NormalizeVocab;
 	/** vocab/allergens.yaml: allergen slug → labels. */
 	allergens: Map<string, { fr?: string; en?: string }>;
+	/** vocab/conversions.yaml: unit factors for cost. */
+	conversions: Conversions;
 }
 
 function readYaml(file: string): unknown {
@@ -42,8 +46,14 @@ export function loadVocab(vocabDir: string): VaultVocab {
 		tags,
 		families: labelMap(readYaml(join(vocabDir, 'families.yaml'))),
 		normalize: parseNormalizeVocab(readYaml(join(vocabDir, 'normalize.yaml'))),
-		allergens: labelMap(readYaml(join(vocabDir, 'allergens.yaml')))
+		allergens: labelMap(readYaml(join(vocabDir, 'allergens.yaml'))),
+		conversions: loadConversions(vocabDir)
 	};
+}
+
+/** vocab/conversions.yaml alone; missing or broken: no conversions (same-unit prices still work). */
+export function loadConversions(vocabDir: string): Conversions {
+	return parseConversions(readYaml(join(vocabDir, 'conversions.yaml')));
 }
 
 /** `slug: { fr: label, en: label }` → a map; malformed entries get no labels. */

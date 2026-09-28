@@ -135,7 +135,8 @@ describe('seed', () => {
 	it('vault ingredients seed adds what is missing, never overwrites, one commit', async () => {
 		v = await fixtureVault();
 		rmSync(join(v.dir, 'vocab/normalize.yaml'));
-		v.git('commit', '-qam', 'drop normalize');
+		rmSync(join(v.dir, 'vocab/conversions.yaml'));
+		v.git('commit', '-qam', 'drop normalize and conversions');
 		const before = readFileSync(join(v.dir, 'ingredients/sucre.md'), 'utf8');
 		const r = await seedVault(v.ctx, SEED, VOCAB_DOC);
 		expect(r.added.length).toBeGreaterThan(100);
@@ -144,6 +145,7 @@ describe('seed', () => {
 		expect(v.git('log', '-1', '--format=%s').trim()).toBe(`ingredients: seed (${r.added.length} entries)`);
 		expect(v.git('status', '--porcelain').trim()).toBe('');
 		expect(v.read('vocab/normalize.yaml')).toMatch(/plurals:/);
+		expect(v.read('vocab/conversions.yaml')).toMatch(/^ {2}cup: 250$/m);
 		const again = await seedVault(v.ctx, SEED, VOCAB_DOC);
 		expect(again).toEqual({ added: [] });
 		const s = syncVault(v.ctx.db, v.ctx.paths);

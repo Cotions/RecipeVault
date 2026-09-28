@@ -130,6 +130,18 @@ appends one line to `prices.csv` and commits it alone as `price: <slug>
 rollback on a failed commit, recorded as the app's own write); then the
 `prices` rows are reloaded. Enter saves and opens the next row.
 
+### Cost on the recipe page
+
+The recipe page (plan 03, Phase 5) computes the recipe's consumed cost on each
+load, from the index only: the parsed recipe and its sub-recipes (`recipes`),
+the resolved entry of each line (`ingredients.item`, by slug and position — so
+a change to resolution changes the cost with no cost code involved), the
+entry's `density` and `weights` (`registry`), the `current_price` view, and the
+factors in `vocab/conversions.yaml`. Nothing is stored: a new price or a new
+link shows on the next load. The server sends the totals at the base servings
+and every line's cost; the browser multiplies the total by the servings
+adjuster. The rules are `INGREDIENTS.md`, "Cost".
+
 ### Concurrent edit
 
 Files mean last-write-wins, which silently eats an edit. Cheap guard: every
@@ -222,7 +234,12 @@ with all facet counts ~10–13 ms. With ingredient resolution and a registry of
 browse with facets ~16–19 ms (the *non reliés* facet added), re-resolving all
 ~33 000 ingredient rows ~30 ms, one alias edit picked up by a full sync ~1.5 s
 (the recipe-file walk dominates; a queue action reloads the registry only), fuzzy candidates for one name ~0.1 ms, the
-resolve queue page (30 rows) ~9 ms, its nav count ~0.3 ms.
+resolve queue page (30 rows) ~9 ms, its nav count ~0.3 ms. With ~3000 price
+rows and 10 % of recipes using an earlier one as a sub-recipe (plan 03, Phases
+4–5): `sync --force` ~6.4 s, no-op sync ~1.3 s, the ingredient index page (999
+rows) ~14 ms whatever the sort, the cost of one recipe ~0.4 ms (~1 ms with a
+chain of 4 sub-recipes, 36 lines), appending one price and committing it
+~200 ms (git dominates).
 
 ## vault sync
 

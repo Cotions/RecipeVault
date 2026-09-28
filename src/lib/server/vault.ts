@@ -73,6 +73,7 @@ export interface SeedVocab {
 	'families.yaml': string;
 	'normalize.yaml': string;
 	'allergens.yaml': string;
+	'conversions.yaml': string;
 }
 
 /** The seed vocabularies, copied from docs/VOCAB.md (the doc is the seed). */
@@ -81,12 +82,14 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 	const units = yamlBlocksUnder(vocabDoc, 'Units');
 	const plurals = yamlBlocksUnder(vocabDoc, 'Plurals');
 	const allergens = yamlBlocksUnder(vocabDoc, 'Allergens');
+	const conversions = yamlBlocksUnder(vocabDoc, 'Conversions');
 	// Validate before writing: a broken seed would break every later read.
 	for (const [name, text] of [
 		['tags', tags],
 		['units', units],
 		['plurals', plurals],
-		['allergens', allergens]
+		['allergens', allergens],
+		['conversions', conversions]
 	]) {
 		const data = parse(text, { version: '1.2' });
 		if (!data || typeof data !== 'object') throw new Error(`docs/VOCAB.md: the ${name} block is not a YAML mapping`);
@@ -96,7 +99,8 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 		'units.yaml': `# Canonical unit: [aliases]. Seeded from docs/VOCAB.md. The checker's list is\n# the authority for validation; this copy documents the vault.\n${units}`,
 		'families.yaml': `# Canonical family slug: { fr: label, en: label }. Grows as families are created.\n{}\n`,
 		'normalize.yaml': `# How ingredient names lose their plurals before registry lookup. Seeded from\n# docs/VOCAB.md ("Plurals"); an exact alias match always comes first.\n${plurals}`,
-		'allergens.yaml': `# Allergen slug: { fr: label, en: label }. Seeded from docs/VOCAB.md ("Allergens").\n${allergens}`
+		'allergens.yaml': `# Allergen slug: { fr: label, en: label }. Seeded from docs/VOCAB.md ("Allergens").\n${allergens}`,
+		'conversions.yaml': `# Unit factors for cost: mass in grams, volume in millilitres, for one of the\n# unit. Regional data, seeded from docs/VOCAB.md ("Conversions"); edit freely.\n${conversions}`
 	};
 }
 

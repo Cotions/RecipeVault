@@ -7,6 +7,10 @@ import type { App } from './app';
 import { familyDiff, getRecipe, titles as titlesOf, usedBy, type RecipeDetail } from './index/query';
 import { currentFile } from './save';
 import { unresolvedDiagnostics } from './index/resolve';
+import { DEFAULT_LOCALE } from './config';
+import { costOfRecipe } from './cost';
+import { loadConversions } from './vocab';
+import type { CostLineView, CostView } from '../ingredients/cost';
 
 const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]/g;
 
@@ -54,8 +58,58 @@ export function loadRecipePage(app: App, slug: string) {
 		familyName: family?.label ?? null,
 		/** W303 / W305 / W307: ingredients not linked to the registry (plan 03, Phase 2). */
 		unresolved: broken ? [] : unresolvedDiagnostics(app.ctx.db, app.ctx.paths.vocab, recipe),
-		file: file ?? { text: '', hash: row.file_hash }
+		file: file ?? { text: '', hash: row.file_hash },
+		/** Per line, by position across groups: where the name links (plan 03, Phase 5). */
+		links: ingredientLinks(app, slug),
+		cost: broken ? null : recipeCostView(app, slug),
+		// The currency the index prices in; the locale only formats (a bare test app has no config).
+		money: { currency: app.ctx.currency, locale: app.config?.locale ?? DEFAULT_LOCALE }
 	};
+}
+
+export interface IngredientLink {
+	/** The registry slug, when resolved. */
+	item?: string;
+	/** The lookup key, when unresolved or ambiguous: its row in the resolve queue. */
+	key?: string;
+}
+
+/** How each line of a recipe resolved, from the index (`ingredients.item`). */
+export function ingredientLinks(app: App, slug: string): Record<number, IngredientLink> {
+	const rows = app.ctx.db.prepare('SELECT position, item, key, resolution FROM ingredients WHERE slug = ?').all(slug) as {
+		position: number;
+		item: string | null;
+		key: string;
+		resolution: string;
+	}[];
+	const out: Record<number, IngredientLink> = {};
+	for (const r of rows) {
+		if (r.item) out[r.position] = { item: r.item };
+		else if (r.resolution === 'none' || r.resolution === 'ambiguous') out[r.position] = { key: r.key };
+	}
+	return out;
+}
+
+/** The cost line's data: totals at the base servings, and every line but the optional ones. */
+export function recipeCostView(app: App, slug: string): CostView | null {
+	const c = costOfRecipe(app.ctx.db, slug, loadConversions(app.ctx.paths.vocab));
+	if (!c) return null;
+	const subTitles = titlesOf(app.ctx.db, c.lines.flatMap((l) => l.via.slice(-1)));
+	const links = ingredientLinks(app, slug);
+	const lines: CostLineView[] = c.lines
+		.filter((l) => l.reason !== 'optional')
+		.map((l) => ({
+			name: l.name,
+			item: l.item,
+			cost: l.cost,
+			reason: l.reason,
+			counted: l.counted,
+			staple: l.staple,
+			stale: l.stale,
+			via: l.via.length ? (subTitles.get(l.via.at(-1)!) ?? l.via.at(-1)) : undefined,
+			key: !l.via.length && l.reason === 'unresolved' ? links[l.position]?.key : undefined
+		}));
+	return { total: c.total, priced: c.priced, counted: c.counted, enough: c.enough, perServing: c.perServing, stale: c.stale, lines };
 }
 
 /** Sub-recipes of a recipe, recursively (a cycle cannot be saved, but guard anyway). */

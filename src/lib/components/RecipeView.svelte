@@ -1,7 +1,7 @@
 <script lang="ts">
 	// A recipe as read: used by the recipe page and, identically, by the paste
 	// box preview. Quantities rescale with the servings adjuster, in print too.
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { t, tagLabel, familyLabel } from '$lib/i18n/fr';
 	import { formatDurationValue, formatSeconds } from '$lib/render/duration';
 	import { formatAmount } from '$lib/render/ingredient';
@@ -25,7 +25,9 @@
 		links = true,
 		familyName = null,
 		servings = $bindable(recipe.servings ?? 0),
-		multiplier = $bindable(1)
+		multiplier = $bindable(1),
+		itemLinks,
+		cost
 	}: {
 		recipe: Recipe;
 		body: string;
@@ -38,10 +40,16 @@
 		familyName?: string | null;
 		servings?: number;
 		multiplier?: number;
+		/** Recipe page: how each line resolved, by position across groups. */
+		itemLinks?: Record<number, { item?: string; key?: string }>;
+		/** Recipe page: the cost line, given the current scaling factor. */
+		cost?: Snippet<[number]>;
 	} = $props();
 
 	const lang = $derived(recipe.lang);
 	const factor = $derived(recipe.servings ? servings / recipe.servings : multiplier);
+	/** The position of each group's first line across groups, as the index numbers them. */
+	const offsets = $derived(recipe.ingredients.reduce<number[]>((a, g, i) => (a.push(i ? a[i - 1] + recipe.ingredients[i - 1].items.length : 0), a), []));
 	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s], numbered: stepStyle.numbered }));
 	const hasSteps = $derived(parseBody(body).body.steps.length > 0);
 	onMount(loadStepStyle);
@@ -155,6 +163,7 @@
 			<div><dt>{t.recipe.yield}</dt><dd><Marked text={yieldText} /></dd></div>
 		{/if}
 	</dl>
+	{@render cost?.(factor)}
 
 	{#if recipe.tags.length || recipe.season.length}
 		<ul class="tags" aria-label="Étiquettes">
@@ -214,7 +223,7 @@
 					{/if}
 					<ul>
 						{#each g.items as item, ii (ii)}
-							<li><IngredientLine {item} {factor} {lang} {titles} /></li>
+							<li><IngredientLine {item} {factor} {lang} {titles} link={itemLinks?.[offsets[gi] + ii]} /></li>
 						{/each}
 					</ul>
 				</div>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n/fr';
+	import { queueRowId } from '$lib/render/links';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -28,7 +29,7 @@
 {#if data.rows.length}
 	<ol class="queue">
 		{#each data.rows as row, ri (row.key)}
-			<li class="row" data-key={row.key}>
+			<li class="row" id={queueRowId(row.key)} data-key={row.key}>
 				<div class="head">
 					<h2 class="name">{row.forms[0].name}</h2>
 					<span class="count">{t.queue.count(row.count, row.recipes)} · {t.queue.lang[row.lang] ?? row.lang}</span>

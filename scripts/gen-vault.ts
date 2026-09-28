@@ -1,5 +1,6 @@
-// Scale fixture: write N invented recipes into a new temporary vault, then
-// (with --bench) time the index against the plan's targets.
+// Scale fixture: write N invented recipes (some using an earlier one as a
+// sub-recipe), ~1000 registry entries and ~3000 price rows into a new
+// temporary vault, then (with --bench) time the index against the plan's targets.
 //
 //   npx tsx scripts/gen-vault.ts [N=5000] [--dir /tmp/x] [--bench]
 //
@@ -17,12 +18,22 @@ import { serializeIngredient } from '../src/lib/ingredients/registry';
 import { lookupKey } from '../src/lib/ingredients/normalize';
 import { loadVocab } from '../src/lib/server/vocab';
 import { queueCount, resolveQueue } from '../src/lib/server/queue';
+import { costOfRecipe } from '../src/lib/server/cost';
+import { ingredientIndex, INDEX_SORTS } from '../src/lib/server/ingredients';
+import { appendPrice } from '../src/lib/server/prices';
+import { PRICE_HEADER } from '../src/lib/ingredients/prices';
+import { loadConversions } from '../src/lib/server/vocab';
 import { initVault } from '../src/lib/server/vault';
+import { commitPaths } from '../src/lib/server/git';
 
 const args = process.argv.slice(2);
 const n = Number(args.find((a) => /^\d+$/.test(a)) ?? 5000);
 /** Registry size: the seed, plus invented entries up to this many. */
 const REGISTRY = 1000;
+/** Rows in prices.csv (plan 03, "Speed targets"). */
+const PRICE_ROWS = 3000;
+/** Share of recipes using an earlier one as a sub-recipe. */
+const SUB_SHARE = 0.1;
 const dirArg = args.indexOf('--dir');
 const dir = dirArg >= 0 ? args[dirArg + 1] : join(mkdtempSync(join(tmpdir(), 'rv-scale-')), 'vault');
 const bench = args.includes('--bench');
@@ -44,7 +55,7 @@ const UNITS = ['cup', 'tbsp', 'tsp', 'g', 'ml', 'lb', 'piece'];
 const QTYS = [1, 2, 3, '1/2', '1/4', '2/3', '1 1/2', 250, 500];
 const VERBS = ['Mélanger', 'Ajouter', 'Cuire', 'Verser', 'Battre', 'Incorporer', 'Faire revenir', 'Laisser reposer', 'Servir'];
 
-function recipe(i: number): { slug: string; text: string } {
+function recipe(i: number, earlier: readonly string[]): { slug: string; text: string } {
 	const title = `${pick(DISHES)} ${pick(WITH)} ${pick(STYLE)}`.trim() + ` ${i}`;
 	const slug = title
 		.normalize('NFD')
@@ -58,6 +69,8 @@ function recipe(i: number): { slug: string; text: string } {
 		const q = pick(QTYS);
 		return `      - { qty: ${typeof q === 'string' ? `"${q}"` : q}, unit: ${pick(UNITS)}, name: ${name} }`;
 	});
+	// An earlier recipe only: chains, never cycles. Scaled by its servings (a piece of it).
+	if (earlier.length && rand() < SUB_SHARE) items.push(`      - { qty: 2, unit: piece, name: base maison, recipe: ${pick(earlier)} }`);
 	const steps = Array.from({ length: 3 + Math.floor(rand() * 5) }, (_, k) => `${k + 1}. ${pick(VERBS)} ${some(ING, 2).join(' et ')} pendant ${5 + Math.floor(rand() * 40)} min.`);
 	const text = [
 		'---',
@@ -106,13 +119,32 @@ for (let k = seeded; k < REGISTRY; k++) {
 	);
 }
 const seen = new Set<string>();
+const written: string[] = [];
 for (let i = 1; i <= n; i++) {
-	const r = recipe(i);
+	const r = recipe(i, written);
 	if (seen.has(r.slug)) continue;
 	seen.add(r.slug);
+	written.push(r.slug);
 	writeFileSync(join(dir, 'recipes', `${r.slug}.md`), r.text);
 }
-console.log(`${seen.size} recipes written to ${dir}`);
+// Invented prices: random entries, packs and dates, a few in another currency.
+const slugs = readdirSync(join(dir, 'ingredients')).map((f) => f.replace(/\.md$/, ''));
+const PACKS = [
+	[400, 'g'],
+	[1, 'kg'],
+	[2, 'lb'],
+	[1, 'l'],
+	[500, 'ml'],
+	[12, 'piece'],
+	[1, 'can']
+] as const;
+const priceLines = Array.from({ length: PRICE_ROWS }, () => {
+	const [q, u] = pick(PACKS);
+	const date = `202${4 + Math.floor(rand() * 3)}-0${1 + Math.floor(rand() * 9)}-1${Math.floor(rand() * 9)}`;
+	return `${date},${pick(slugs)},${(0.5 + rand() * 15).toFixed(2)},${rand() < 0.02 ? 'USD' : 'CAD'},${q},${u},Magasin ${1 + Math.floor(rand() * 6)},`;
+});
+writeFileSync(join(dir, 'prices.csv'), [PRICE_HEADER, ...priceLines, ''].join('\n'));
+console.log(`${seen.size} recipes, ${slugs.length} registry entries, ${PRICE_ROWS} price rows written to ${dir}`);
 
 if (bench) {
 	const ctx = openVault({ root: dir, author: { name: 'x', email: 'x@x' }, log: () => {} });
@@ -159,5 +191,30 @@ if (bench) {
 	time('queue count (nav, every page)', () => queueCount(ctx.db), 50);
 	const rows = ctx.db.prepare('SELECT resolution, count(*) AS n FROM ingredients GROUP BY resolution ORDER BY n DESC').all() as { resolution: string; n: number }[];
 	console.log(`${'ingredient rows'.padEnd(34)} ${rows.map((r) => `${r.resolution} ${r.n}`).join(', ')}`);
+	// Plan 03, Phases 4 and 5: the ingredient index, cost, price entry.
+	const sorts = INDEX_SORTS.map((sort) => time(`ingredient index, sort ${sort}`, () => ingredientIndex(ctx.db, { sort }), 20));
+	console.log(`${'ingredient index page (worst sort)'.padEnd(34)} ${Math.max(...sorts).toFixed(1)} ms (${ingredientIndex(ctx.db, {}).length} rows)`);
+	// The recipe with the deepest sub-recipe chain.
+	const depthOf = (slug: string, d = 0): number => {
+		const subs = ctx.db.prepare('SELECT recipe FROM ingredients WHERE slug = ? AND recipe IS NOT NULL').pluck().all(slug) as string[];
+		return subs.length && d < 20 ? Math.max(...subs.map((s) => depthOf(s, d + 1))) : d;
+	};
+	const withSubs = ctx.db.prepare('SELECT DISTINCT slug FROM ingredients WHERE recipe IS NOT NULL').pluck().all() as string[];
+	const deepest = withSubs.map((s) => [s, depthOf(s)] as const).sort((a, b) => b[1] - a[1])[0];
+	if (deepest) {
+		const c = costOfRecipe(ctx.db, deepest[0], loadConversions(ctx.paths.vocab))!;
+		time(`cost of one recipe (depth ${deepest[1]}, ${c.lines.length} lines)`, () => costOfRecipe(ctx.db, deepest[0], loadConversions(ctx.paths.vocab)), 50);
+	}
+	time('cost of one recipe, no sub-recipe', () => costOfRecipe(ctx.db, written[0], loadConversions(ctx.paths.vocab)), 50);
+	// A real vault has every file committed: git's first look at 6000 untracked files is not what an append costs.
+	await commitPaths(dir, ['recipes', 'ingredients', 'prices.csv'], 'scale fixture', { name: 'Scale Test', email: 'scale@example.invalid' });
+	const appends: number[] = [];
+	for (let k = 0; k < 5; k++) {
+		const t = performance.now();
+		await appendPrice(ctx, { ingredient: 'farine-tout-usage', amount: 4.99 + k, packQty: 2.5, packUnit: 'kg', shop: 'Magasin 1' });
+		appends.push(performance.now() - t);
+	}
+	const sorted = [...appends].sort((a, b) => a - b);
+	console.log(`${'append one price and commit'.padEnd(34)} ${sorted[2].toFixed(1)} ms (median of 5; ${appends.map((a) => a.toFixed(0)).join(', ')})`);
 	ctx.db.close();
 }

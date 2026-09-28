@@ -282,6 +282,33 @@ export const fr = {
 		heic: 'Photo HEIC : aperçu indisponible dans le navigateur.',
 		notFound: 'Cette recette n’existe pas ou a été supprimée.'
 	},
+	/** The cost line on the recipe page (plan 03, Phase 5). */
+	cost: {
+		label: 'Coût',
+		/** `≈ 4,20 $`: consumed cost, at the servings shown. */
+		approx: (money: string) => `≈ ${money}`,
+		perServing: (money: string) => `${money} par portion`,
+		coverage: (priced: number, counted: number) => `${priced} ${priced > 1 ? 'ingrédients' : 'ingrédient'} sur ${counted} ${priced > 1 ? 'ont' : 'a'} un prix`,
+		notEnough: (priced: number, counted: number) =>
+			counted ? `Pas assez de prix · ${priced} ${priced > 1 ? 'ingrédients' : 'ingrédient'} sur ${counted}` : 'Pas assez de prix',
+		stale: 'certains prix ont plus d’un an',
+		unpriced: (n: number) => (n === 1 ? '1 ingrédient sans prix' : `${n} ingrédients sans prix`),
+		unpricedHelp: 'Le coût ne compte que ce qui a un prix. Les essentiels et les « au goût » ne comptent pas dans la proportion.',
+		reason: {
+			unresolved: 'non relié',
+			'no-price': 'aucun prix',
+			'no-qty': 'sans quantité',
+			'no-conversion': 'unité non convertible',
+			'no-recipe': 'recette absente',
+			'no-scale': 'rendement inconnu',
+			cycle: 'recette circulaire'
+		} as Record<string, string>,
+		via: (title: string) => `dans ${title}`,
+		/** Beside a name not linked to the registry. */
+		unlinked: 'non relié',
+		unlinkedTitle: 'Ce nom ne correspond à aucun ingrédient du registre : le relier',
+		linkTitle: (name: string) => `${name} dans l’index des ingrédients`
+	},
 	kitchen: {
 		back: 'Quitter',
 		ingredients: 'Ingrédients',

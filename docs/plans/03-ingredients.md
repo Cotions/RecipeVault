@@ -580,6 +580,89 @@ staples and `to_taste`, below-threshold display, sub-recipe recursion with
 `yield`, a cycle guard (E213 already blocks cycles; stay defensive), servings
 scaling in the browser.
 
+**Implementation notes (Phase 5).**
+
+- Factors (Q10 A, values as recommended): a separate `vocab/conversions.yaml`
+  (`mass:` grams per unit, `volume:` millilitres per unit), seeded from a new
+  `VOCAB.md` "Conversions" block, not `vocab/units.yaml`. Deviation from the
+  letter of Q10: `units.yaml` is the alias list, and existing vaults already
+  have it; a new file is written by `vault init` and added to older vaults by
+  `vault ingredients seed` (`writeMissingVocab`), never overwriting. A missing
+  or broken file means no factors: same-unit prices still work. Only
+  canonical units of the right class with a positive number are read. No
+  factor for `pinch`/`drop` in the seed. Nothing regional is in code: the
+  unit classes are `UNIT_CLASSES` (types.ts, shared with the disambiguation
+  rules), the factors are data, the currency and locale are config.
+- `units.ts`: an amount is measured in its own unit, in `g` and in `ml`; a pack
+  the same way; the first common measure prices it, the same unit first, then
+  the one needing fewest density/weight steps. `weights[unit]` overrides the
+  density for that unit (Q11 A); count units, `pinch` and `drop` convert only
+  through `weights` (Q12 A); a container reads its size from `note` (Q13 B):
+  one size or a size with its equivalent in parentheses, both readings used;
+  anything else (two sizes, `ou`, an ambiguous `t`/`T`) leaves it unpriced.
+  The price row's own `note` is not read for a size. `alt` when the main
+  amount fails.
+- `cost.ts` is pure: the caller answers `itemAt(recipe, position)`, `entry`,
+  `price`, `recipe`. The server (`src/lib/server/cost.ts`) answers `itemAt`
+  from `ingredients.item` and `price` from `current_price`, memoised per
+  computation, so a later change to resolution needs no change here (a test
+  rewrites `ingredients.item` and the cost follows).
+- Coverage: counted = not optional (Q18 A), not `to_taste`, not a staple
+  (Q17 A: a priced staple adds to the total only). Threshold 0.7 (Q14 A: no
+  figure below it, `Pas assez de prix · 5 ingrédients sur 12`, and the
+  unpriced lines listed with links). A recipe where nothing counts shows a
+  figure only when every line with an amount is priced (undefined in the doc;
+  otherwise a single priced egg would pass for the cost of crêpes).
+- A line with no `qty`: unpriced (`no-qty`), except a count or container unit
+  alone, read as one. A `qty` with no unit is `piece`.
+- Ranges (Q15 A): upper `qty`; per serving = total / `servings` (lower bound).
+  `yield` ranges scale by the lower `yield.qty` (never under-states a line).
+- Sub-recipes (Q16 A): flattened; factor = line amount / `yield` when the
+  yield is an object in the same unit or the same class (fixed factors, never
+  density), else / `servings` when the line is in `piece`, else one unpriced
+  counted line (`no-scale`). A missing sub-recipe (`no-recipe`) and a cycle
+  (`cycle`, guarded by the chain of slugs) are one unpriced line too.
+  `buy_instead` does not change cost. A broken recipe file is costed from its
+  last good version (the recipe page hides the cost line when broken).
+- Staleness: a line using a price older than a year is flagged; the cost line
+  says `certains prix ont plus d’un an`.
+- Recipe page: the server sends totals at the base servings and each line's
+  cost (optional lines left out); the browser multiplies the total by the
+  servings factor (or the multiplier); the per-serving cost does not move. The
+  cost line sits under the facts (servings, yield), `no-print`, with a
+  `<details>` listing unpriced lines (why: `non relié`, `aucun prix`, `unité
+  non convertible`…) and priced ones with their cost. `RecipeView` takes an
+  optional `cost` snippet and `itemLinks`; the paste preview passes neither
+  and is unchanged. Kitchen mode is unchanged.
+- Links: a resolved name links to `/ingredients#i-<slug>` (the index row; the
+  ingredient view is Phase 6). An unresolved or ambiguous one gets a `non
+  relié` link to its queue row, `/resoudre#k-<key>` (the key with every
+  non-letter/digit run as `-`, so no escaping; the queue rows now carry that
+  id). No new diagnostic codes.
+- Corpus (320 invented cards, seed registry, 62 invented prices in
+  `tests/fixtures/prices/corpus.csv` for the most used entries,
+  `tests/cost-corpus.test.ts`): coverage 0 %: 34 recipes (10.6 %), 1–49 %: 77
+  (24.1 %), 50–69 %: 111 (34.7 %), 70–89 %: 43 (13.4 %), 100 %: 55 (17.2 %);
+  a figure on 98 of 320 (30.6 %); median coverage 50 %. Of 1588 counted lines,
+  837 priced (52.7 %), 421 no price, 163 no conversion (spices and herbs by the
+  spoon without a density: clou de girofle, moutarde sèche, sarriette, gros sel;
+  céleri and oignon by the cup), 138 unresolved, 18 sub-recipes that cannot
+  scale, 10 without a quantity. Staple lines: 994, 875 of them priced. Whole
+  corpus costed in ~90 ms (~0.3 ms per recipe).
+- **Finding:** no corpus sub-recipe scales. The cards write
+  `{ qty: 1, unit: piece, recipe: … }` and the sub-recipes give `yield` as text
+  (`"2 abaisses"`) or not at all, so under Q16 A they stay one unpriced line
+  each. A `yield: { qty, unit }` object in the AI template (Phase 8) would make
+  them costable. Also: with Q16 A a line `{ qty: 1, unit: piece }` against a
+  sub-recipe with `servings: 8` and no `yield` costs 1/8 of it, which is right
+  for "one portion of" but wrong for "one crust of"; a `yield` object avoids it.
+- Speed (`gen-vault.ts --bench`, 5000 recipes, 1000 entries, 3000 price rows,
+  10 % of recipes using an earlier one as a sub-recipe): cost of one recipe
+  ~0.4 ms, ~1.0 ms with a 4-deep chain of sub-recipes (target < 5 ms);
+  ingredient index page ~14 ms for any sort (target < 50 ms); one price
+  appended and committed ~200 ms median, on a committed vault (target
+  < 500 ms); `sync --force` ~6.4 s, no-op sync ~1.3 s.
+
 ### Phase 6 — the ingredient view (`/ingredients/[slug]`)
 
 Depends on: Q25 (merge action), Q26.

@@ -116,7 +116,8 @@ A new vault starts with a seed registry (plan 03, Q5): `docs/INGREDIENTS-SEED.ya
 a couple of hundred common entries with staples, categories, densities for flours
 and sugars, per-unit weights, and the Québec names as aliases. `vault init`
 writes it; `vault ingredients seed` adds the missing entries (and the
-`vocab/normalize.yaml` and `vocab/allergens.yaml` files an older vault lacks) to
+`vocab/normalize.yaml`, `vocab/allergens.yaml` and `vocab/conversions.yaml`
+files an older vault lacks) to
 an existing vault without touching an entry already there. It is data, like the
 vocabulary seed: the resolve queue then starts with the long tail, not with
 *sel* and *farine* on every recipe.
@@ -194,7 +195,7 @@ see "Disambiguation rules"). Only ingredient files change (`DATA-FLOW.md`, "Ingr
 
 ## Cost
 
-Currency is CAD. Prices are not stored in ingredient files. They are rows in the append-only
+The currency is the config's (`currency`, CAD by default). Prices are not stored in ingredient files. They are rows in the append-only
 `prices.csv` — date, ingredient, amount, pack size, shop — and the current price is
 the latest row. Pack size belongs to the purchase, not the ingredient: the same
 tomatoes come in 400 g and 800 g tins. See `STORAGE.md`.
@@ -214,22 +215,48 @@ on a shopping list, where whole packs are what you carry home.
 Most ingredients will have no price for a long time. So:
 
 - Never display a total as if complete. Show coverage:
-  `≈ $4.20 · 9 of 12 ingredients priced`.
+  `≈ 4,20 $ · 9 ingrédients sur 12 ont un prix`.
 - Exclude `to_taste` and `staple` ingredients from the coverage denominator — they
-  are pennies and would make coverage look permanently broken.
-- A recipe below ~70% coverage shows a range or a "not enough prices yet" state
-  rather than a number that looks authoritative and is not.
+  are pennies and would make coverage look permanently broken. A priced staple
+  still adds to the cost (plan 03, Q17); butter and sugar are real money.
+- A recipe below 70 % coverage shows no figure: `Pas assez de prix · 5
+  ingrédients sur 12`, with the unpriced ones listed and linked (Q14). A recipe
+  where nothing counts (staples only) shows a figure only when every line with
+  an amount is priced.
+- What counts: every line that is not optional (item or group, Q18), not
+  `to_taste` and not a staple. An unresolved line counts and is unpriced. A line
+  with no quantity counts and is unpriced, unless its unit is a count or a
+  container (`unit: can` alone is one can).
+- Ranges: the upper `qty`; the cost per serving divides by the lower `servings`
+  (Q15). `or`: the main entry is costed.
+- Sub-recipes are flattened into the parent (Q16): their lines count in its
+  cost and coverage, scaled by the line's amount against the sub-recipe's
+  `yield` object (same unit, or the same class by the fixed factors), else
+  against its `servings` when the line is in `piece`. Otherwise — a `yield`
+  written as text, a unit that does not match — the sub-recipe is one unpriced
+  line. `buy_instead` does not change cost (homemade is costed).
 
 ### Unit conversion
+
+The factors are data, in the vault's `vocab/conversions.yaml` (seeded from
+`VOCAB.md`, "Conversions"): grams per mass unit, millilitres per volume unit.
+An amount is priced against its pack by the first common measure — the same
+unit, else grams or millilitres, preferring the one reached without the
+ingredient's density or weights.
 
 - Within mass (`g`, `kg`, `lb`, `oz`) and within volume (`ml`, `cl`, `l`, `cup`,
   `qt`, `pint`, and `tbsp`/`tsp` *as volumes*): always safe. `cup` = 250 ml.
 - Mass to volume: only when the ingredient has an explicit `density`. Never guess.
-- `tbsp`, `tsp`, `pinch`: convert only via a per-ingredient table, because a
-  tablespoon of flour and a tablespoon of honey are not the same mass. When no
-  entry exists, treat the ingredient as unpriceable rather than inventing a figure.
-- `piece`: needs a price row with `pack_unit: piece`, or an explicit average weight for mass
-  conversion (one egg ≈ 55 g).
+  `tbsp`/`tsp` are volumes, so the density applies to them (Q11); a `weights`
+  value for the unit overrides it (a tablespoon of butter weighed, not computed).
+- `pinch`, `drop` and the count units (`piece`, `clove`, `slice`, `stalk`…):
+  only through the entry's `weights` (`{ piece: 55, pinch: 0.4 }`, grams for one),
+  or a price row in the same unit. Otherwise unpriceable, never estimated.
+- Containers (`can`, `packet`, `jar`, `bottle`, `bag`): a price row in the same
+  unit, or the size in the line's `note` (`796 ml`, `19 oz (540 ml)` — the
+  grammar `E216` allows), measured like any amount (Q13).
+- `alt` is the same amount in another measure: used when the main one cannot
+  be priced.
 
 Wrong prices are worse than absent prices — an absent price shows as absent, a
 wrong one silently poisons every total that includes it.

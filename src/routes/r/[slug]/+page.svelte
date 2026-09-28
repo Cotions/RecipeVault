@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { t, familyLabel } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
+	import CostLine from '$lib/components/CostLine.svelte';
 	import Marked from '$lib/components/Marked.svelte';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import { parseRecipe } from '$lib/vault/parse';
@@ -85,7 +86,20 @@
 	<p class="hint no-print">{t.recipe.verifyBlocked}</p>
 {/if}
 
-<RecipeView recipe={data.recipe} body={data.body} titles={data.titles} photo={data.photo} familyName={data.familyName} bind:servings bind:multiplier />
+<RecipeView
+	recipe={data.recipe}
+	body={data.body}
+	titles={data.titles}
+	photo={data.photo}
+	familyName={data.familyName}
+	itemLinks={data.links}
+	bind:servings
+	bind:multiplier
+>
+	{#snippet cost(factor: number)}
+		{#if data.cost}<CostLine cost={data.cost} {factor} money={data.money} />{/if}
+	{/snippet}
+</RecipeView>
 
 {#if data.variants.length || data.usedBy.length}
 	<nav class="related no-print">

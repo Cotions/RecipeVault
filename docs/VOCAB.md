@@ -227,3 +227,36 @@ that makes a price computable: one clove of garlic is not one garlic.
 
 `boîte` stays an alias of `can` only: on a Québec card it almost always means a
 can, not a box. `pot` is a jar (*1 pot de moutarde*).
+
+## Conversions
+
+Factors for cost (`INGREDIENTS.md`, "Unit conversion"), seeded into
+`vocab/conversions.yaml`. They are regional data, not code: the owner edits the
+vault's copy, and the app reads nothing else. `mass` is grams for one of the
+unit, `volume` millilitres for one of the unit. A unit absent here converts to
+nothing: it is priced only against a price row in the same unit, or through the
+ingredient's own `weights`.
+
+```yaml
+mass:
+  g: 1
+  kg: 1000
+  lb: 453.6
+  oz: 28.35
+volume:
+  ml: 1
+  cl: 10
+  l: 1000
+  cup: 250
+  tbsp: 15
+  tsp: 5
+  qt: 1136
+  pint: 568
+```
+
+`cup` is the Canadian metric cup (see Units). `tbsp`/`tsp` are Canadian metric
+spoons, consistent with it. `qt` (*pinte*) and `pint` (*chopine*) are imperial:
+old Quebec cards predate metrication (plan 03, Q10). `pinch` and `drop` have no
+volume on purpose: a pinch of salt and one of saffron are priced only through
+the ingredient's `weights`. Mass to volume always needs the ingredient's
+`density`; it is never taken from this file.

@@ -34,7 +34,10 @@ Data splits by how it changes, because each kind wants a different format:
 │   ├── tomates-concassees.md        # aliases, disambiguation rules, category, substitutes — NO price
 │   └── ...
 ├── vocab/
+│   ├── allergens.yaml               # allergen slug → { fr, en } labels
+│   ├── conversions.yaml             # unit factors for cost: g per mass unit, ml per volume unit
 │   ├── families.yaml                # family slug → { fr, en } labels, set on the family page
+│   ├── normalize.yaml               # plural rules for ingredient lookup
 │   ├── tags.yaml                    # canonical tags + aliases
 │   └── units.yaml                   # canonical units + aliases
 ├── prices.csv                       # append-only price history
