@@ -1,7 +1,8 @@
 # Plan 03 — P1.5, ingredients
 
-Status: **draft. The open questions at the end must be answered first.** Written
-2026-09-27 for a fresh agent session.
+Status: **done 2026-09-27.** Phases 0–9 built; see "Final report". The open
+questions were decided 2026-09-27 (recommended options). Written 2026-09-27 for
+a fresh agent session.
 Previous plan: `02-read-app.md` (done: the vault, save path, index, paste box,
 browse, recipe page, kitchen mode).
 
@@ -918,24 +919,65 @@ agree on W302/W304/W607.
    `PLANNING.md` gets the P1.5 status and open questions 2 and 3 marked decided.
    `README.md` gets the new CLI commands.
 
+**Implementation notes (Phase 9).**
+
+- *Scale fixture.* `gen-vault.ts` already wrote 1000 entries and 3000 price
+  rows (Phase 5); its invented entries were bare (one category, two names, no
+  flag) and no recipe used them. Now they get a random category, staples (5 %),
+  densities (20 %), `weights` (10 %), a substitute (10 %), an allergen (5 %),
+  an English name (30 %) and a `default_unit` (50 %), and 30 % of recipe lines
+  name one of them; 5 % name something no entry has. With the seed's bare
+  words left to the queue (*chocolat*, *poulet*, *noix*, *fèves*, *tomates*),
+  15 % of the ~33 000 rows are unresolved or ambiguous. The plan's
+  "~60 000 ingredient rows" was an estimate; the generator writes ~6.6 lines
+  per recipe. A `.gitkeep` had been counted as an entry (999) and drawn as a
+  price slug; fixed.
+- *Alias edit.* The 1.38 s of Phase 2 timed `syncVault`, which hashes every
+  recipe file. The app never takes that path for an alias: a queue action, an
+  ingredient-view edit and the watcher call `syncRegistry` (the changed file,
+  then the names tables) and `reresolve` — ~120 ms. The bench now times that
+  path, the full-sync path apart (~1.4 s, the CLI and startup), and a real
+  "Relier" click with its commit (~290 ms). No code change was needed.
+- *`fixture-vault.ts --corpus`*: the 320 corpus cards, the seed registry and
+  `tests/fixtures/prices/corpus.csv` in a temp vault with a config.
+- *Invariants test* (`tests/server/ingredients-invariants.test.ts`): recipe
+  file hashes and mtimes unchanged, and no commit touching `recipes/`, across a
+  forced sync, link, create, price entry, alias, edit, merge, cost of every
+  recipe, pantry search and the ingredient index; after those, deleting
+  `cache/` and reopening gives the same resolution rows, queue, registry,
+  current prices, ingredient index, costs, pantry tiers and ingredient view.
+  Every row has a resolution state.
+- *Tag `tarte`* added to the seed tag vocabulary (owner's suggestion): corpus
+  W501 13 → 0. Tests that needed an unknown tag use an invented one.
+- *Docs.* Every Q1–Q26 answer was already recorded phase by phase; Phase 9
+  filled the gaps: `INGREDIENTS.md` (Q4 no `item:` UI, Q8/Q9 price entry,
+  Q19 staples on by default and the four-section page, Q25 merge, status
+  line), `STORAGE.md` (shop suggestions, taxes, the vocab files holding
+  regional data, the three word-list files in the layout), `DATA-FLOW.md` (the
+  final bench table), `PLANNING.md`, `README.md`.
+
 ## Speed targets
 
 Measured by `gen-vault.ts --bench` at 5000 recipes (~60 000 ingredient rows),
 ~1000 registry entries and ~3000 price rows, on this machine. Record the numbers
 in the final report and in `DATA-FLOW.md` next to the plan 02 figures.
 
-| Operation | Target | Why |
-|---|---|---|
-| `sync --force`, with resolution | < 30 s (plan 02 target; today ~5 s, report the delta) | startup and `vault reindex` |
-| no-op sync | < 3 s | run on every start |
-| re-resolve every row after one registry edit | < 1.5 s | each resolve-queue click waits on it |
-| fuzzy candidates for one name | < 5 ms | the queue computes them for every row |
-| resolve queue page | < 100 ms | |
-| ingredient index page (1000 rows, any sort) | < 50 ms | the price-entry screen |
-| ingredient view | < 50 ms | |
-| cost of one recipe, with sub-recipes | < 5 ms | on every recipe page load |
-| pantry query, all tiers | < 10 ms (→ `INGREDIENTS.md`: "single-digit milliseconds") | |
-| append one price row and commit | < 500 ms | inline entry must feel instant; git dominates |
+| Operation | Target | Why | Measured (Phase 9) |
+|---|---|---|---|
+| `sync --force`, with resolution | < 30 s (plan 02 target; today ~5 s, report the delta) | startup and `vault reindex` | **6.5 s** (+1.5 s); first full sync 6.3 s |
+| no-op sync | < 3 s | run on every start | **1.37 s** |
+| re-resolve every row after one registry edit | < 1.5 s | each resolve-queue click waits on it | **~120 ms** (registry reload + re-resolve; 59 ms for the re-resolve alone); a queue "Relier" click with its commit 287 ms; the same edit through `vault sync` 1.40 s |
+| fuzzy candidates for one name | < 5 ms | the queue computes them for every row | **0.1 ms** |
+| resolve queue page | < 100 ms | | **10.4 ms** (30 rows); nav count 0.3 ms |
+| ingredient index page (1000 rows, any sort) | < 50 ms | the price-entry screen | **13.3–14.8 ms** |
+| ingredient view | < 50 ms | | **14.1 ms** (most used entry, 882 recipes; 14–19 ms over runs) |
+| cost of one recipe, with sub-recipes | < 5 ms | on every recipe page load | **0.8 ms** (3 nested sub-recipes); 0.4 ms without |
+| pantry query, all tiers | < 10 ms (→ `INGREDIENTS.md`: "single-digit milliseconds") | | **4.2 ms** (3 picked), **4.7 ms** (8 picked + avoid + allergen); first query, building the model, 52 ms |
+| append one price row and commit | < 500 ms | inline entry must feel instant; git dominates | **166 ms** (median of 5) |
+
+Measured 2026-09-27 on an AMD Ryzen 5 5600X: `npx tsx scripts/gen-vault.ts
+--bench`, 5000 recipes, ~33 000 ingredient rows (15 % unresolved or ambiguous),
+1000 registry entries, 3000 price rows. Every target met.
 
 ## Testing summary
 
@@ -969,7 +1011,24 @@ in the final report and in `DATA-FLOW.md` next to the plan 02 figures.
 - Speed targets met, or measured and reported.
 - Docs updated for every answered question; all tests and `svelte-check` pass.
 
+**Checked 2026-09-27 (Phase 9), item by item:**
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| Every item has a resolution state; queue most frequent first; never blocks a save | met | `resolution TEXT NOT NULL` (schema); `tests/server/ingredients-invariants.test.ts` "every ingredient line and option has a resolution state"; `tests/server/queue.test.ts` "most frequent first"; `tests/server/resolve.test.ts` "the paste check and the save result carry W303 / W305 / W307; the status ignores them"; bench: 33 186 rows, all in `alias`/`rule`/`recipe`/`none`/`ambiguous` |
+| R0, S0, SN, 0 wrong, R2, merges, traps | met except R2 (reported) | `tests/ingredients-corpus.test.ts`: R0 2881/2881, 0 wrong; S0 94.9 %; SN 98.5 % at N = 25; merges 0; T 0/20 fixture and seed; RA 36/40, 0 wrong; R1 8.4 % of distinct variants (reported); **R2 58.1 % < 85 %**, why in the Phase 2 notes |
+| No recipe file written by resolution, queue, price entry or cost | met | `tests/server/ingredients-invariants.test.ts` (new): hashes and mtimes of every recipe file unchanged and no commit touching `recipes/` across a forced sync, link, create, price, alias, edit, merge, cost, pantry, ingredient index |
+| Cost line shows coverage, never a complete-looking figure | met | `tests/unit/cost.test.ts` (coverage, staples, `to_taste`, optional, nothing-counts rule); `tests/e2e/cost.spec.ts` ("Pas assez de prix · 1 ingrédient sur 9" below 70 %) |
+| Pantry search: four tiers, missing inline | met | `tests/unit/pantry.test.ts`, `tests/server/pantry.test.ts`, `tests/e2e/pantry.spec.ts`, `tests/pantry-corpus.test.ts` |
+| Prices inline, one commit each | met | `tests/server/prices.test.ts` "appends one line and commits only prices.csv, as `price: <slug> <amount> / <pack>`", rollback on a failed commit; `tests/e2e/prices.spec.ts` |
+| Deleting `cache/` and restarting loses nothing | met | `tests/server/ingredients-invariants.test.ts` (new): after every P1.5 action, `cache/` deleted and the vault reopened, resolution rows, queue, registry, current prices, ingredient index, every cost, pantry tiers and an ingredient view are equal; also `tests/server/index.test.ts`, `tests/server/registry.test.ts` |
+| W302–W305, W501, W502, W606, W607 live; only W603 deferred | met | `src/lib/vault/rules/deferred.ts` lists W603 alone; `tests/unit/codes.test.ts`; `tests/check-corpus.test.ts` (corpus: W302 3, W304 0, W501 0 after the `tarte` tag, W502 0, W606 0, W607 3) |
+| Speed targets | met | "Speed targets" table above; `DATA-FLOW.md` |
+| Docs; tests; `svelte-check` | met | Phase 9 notes; `npm test` 1198 passed (1 skipped: the private corpus), `npx svelte-check` 0 errors, `npm run test:e2e` 45 passed |
+
 ## Final report
+
+Asked for:
 
 1. What was built, per phase, with commit hashes.
 2. Corpus metrics R0–R4 and traps, with the tuned thresholds.
@@ -977,6 +1036,65 @@ in the final report and in `DATA-FLOW.md` next to the plan 02 figures.
 4. Doc contradictions or undefined cases found beyond the questions below, each
    with a proposed doc change.
 5. Anything deferred, and why.
+
+**Report, 2026-09-27.**
+
+*1. Built.*
+
+| Phase | What | Commits |
+|---|---|---|
+| — | plan, questions decided | `1d19203`, `8ba466a` |
+| 0 | invented corpus (320 cards, answer key), harness, metrics, traps | `0632362`, `1d6f67d` |
+| 1 | registry: `ingredients/<slug>.md`, E801–W811, index tables, seed of 243, `vault ingredients seed` | `5bdf409` |
+| 2 | resolution: lookup keys, plural rules as data, ambiguity, W303/W305/W307; bench; disambiguation rules (E820/W821); seed of 268 with 10 rules, S0/SN/RA | `c7d0470`, `1e12f46`, `b629c46`, `b6ec39e` |
+| 3 | resolve queue `/resoudre`, `vault queue`, "Selon l'unité ou la préparation" | `3a2cd9d`, `04d6a79` |
+| 4 | `prices.csv` in the index (E812–W815), `/ingredients` with inline price entry | `3c61327` |
+| 5 | unit conversion (`vocab/conversions.yaml`), consumed cost with coverage on the recipe page | `658d24e`, `05acd7a` |
+| 6 | ingredient view `/ingredients/<slug>`: edits, "Relier ici", "Fusionner dans…" | `811c4e4` |
+| 7 | pantry search `/garde-manger`: four tiers, must/avoid, allergens | `8a54a90` |
+| 8 | W302, W304, W501, W502, W606, W607 on; word lists as vocab; AI template draft 3.3 | `1ca5b98`, `1fad39c` |
+| 9 | tag `tarte`; invariants test; bench on the app's alias path and a richer scale registry; `fixture-vault.ts --corpus`; docs | `50343f0`, `e6d596a`, `cb54aa4`, `c1bd36d`, `a406711`, and this commit |
+
+*2. Corpus metrics* (320 cards, 2927 names, 169 ids; `tests/ingredients-corpus.test.ts`).
+R0 2881/2881, 0 wrong, the 46 ambiguous occurrences left unresolved. R1
+26/310 distinct other variants (8.4 %), 67.3 % of occurrences, 0 wrong
+(reported, not a gate). R2 165/284 (58.1 %) in the top 3 — **not met**:
+English names and synonyms (*sucre brun* → cassonade) cannot be reached by
+normalization or trigrams without a translation table or looser matching,
+which decision 1 and the 0-wrong gate rule out; the seed and the queue cover
+them instead. Fuzzy: at most 3 candidates, min score 0.15 (the knee of the
+sweep). S0 (seed of 268 entries, 10 rules) 2778/2927 (94.9 %), 164/169 ids,
+0 wrong, 0 merges. SN 97.1 % at N = 10, 98.5 % at N = 25, 99.6 % at N = 50.
+RA 36 of 40 decidable ambiguous uses right, 0 wrong. R4: 254 queue actions
+from an empty registry cover 90 % (489 distinct keys). Traps 0/20 on the
+fixture registry and on the seed. Cost: a figure on 108 of 320 recipes,
+median coverage 57.1 %. Checker on the corpus: W302 3, W304 0, W501 0 (13
+before the `tarte` tag), W502 0, W606 0, W607 3, no error.
+
+*3. Speed*: the "Speed targets" table; every target met.
+
+*4. Doc contradictions and undefined cases.* All were settled in the phase
+that met them and recorded in the docs (each phase's notes): `INGREDIENTS.md`
+"matched ≥ 1" → "used ≥ 1" for pantry results (Phase 7); W302/W304 at the
+start **or** the end of a name (Phase 8, `VALIDATION.md`); the watcher does not
+commit an ingredient file with an error (Phase 1, `DATA-FLOW.md`); the
+`servings` fallback for a sub-recipe line in `piece` only when it serves
+exactly one (Phase 5, `INGREDIENTS.md`); `resolution = recipe` for sub-recipe
+lines and W307 for an unknown `item:` (Phase 2). Phase 9 found none new in the
+docs; in this plan, the "~60 000 ingredient rows" of the speed targets is
+~33 000 with the generator's ~6.6 lines per recipe (the figures are for that).
+
+*5. Deferred.*
+- Shopping cost, shopping list, price charts: P3 (out of scope).
+- A bulk "reçu" price mode (Q8 B): only if inline entry proves tedious.
+- An `item:` override UI (Q4): P2's form, if ever.
+- W603 (no dish photo): until photo upload (P2).
+- Ingredient slug rename: out of scope; merge covers duplicates.
+- The real vault: the owner runs `vault ingredients seed` (older vault) and
+  `vault sync`, then works the queue (`vault queue` shows progress). Expect
+  S0 below the corpus's 94.9 %: the seed's synonyms were chosen after seeing
+  the corpus (SN is the honest figure).
+- R2's 85 %: not reachable under decision 1 with 0 wrong (above).
 
 ## Out of scope
 
