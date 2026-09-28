@@ -13,7 +13,7 @@ import { stripMarkers } from '../vault/markers';
 import { SLUG_RE } from '../vault/slug';
 import { UNITS, type Lang } from '../vault/types';
 import type { VaultContext } from './context';
-import { FileWriteError, readVaultFile, writeAndCommit } from './files';
+import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
 import type { DB } from './index/db';
 import { getResolver, reresolve } from './index/resolve';
 import { ingredientPath, syncRegistry } from './registry';
@@ -54,10 +54,11 @@ export function queueCount(db: DB): number {
 		.get() as number;
 }
 
-type Group = Omit<QueueRow, 'candidates'>;
+export type QueueGroup = Omit<QueueRow, 'candidates'>;
+type Group = QueueGroup;
 
 /** The queue without candidates, most frequent key first. */
-function groups(db: DB): Group[] {
+export function queueGroups(db: DB): Group[] {
 	const uses = db
 		.prepare(
 			`SELECT x.key, x.name, x.resolution, x.slug, x.unit, r.lang FROM (
@@ -95,7 +96,7 @@ function groups(db: DB): Group[] {
 }
 
 export function resolveQueue(db: DB, vocab: Pick<VaultVocab, 'normalize'> | (() => Pick<VaultVocab, 'normalize'>), { limit = 50, offset = 0 } = {}): { total: number; rows: QueueRow[] } {
-	const all = groups(db);
+	const all = queueGroups(db);
 	const resolver = getResolver(db, vocab);
 	const entry = db.prepare('SELECT name, file_hash FROM registry WHERE slug = ?');
 	const rows = all.slice(offset, offset + limit).map((g): QueueRow => ({
@@ -110,14 +111,18 @@ export function resolveQueue(db: DB, vocab: Pick<VaultVocab, 'normalize'> | (() 
 
 /** The queue row of one key, if it is still in the queue. */
 function rowOf(db: DB, key: string): Group | undefined {
-	return groups(db).find((r) => r.key === key);
+	return queueGroups(db).find((r) => r.key === key);
 }
 
-/** Commit one ingredient file, then reload the registry and re-resolve. */
-async function commitEntry(ctx: VaultContext, vocab: VaultVocab, rel: string, text: string, message: string): Promise<string | undefined> {
+/**
+ * Commit ingredient files (one commit), then reload the registry and
+ * re-resolve. Shared with the ingredient view (edit, merge). The caller holds
+ * the lock.
+ */
+export async function commitEntries(ctx: VaultContext, vocab: VaultVocab, writes: FileWrite[], message: string): Promise<string | undefined> {
 	let commit: string | undefined;
 	try {
-		commit = await writeAndCommit(ctx, [{ rel, text }], message);
+		commit = await writeAndCommit(ctx, writes, message);
 	} catch (e) {
 		if (!(e instanceof FileWriteError)) throw e;
 		throw new QueueError(
@@ -138,14 +143,15 @@ async function commitEntry(ctx: VaultContext, vocab: VaultVocab, rel: string, te
 }
 
 /** Refuse a file that would not pass its own check. */
-function checked(text: string, slug: string, vocab: VaultVocab): RegistryEntry {
+export function checked(text: string, slug: string, vocab: VaultVocab): RegistryEntry {
 	const r = parseIngredient(text, { fileStem: slug, allergens: vocab.allergens.size ? new Set(vocab.allergens.keys()) : undefined });
 	const errors = r.diagnostics.filter((d) => d.severity === 'error');
 	if (!r.entry || errors.length) throw new QueueError(`l’ingrédient ne passerait pas la validation (${errors.map((d) => d.code).join(', ') || 'illisible'}).`);
 	return r.entry;
 }
 
-function current(ctx: VaultContext, slug: string, hash: string | undefined) {
+/** An entry file as on disk, refused when missing or changed since `hash` (when given). */
+export function current(ctx: VaultContext, slug: string, hash: string | undefined) {
 	if (!SLUG_RE.test(slug)) throw new QueueError('identifiant d’ingrédient invalide.');
 	const file = readVaultFile(ctx, ingredientPath(slug));
 	if (!file.hash) throw new QueueError(`l’ingrédient ${slug} n’existe pas.`);
@@ -173,7 +179,7 @@ export function linkKey(ctx: VaultContext, key: string, slug: string, hash?: str
 		}
 		if (text === file.text) throw new QueueError(`« ${form} » est déjà un nom de ${slug}.`);
 		checked(text, slug, vocab);
-		return { commit: await commitEntry(ctx, vocab, ingredientPath(slug), text, `ingredient: ${slug} + "${form}"`) };
+		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} + "${form}"`) };
 	});
 }
 
@@ -206,7 +212,7 @@ export function createFromKey(ctx: VaultContext, key: string, input: NewIngredie
 			body: ''
 		});
 		checked(text, slug, vocab);
-		return { commit: await commitEntry(ctx, vocab, ingredientPath(slug), text, `ingredient: add ${slug}`), slug };
+		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: add ${slug}`), slug };
 	});
 }
 
@@ -224,7 +230,7 @@ export function unlinkKey(ctx: VaultContext, key: string, slug: string, hash: st
 		if (text === file.text) throw new QueueError(`ce nom n’est plus un nom de ${slug} ; rechargez la page.`);
 		checked(text, slug, vocab);
 		const names = ctx.db.prepare('SELECT name FROM ingredient_names WHERE slug = ? AND key = ?').pluck().all(slug, key) as string[];
-		return { commit: await commitEntry(ctx, vocab, ingredientPath(slug), text, `ingredient: ${slug} - "${names[0] ?? key}"`) };
+		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} - "${names[0] ?? key}"`) };
 	});
 }
 
@@ -268,7 +274,7 @@ export function addRule(ctx: VaultContext, key: string, slug: string, input: Rul
 		checked(text, slug, vocab);
 		const before = row.count;
 		const cond = [rule.lang && `lang: ${rule.lang}`, unit.length && `unit: ${unit.join(', ')}`, words.length && `words: ${words.join(', ')}`].filter(Boolean).join('; ');
-		const commit = await commitEntry(ctx, vocab, ingredientPath(slug), text, `ingredient: ${slug} + rule "${form}" (${cond})`);
+		const commit = await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} + rule "${form}" (${cond})`);
 		return { commit, resolved: before - (rowOf(ctx.db, key)?.count ?? 0) };
 	});
 }

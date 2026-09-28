@@ -469,3 +469,100 @@ export function proposeSlug(name: string): string {
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-|-$/g, '');
 }
+
+// --- Edits from the ingredient view (plan 03, Phase 6) -------------------------
+
+/** The fields the ingredient view edits; absent: left as it is. */
+export interface EntryPatch {
+	names?: Record<Lang, string[]>;
+	/** Appended to `when` (a merge), skipping rules already there. */
+	addRules?: NameRule[];
+	category?: Category;
+	/** null removes it. */
+	defaultUnit?: Unit | null;
+	staple?: boolean;
+	auGout?: boolean;
+	/** null removes it. */
+	density?: number | null;
+	/** Replaces the mapping; empty removes it. */
+	weights?: Partial<Record<Unit, number>>;
+	substitutes?: string[];
+	allergens?: string[];
+	/** Appended to the prose body as a new paragraph (a merge keeps the absorbed entry's notes). */
+	appendBody?: string;
+}
+
+/**
+ * The file with the patch applied, edited as a YAML document so comments and
+ * the order of untouched keys survive; a key the file lacks is inserted where
+ * `REGISTRY_KEYS` puts it. Lists and `weights` are written in flow style, like
+ * the serializer. Unchanged text when the patch changes nothing.
+ */
+export function withPatch(text: string, patch: EntryPatch): string {
+	const plainRule = (r: NameRule) => JSON.stringify(RULE_KEYS.map((k) => r[k] ?? null));
+	const edited = editDoc(text, (root, doc) => {
+		const before = doc.toString();
+		const order = (k: string) => (REGISTRY_KEYS as readonly string[]).indexOf(k);
+		const put = (key: (typeof REGISTRY_KEYS)[number], value: unknown) => {
+			if (value === undefined) return;
+			if (value === null) {
+				root.delete(key);
+				return;
+			}
+			const node = doc.createNode(value) as { flow?: boolean; items?: unknown[] };
+			const flowAll = (n: unknown) => {
+				if (isSeq(n) || isYamlMap(n)) {
+					n.flow = true;
+					for (const it of n.items) flowAll(isYamlMap(n) ? (it as { value: unknown }).value : it);
+				}
+			};
+			if (key === 'names' && isYamlMap(node)) for (const p of node.items) flowAll(p.value);
+			else flowAll(node);
+			if (root.has(key)) {
+				root.set(key, node);
+				return;
+			}
+			const at = root.items.findIndex((p) => isScalar(p.key) && order(String(p.key.value)) > order(key));
+			const pair = doc.createPair(key, node) as (typeof root.items)[number];
+			if (at < 0) root.items.push(pair);
+			else root.items.splice(at, 0, pair);
+		};
+		if (patch.names) {
+			const names = Object.fromEntries(NAME_LANGS.map((l) => [l, (patch.names![l] ?? []).map((n) => normalizeText(n).replace(/\s+/g, ' ').trim()).filter(Boolean)]));
+			put('names', names);
+		}
+		if (patch.addRules?.length) {
+			const had: unknown = root.get('when', true);
+			const seen = new Set(isSeq(had) ? had.items.map((r) => (isYamlMap(r) ? plainRule(r.toJSON() as NameRule) : '')) : []);
+			const fresh = patch.addRules.filter((r) => !seen.has(plainRule(r)));
+			if (fresh.length) {
+				let when: unknown = had;
+				if (!isSeq(when)) {
+					when = new YAMLSeq();
+					const at = root.items.findIndex((p) => isScalar(p.key) && p.key.value === 'names');
+					root.items.splice(at + 1, 0, doc.createPair('when', when) as (typeof root.items)[number]);
+				}
+				for (const r of fresh) {
+					const node = doc.createNode(Object.fromEntries(RULE_KEYS.filter((k) => r[k] !== undefined).map((k) => [k, r[k]]))) as YAMLMap;
+					node.flow = true;
+					for (const p of node.items) if (isSeq(p.value)) p.value.flow = true;
+					(when as YAMLSeq).add(node);
+				}
+			}
+		}
+		put('category', patch.category);
+		put('default_unit', patch.defaultUnit);
+		put('staple', patch.staple);
+		if (patch.auGout !== undefined) put('au_gout', patch.auGout ? true : null);
+		put('density', patch.density);
+		if (patch.weights) put('weights', Object.keys(patch.weights).length ? patch.weights : null);
+		put('substitutes', patch.substitutes);
+		put('allergens', patch.allergens);
+		return doc.toString() !== before;
+	});
+	const extra = patch.appendBody ? normalizeText(patch.appendBody).trim() : '';
+	if (!extra) return edited;
+	const { yaml, rest } = splitFile(edited);
+	const body = rest.replace(/\s+$/, '');
+	return `---\n${yaml}---\n${body ? `${body}\n\n` : '\n'}${extra}\n`.normalize('NFC');
+}

@@ -283,9 +283,10 @@ describe('sub-recipes (Q16 A)', () => {
 
 describe('links', () => {
 	it('a queue row id needs no escaping', async () => {
-		const { queueRowId, queueHref, ingredientHref } = await import('../../src/lib/render/links');
+		const { queueRowId, queueHref, ingredientHref, ingredientRowHref } = await import('../../src/lib/render/links');
 		expect(queueRowId('creme 35 %')).toBe('k-creme-35-');
 		expect(queueHref("huile d'olive")).toBe('/resoudre#k-huile-d-olive');
-		expect(ingredientHref('farine')).toBe('/ingredients#i-farine');
+		expect(ingredientHref('farine')).toBe('/ingredients/farine');
+		expect(ingredientRowHref('farine')).toBe('/ingredients#i-farine');
 	});
 });

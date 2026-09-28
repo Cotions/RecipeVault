@@ -19,6 +19,7 @@ import { lookupKey } from '../src/lib/ingredients/normalize';
 import { loadVocab } from '../src/lib/server/vocab';
 import { queueCount, resolveQueue } from '../src/lib/server/queue';
 import { costOfRecipe } from '../src/lib/server/cost';
+import { ingredientView } from '../src/lib/server/ingredient';
 import { ingredientIndex, INDEX_SORTS } from '../src/lib/server/ingredients';
 import { appendPrice } from '../src/lib/server/prices';
 import { PRICE_HEADER } from '../src/lib/ingredients/prices';
@@ -207,6 +208,10 @@ if (bench) {
 		time(`cost of one recipe (depth ${deepest[1]}, ${c.lines.length} lines)`, () => costOfRecipe(ctx.db, deepest[0], loadConversions(ctx.paths.vocab)), 50);
 	}
 	time('cost of one recipe, no sub-recipe', () => costOfRecipe(ctx.db, written[0], loadConversions(ctx.paths.vocab)), 50);
+	// Plan 03, Phase 6: the ingredient view, for the most used entry (the worst case).
+	const top = ctx.db.prepare('SELECT item FROM ingredients WHERE item IS NOT NULL GROUP BY item ORDER BY count(*) DESC LIMIT 1').pluck().get() as string;
+	const uses = ingredientView(ctx.db, top, vocab)!.uses.length;
+	time(`ingredient view (${top}, ${uses} recipes)`, () => ingredientView(ctx.db, top, loadVocab(ctx.paths.vocab)), 20);
 	// A real vault has every file committed: git's first look at 6000 untracked files is not what an append costs.
 	await commitPaths(dir, ['recipes', 'ingredients', 'prices.csv'], 'scale fixture', { name: 'Scale Test', email: 'scale@example.invalid' });
 	const appends: number[] = [];

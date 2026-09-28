@@ -40,7 +40,7 @@ test('a recipe’s cost appears once its prices are entered, and follows the ser
 test('ingredient names link to the index, or to their row in the resolve queue', async ({ page }) => {
 	await page.goto('/r/lasagna-bolognaise');
 	const list = page.locator('section.ingredients');
-	await expect(list.getByRole('link', { name: 'tomates concassées' })).toHaveAttribute('href', '/ingredients#i-tomates-concassees');
+	await expect(list.getByRole('link', { name: 'tomates concassées' })).toHaveAttribute('href', '/ingredients/tomates-concassees');
 	await expect(page.locator('.cost .line')).toContainText('Pas assez de prix · 1 ingrédient sur 9');
 
 	const unlinked = list.locator('li', { hasText: 'concentré de tomate' }).getByRole('link', { name: 'non relié' });

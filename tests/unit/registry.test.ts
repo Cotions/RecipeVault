@@ -246,3 +246,24 @@ describe('the seed registry (docs/INGREDIENTS-SEED.yaml)', () => {
 		expect(keyOf.get(lookupKey('crème 35 %'))).not.toBe(keyOf.get(lookupKey('crème 15 %')));
 	});
 });
+
+describe('withPatch (the ingredient view, plan 03 Phase 6)', () => {
+	const text = '---\nslug: sel\n# a comment\ncategory: epice\nnames:\n  fr: [sel]\n  en: [salt]\nstaple: true\ndensity: 1.2\nsubstitutes: []\nallergens: []\n---\n\nBody.\n';
+	it('sets, inserts in key order and removes fields, keeping comments and the body', async () => {
+		const { withPatch, parseIngredient } = await import('../../src/lib/ingredients/registry');
+		const out = withPatch(text, { names: { fr: ['sel', ' gros  sel '], en: [] }, defaultUnit: 'g', density: null, weights: { pinch: 0.4 }, auGout: true, allergens: ['sulfites'] });
+		expect(out).toBe(
+			'---\nslug: sel\n# a comment\ncategory: epice\nnames:\n  fr: [sel, gros sel]\n  en: []\ndefault_unit: g\nstaple: true\nau_gout: true\nweights: {pinch: 0.4}\nsubstitutes: []\nallergens: [sulfites]\n---\n\nBody.\n'
+		);
+		expect(parseIngredient(out, { fileStem: 'sel' }).diagnostics).toEqual([]);
+		expect(withPatch(out, { auGout: false, weights: {}, defaultUnit: null })).not.toMatch(/au_gout|weights|default_unit/);
+	});
+	it('is the same text when nothing changes; appends rules once and notes as a paragraph', async () => {
+		const { withPatch } = await import('../../src/lib/ingredients/registry');
+		expect(withPatch(text, { staple: true, density: 1.2 })).toBe(text);
+		const r = withPatch(text, { addRules: [{ names: ['gros sel'], unit: ['container'] }], appendBody: 'Autre.' });
+		expect(r).toContain('  en: [salt]\nwhen:\n  - {names: [gros sel], unit: [container]}\nstaple: true');
+		expect(r.endsWith('\nBody.\n\nAutre.\n')).toBe(true);
+		expect(withPatch(r, { addRules: [{ names: ['gros sel'], unit: ['container'] }] })).toBe(r);
+	});
+});

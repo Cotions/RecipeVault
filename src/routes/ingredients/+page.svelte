@@ -6,6 +6,7 @@
 	import { t } from '$lib/i18n/fr';
 	import { codeText } from '$lib/i18n/diagnostics';
 	import { formatMoney, formatPack } from '$lib/render/money';
+	import { ingredientHref } from '$lib/render/links';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import type { PageProps } from './$types';
 
@@ -158,7 +159,7 @@
 			{#each data.rows as r (r.slug)}
 				<tr id="i-{r.slug}" class:priced={!!r.price} class:open={editing === r.slug}>
 					<th scope="row" class="nom">
-						<span class="name">{r.name}</span>
+						<a class="name" href={ingredientHref(r.slug)}>{r.name}</a>
 						<code>{r.slug}</code>
 						{#if r.staple}<span class="tag">{t.ingredients.stapleMark}</span>{/if}
 					</th>
@@ -328,6 +329,7 @@
 	}
 	.name {
 		font-weight: 600;
+		color: inherit;
 	}
 	code,
 	.meta,

@@ -535,8 +535,8 @@ reload, the price is there and `prices.csv` gained one line.
 - The watcher reloads `prices.csv` and commits it even with a bad line (data,
   not a document; the line is listed); `vault sync` prints the price summary
   and exits 1 when a line was skipped; `vault check --dir <vault>` checks it.
-- Rows carry an anchor (`/ingredients#i-<slug>`); the ingredient view
-  (`/ingredients/<slug>`) is Phase 6.
+- Rows carry an anchor (`/ingredients#i-<slug>`, where the ingredient view's
+  "Saisir un prix" goes); each name links to the view (Phase 6).
 
 ### Phase 5 — unit conversion and cost on the recipe page
 
@@ -639,8 +639,8 @@ scaling in the browser.
   non convertible`…) and priced ones with their cost. `RecipeView` takes an
   optional `cost` snippet and `itemLinks`; the paste preview passes neither
   and is unchanged. Kitchen mode is unchanged.
-- Links: a resolved name links to `/ingredients#i-<slug>` (the index row; the
-  ingredient view is Phase 6). An unresolved or ambiguous one gets a `non
+- Links: a resolved name links to the ingredient view, `/ingredients/<slug>`
+  (first the index row, `/ingredients#i-<slug>`, until Phase 6). An unresolved or ambiguous one gets a `non
   relié` link to its queue row, `/resoudre#k-<key>` (the key with every
   non-letter/digit run as `-`, so no escaping; the queue rows now carry that
   id). No new diagnostic codes.
@@ -693,6 +693,48 @@ Everything `INGREDIENTS.md` §Two views, Ingredient view lists:
 
 Tests: server queries. E2E: add an alias from the view, and a recipe using it
 becomes resolved.
+
+**Implementation notes (Phase 6).**
+
+- `src/lib/server/ingredient.ts`: `ingredientView` (the data), `addAlias`,
+  `editEntry`, `mergeEntry`. They reuse the queue's commit path, now exported
+  from `queue.ts` (`commitEntries` for several files in one commit, `checked`,
+  `current` for the stale guard); errors are `QueueError`s. "Relier ici" is the
+  queue's `linkKey` with this entry's hash. The frontmatter is edited in place
+  by `withPatch` (`src/lib/ingredients/registry.ts`): keys set, inserted in
+  `REGISTRY_KEYS` order or removed; comments, untouched keys and the body kept.
+- The unit for "sorted by quantity" and the total (Q26 A): `default_unit`;
+  where an entry has none, the current price's pack unit, else the unit most
+  used on its lines (the plan did not say; the page names which one it used).
+  Conversion is the cost's (`measure` / `packsOf`: fixed factors, the entry's
+  density and weights, a container's size in the line's `note`), per recipe
+  the sum of its lines at their upper `qty`. A recipe with any line that does
+  not convert comes after the rest, out of the total, its written amounts
+  shown. `or` options are listed last ("au choix"), out of the total.
+- Price history: every row, oldest first in the data, newest first on the
+  page; the change is of the unit price against the previous usable row, only
+  when the two packs compare (same measure, or through the density); rows in
+  another currency are shown, marked, and skipped for the change.
+- Drift: every queue key (unresolved or ambiguous) whose candidates include the
+  entry; an ambiguous one links to its queue row instead of "Relier ici".
+- Edit form: aliases one per line per language, category, `default_unit`,
+  `staple`, `au_gout` (the plan's list plus the two flags the registry has),
+  density and weights (decimal comma accepted), substitutes (existing slugs,
+  not itself), allergens as checkboxes from `vocab/allergens.yaml`. The body is
+  left to a text editor. Commit `ingredient: edit <slug>`; a save that changes
+  nothing is refused.
+- Merge (Q25 B): names (deduplicated by lookup key), `when` rules, substitutes
+  (minus both slugs) and allergens (union: an allergen is never dropped) move
+  to the target; the absorbed notes are appended; other entries listing the
+  absorbed slug as a substitute are rewritten to the target in the same
+  commit; the file is deleted. Density, weights, category, `default_unit` and
+  flags stay the target's. Refused, besides price rows (Q25), when a recipe
+  names the absorbed slug in `item:`: rewriting it would touch a recipe, and
+  leaving it would turn a deliberate override into W307. The page redirects
+  to the target's view.
+- No new diagnostic codes: refusals are action messages, like the queue's.
+- Speed (`gen-vault.ts --bench`, 5000 recipes): the view of the most used
+  entry (1312 recipes) ~13.5 ms (target < 50 ms).
 
 ### Phase 7 — pantry search (`/garde-manger`)
 

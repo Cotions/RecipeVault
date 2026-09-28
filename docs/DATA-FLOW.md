@@ -118,6 +118,29 @@ Writes of every kind (recipes, family labels, ingredients) go through one helper
 `src/lib/server/files.ts`. The nav shows "À relier (N)" while N > 0; `vault
 queue [--limit N]` prints the same queue.
 
+### Ingredient edits: the ingredient view
+
+`/ingredients/<slug>` (plan 03, Phase 6) shows one entry — names and rules,
+allergens, density and weights, the current price and the price history (with
+the change of the unit price from the previous row when the packs compare), the
+recipes using it sorted by quantity in its `default_unit` (else the current
+pack's unit, else the unit most used; quantities that do not convert come after,
+out of the total), the vault total, substitutes both ways, and the unresolved
+names whose queue candidates include it. Its edits go through the same path and
+guards as the queue (entry hash, YAML edit, own check, one commit, re-resolve):
+
+- **Ajouter un nom**: commit `ingredient: <slug> + "<name>"`. **Relier ici** on
+  a drifting name is the queue's Relier.
+- **Modifier**: names, category, `default_unit`, `staple`, `au_gout`,
+  `density`, `weights`, `substitutes` (existing entries only), `allergens`
+  (from `vocab/allergens.yaml`). Commit `ingredient: edit <slug>`.
+- **Fusionner dans…** (Q25 B): the absorbed entry's names, rules, substitutes
+  and allergens join the target, its notes are appended, entries naming it as a
+  substitute name the target, and its file is deleted: one commit,
+  `ingredient: merge <from> into <into>`. Refused when `prices.csv` has rows
+  for it (the file stays append-only) or a recipe names it in `item:` (the
+  app does not rewrite recipes for ingredient edits).
+
 ### Price entry: the ingredient index
 
 `/ingredients` (plan 03, Phase 4) lists every registry entry with its category,

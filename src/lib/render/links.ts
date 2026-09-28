@@ -1,7 +1,10 @@
 // Where an ingredient name links (plan 03, Phase 5). Browser-safe.
 
-/** Its row in the ingredient index; the ingredient view (/ingredients/<slug>) is Phase 6. */
-export const ingredientHref = (slug: string) => `/ingredients#i-${slug}`;
+/** The ingredient view (plan 03, Phase 6). Slugs are lowercase ASCII and hyphens: no escaping. */
+export const ingredientHref = (slug: string) => `/ingredients/${slug}`;
+
+/** Its row in the ingredient index, where a price is entered. */
+export const ingredientRowHref = (slug: string) => `/ingredients#i-${slug}`;
 
 /**
  * The id of a key's row in the resolve queue. Keys are folded (lowercase, no
