@@ -275,6 +275,32 @@ rows) ~14 ms whatever the sort, the cost of one recipe ~0.4 ms (~1 ms with a
 chain of 4 sub-recipes, 36 lines), appending one price and committing it
 ~200 ms (git dominates).
 
+Final figures for P1.5 (plan 03, Phase 9; AMD Ryzen 5 5600X), on 5000
+recipes (~33 000 ingredient rows, 15 % of them unresolved or ambiguous), a
+registry of 1000 entries (the seed plus invented ones with staples, densities,
+weights, substitutes and allergens, used by 30 % of the lines) and 3000 price
+rows:
+
+| Operation | Measured | Target |
+|---|---|---|
+| `sync --force`, with resolution | ~6.5 s (~5 s before P1.5) | < 30 s |
+| no-op sync | ~1.4 s | < 3 s |
+| re-resolve every row | ~60 ms | — |
+| one alias edit: registry reload + re-resolve (queue action, watcher) | ~120 ms | < 1.5 s |
+| one alias edit picked up by `vault sync` (every recipe file hashed) | ~1.4 s | — |
+| a queue "Relier" click, commit included | ~290 ms | — |
+| fuzzy candidates for one name | ~0.1 ms | < 5 ms |
+| resolve queue page (30 rows) | ~10 ms | < 100 ms |
+| ingredient index page (1000 rows, worst sort) | ~15 ms | < 50 ms |
+| ingredient view (most used entry, 882 recipes) | ~14–19 ms | < 50 ms |
+| cost of one recipe (3 nested sub-recipes / none) | ~0.8 ms / ~0.4 ms | < 5 ms |
+| pantry search (3 picked / 8 picked + avoid + allergen) | ~4 ms / ~5 ms; ~50 ms for the first, which builds the model | < 10 ms |
+| append one price and commit | ~170 ms | < 500 ms |
+
+A queue action or an outside edit of one ingredient file reloads the registry
+alone (the changed files, then the names tables) and re-resolves from stored
+keys; only `vault sync` walks the recipe files.
+
 ## vault sync
 
 ```

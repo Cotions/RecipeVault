@@ -1,6 +1,7 @@
 # RecipeVault — Planning
 
-Status: P1 (read app) built — see Phases. Last updated 2026-09-27.
+Status: P1 (read app) and P1.5 (ingredients) built — see Phases. Next: P2 (her
+write path). Last updated 2026-09-27.
 
 ## Goal
 
@@ -355,12 +356,21 @@ mode — see its section above. Also: web import (schema.org JSON-LD), the
 trash, a codes-only paste log with `vault stats`, and an offline service worker
 for kitchen mode. The UI is in French, all strings in `src/lib/i18n/fr.ts`.
 
-**P1.5 — ingredients**
+**P1.5 — ingredients** — *built 2026-09-27 (`docs/plans/03-ingredients.md`).*
 Registry, name resolution with the resolve queue, ingredient view, ingredient index
-with inline price editing, pantry search, cost on the recipe page. Deliberately
-after the read app: resolution quality depends on having a few hundred real recipes
-to resolve against, and the resolve queue is worth building only once there is a
-backlog to work through.
+with inline price editing, pantry search, cost on the recipe page. Planned for
+after the read app, because resolution quality depends on having a few hundred
+real recipes to resolve against. The owner chose not to wait: an invented corpus
+of 320 Québécois cards (`tests/fixtures/corpus/`) with an answer key stood in,
+and the owner runs `vault sync` on the real vault. Built: a seed registry of 268
+entries (`docs/INGREDIENTS-SEED.yaml`, `vault ingredients seed`), resolution by
+alias, plural rules and disambiguation rules (never by fuzzy match), the resolve
+queue (`/resoudre`, `vault queue`), `prices.csv` with inline entry
+(`/ingredients`), consumed cost with coverage, the ingredient view
+(`/ingredients/<slug>`, with "Fusionner dans…"), pantry search
+(`/garde-manger`), and the checker codes that waited for the registry and
+vocabularies (W302–W305, W501, W502, W606, W607). All 26 open questions of the
+plan were decided; each is recorded in the doc it concerns.
 
 Soft delete and the trash (`/corbeille`) come forward from P2 into P1: a paste
 box without delete forces hand-editing the vault for every mistake.
@@ -382,13 +392,21 @@ shopping list with whole-pack costs, meal planner, price history charts.
    No public exposure. No login in P1 — acceptable only because the network is
    the boundary; commits are attributed to `git_author` from the config.
    Accounts come in P2. See `docs/DEPLOY.md` and `docs/DATA-FLOW.md`.
-2. **Currency and shop** — CAD (Quebec). Prices are shop-specific; one price per
-   ingredient, or per shop? One price with a `source` label is the simple answer,
-   and probably right — comparing shops is a different app.
-3. **Who prices ingredients?** Entering a few hundred prices is tedious. Her, from
-   receipts, as a low-effort ongoing thing? Or scraped, which is fragile and
-   shop-dependent? Manual entry sorted by "used in most recipes, unpriced" gets
-   most of the value from the first 50 entries.
+2. **Currency and shop** — *decided 2026-09-27 (plan 03, Q7 and decision 2):*
+   one current price per ingredient, the latest row of `prices.csv` whatever the
+   shop; the shop is a label shown next to it. Comparing shops is a different
+   app. Currency and shops come from the config, not the code: `currency`
+   (default `CAD`) is the one prices are costed in (a row in another currency is
+   kept and shown, never costed), `locale` (default `fr-CA`) formats money, and
+   shop names are free text, suggested from those already in `prices.csv` plus
+   an optional `shops` list. Taxes are not modelled: basic groceries are
+   zero-rated. See `docs/STORAGE.md` ("Prices") and `docs/DEPLOY.md`.
+3. **Who prices ingredients?** — *decided 2026-09-27 (plan 03, Q8 and Q9):* she
+   does, by hand, inline on the ingredient index (`/ingredients`), sorted by
+   "used in most recipes, not priced" — the first 50 entries give most of the
+   value. One row appended and one commit per price. No scraping (fragile and
+   shop-dependent). Hand-editing `prices.csv` in a spreadsheet also works; a
+   bulk "receipt" mode can come later if entry proves tedious.
 4. **Does she want her own tags?** A controlled vocabulary keeps filters usable
    but means she cannot invent a tag freely. Middle ground: she proposes, it lands
    as `pending` until mapped.

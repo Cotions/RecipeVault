@@ -35,9 +35,12 @@ Data splits by how it changes, because each kind wants a different format:
 │   └── ...
 ├── vocab/
 │   ├── allergens.yaml               # allergen slug → { fr, en } labels
+│   ├── brands.yaml                  # brand words for W607
 │   ├── conversions.yaml             # unit factors for cost: g per mass unit, ml per volume unit
+│   ├── descriptors.yaml             # size words for W304
 │   ├── families.yaml                # family slug → { fr, en } labels, set on the family page
 │   ├── normalize.yaml               # plural rules for ingredient lookup
+│   ├── participles.yaml             # preparation words for W302
 │   ├── tags.yaml                    # canonical tags + aliases
 │   └── units.yaml                   # canonical units + aliases
 ├── prices.csv                       # append-only price history
@@ -58,7 +61,7 @@ Outside the vault, next to the config:
 
 ```
 ~/.config/recipevault/
-├── config.json                      # vault_directory, port
+├── config.json                      # vault_directory, port, git, currency, locale, shops
 └── users.json                       # accounts, argon2id hashes
 ```
 
@@ -157,8 +160,12 @@ Behaviour (plan 03, Phase 4, Q7–Q9):
   dot (a decimal comma is read in a quoted cell); `pack_unit` is a canonical
   unit (`VOCAB.md`); text holding a comma is quoted.
 - **One current price per ingredient** (Q7): the latest row by `date`
-  whatever the shop, a same-day tie going to the later line. The shop is a
-  label shown next to the price.
+  whatever the shop, a same-day tie going to the later line, among the rows in
+  the config's `currency`. The shop is a label shown next to the price: free
+  text, suggested from the shops already in the file plus the config's optional
+  `shops` list (plan 03, decision 2; `DEPLOY.md`).
+- `amount` is what was paid for the pack. Taxes are not modelled: basic
+  groceries are zero-rated, so a dish costs the sum of shelf prices.
 - A row in another currency than the config's `currency` is kept and shown,
   never used for cost. A row whose `ingredient` names no registry entry is kept
   and used once the entry exists. A line that does not read is skipped and
@@ -177,6 +184,14 @@ Tags, families, and units grow as she uses the app — a new family is created e
 time she adds the first tarte. That is data, so it lives in `vocab/` in the vault,
 edited by the app. `docs/VOCAB.md` becomes the seed: the starting lists copied into
 a new vault, plus the rules.
+
+The same holds for everything regional the ingredient features need (plan 03,
+decision 1): plural rules, allergens, unit conversion factors, and the word
+lists of W302, W304 and W607 are `vocab/` files seeded from `VOCAB.md`; regional
+ingredient names are aliases and rules in `ingredients/`. The code holds no
+word of a language or a region beyond the canonical unit list. `vault init`
+writes them all; `vault ingredients seed` adds the ones an older vault lacks,
+never overwriting a file or an entry.
 
 ### Media: per-recipe folder, originals never modified
 

@@ -1,6 +1,10 @@
 # Ingredients — registry, cost, pantry search
 
-Draft 1. Depends on `RECIPE-SCHEMA.md` (structured ingredients) and `VOCAB.md`.
+Built in P1.5 (`plans/03-ingredients.md`, 2026-09-27); the plan's decisions
+(Q1–Q26) are recorded here and in `STORAGE.md`, `DATA-FLOW.md`, `VALIDATION.md`
+and `VOCAB.md`. Depends on `RECIPE-SCHEMA.md` (structured ingredients) and
+`VOCAB.md`. Nothing regional is in code: names are aliases and rules in the
+registry, plural rules, allergens and unit factors are `vocab/` files.
 
 Ingredients are first-class objects, not strings inside recipes. That is what makes
 three features possible: cost per recipe, "what can I make with what I have", and
@@ -148,7 +152,9 @@ registry. So at index time (on save, on sync, on an external edit):
    apostrophe and hyphen variants unified, then folded (lowercase, no accents,
    `œ` → `oe`), spaces around `'` and `-` removed, and `35 %` written `35%`.
 2. **`item:` override.** An entry with `item:` is taken as written. If no
-   `ingredients/<item>.md` exists: W307.
+   `ingredients/<item>.md` exists: W307. The app never writes `item:` (Q4): an
+   override is a hand edit (or, later, the P2 form), so no resolution or queue
+   action touches a recipe file.
 3. **Sub-recipe.** An entry with `recipe:` resolves to no registry item
    (`resolution = recipe`); the sub-recipe's own ingredients count instead.
 4. **Rules.** The disambiguation rules naming the key (exactly, else by its
@@ -293,6 +299,9 @@ A sub-recipe line counts the sub-recipe's own lines, recursively; with
 (→ `RECIPE-SCHEMA.md` §Sub-recipes). Lines not linked to the registry are left
 out of `required` and counted: the result says "+ N ingrédients non reliés".
 
+"Assume staples" is **on** by default (Q19): an assumed staple leaves
+`required` unless she picked it, and a picked staple counts, matched.
+
 A recipe is a result only when `used ≥ 1`: with the staples assumed, every
 recipe would otherwise match through its flour and salt, and a recipe made of
 staples alone does not answer "what can I make with this".
@@ -311,6 +320,11 @@ top of the list should be recipes she actually likes.
 
 Every result shows its missing ingredients inline. A result you cannot act on is
 noise; "missing: crème fraîche" is a decision.
+
+The page (`/garde-manger`, Q19) is one scrolling list of four sections in tier
+order — *Prêt à cuisiner*, *Avec une substitution*, *Presque*, *Idées* — each
+showing 20 results and "Voir les N autres". A recipe belongs to the first tier
+it meets.
 
 ### Substitutions make this much better
 
@@ -336,14 +350,15 @@ Pinned ("must use") ingredients count as had.
 Each recipe's needs are read once from the index (`ingredients.item`,
 `ingredient_or`, sub-recipes flattened) and kept in memory until the index
 changes; a search is one pass over them. At 5000 recipes and ~60 000 ingredient
-rows: ~50 ms to build, ~3–4 ms per search after that.
+rows: ~50 ms to build, ~3–5 ms per search after that.
 
 ## Two views
 
 **Recipe view** — what it is today, plus a cost line (consumed cost total and per
 serving, with coverage), and per-ingredient links into the ingredient view.
 
-**Ingredient view** — `/ingredients/tomates-concassees`:
+**Ingredient view** — `/ingredients/tomates-concassees` (edits and merge:
+`DATA-FLOW.md`, "Ingredient edits: the ingredient view"):
 - canonical name, all aliases, category, allergens
 - pack size and current price, price trend, staleness warning
 - every recipe using it, sorted by how much it uses — the answer to "I have a kilo
@@ -352,8 +367,18 @@ serving, with coverage), and per-ingredient links into the ingredient view.
   obviously right or wrong
 - substitutes, and what it substitutes for
 - unresolved written names mapped onto it, so drift is visible
+- "Fusionner dans…" (Q25): its names, rules, substitutes and allergens move to
+  another entry and its file is deleted, in one commit; refused while
+  `prices.csv` has rows for it (the file stays append-only) or a recipe names it
+  in `item:`
 
 **Ingredient index** — sortable table of every ingredient: name, category, price,
 number of recipes, priced or not. This is the working screen for entering prices,
 so it needs inline editing. Sorting by "used in most recipes, unpriced" gives the
 exact order to enter prices in for maximum benefit.
+
+Prices are entered by hand (Q8), on this screen or in `prices.csv` with a
+spreadsheet; no scraping. Each row opens an inline editor: amount, pack size,
+pack unit (the entry's `default_unit` by default, Q26), shop (suggested from the
+shops already in `prices.csv` plus the config's `shops`), date (today). Saving
+appends one row and makes one commit (Q9).
