@@ -15,7 +15,7 @@ export interface AnswerKey {
 	recipes: number;
 	occurrences: number;
 	ingredients: Record<string, { category: string; staple?: boolean; variants: string[] }>;
-	ambiguous: Record<string, { candidates: string[]; occurrences: number }>;
+	ambiguous: Record<string, { candidates: string[]; occurrences: number; given: { file: string; path: string; id: string | null }[] }>;
 	confusables: [string, string][];
 }
 
@@ -29,6 +29,12 @@ export interface Occurrence {
 	/** Sub-recipe line. */
 	recipe?: string;
 	item?: string;
+	/** The line, for disambiguation rules. */
+	unit?: string;
+	prep?: string;
+	note?: string;
+	/** For a use of an ambiguous name: the id its line means, or null when the card does not say. */
+	given?: string | null;
 }
 
 export interface Corpus {
@@ -57,6 +63,8 @@ export function loadCorpus(dir = CORPUS_DIR): Corpus {
 	};
 	for (const [id, v] of Object.entries(key.ingredients)) for (const n of v.variants) own(n, id);
 	for (const n of Object.keys(key.ambiguous ?? {})) own(n, AMBIGUOUS);
+	const given = new Map<string, string | null>();
+	for (const a of Object.values(key.ambiguous ?? {})) for (const g of a.given ?? []) given.set(`${g.file}\0${g.path}`, g.id);
 
 	const files = readdirSync(join(dir, 'recipes'))
 		.filter((f) => f.endsWith('.md'))
@@ -69,8 +77,12 @@ export function loadCorpus(dir = CORPUS_DIR): Corpus {
 			unreadable.push(file);
 			continue;
 		}
-		const push = (it: Ingredient, path: string) =>
-			occurrences.push({ file, path, name: stripMarkers(it.name), lang: recipe.lang, recipe: it.recipe, item: it.item });
+		const push = (it: Ingredient, path: string) => {
+			const name = stripMarkers(it.name);
+			const o: Occurrence = { file, path, name, lang: recipe.lang, recipe: it.recipe, item: it.item, unit: it.unit, prep: it.prep, note: it.note };
+			if (key.ambiguous?.[name]) o.given = given.get(`${file}\0${path}`) ?? given.get(`${file}\0${path.replace(/\.name$/, '')}`) ?? null;
+			occurrences.push(o);
+		};
 		recipe.ingredients.forEach((g, gi) =>
 			g.items.forEach((it, ii) => {
 				const path = `ingredients[${gi}].items[${ii}]`;

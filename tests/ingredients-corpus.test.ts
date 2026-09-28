@@ -1,10 +1,11 @@
 // Ingredient-resolution metrics over the invented card corpus (plan 03,
-// Phases 0 and 2: R0–R4 and T). The corpus is public, so this runs in the normal
-// suite. The numbers are printed for the report. Only the hard gates are
-// asserted: no wrong auto-resolution, no trap resolved to one entry, R0 complete,
-// no seed merge. The coverage targets (R1, R2) are printed with their verdict:
-// by the plan, precision wins over coverage, so a missed target is reported,
-// not tuned away.
+// Phases 0 and 2: R0–R4, S0, SN, RA and T). The corpus is public, so this runs
+// in the normal suite. The numbers are printed for the report. Only the hard
+// gates are asserted: no wrong auto-resolution, no trap resolved to one entry,
+// R0 complete, no seed merge, no ambiguous use resolved to anything but the id
+// its line means. The coverage targets are printed with their verdict: by the
+// plan, precision wins over coverage, so a missed target is reported, not
+// tuned away.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,7 +13,7 @@ import { parse } from 'yaml';
 import { afterAll, describe, expect, it } from 'vitest';
 import { lookupKey, parseNormalizeVocab, type PluralRules } from '../src/lib/ingredients/normalize';
 import { parseIngredient } from '../src/lib/ingredients/registry';
-import { FUZZY, nameRows, Resolver } from '../src/lib/ingredients/resolve';
+import { FUZZY, nameRows, Resolver, ruleRows } from '../src/lib/ingredients/resolve';
 import type { RegistryEntry } from '../src/lib/ingredients/types';
 import { seedEntries } from '../src/lib/server/seed';
 import { seedVocab } from '../src/lib/server/vault';
@@ -22,8 +23,15 @@ const VOCAB_DOC = readFileSync('docs/VOCAB.md', 'utf8');
 const PLURALS: PluralRules = parseNormalizeVocab(parse(seedVocab(VOCAB_DOC)['normalize.yaml'])).plurals;
 const C = loadCorpus();
 const LANGS = formLangs(C.occurrences);
+const SEED = seedEntries(readFileSync('docs/INGREDIENTS-SEED.yaml', 'utf8'));
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(1)} %` : '—');
 const report: string[] = [];
+
+/**
+ * Coverage targets for the seed (plan 03, Phase 2 "Resolution metrics"): share
+ * of all corpus occurrences resolved to the right entry.
+ */
+const TARGET = { seed: 0.9, seedPlus: { actions: 25, share: 0.95 } };
 
 /** A registry of names per id, each name under the language it is written in. */
 function entries(names: Map<string, string[]>): Pick<RegistryEntry, 'slug' | 'names'>[] {
@@ -33,23 +41,51 @@ function entries(names: Map<string, string[]>): Pick<RegistryEntry, 'slug' | 'na
 	}));
 }
 const resolverOf = (names: Map<string, string[]>) => new Resolver(nameRows(entries(names), PLURALS), PLURALS);
+const registryResolver = (es: Pick<RegistryEntry, 'slug' | 'names' | 'when'>[]) => new Resolver(nameRows(es, PLURALS), PLURALS, [], ruleRows(es));
 
 interface Outcome {
 	o: Occurrence;
+	/** The answer key's id for the written form, or 'ambiguous'. */
 	expected: string;
+	/** The id this use means: `expected`, or for an ambiguous name the id its line means (null: the card does not say). */
+	want: string | null;
 	item: string | null;
 }
 function run(resolver: Resolver, occurrences = C.occurrences): Outcome[] {
 	const memo = new Map<string, string | null>();
 	return occurrences.map((o) => {
-		const id = `${o.lang}\0${o.name}`;
-		if (!memo.has(id)) memo.set(id, resolver.resolveKey(lookupKey(o.name), o.lang).item);
-		return { o, expected: C.expected.get(o.name)!, item: memo.get(id)! };
+		const id = [o.lang, o.name, o.unit, o.prep, o.note].join('\0');
+		if (!memo.has(id)) memo.set(id, resolver.resolve({ name: o.name, unit: o.unit as never, prep: o.prep, note: o.note }, o.lang).item);
+		const expected = C.expected.get(o.name)!;
+		return { o, expected, want: expected === AMBIGUOUS ? (o.given ?? null) : expected, item: memo.get(id)! };
 	});
 }
 const wrong = (xs: Outcome[]) => xs.filter((x) => x.item !== null && x.item !== x.expected);
 const right = (xs: Outcome[]) => xs.filter((x) => x.item !== null && x.item === x.expected);
 const distinct = (xs: Outcome[]) => [...new Map(xs.map((x) => [x.o.name, x])).values()];
+
+/**
+ * Scoring against a registry whose slugs are not the answer key's ids (the
+ * seed): each slug stands for the ids of the uses resolved to it. A slug
+ * standing for two ids is a merge; its minority uses count as wrong. A use
+ * whose line does not say which id (`want` null) is wrong whenever resolved.
+ */
+function scored(xs: Outcome[]) {
+	const ids = new Map<string, Map<string, number>>();
+	for (const x of xs)
+		if (x.item && x.want) {
+			const m = ids.get(x.item) ?? ids.set(x.item, new Map()).get(x.item)!;
+			m.set(x.want, (m.get(x.want) ?? 0) + 1);
+		}
+	const idOf = new Map([...ids].map(([slug, m]) => [slug, [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0]]));
+	const merges = [...ids].filter(([, m]) => m.size > 1).map(([slug, m]) => `${slug} ← ${[...m.keys()].sort().join(' + ')}`);
+	return {
+		idOf,
+		merges,
+		right: xs.filter((x) => x.item && x.want && idOf.get(x.item) === x.want),
+		wrong: xs.filter((x) => x.item && (!x.want || idOf.get(x.item) !== x.want))
+	};
+}
 
 describe('corpus harness', () => {
 	it('reads every recipe, and the answer key lists every written form once', () => {
@@ -77,15 +113,13 @@ describe('resolution metrics', () => {
 		expect(right(plain).length).toBe(plain.length);
 	});
 
-	it('R1: one name per id, by normalization alone — never wrong', () => {
+	it('R1: one name per id, by normalization alone — never wrong (reported; not a coverage gate)', () => {
 		const others = r1.filter((x) => x.expected !== AMBIGUOUS && !firsts.get(x.expected)!.includes(x.o.name));
 		const plain = r1.filter((x) => x.expected !== AMBIGUOUS);
 		const d = distinct(others);
-		const dv = right(d).length / d.length;
-		const ov = right(others).length / others.length;
 		report.push(
-			`R1  other variants auto-resolved: distinct ${right(d).length}/${d.length} (${pct(right(d).length, d.length)}, target ≥ 60 %: ${dv >= 0.6 ? 'met' : 'NOT MET'}), ` +
-				`occurrences ${right(others).length}/${others.length} (${pct(right(others).length, others.length)}, target ≥ 75 %: ${ov >= 0.75 ? 'met' : 'NOT MET'}); ` +
+			`R1  other variants auto-resolved: distinct ${right(d).length}/${d.length} (${pct(right(d).length, d.length)}), ` +
+				`occurrences ${right(others).length}/${others.length} (${pct(right(others).length, others.length)}); ` +
 				`all occurrences ${right(plain).length}/${plain.length} (${pct(right(plain).length, plain.length)}); wrong ${wrong(r1).length}`
 		);
 		const u = d.filter((x) => x.item === null);
@@ -114,22 +148,94 @@ describe('resolution metrics', () => {
 		expect(chosen.length).toBeGreaterThan(0);
 	});
 
-	it('R3: the shipped seed registry — coverage, and no seed entry merging two ids', () => {
-		const seed = seedEntries(readFileSync('docs/INGREDIENTS-SEED.yaml', 'utf8'));
-		const xs = run(new Resolver(nameRows(seed, PLURALS), PLURALS));
-		const ids = new Map<string, Set<string>>();
-		for (const x of xs) if (x.item && x.expected !== AMBIGUOUS) (ids.get(x.item) ?? ids.set(x.item, new Set()).get(x.item)!).add(x.expected);
-		const merges = [...ids].filter(([, s]) => s.size > 1).map(([slug, s]) => `${slug} ← ${[...s].sort().join(' + ')}`);
-		const resolved = xs.filter((x) => x.item);
-		const amb = xs.filter((x) => x.expected === AMBIGUOUS && x.item);
+	it('S0 (was R3): the shipped seed alone — coverage, no merge, nothing wrong', () => {
+		const xs = run(registryResolver(SEED));
+		const s = scored(xs);
+		const total = xs.length;
 		const plain = distinct(xs.filter((x) => x.expected !== AMBIGUOUS));
+		const byRule = xs.filter((x) => x.expected === AMBIGUOUS && x.item);
 		report.push(
-			`R3  seed (${seed.length} entries): occurrences auto-resolved ${resolved.length}/${xs.length} (${pct(resolved.length, xs.length)}), ` +
-				`distinct forms ${plain.filter((x) => x.item).length}/${plain.length}, ids reached ${new Set(resolved.map((x) => x.expected)).size}/${Object.keys(C.key.ingredients).length}; ` +
-				`merges ${merges.length}${merges.length ? ` (${merges.join('; ')})` : ''}; ambiguous forms auto-resolved ${amb.length}${amb.length ? ` (${[...new Set(amb.map((x) => `${x.o.name} → ${x.item}`))].join('; ')})` : ''}`
+			`S0  seed (${SEED.length} entries, ${SEED.reduce((n, e) => n + (e.when?.length ?? 0), 0)} rules): right ${s.right.length}/${total} occurrences (${pct(s.right.length, total)}, target ≥ ${TARGET.seed * 100} %: ${s.right.length / total >= TARGET.seed ? 'met' : 'NOT MET'}), ` +
+				`distinct forms ${plain.filter((x) => x.item).length}/${plain.length}, ids reached ${new Set(s.right.map((x) => x.want)).size}/${Object.keys(C.key.ingredients).length}; ` +
+				`wrong ${s.wrong.length}; merges ${s.merges.length}${s.merges.length ? ` (${s.merges.join('; ')})` : ''}; ambiguous uses resolved by a rule ${byRule.length}`
 		);
-		expect(merges).toEqual([]);
-		expect(amb.map((x) => x.o.name)).toEqual([]);
+		const left = new Map<string, number>();
+		for (const x of xs) if (!x.item && x.expected !== AMBIGUOUS) left.set(x.o.name, (left.get(x.o.name) ?? 0) + 1);
+		report.push(
+			`    left unresolved (${left.size} forms): ${[...left]
+				.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+				.map(([n, c]) => `${n} ${c}`)
+				.join('; ')}`
+		);
+		expect(s.merges).toEqual([]);
+		expect([...new Set(s.wrong.map((x) => `${x.o.name} → ${x.item} (${x.o.file})`))]).toEqual([]);
+	});
+
+	it('RA: disambiguation rules on the uses of ambiguous names — right, or left unresolved; never wrong', () => {
+		const xs = run(registryResolver(SEED)).filter((x) => x.expected === AMBIGUOUS);
+		const s = scored(run(registryResolver(SEED)));
+		const ok = xs.filter((x) => x.item && x.want && s.idOf.get(x.item) === x.want);
+		const bad = xs.filter((x) => x.item && (!x.want || s.idOf.get(x.item) !== x.want));
+		const decidable = xs.filter((x) => x.want);
+		report.push(
+			`RA  ambiguous uses: ${xs.length} (${decidable.length} whose line says which id); resolved right ${ok.length} (${pct(ok.length, decidable.length)} of the decidable), wrong ${bad.length}, left unresolved ${xs.length - ok.length - bad.length}`
+		);
+		report.push(
+			`    by name: ${Object.keys(C.key.ambiguous)
+				.map((n) => {
+					const u = xs.filter((x) => x.o.name === n);
+					return `${n} ${u.filter((x) => ok.includes(x)).length}/${u.length}`;
+				})
+				.join(' · ')}`
+		);
+		expect(bad.map((x) => `${x.o.file} ${x.o.name} → ${x.item} (want ${x.want})`)).toEqual([]);
+	});
+
+	it('SN: the seed plus N resolve-queue actions', () => {
+		// Each action: the most frequent unresolved name (by language and lookup
+		// key) is linked to the seed entry standing for its id, or becomes a new
+		// entry. Ambiguous names are not acted on: the queue settles them by a
+		// rule or by `item:`, which this simulation does not model.
+		const reg = new Map(SEED.map((e) => [e.slug, { ...e, names: { fr: [...e.names.fr], en: [...e.names.en] } }]));
+		const total = C.occurrences.length;
+		const at = new Map<number, number>();
+		const reach = new Map<number, number>();
+		let actions = 0;
+		let wrongSeen = 0;
+		let emptied: number | undefined;
+		let s = scored([]);
+		for (;;) {
+			const xs = run(registryResolver([...reg.values()]));
+			s = scored(xs);
+			wrongSeen = Math.max(wrongSeen, s.wrong.length);
+			const share = s.right.length / total;
+			if ([0, 10, 25, 50, 100].includes(actions)) at.set(actions, s.right.length);
+			for (const m of [0.9, 0.95]) if (share >= m && !reach.has(m)) reach.set(m, actions);
+			if (actions >= 100 && reach.has(0.95)) break;
+			const groups = new Map<string, Outcome[]>();
+			for (const x of xs)
+				if (x.item === null && x.expected !== AMBIGUOUS) {
+					const k = `${x.o.lang}\0${lookupKey(x.o.name)}`;
+					(groups.get(k) ?? groups.set(k, []).get(k)!).push(x);
+				}
+			if (!groups.size) {
+				emptied = actions;
+				break;
+			}
+			const [, top] = [...groups].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))[0];
+			const want = top[0].want!;
+			const slug = [...s.idOf].find(([, id]) => id === want)?.[0] ?? `q-${want}`;
+			const e = reg.get(slug) ?? reg.set(slug, { ...SEED[0], slug, names: { fr: [], en: [] }, when: [] }).get(slug)!;
+			e.names[top[0].o.lang === 'en' ? 'en' : 'fr'].push(top[0].o.name);
+			actions++;
+		}
+		report.push(
+			`SN  seed + N queue actions, right occurrences: ${[...at].map(([n, r]) => `N=${n}: ${pct(r, total)}`).join(' · ')} ` +
+				`(target ≥ ${TARGET.seedPlus.share * 100} % at N=${TARGET.seedPlus.actions}: ${(at.get(TARGET.seedPlus.actions) ?? 0) / total >= TARGET.seedPlus.share ? 'met' : 'NOT MET'}); ` +
+				`90 % after ${reach.get(0.9) ?? '—'}, 95 % after ${reach.get(0.95) ?? '—'} actions; ` +
+				`${emptied !== undefined ? `every non-ambiguous name resolved after ${emptied} actions (${pct(s.right.length, total)}); ` : ''}wrong ${wrongSeen}`
+		);
+		expect(wrongSeen).toBe(0);
 	});
 
 	it('R4: queue actions to cover 90 % of occurrences from an empty registry', () => {
@@ -181,8 +287,17 @@ describe('resolution metrics', () => {
 			const x = resolver.resolve({ name: a }, lang).item;
 			return x !== null && x === resolver.resolve({ name: b }, lang).item;
 		});
-		report.push(`T   ${hit.length}/${traps.length} trap pairs resolved to one entry${hit.length ? `: ${hit.map((t) => t.pair.join(' / ')).join('; ')}` : ''}`);
+		const seed = registryResolver(SEED);
+		const seedHit = traps.filter(({ pair: [a, b], lang }) => {
+			const x = seed.resolve({ name: a }, lang).item;
+			return x !== null && x === seed.resolve({ name: b }, lang).item;
+		});
+		report.push(
+			`T   ${hit.length}/${traps.length} trap pairs resolved to one entry of the fixture registry, ${seedHit.length}/${traps.length} of the seed` +
+				`${[...hit, ...seedHit].length ? `: ${[...hit, ...seedHit].map((t) => t.pair.join(' / ')).join('; ')}` : ''}`
+		);
 		expect(hit.map((t) => t.pair.join(' / '))).toEqual([]);
+		expect(seedHit.map((t) => t.pair.join(' / '))).toEqual([]);
 	});
 
 	afterAll(() => {

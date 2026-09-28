@@ -10,7 +10,10 @@
 #   language, and `typo` for a misspelling that normalization cannot fix.
 # ambiguous: written forms that are one lookup key for several ids. The unit,
 #   prep or language decides on the card, and none is part of the key: the
-#   expected resolution is "ambiguous", never one of the candidates.
+#   expected resolution from the name alone is "ambiguous", never one of the
+#   candidates. given: every use, with the id its line means (from its unit,
+#   prep or language), or null when the card does not say. A resolver that
+#   looks at the line may resolve a use only to that id, and never a null one.
 # confusables: ids that fold or read alike and must never merge.
 
 # Invented data: no real recipe, person or source.
@@ -1102,46 +1105,103 @@ ambiguous:
     candidates: [ tomates-en-conserve, tomates-fraiches ]
     occurrences: 11
     note: "canned (unit can) or fresh: the unit says which, and the unit is not part of the lookup key."
+    given:
+      - { file: ketchup-aux-fruits-de-memere-alma.md, path: "ingredients[0].items[0].name", id: tomates-fraiches }
+      - { file: ketchup-aux-fruits.md, path: "ingredients[0].items[0].name", id: tomates-fraiches }
+      - { file: ketchup-maison.md, path: "ingredients[0].items[0].name", id: tomates-fraiches }
+      - { file: riz-espagnol-livre.md, path: "ingredients[0].items[4].name", id: tomates-en-conserve }
+      - { file: sauce-a-spag.md, path: "ingredients[0].items[6].name", id: tomates-en-conserve }
+      - { file: sauce-a-spaghetti-jacqueline.md, path: "ingredients[0].items[7].name", id: tomates-en-conserve }
+      - { file: sauce-a-spaghetti-matante-pierrette.md, path: "ingredients[0].items[5].name", id: tomates-en-conserve }
+      - { file: soupe-a-l-orge-et-legumes.md, path: "ingredients[0].items[1].name", id: tomates-en-conserve }
+      - { file: soupe-au-boeuf-et-legumes.md, path: "ingredients[0].items[2].name", id: tomates-en-conserve }
+      - { file: soupe-aux-legumes-du-lundi.md, path: "ingredients[0].items[1].name", id: tomates-en-conserve }
+      - { file: soupe-de-menage-de-francine.md, path: "ingredients[0].items[4].name", id: tomates-en-conserve }
   tomatoes:
     candidates: [ tomates-en-conserve, tomates-fraiches ]
     occurrences: 5
     note: same as tomates, English cards.
+    given:
+      - { file: chili-doug.md, path: "ingredients[0].items[3].name", id: tomates-en-conserve }
+      - { file: fruit-chili-sauce.md, path: "ingredients[0].items[0].name", id: tomates-fraiches }
+      - { file: scalloped-tomatoes-mrs-lindsay.md, path: "ingredients[0].items[0].name", id: tomates-en-conserve }
+      - { file: spaghetti-sauce.md, path: "ingredients[0].items[7].name", id: tomates-en-conserve }
+      - { file: spanish-rice.md, path: "ingredients[0].items[3].name", id: tomates-en-conserve }
   champignons:
     candidates: [ champignons, champignons-en-conserve ]
     occurrences: 7
     note: fresh, or canned when the unit is can.
+    given:
+      - { file: chop-suey-lise-b.md, path: "ingredients[0].items[3].name", id: champignons }
+      - { file: chop-suey.md, path: "ingredients[0].items[5].name", id: champignons }
+      - { file: poulet-a-la-king-de-l-hopital.md, path: "ingredients[0].items[1].name", id: null }
+      - { file: sauce-a-spaghetti-de-maman.md, path: "ingredients[0].items[4].name", id: champignons }
+      - { file: sauce-a-spaghetti-matante-pierrette.md, path: "ingredients[0].items[8].name", id: champignons-en-conserve }
+      - { file: sauce-a-spaghetti-revue.md, path: "ingredients[0].items[5].name", id: champignons }
+      - { file: sauce-a-spaghetti.md, path: "ingredients[0].items[4].name", id: champignons }
   mushrooms:
     candidates: [ champignons, champignons-en-conserve ]
     occurrences: 3
     note: same as champignons, English cards.
+    given:
+      - { file: chili-doug.md, path: "ingredients[0].items[5].name", id: champignons-en-conserve }
+      - { file: mushroom-noodle-casserole-aunt-dot.md, path: "ingredients[0].items[1].name", id: champignons }
+      - { file: spaghetti-sauce.md, path: "ingredients[0].items[4].name", id: champignons }
   boeuf:
     candidates: [ boeuf-hache, boeuf-a-ragout ]
     occurrences: 2
     note: with prep 'haché' ground beef, with 'en cubes' stewing beef; prep is not part of the key.
+    given:
+      - { file: ragout-de-boeuf-de-madeleine.md, path: "ingredients[0].items[0].name", id: boeuf-a-ragout }
+      - { file: ragout-de-pattes-matante-rollande.md, path: "ingredients[1].items[1].name", id: boeuf-hache }
   bœuf:
     candidates: [ boeuf-hache, boeuf-a-ragout ]
     occurrences: 2
     note: same as boeuf.
+    given:
+      - { file: chop-suey-de-ti-paul.md, path: "ingredients[0].items[0].name", id: null }
+      - { file: cipate-a-memere-gertrude.md, path: "ingredients[0].items[1].name", id: boeuf-a-ragout }
   porc:
     candidates: [ porc-hache, porc-epaule ]
     occurrences: 3
     note: with prep 'haché' ground pork, with 'en cubes' shoulder.
+    given:
+      - { file: cipate-a-memere-gertrude.md, path: "ingredients[0].items[0].name", id: porc-epaule }
+      - { file: cretons-de-tante-yvette.md, path: "ingredients[0].items[0].name", id: porc-hache }
+      - { file: ragout-de-pattes-matante-rollande.md, path: "ingredients[1].items[0].name", id: porc-hache }
   viande hachée:
     candidates: [ boeuf-hache, porc-hache, veau-hache ]
     occurrences: 1
     note: a mix the card does not state.
+    given:
+      - { file: sauce-a-spaghetti-matante-pierrette.md, path: "ingredients[0].items[0].name", id: null }
   bouillon:
     candidates: [ bouillon-de-boeuf, bouillon-de-poulet ]
     occurrences: 2
     note: the card does not say which.
+    given:
+      - { file: gibelotte-de-lievre-mon-oncle-real.md, path: "ingredients[0].items[4].name", id: null }
+      - { file: soupe-aux-legumes-du-lundi.md, path: "ingredients[0].items[0].name", id: null }
   fromage:
     candidates: [ fromage-cheddar, mozzarella ]
     occurrences: 1
     note: any cheese; on these cards usually cheddar, not always.
+    given:
+      - { file: macaroni-au-fromage-lucille.md, path: "ingredients[0].items[4].name", id: null }
   lard:
     candidates: [ lard-sale, saindoux ]
     occurrences: 9
     note: "fr: salt pork; en: lard. One folded key in two languages."
+    given:
+      - { file: binnes-du-camp.md, path: "ingredients[0].items[1].name", id: lard-sale }
+      - { file: binnes-revue.md, path: "ingredients[0].items[1].name", id: lard-sale }
+      - { file: cipate-a-memere-gertrude.md, path: "ingredients[0].items[3].name", id: lard-sale }
+      - { file: feves-au-lard-de-cabane.md, path: "ingredients[0].items[1].name", id: lard-sale }
+      - { file: never-fail-pastry-grandma-macleod.md, path: "ingredients[0].items[1].name", id: saindoux }
+      - { file: pie-crust.md, path: "ingredients[0].items[2].or[0]", id: saindoux }
+      - { file: six-pates.md, path: "ingredients[0].items[4].name", id: lard-sale }
+      - { file: soupe-aux-pois-au-jambon.md, path: "ingredients[0].items[2].name", id: lard-sale }
+      - { file: soupe-aux-pois-livre.md, path: "ingredients[0].items[2].name", id: lard-sale }
 confusables:
   - [ echalote-verte, echalote-francaise ] # Quebec échalote is the green onion; échalote française is the bulb.
   - [ piment-vert, piment-fort ] # piment vert is a bell pepper.

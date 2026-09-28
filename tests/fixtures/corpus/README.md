@@ -35,7 +35,14 @@ throws on three other problems:
 
 - a name that is not in the ingredient table;
 - a written form listed under two ids without being declared ambiguous;
-- a declared ambiguous name that the corpus never uses.
+- a declared ambiguous name that the corpus never uses;
+- a hand card using an ambiguous name without its entry in that name's `hand`
+  table (the id the line means, or null when the card does not say), or a
+  `hand` entry for a card that does not use the name.
+
+The answer key's `ambiguous` section lists every use of each ambiguous name under
+`given`, with the id its line means. The resolution metrics use it to score
+disambiguation rules (`docs/INGREDIENTS.md`, "Disambiguation rules").
 
 `tests/unit/corpus-fixture.test.ts` checks the following:
 

@@ -1240,54 +1240,103 @@ export const INGREDIENTS: Record<string, IngDef> = {
  * Written names that are one key for more than one ingredient: the resolver
  * cannot pick from the name alone (brand, note, prep and unit are not part of
  * the lookup key — plan 03 Phase 2). Every one of these is deliberate.
+ *
+ * `hand`: for each hand-written card using the name, the id its line means
+ * (from its unit, prep or language), or null when the card does not say.
+ * Generated cards carry their id already. The answer key lists every use with
+ * its id (`given`), so a disambiguation rule can be scored: it may resolve a
+ * use only to that id, never a null one.
  */
-export const AMBIGUOUS: Record<string, { candidates: string[]; note: string }> =
-  {
-    tomates: {
-      candidates: ["tomates-en-conserve", "tomates-fraiches"],
-      note: "canned (unit can) or fresh: the unit says which, and the unit is not part of the lookup key.",
+export const AMBIGUOUS: Record<
+  string,
+  { candidates: string[]; note: string; hand?: Record<string, string | null> }
+> = {
+  tomates: {
+    candidates: ["tomates-en-conserve", "tomates-fraiches"],
+    note: "canned (unit can) or fresh: the unit says which, and the unit is not part of the lookup key.",
+    hand: {
+      "sauce-a-spaghetti-matante-pierrette.md": "tomates-en-conserve",
+      "soupe-aux-legumes-du-lundi.md": "tomates-en-conserve",
+      "ketchup-aux-fruits-de-memere-alma.md": "tomates-fraiches",
     },
-    tomatoes: {
-      candidates: ["tomates-en-conserve", "tomates-fraiches"],
-      note: "same as tomates, English cards.",
+  },
+  tomatoes: {
+    candidates: ["tomates-en-conserve", "tomates-fraiches"],
+    note: "same as tomates, English cards.",
+    hand: {
+      "chili-doug.md": "tomates-en-conserve",
+      "scalloped-tomatoes-mrs-lindsay.md": "tomates-en-conserve",
     },
-    champignons: {
-      candidates: ["champignons", "champignons-en-conserve"],
-      note: "fresh, or canned when the unit is can.",
+  },
+  champignons: {
+    candidates: ["champignons", "champignons-en-conserve"],
+    note: "fresh, or canned when the unit is can.",
+    hand: {
+      "sauce-a-spaghetti-matante-pierrette.md": "champignons-en-conserve",
+      "poulet-a-la-king-de-l-hopital.md": null,
     },
-    mushrooms: {
-      candidates: ["champignons", "champignons-en-conserve"],
-      note: "same as champignons, English cards.",
+  },
+  mushrooms: {
+    candidates: ["champignons", "champignons-en-conserve"],
+    note: "same as champignons, English cards.",
+    hand: {
+      "chili-doug.md": "champignons-en-conserve",
+      "mushroom-noodle-casserole-aunt-dot.md": "champignons",
     },
-    boeuf: {
-      candidates: ["boeuf-hache", "boeuf-a-ragout"],
-      note: "with prep 'haché' ground beef, with 'en cubes' stewing beef; prep is not part of the key.",
+  },
+  boeuf: {
+    candidates: ["boeuf-hache", "boeuf-a-ragout"],
+    note: "with prep 'haché' ground beef, with 'en cubes' stewing beef; prep is not part of the key.",
+    hand: {
+      "ragout-de-boeuf-de-madeleine.md": "boeuf-a-ragout",
+      "ragout-de-pattes-matante-rollande.md": "boeuf-hache",
     },
-    bœuf: {
-      candidates: ["boeuf-hache", "boeuf-a-ragout"],
-      note: "same as boeuf.",
+  },
+  bœuf: {
+    candidates: ["boeuf-hache", "boeuf-a-ragout"],
+    note: "same as boeuf.",
+    hand: {
+      "cipate-a-memere-gertrude.md": "boeuf-a-ragout",
+      "chop-suey-de-ti-paul.md": null,
     },
-    porc: {
-      candidates: ["porc-hache", "porc-epaule"],
-      note: "with prep 'haché' ground pork, with 'en cubes' shoulder.",
+  },
+  porc: {
+    candidates: ["porc-hache", "porc-epaule"],
+    note: "with prep 'haché' ground pork, with 'en cubes' shoulder.",
+    hand: {
+      "cipate-a-memere-gertrude.md": "porc-epaule",
+      "cretons-de-tante-yvette.md": "porc-hache",
+      "ragout-de-pattes-matante-rollande.md": "porc-hache",
     },
-    "viande hachée": {
-      candidates: ["boeuf-hache", "porc-hache", "veau-hache"],
-      note: "a mix the card does not state.",
+  },
+  "viande hachée": {
+    candidates: ["boeuf-hache", "porc-hache", "veau-hache"],
+    note: "a mix the card does not state.",
+    hand: { "sauce-a-spaghetti-matante-pierrette.md": null },
+  },
+  bouillon: {
+    candidates: ["bouillon-de-boeuf", "bouillon-de-poulet"],
+    note: "the card does not say which.",
+    hand: {
+      "gibelotte-de-lievre-mon-oncle-real.md": null,
+      "soupe-aux-legumes-du-lundi.md": null,
     },
-    bouillon: {
-      candidates: ["bouillon-de-boeuf", "bouillon-de-poulet"],
-      note: "the card does not say which.",
+  },
+  fromage: {
+    candidates: ["fromage-cheddar", "mozzarella"],
+    note: "any cheese; on these cards usually cheddar, not always.",
+    hand: { "macaroni-au-fromage-lucille.md": null },
+  },
+  lard: {
+    candidates: ["lard-sale", "saindoux"],
+    note: "fr: salt pork; en: lard. One folded key in two languages.",
+    hand: {
+      "binnes-du-camp.md": "lard-sale",
+      "cipate-a-memere-gertrude.md": "lard-sale",
+      "never-fail-pastry-grandma-macleod.md": "saindoux",
     },
-    fromage: {
-      candidates: ["fromage-cheddar", "mozzarella"],
-      note: "any cheese; on these cards usually cheddar, not always.",
-    },
-    lard: {
-      candidates: ["lard-sale", "saindoux"],
-      note: "fr: salt pork; en: lard. One folded key in two languages.",
-    },
-  };
+  },
+};
 
 /** Pairs that fold or read alike and must never resolve to one slug. */
 export const CONFUSABLES: [string, string, string][] = [

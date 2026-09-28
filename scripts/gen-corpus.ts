@@ -886,6 +886,9 @@ function answerKey(
   const idx = formIndex();
   const uses = new Map<string, Map<string, { n: number; lang: Set<string> }>>();
   const ambiguous = new Map<string, number>();
+  /** Every use of an ambiguous name, with the id its line means (null: the card does not say). */
+  const given = new Map<string, { file: string; path: string; id: string | null }[]>();
+  const handUsed = new Set<string>();
   const brands = new Map<string, Set<string>>();
   let total = 0;
   const problems: string[] = [];
@@ -903,11 +906,29 @@ function answerKey(
       }
       if ("ambiguous" in r) {
         ambiguous.set(r.ambiguous, (ambiguous.get(r.ambiguous) ?? 0) + 1);
-        const t = truth?.get(u.path);
-        if (t && !AMBIGUOUS[r.ambiguous].candidates.includes(t))
+        const a = AMBIGUOUS[r.ambiguous];
+        let t: string | null | undefined = truth?.get(u.path);
+        if (!truth) {
+          const h = a.hand ?? {};
+          if (!(file in h))
+            problems.push(
+              `${file} ${u.path}: hand card uses "${r.ambiguous}"; add "${file}" to its \`hand\` (the id, or null)`,
+            );
+          else if (handUsed.has(`${r.ambiguous}\0${file}`))
+            problems.push(
+              `${file}: "${r.ambiguous}" used twice on one hand card; \`hand\` holds one id per card`,
+            );
+          t = h[file];
+          handUsed.add(`${r.ambiguous}\0${file}`);
+        }
+        if (t && !a.candidates.includes(t))
           problems.push(
             `${file} ${u.path}: ${t} is not a candidate of "${r.ambiguous}"`,
           );
+        (
+          given.get(r.ambiguous) ??
+          given.set(r.ambiguous, []).get(r.ambiguous)!
+        ).push({ file, path: u.path, id: t ?? null });
         continue;
       }
       const expected = truth?.get(u.path);
@@ -940,6 +961,10 @@ function answerKey(
   for (const k of Object.keys(AMBIGUOUS))
     if (!ambiguous.has(k))
       throw new Error(`AMBIGUOUS "${k}" is never used in the corpus`);
+  for (const [k, a] of Object.entries(AMBIGUOUS))
+    for (const f of Object.keys(a.hand ?? {}))
+      if (!handUsed.has(`${k}\0${f}`))
+        throw new Error(`AMBIGUOUS "${k}".hand lists ${f}, which does not use it`);
 
   const doc = new Document({}, { version: "1.2" });
   doc.commentBefore = [
@@ -955,7 +980,10 @@ function answerKey(
     "   language, and `typo` for a misspelling that normalization cannot fix.",
     " ambiguous: written forms that are one lookup key for several ids. The unit,",
     "   prep or language decides on the card, and none is part of the key: the",
-    '   expected resolution is "ambiguous", never one of the candidates.',
+    '   expected resolution from the name alone is "ambiguous", never one of the',
+    "   candidates. given: every use, with the id its line means (from its unit,",
+    "   prep or language), or null when the card does not say. A resolver that",
+    "   looks at the line may resolve a use only to that id, and never a null one.",
     " confusables: ids that fold or read alike and must never merge.",
     "",
     " Invented data: no real recipe, person or source.",
@@ -1016,6 +1044,18 @@ function answerKey(
     node.set("candidates", c);
     node.set("occurrences", ambiguous.get(name) ?? 0);
     node.set("note", a.note);
+    const gs = new YAMLSeq();
+    for (const g of (given.get(name) ?? []).sort(
+      (x, y) => x.file.localeCompare(y.file) || x.path.localeCompare(y.path),
+    )) {
+      const m = new YAMLMap();
+      m.flow = true;
+      m.set("file", g.file);
+      m.set("path", g.path);
+      m.set("id", new Scalar(g.id)); // a Scalar, so null is written `id: null`
+      gs.items.push(m);
+    }
+    node.set("given", gs);
     amb.set(name, node);
   }
   root.set("ambiguous", amb);

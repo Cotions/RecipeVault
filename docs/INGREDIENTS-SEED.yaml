@@ -13,12 +13,23 @@
 # entry only when a card using it can mean nothing else. Plurals come from the
 # rules in vocab/normalize.yaml; irregular ones are listed.
 #
+# Both languages: the French and Québec names, the English names of an
+# anglophone neighbour's card, older or regional synonyms (sucre brun, gruau,
+# safran des Indes, beurre de peanut), and the brand names Québec cards use as
+# the product's name (Crisco, Philadelphia, lait Carnation, Eagle Brand). Not
+# misspellings: those are for the resolve queue.
+#
 # Not aliases: a bare name whose product depends on the unit or the prep
 # (tomates: fresh or canned; champignons: fresh or canned), and a word that means
 # another product in the other language (English "lard" is saindoux, French
 # "lard" is salt pork; Québec English "shallots" are often green onions). The
 # first R3 measurement found these four as a merge or an auto-resolved ambiguous
-# form; they were removed, and such names go through the resolve queue.
+# form; they were removed. Where the line says which product for certain, a
+# disambiguation rule (`when:`, docs/INGREDIENTS.md) settles the bare name:
+# tomates and champignons by the can or by weight or count, bœuf and porc with
+# prep haché or en cubes, lard by the recipe's language, soupe à l'oignon by the
+# packet. What stays uncertain (tomates by the cup, huile, bouillon, fromage,
+# échalotes) goes through the resolve queue.
 
 # --- Épicerie: farines, sucres, levures ---------------------------------------
 farine-tout-usage:
@@ -66,7 +77,7 @@ sucre:
   density: 0.85
 cassonade:
   category: epicerie
-  names: { fr: [cassonade, sucre brun, cassonade dorée], en: [brown sugar, light brown sugar] }
+  names: { fr: [cassonade, sucre brun, cassonade dorée, cassonade pâle], en: [brown sugar, light brown sugar] }
   default_unit: g
   density: 0.88
   substitutes: [sucre]
@@ -91,7 +102,7 @@ miel:
   density: 1.42
 melasse:
   category: epicerie
-  names: { fr: [mélasse], en: [molasses] }
+  names: { fr: [mélasse, mélasse de fantaisie, mélasse fantaisie], en: [molasses, fancy molasses] }
   default_unit: ml
   density: 1.4
 sirop-de-mais:
@@ -128,6 +139,11 @@ vanille:
   staple: true
   au_gout: true
   density: 1.0
+vanille-artificielle:
+  category: epicerie
+  names: { fr: [vanille artificielle, essence de vanille artificielle, vanille imitation], en: [artificial vanilla, imitation vanilla] }
+  default_unit: ml
+  substitutes: [vanille]
 cacao:
   category: epicerie
   names: { fr: [cacao, poudre de cacao, cacao non sucré], en: [cocoa, cocoa powder, unsweetened cocoa] }
@@ -143,12 +159,12 @@ chocolat-non-sucre:
   default_unit: g
 pepites-de-chocolat:
   category: epicerie
-  names: { fr: [pépites de chocolat, brisures de chocolat, grains de chocolat], en: [chocolate chips] }
+  names: { fr: [pépites de chocolat, brisures de chocolat, grains de chocolat, Chipits], en: [chocolate chips, Chipits] }
   default_unit: g
   density: 0.7
 flocons-d-avoine:
   category: epicerie
-  names: { fr: [flocons d'avoine, gruau, avoine], en: [rolled oats, oats, oatmeal] }
+  names: { fr: [flocons d'avoine, gruau, avoine, gruau à cuisson rapide, flocons d'avoine à cuisson rapide, gruau minute], en: [rolled oats, oats, oatmeal, quick oats, quick-cooking oats, quick cooking oats] }
   default_unit: g
   density: 0.38
 chapelure:
@@ -159,7 +175,7 @@ chapelure:
   allergens: [gluten]
 biscuits-graham:
   category: epicerie
-  names: { fr: [chapelure de biscuits graham, miettes de biscuits graham], en: [graham cracker crumbs] }
+  names: { fr: [chapelure de biscuits graham, miettes de biscuits graham, miettes de graham, chapelure graham], en: [graham cracker crumbs, graham crumbs, graham wafer crumbs] }
   default_unit: g
   density: 0.4
   allergens: [gluten]
@@ -168,6 +184,24 @@ biscuits-soda:
   names: { fr: [biscuits soda], en: [soda crackers, saltines, saltine crackers] }
   default_unit: g
   allergens: [gluten]
+cereales-de-riz-souffle:
+  category: epicerie
+  names: { fr: [Rice Krispies, céréales Rice Krispies, céréales de riz soufflé, riz soufflé], en: [Rice Krispies, Rice Krispies cereal, crisp rice cereal] }
+  default_unit: g
+son-de-ble:
+  category: epicerie
+  names: { fr: [son de blé, son], en: [wheat bran, natural bran, bran] }
+  default_unit: g
+  allergens: [gluten]
+cereales-all-bran:
+  category: epicerie
+  names: { fr: [All-Bran, céréales All-Bran], en: [All-Bran, All-Bran cereal, bran cereal] }
+  default_unit: g
+  allergens: [gluten]
+croustilles:
+  category: epicerie
+  names: { fr: [croustilles, croustilles nature], en: [potato chips, plain potato chips] }
+  default_unit: g
 noix-de-coco:
   category: epicerie
   names: { fr: [noix de coco râpée, noix de coco, coco râpé], en: [shredded coconut, desiccated coconut, coconut] }
@@ -187,6 +221,9 @@ cerises-confites:
   category: epicerie
   names: { fr: [cerises confites], en: [candied cherries, glacé cherries] }
   default_unit: g
+cerises-au-marasquin:
+  category: epicerie
+  names: { fr: [cerises au marasquin, cerises marasquin], en: [maraschino cherries] }
 noix-de-grenoble:
   category: epicerie
   names: { fr: [noix de Grenoble, cerneaux de noix], en: [walnuts, walnut halves] }
@@ -211,7 +248,7 @@ arachides:
   allergens: [arachide]
 beurre-d-arachide:
   category: epicerie
-  names: { fr: [beurre d'arachide, beurre de cacahuète], en: [peanut butter] }
+  names: { fr: [beurre d'arachide, beurre de cacahuète, beurre de peanut, beurre de peanuts], en: [peanut butter] }
   default_unit: g
   density: 1.08
   allergens: [arachide]
@@ -225,6 +262,12 @@ riz-blanc:
   names: { fr: [riz, riz blanc, riz à grains longs], en: [rice, white rice, long grain rice, long-grain rice] }
   default_unit: g
   density: 0.85
+riz-minute:
+  category: epicerie
+  names: { fr: [riz minute, riz instantané, riz Minute], en: [Minute Rice, instant rice] }
+  default_unit: g
+  substitutes: [riz-blanc]
+  notes: "Precooked rice, not plain rice: different cooking time and liquid."
 riz-brun:
   category: epicerie
   names: { fr: [riz brun, riz complet], en: [brown rice] }
@@ -245,6 +288,11 @@ macaroni:
   names: { fr: [macaroni, macaronis, coudes], en: [macaroni, elbow macaroni] }
   default_unit: g
   allergens: [gluten]
+kraft-dinner:
+  category: epicerie
+  names: { fr: [Kraft Dinner, KD, macaroni Kraft], en: [Kraft Dinner, KD, macaroni and cheese dinner] }
+  allergens: [gluten, lait]
+  notes: The boxed dinner (pasta and cheese powder), not plain macaroni.
 nouilles-aux-oeufs:
   category: epicerie
   names: { fr: [nouilles aux œufs], en: [egg noodles] }
@@ -265,8 +313,14 @@ pois-casses:
   default_unit: g
 haricots-blancs-secs:
   category: epicerie
-  names: { fr: [petites fèves blanches, fèves blanches sèches, haricots blancs secs, haricots navy], en: [navy beans, dried navy beans, dry white beans] }
+  names: { fr: [petites fèves blanches, fèves blanches sèches, haricots blancs secs, haricots navy, fèves blanches], en: [navy beans, dried navy beans, dry white beans, white beans] }
   default_unit: g
+pois-jaunes:
+  category: epicerie
+  names: { fr: [pois jaunes, pois jaunes entiers, pois à soupe], en: [whole yellow peas, dried yellow peas, soup peas] }
+  default_unit: g
+  substitutes: [pois-casses]
+  notes: "Whole dried yellow peas for soupe aux pois; split peas are pois cassés."
 orge:
   category: epicerie
   names: { fr: [orge, orge perlé, orge mondé], en: [barley, pearl barley] }
@@ -291,7 +345,7 @@ tapioca:
 # --- Épicerie: huiles, vinaigres, sauces, condiments --------------------------
 huile-vegetale:
   category: epicerie
-  names: { fr: [huile végétale], en: [vegetable oil] }
+  names: { fr: [huile végétale, huile à salade, huile de canola, huile de maïs], en: [vegetable oil, salad oil, canola oil, corn oil] }
   default_unit: ml
   staple: true
   au_gout: true
@@ -306,13 +360,15 @@ huile-d-olive:
   substitutes: [huile-vegetale]
 graisse-vegetale:
   category: epicerie
-  names: { fr: [graisse végétale], en: [vegetable shortening, shortening] }
+  names: { fr: [graisse végétale, Crisco, graisse Crisco, graisse végétale Crisco], en: [vegetable shortening, shortening, Crisco, Crisco shortening] }
   default_unit: g
   au_gout: true
   density: 0.86
 saindoux:
   category: epicerie
-  names: { fr: [saindoux, graisse de porc, lard fondu], en: [pork lard] }
+  names: { fr: [saindoux, graisse de porc, lard fondu, Tenderflake, graisse Tenderflake, saindoux Tenderflake], en: [pork lard, Tenderflake, Tenderflake lard] }
+  when:
+    - { names: [lard], lang: en }
   default_unit: g
   au_gout: true
   density: 0.9
@@ -365,6 +421,12 @@ mayonnaise:
   default_unit: ml
   au_gout: true
   allergens: [oeuf]
+miracle-whip:
+  category: epicerie
+  names: { fr: [Miracle Whip], en: [Miracle Whip] }
+  default_unit: ml
+  substitutes: [mayonnaise]
+  notes: A salad dressing, not mayonnaise.
 sauce-soya:
   category: epicerie
   names: { fr: [sauce soya, sauce soja], en: [soy sauce, soya sauce] }
@@ -373,7 +435,7 @@ sauce-soya:
   allergens: [soya, gluten]
 sauce-worcestershire:
   category: epicerie
-  names: { fr: [sauce Worcestershire], en: [Worcestershire sauce] }
+  names: { fr: [sauce Worcestershire, sauce Worcester], en: [Worcestershire sauce] }
   default_unit: ml
   au_gout: true
   allergens: [poisson]
@@ -387,6 +449,13 @@ sauce-chili:
   names: { fr: [sauce chili], en: [chili sauce] }
   default_unit: ml
   au_gout: true
+sauce-hp:
+  category: epicerie
+  names: { fr: [sauce HP], en: [HP sauce] }
+bovril:
+  category: epicerie
+  names: { fr: [Bovril, bouillon Bovril, concentré Bovril], en: [Bovril] }
+  substitutes: [bouillon-de-boeuf]
 relish:
   category: epicerie
   names: { fr: [relish, relish sucrée], en: [relish, sweet relish] }
@@ -405,7 +474,7 @@ olives-vertes:
   default_unit: g
 cubes-de-bouillon:
   category: epicerie
-  names: { fr: [cube de bouillon, cubes de bouillon, bouillon en cube], en: [bouillon cube, stock cube] }
+  names: { fr: [cube de bouillon, cubes de bouillon, bouillon en cube, cube de bouillon de bœuf, cubes de bouillon de bœuf, cube de bouillon de poulet, cubes de bouillon de poulet], en: [bouillon cube, stock cube, beef bouillon cube, chicken bouillon cube] }
   default_unit: piece
   au_gout: true
 bouillon-de-poulet:
@@ -427,7 +496,7 @@ bouillon-de-legumes:
   substitutes: [bouillon-de-poulet]
 soupe-aux-tomates:
   category: conserve
-  names: { fr: [soupe aux tomates, crème de tomate condensée], en: [tomato soup, condensed tomato soup] }
+  names: { fr: [soupe aux tomates, crème de tomate condensée, crème de tomate, crème de tomates, soupe tomate, soupe aux tomates condensée], en: [tomato soup, condensed tomato soup] }
   default_unit: ml
 creme-de-champignons:
   category: conserve
@@ -437,13 +506,21 @@ creme-de-champignons:
 soupe-a-l-oignon-en-sachet:
   category: epicerie
   names: { fr: [soupe à l'oignon en sachet, mélange à soupe à l'oignon], en: [onion soup mix, dry onion soup mix] }
+  when:
+    - { names: [soupe à l'oignon, onion soup], unit: [packet] }
   default_unit: packet
 
 # --- Conserves -----------------------------------------------------------------
 tomates-en-des:
   category: conserve
   names: { fr: [tomates en dés, tomates en conserve], en: [diced tomatoes, canned tomatoes] }
+  when:
+    - { names: [tomates, tomatoes], unit: [container] }
   default_unit: ml
+tomates-etuvees:
+  category: conserve
+  names: { fr: [tomates étuvées], en: [stewed tomatoes] }
+  substitutes: [tomates-en-des]
 pate-de-tomates:
   category: conserve
   names: { fr: [pâte de tomates, concentré de tomates], en: [tomato paste] }
@@ -489,19 +566,19 @@ saumon-en-conserve:
   allergens: [poisson]
 lait-evapore:
   category: conserve
-  names: { fr: [lait évaporé], en: [evaporated milk] }
+  names: { fr: [lait évaporé, lait Carnation, lait en boîte, lait en canne], en: [evaporated milk, Carnation milk, canned milk] }
   default_unit: ml
   density: 1.07
   allergens: [lait]
 lait-concentre-sucre:
   category: conserve
-  names: { fr: [lait concentré sucré, lait condensé sucré], en: [sweetened condensed milk] }
+  names: { fr: [lait concentré sucré, lait condensé sucré, lait Eagle Brand, Eagle Brand], en: [sweetened condensed milk, Eagle Brand, Eagle Brand milk] }
   default_unit: ml
   density: 1.3
   allergens: [lait]
 ananas-en-conserve:
   category: conserve
-  names: { fr: [ananas en conserve], en: [canned pineapple] }
+  names: { fr: [ananas en conserve, ananas broyé, ananas en morceaux, ananas en tranches, ananas en dés], en: [canned pineapple, crushed pineapple, pineapple chunks, pineapple tidbits, pineapple rings] }
   default_unit: ml
 cocktail-de-fruits:
   category: conserve
@@ -532,14 +609,14 @@ beurre:
   substitutes: [margarine]
 margarine:
   category: cremerie
-  names: { fr: [margarine], en: [margarine] }
+  names: { fr: [margarine, margarine molle], en: [margarine, soft margarine] }
   default_unit: g
   au_gout: true
   density: 0.96
   substitutes: [beurre]
 lait:
   category: cremerie
-  names: { fr: [lait], en: [milk] }
+  names: { fr: [lait, lait 2 %, lait 1 %, lait entier, lait homogénéisé, lait 3,25 %, lait écrémé], en: [milk, 2% milk, 1% milk, whole milk, homogenized milk, skim milk] }
   default_unit: ml
   staple: true
   density: 1.03
@@ -584,12 +661,12 @@ yogourt-nature:
   substitutes: [creme-sure]
 fromage-a-la-creme:
   category: cremerie
-  names: { fr: [fromage à la crème], en: [cream cheese] }
+  names: { fr: [fromage à la crème, fromage Philadelphia, Philadelphia], en: [cream cheese, Philadelphia cream cheese, Philadelphia] }
   default_unit: g
   allergens: [lait]
 cheddar:
   category: cremerie
-  names: { fr: [cheddar, fromage cheddar, cheddar râpé, fromage cheddar râpé], en: [cheddar, cheddar cheese, grated cheddar, shredded cheddar] }
+  names: { fr: [cheddar, fromage cheddar, cheddar râpé, fromage cheddar râpé, cheddar fort, cheddar doux, cheddar mi-fort, fromage jaune], en: [cheddar, cheddar cheese, grated cheddar, shredded cheddar, old cheddar, sharp cheddar, mild cheddar, medium cheddar] }
   default_unit: g
   allergens: [lait]
 mozzarella:
@@ -623,6 +700,14 @@ fromage-suisse:
   default_unit: g
   allergens: [lait]
 
+cheez-whiz:
+  category: cremerie
+  names: { fr: [Cheez Whiz, fromage Cheez Whiz], en: [Cheez Whiz] }
+  allergens: [lait]
+garniture-fouettee:
+  category: surgele
+  names: { fr: [garniture fouettée, Cool Whip], en: [Cool Whip, whipped topping, frozen whipped topping] }
+  substitutes: [creme-35]
 # --- Frais ---------------------------------------------------------------------
 oeuf:
   category: frais
@@ -634,7 +719,7 @@ oeuf:
   notes: Calibre gros supposé (~55 g sans la coquille).
 eau:
   category: autre
-  names: { fr: [eau, eau froide, eau chaude, eau bouillante, eau tiède], en: [water, cold water, hot water, boiling water, warm water] }
+  names: { fr: [eau, eau froide, eau chaude, eau bouillante, eau tiède, eau glacée, eau très froide], en: [water, cold water, hot water, boiling water, warm water, ice water, iced water] }
   default_unit: ml
   staple: true
   density: 1.0
@@ -649,7 +734,7 @@ tofu:
   allergens: [soya]
 pate-a-tarte:
   category: surgele
-  names: { fr: [pâte à tarte, pâte brisée, abaisse, abaisses, fond de tarte, croûte à tarte], en: [pie crust, pie shell, pastry shell, pie pastry] }
+  names: { fr: [pâte à tarte, pâte, pâte brisée, abaisse, abaisses, fond de tarte, croûte à tarte, abaisse non cuite, fond de tarte non cuit], en: [pie crust, pie shell, pastry shell, pie pastry, unbaked pie shell, unbaked pastry shell] }
   default_unit: piece
   allergens: [gluten]
 
@@ -664,7 +749,7 @@ sel:
   weights: { pinch: 0.4 }
 gros-sel:
   category: epice
-  names: { fr: [gros sel], en: [coarse salt] }
+  names: { fr: [gros sel, sel à marinade, sel à marinades], en: [coarse salt, pickling salt, coarse pickling salt] }
   default_unit: g
   au_gout: true
 poivre:
@@ -699,6 +784,10 @@ clou-de-girofle:
   category: epice
   names: { fr: [clou de girofle, clous de girofle], en: [whole cloves] }
   default_unit: g
+  au_gout: true
+girofle-moulu:
+  category: epice
+  names: { fr: [clou de girofle moulu, clous de girofle moulus, girofle moulu], en: [ground cloves] }
   au_gout: true
 gingembre-moulu:
   category: epice
@@ -747,7 +836,7 @@ cari:
   au_gout: true
 curcuma:
   category: epice
-  names: { fr: [curcuma], en: [turmeric] }
+  names: { fr: [curcuma, safran des Indes], en: [turmeric] }
   default_unit: g
   au_gout: true
 thym:
@@ -840,6 +929,22 @@ graines-de-celeri:
   names: { fr: [graines de céleri], en: [celery seed] }
   default_unit: g
   au_gout: true
+sel-de-celeri:
+  category: epice
+  names: { fr: [sel de céleri], en: [celery salt] }
+  au_gout: true
+sel-d-ail:
+  category: epice
+  names: { fr: [sel d'ail], en: [garlic salt] }
+  au_gout: true
+graines-de-moutarde:
+  category: epice
+  names: { fr: [graines de moutarde, graine de moutarde], en: [mustard seed, mustard seeds] }
+  allergens: [moutarde]
+assaisonnement-italien:
+  category: epice
+  names: { fr: [assaisonnement italien, épices italiennes, fines herbes italiennes], en: [Italian seasoning] }
+  au_gout: true
 epices-a-marinade:
   category: epice
   names: { fr: [épices à marinades, épices à marinade, épices pour marinades], en: [pickling spice] }
@@ -890,7 +995,7 @@ celeri:
   weights: { stalk: 40 }
 pomme-de-terre:
   category: legume
-  names: { fr: [pomme de terre, pommes de terre, patate, patates], en: [potato, potatoes] }
+  names: { fr: [pomme de terre, pommes de terre, patate, patates, patates blanches, pommes de terre blanches], en: [potato, potatoes, white potatoes] }
   default_unit: piece
   weights: { piece: 170 }
 patate-douce:
@@ -945,12 +1050,17 @@ piment-fort:
 tomate:
   category: legume
   names: { fr: [tomate fraîche, tomates fraîches], en: [fresh tomato, fresh tomatoes] }
+  when:
+    - { names: [tomates, tomate, tomatoes, tomato], unit: [count, lb, kg] }
   default_unit: piece
   weights: { piece: 125 }
 tomates-cerises:
   category: legume
   names: { fr: [tomates cerises, tomate cerise], en: [cherry tomatoes] }
   default_unit: g
+tomates-vertes:
+  category: legume
+  names: { fr: [tomates vertes, tomate verte], en: [green tomatoes, green tomato] }
 concombre:
   category: legume
   names: { fr: [concombre, concombres], en: [cucumber, cucumbers] }
@@ -969,10 +1079,14 @@ aubergine:
 champignons:
   category: legume
   names: { fr: [champignons frais, champignons blancs, champignons de Paris], en: [fresh mushrooms, white mushrooms, button mushrooms] }
+  when:
+    - { names: [champignons, mushrooms], unit: [count, g, kg, lb] }
   default_unit: g
 champignons-en-conserve:
   category: conserve
   names: { fr: [champignons en conserve, champignons tranchés en conserve], en: [canned mushrooms] }
+  when:
+    - { names: [champignons, mushrooms], unit: [container] }
   default_unit: ml
 laitue:
   category: legume
@@ -990,6 +1104,9 @@ haricots-jaunes:
   category: legume
   names: { fr: [fèves jaunes, haricots jaunes], en: [yellow beans, wax beans] }
   default_unit: g
+feves-germees:
+  category: legume
+  names: { fr: [fèves germées, germes de soya], en: [bean sprouts, mung bean sprouts] }
 petits-pois:
   category: legume
   names: { fr: [petits pois, pois verts], en: [green peas, peas] }
@@ -1015,7 +1132,7 @@ courge:
 # --- Fruits --------------------------------------------------------------------
 pomme:
   category: fruit
-  names: { fr: [pomme, pommes], en: [apple, apples] }
+  names: { fr: [pomme, pommes, pommes McIntosh, pomme McIntosh, pommes Cortland, pommes à cuire, pommes Spartan], en: [apple, apples, McIntosh apples, Cortland apples, cooking apples] }
   default_unit: piece
   weights: { piece: 180 }
 banane:
@@ -1094,11 +1211,15 @@ compote-de-pommes:
 # --- Viandes et poissons -------------------------------------------------------
 boeuf-hache:
   category: viande
-  names: { fr: [bœuf haché, steak haché], en: [ground beef, minced beef] }
+  names: { fr: [bœuf haché, steak haché, bœuf haché maigre, bœuf haché mi-maigre, bœuf haché extra-maigre, bœuf à hamburger, viande à hamburger], en: [ground beef, minced beef, lean ground beef, medium ground beef, extra lean ground beef, hamburger meat] }
+  when:
+    - { names: [bœuf, beef], words: [haché, hachée, ground] }
   default_unit: g
 porc-hache:
   category: viande
-  names: { fr: [porc haché], en: [ground pork] }
+  names: { fr: [porc haché, porc haché maigre, porc haché mi-maigre], en: [ground pork, lean ground pork] }
+  when:
+    - { names: [porc, pork], words: [haché, hachée, ground] }
   default_unit: g
 veau-hache:
   category: viande
@@ -1107,6 +1228,8 @@ veau-hache:
 cubes-de-boeuf:
   category: viande
   names: { fr: [cubes de bœuf, bœuf à ragoût, bœuf en cubes, bœuf en dés], en: [stewing beef, beef stew meat, beef cubes] }
+  when:
+    - { names: [bœuf, beef], words: [en cubes, en dés, à ragoût, cubed, stewing] }
   default_unit: g
 roti-de-boeuf:
   category: viande
@@ -1120,13 +1243,24 @@ cotelettes-de-porc:
   category: viande
   names: { fr: [côtelettes de porc, côtelette de porc], en: [pork chops, pork chop] }
   default_unit: piece
+epaule-de-porc:
+  category: viande
+  names: { fr: [épaule de porc, soc de porc, rôti d'épaule de porc], en: [pork shoulder, pork butt, pork shoulder roast] }
+pattes-de-porc:
+  category: viande
+  names: { fr: [pattes de cochon, pattes de porc, pieds de porc], en: [pig's feet, pigs feet] }
 jambon:
   category: viande
   names: { fr: [jambon, jambon cuit], en: [ham, cooked ham] }
   default_unit: g
+os-de-jambon:
+  category: viande
+  names: { fr: [os de jambon], en: [ham bone] }
 lard-sale:
   category: viande
   names: { fr: [lard salé, petit lard salé], en: [salt pork] }
+  when:
+    - { names: [lard], lang: fr }
   default_unit: g
 bacon:
   category: viande
@@ -1234,7 +1368,7 @@ gingembre-ale:
   default_unit: ml
 poudre-de-gelee:
   category: epicerie
-  names: { fr: [poudre à gelée, gelée en poudre, poudre à gelée Jell-O], en: [jelly powder, Jell-O, flavoured gelatin] }
+  names: { fr: [poudre à gelée, gelée en poudre, poudre à gelée Jell-O, jello, Jello], en: [jelly powder, Jell-O, flavoured gelatin, Jello, jelly powder Jell-O] }
   default_unit: packet
 pouding-instantane:
   category: epicerie
@@ -1242,7 +1376,7 @@ pouding-instantane:
   default_unit: packet
 guimauves:
   category: epicerie
-  names: { fr: [guimauves, mini-guimauves, guimauves miniatures], en: [marshmallows, miniature marshmallows, mini marshmallows] }
+  names: { fr: [guimauves, mini-guimauves, guimauves miniatures, petites guimauves], en: [marshmallows, miniature marshmallows, mini marshmallows] }
   default_unit: g
 colorant-alimentaire:
   category: epicerie
