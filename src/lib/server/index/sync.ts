@@ -8,6 +8,7 @@ import { checkFile } from '../../vault/check';
 import type { Diagnostic } from '../../vault/types';
 import { RECIPES, type VaultPaths } from '../vault';
 import { loadVocab, type VaultVocab } from '../vocab';
+import { syncRegistry, type RegistryReport } from '../registry';
 import type { DB } from './db';
 import { bodyOf, deleteRecipeRows, getMeta, recordProblem, refreshFamilies, retag, sha256, upsertRecipe } from './build';
 
@@ -22,6 +23,8 @@ export interface SyncReport {
 	unchanged: number;
 	removed: number;
 	problems: SyncProblem[];
+	/** The ingredient registry (ingredients/*.md). */
+	registry: RegistryReport;
 	ms: number;
 }
 
@@ -88,9 +91,18 @@ export function syncVault(db: DB, paths: VaultPaths, { force = false } = {}): Sy
 	const t0 = performance.now();
 	const vocab = loadVocab(paths.vocab);
 	const files = existsSync(paths.recipes) ? readdirSync(paths.recipes).filter(isRecipeFile).sort() : [];
-	const report: SyncReport = { scanned: files.length, indexed: 0, unchanged: 0, removed: 0, problems: [], ms: 0 };
+	const report: SyncReport = {
+		scanned: files.length,
+		indexed: 0,
+		unchanged: 0,
+		removed: 0,
+		problems: [],
+		registry: { files: 0, loaded: 0, removed: 0, changed: false, problems: [] },
+		ms: 0
+	};
 	const present = new Set(files.map((f) => `${RECIPES}/${f}`));
 	db.transaction(() => {
+		report.registry = syncRegistry(db, paths, vocab, { force });
 		for (const f of files) {
 			const outcome = syncFile(db, paths, `${RECIPES}/${f}`, vocab, force);
 			if (outcome === 'indexed') report.indexed++;

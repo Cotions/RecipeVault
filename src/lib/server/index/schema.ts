@@ -4,7 +4,7 @@
 // (Vite) load it the same way.
 
 /** Bump on any change below: the index is then rebuilt from scratch. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const SCHEMA_SQL = `
 CREATE TABLE recipes (
@@ -49,7 +49,8 @@ CREATE TABLE problems (
   diagnostics TEXT NOT NULL             -- JSON list of { code, path, message }
 );
 
--- Index bookkeeping: tags_hash = sha256 of vocab/tags.yaml at the last retag.
+-- Index bookkeeping: tags_hash = sha256 of vocab/tags.yaml at the last retag;
+-- registry_hash = sha256 over the ingredient files and the vocab they depend on.
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE families (
@@ -83,6 +84,47 @@ CREATE TABLE ingredients (
   PRIMARY KEY (slug, position)
 );
 
+-- The ingredient registry, ingredients/<slug>.md (docs/INGREDIENTS.md). A file
+-- that stops passing its check keeps its last good row, flagged in registry_problems.
+CREATE TABLE registry (
+  slug         TEXT PRIMARY KEY,
+  file_path    TEXT NOT NULL UNIQUE,
+  file_hash    TEXT NOT NULL,
+  name         TEXT NOT NULL,           -- display name: first French name, else first English
+  category     TEXT NOT NULL,
+  staple       INTEGER NOT NULL DEFAULT 0,
+  au_gout      INTEGER NOT NULL DEFAULT 0,
+  density      REAL,
+  default_unit TEXT,
+  entry_json   TEXT NOT NULL,           -- the parsed entry (names, weights, substitutes, allergens…)
+  warnings_json TEXT NOT NULL DEFAULT '[]', -- the file's own warnings (W809, W811)
+  body         TEXT NOT NULL
+);
+
+-- Every alias of every entry, by lookup key (docs/INGREDIENTS.md, Resolution 2).
+-- skey: the key with the plural rules of vocab/normalize.yaml applied.
+CREATE TABLE ingredient_names (
+  key   TEXT NOT NULL,
+  skey  TEXT NOT NULL,
+  slug  TEXT NOT NULL,
+  lang  TEXT NOT NULL,
+  name  TEXT NOT NULL,                  -- as written in the entry
+  PRIMARY KEY (slug, lang, name)
+);
+
+CREATE TABLE substitutes (slug TEXT NOT NULL, substitute TEXT NOT NULL, PRIMARY KEY (slug, substitute));
+CREATE TABLE ingredient_allergens (slug TEXT NOT NULL, allergen TEXT NOT NULL, PRIMARY KEY (slug, allergen));
+
+-- Ingredient files with diagnostics: broken = 1 when the file has errors (its
+-- last good registry row, if any, is kept); warnings alone leave broken = 0.
+CREATE TABLE registry_problems (
+  file_path   TEXT PRIMARY KEY,
+  slug        TEXT,
+  file_hash   TEXT NOT NULL,
+  broken      INTEGER NOT NULL DEFAULT 0,
+  diagnostics TEXT NOT NULL             -- JSON list of { code, severity, path, message, fix? }
+);
+
 CREATE TABLE media (
   slug TEXT NOT NULL,
   kind TEXT NOT NULL,                   -- final | step
@@ -109,4 +151,7 @@ CREATE INDEX idx_recipes_updated ON recipes(updated);
 CREATE INDEX idx_tags_tag        ON tags(tag);
 CREATE INDEX idx_ingredients_item ON ingredients(item);
 CREATE INDEX idx_ingredients_recipe ON ingredients(recipe);
+CREATE INDEX idx_names_key  ON ingredient_names(key);
+CREATE INDEX idx_names_skey ON ingredient_names(skey);
+CREATE INDEX idx_substitutes_sub ON substitutes(substitute);
 `;

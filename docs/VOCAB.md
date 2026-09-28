@@ -125,6 +125,44 @@ two dialects actually disagree:
 | crème 35 % / 15 % | crème entière / légère | the percentage matters |
 | steak haché | bœuf haché | |
 
+## Plurals
+
+How the ingredient resolver strips plurals (`INGREDIENTS.md`, "Resolution";
+plan 03, Q2). Data, not code: the seed is copied to `vocab/normalize.yaml`, and
+the owner may change it. Per language, each word of a name at least
+`min_length` letters long loses the first suffix it ends with (words holding a
+digit are left alone). The rule applies to the written name and to every alias
+alike, and only as a fallback: an exact alias match always wins, and a singular
+form shared by two ingredients resolves to neither (so *pâte* and *pâtes* can be
+two ingredients).
+
+```yaml
+plurals:
+  fr: { suffixes: [x, s], min_length: 4 }
+  en: { suffixes: [s], min_length: 4 }
+```
+
+## Allergens
+
+The fixed list an ingredient's `allergens` takes its values from, and what
+pantry search's "à éviter" offers (plan 03, Q20). Seeded with the Health Canada
+priority allergens; copied to `vocab/allergens.yaml`. A value not in the list
+is a warning (`W809`) and is ignored.
+
+```yaml
+oeuf: { fr: Œufs, en: Eggs }
+lait: { fr: Lait, en: Milk }
+moutarde: { fr: Moutarde, en: Mustard }
+arachide: { fr: Arachides, en: Peanuts }
+crustaces: { fr: Crustacés et mollusques, en: Crustaceans and molluscs }
+poisson: { fr: Poisson, en: Fish }
+sesame: { fr: Sésame, en: Sesame }
+soya: { fr: Soya, en: Soy }
+sulfites: { fr: Sulfites, en: Sulphites }
+noix: { fr: Noix, en: Tree nuts }
+gluten: { fr: Blé et gluten, en: Wheat and gluten }
+```
+
 ## Seasons
 
 Fixed, four values plus none: `printemps`, `ete`, `automne`, `hiver`.

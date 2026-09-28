@@ -71,7 +71,18 @@ export const codeText: Readonly<Record<string, string>> = {
 	W607: 'Le nom contient une marque de commerce ; elle devrait être à part, en marque.',
 	W608: 'Une recette porte déjà ce titre. Vous pouvez en faire deux versions d’une même famille (case ci-dessus).',
 	W609: 'Une étape parle d’une température de four, mais le four n’est pas indiqué dans la fiche.',
-	W610: 'Champ inconnu (une faute de frappe ?) : sa valeur est ignorée.'
+	W610: 'Champ inconnu (une faute de frappe ?) : sa valeur est ignorée.',
+	E801: 'Cette fiche d’ingrédient ne se lit pas : l’en-tête entre deux lignes « --- » manque ou est mal écrit.',
+	E802: 'L’identifiant de l’ingrédient doit être en minuscules, sans accents, avec des traits d’union, et pareil au nom du fichier.',
+	E803: 'La catégorie de l’ingrédient manque ou n’est pas dans la liste (frais, viande, légume, épicerie…).',
+	E804: 'L’ingrédient n’a aucun nom, ou ses noms sont mal écrits (une liste en français, une en anglais).',
+	E805: 'La densité ou un poids par unité doit être un nombre plus grand que zéro, en grammes.',
+	E806: 'L’unité par défaut de l’ingrédient n’est pas une unité connue.',
+	E807: 'Un champ de l’ingrédient n’a pas la bonne forme : « oui/non » attendu, ou une liste d’identifiants.',
+	W808: 'Un substitut indiqué n’existe pas (ou c’est l’ingrédient lui-même). Créez-le ou retirez-le.',
+	W809: 'Allergène hors de la liste : il est ignoré. Choisissez-en un de la liste.',
+	W810: 'Deux ingrédients portent le même nom : les recettes qui l’écrivent restent non reliées. Gardez-le sous un seul.',
+	W811: 'Champ inconnu dans la fiche d’ingrédient (une faute de frappe ?) : il est ignoré.'
 };
 
 /** The French explanation for a code; a code without one points to the technical detail. */

@@ -18,11 +18,13 @@ category: conserve                   # see categories below
 names:                               # every way it appears in a recipe
   fr: [tomates concassées, tomate concassée, pulpe de tomate, tomates pelées]
   en: [chopped tomatoes, crushed tomatoes, canned tomatoes]
-default_unit: g
+default_unit: g                      # optional; see below
 staple: false                        # true = assumed always in the cupboard
+au_gout: false                       # optional; true = may be written "to taste"
 density: 1.0                         # g per ml, only when the conversion is safe
+weights: { piece: 400 }              # optional; grams for one of a count unit
 substitutes: [tomates-fraiches, coulis-de-tomate]
-allergens: [gluten]                  # from a fixed list
+allergens: [gluten]                  # from vocab/allergens.yaml
 ---
 
 Free prose notes about the ingredient.
@@ -30,6 +32,38 @@ Free prose notes about the ingredient.
 
 Categories: `frais`, `viande`, `poisson`, `legume`, `fruit`, `cremerie`,
 `epicerie`, `conserve`, `surgele`, `epice`, `boisson`, `autre`.
+
+The app writes these files in that key order, names as flow lists
+(`fr: [a, b]`), and leaves out `default_unit`, `au_gout`, `density` and
+`weights` when unset. Only `slug`, `category` and one name are required.
+Problems in a file have stable codes, `E801`–`W811` (`VALIDATION.md`,
+"Registry codes"); a file with an error keeps its last good index rows.
+
+- `default_unit` (plan 03, Q26): the unit vault-wide totals and "sorted by how
+  much it uses" add quantities in, and the default `pack_unit` when entering a
+  price. A canonical unit.
+- `weights` (plan 03, Q12): canonical unit → grams for one of it, for count and
+  spoon units a recipe writes: `{ piece: 55, clove: 5, pinch: 0.4 }`. This is the
+  "explicit average weight" and the "per-ingredient table" of "Unit conversion"
+  below.
+- `au_gout` (plan 03, Q21): the item may reasonably be written `to_taste` —
+  salt, pepper, oils, butter, herbs and spices. `W606` fires on `to_taste`
+  items whose entry does not have it. It describes how a recipe uses the item;
+  `category` describes where it is bought.
+- `allergens` (plan 03, Q20): values from `vocab/allergens.yaml`, seeded with
+  the Health Canada priority allergens (`VOCAB.md`, "Allergens"). An unknown
+  value is a warning (`W809`) and is ignored.
+
+### The seed
+
+A new vault starts with a seed registry (plan 03, Q5): `docs/INGREDIENTS-SEED.yaml`,
+a couple of hundred common entries with staples, categories, densities for flours
+and sugars, per-unit weights, and the Québec names as aliases. `vault init`
+writes it; `vault ingredients seed` adds the missing entries (and the
+`vocab/normalize.yaml` and `vocab/allergens.yaml` files an older vault lacks) to
+an existing vault without touching an entry already there. It is data, like the
+vocabulary seed: the resolve queue then starts with the long tail, not with
+*sel* and *farine* on every recipe.
 
 ### `staple` is the important flag
 

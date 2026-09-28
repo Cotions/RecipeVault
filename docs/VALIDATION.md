@@ -175,6 +175,29 @@ Warnings. Save, mark `needs-review`.
 | W609 | ai | step text mentions an oven temperature but `oven` is absent |
 | W610 | ai | unknown frontmatter key (`serving:`, `temps:`), in the frontmatter or inside `source`, `times`, `oven`, `yield`, `media`, a group or an ingredient entry — its value is ignored; the closest allowed key is suggested |
 
+## Registry codes
+
+Problems in an ingredient file, `ingredients/<slug>.md` (`INGREDIENTS.md`, "The
+registry"; plan 03, Q6). The AI never writes these files, so every code is
+settled by the person (`app`). They show in `vault check --dir <vault>`, `vault
+sync`, and on the ingredient pages. An ingredient file with an error keeps its
+last good index rows and is not committed by the file watcher, the same rule as
+a recipe; warnings leave it in use.
+
+| Code | Fixed by | Condition |
+|---|---|---|
+| E801 | app | the ingredient file is not Markdown with a YAML frontmatter, or the YAML does not read |
+| E802 | app | `slug` missing, not lowercase ASCII hyphenated, or not the file name |
+| E803 | app | `category` missing or not one of the 12 categories |
+| E804 | app | `names` not a mapping of `fr`/`en` to lists of text, or no name at all |
+| E805 | app | `density` not a positive number, or `weights` not a mapping of canonical unit → positive grams |
+| E806 | app | `default_unit` not a canonical unit |
+| E807 | app | `staple` or `au_gout` not `true`/`false`, or `substitutes`/`allergens` not a list of slugs |
+| W808 | app | a `substitutes` entry is not in the registry, or is the entry itself |
+| W809 | app | an `allergens` value not in `vocab/allergens.yaml` — ignored |
+| W810 | app | alias collision: one lookup key (`INGREDIENTS.md`, "Resolution") written under two entries — recipes writing it stay unresolved (ambiguous) until one entry drops it |
+| W811 | app | unknown key in an ingredient file — ignored; the closest allowed key is suggested |
+
 `E210` and `E211` are heuristics, deliberately hard errors rather than warnings.
 They catch the two AI mistakes that quietly corrupt the ingredient index, and a
 false positive costs one manual override — far cheaper than discovering at recipe

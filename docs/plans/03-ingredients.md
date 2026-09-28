@@ -201,6 +201,32 @@ Q21 (W606 flag), Q26 (`default_unit`).
 Tests: parse/serialize round-trip, every registry code has a fixture, sync with a
 broken entry, watcher reload.
 
+**Implementation notes (Phase 1, done).**
+- Codes: `E801`–`E807` (file, slug, category, names, density/weights,
+  default_unit, field shape), `W808` (substitute missing or itself), `W809`
+  (allergen not in the list), `W810` (alias collision), `W811` (unknown key).
+  All `app`. Recorded in `VALIDATION.md`, "Registry codes".
+- Field names: `au_gout` (Q21) and `weights` (Q12). Only `slug`, `category`
+  and one name are required; `default_unit`, `au_gout`, `density`, `weights`
+  are omitted when unset.
+- The lookup key also drops the space before `%` (`crème 35 %` = `crème 35%`),
+  a typographic variant like the apostrophes; it keeps the number, so 15 % and
+  35 % stay apart.
+- Allergen slugs (Q20): `oeuf`, `lait`, `moutarde`, `arachide`, `crustaces`,
+  `poisson`, `sesame`, `soya`, `sulfites`, `noix`, `gluten` in
+  `vocab/allergens.yaml` (`VOCAB.md`, "Allergens"). Plural rules in
+  `vocab/normalize.yaml` (`VOCAB.md`, "Plurals").
+- The seed is `docs/INGREDIENTS-SEED.yaml` (243 entries). `vault ingredients
+  seed` also writes `vocab/normalize.yaml` and `vocab/allergens.yaml` when a
+  vault lacks them (an older vault), never overwriting.
+- The watcher does not commit an ingredient file with an error (the recipe
+  rule), where `DATA-FLOW.md` said "when it still reads as Markdown with
+  frontmatter". `DATA-FLOW.md` updated.
+- `vault check --dir <dir>`: when `<dir>` holds `recipes/`, it is taken as a
+  vault and both `recipes/` and `ingredients/` are checked.
+- `SyncReport.registry` carries the registry counts and problems apart from
+  the recipe `problems`, so `vault sync` still exits 1 only on errors.
+
 ### Phase 2 — resolution
 
 Depends on: Q1 (fuzzy auto or not), Q2 (plurals), Q3 (status), Q4 (override UI).

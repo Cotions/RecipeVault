@@ -8,7 +8,6 @@
 import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { parseRecipe } from '../vault/parse';
 import { stripMarkers } from '../vault/markers';
 import type { VaultContext } from './context';
 import { commitPaths, git, isDirty } from './git';
@@ -16,6 +15,7 @@ import { refreshFamilies, retag, sha256 } from './index/build';
 import { isRecipeFile, syncFile, tagsHash, type FileOutcome } from './index/sync';
 import { INGREDIENTS, RECIPES, VOCAB } from './vault';
 import { loadVocab } from './vocab';
+import { syncRegistry } from './registry';
 
 export interface WatcherOptions {
 	debounceMs?: number;
@@ -104,22 +104,28 @@ export class Watcher {
 		if (kind === 'recipe') return this.handleRecipe(rel, text);
 
 		// vocab, ingredients, prices: commit what reads correctly, nothing else.
-		if (text !== undefined) {
-			const ok =
-				kind === 'vocab' ? parses(() => parse(text, { version: '1.2' })) : kind === 'ingredient' ? !!parseRecipe(text).frontmatter : true;
-			if (!ok) {
+		if (text !== undefined && kind === 'vocab' && !parses(() => parse(text, { version: '1.2' }))) {
+			this.opts.onHandled?.(rel, 'flagged');
+			return;
+		}
+		if (kind === 'vocab' || kind === 'ingredient') {
+			const vocab = loadVocab(ctx.paths.vocab);
+			ctx.db.transaction(() => {
+				if (kind === 'vocab') {
+					retag(ctx.db, vocab, tagsHash(ctx.paths.vocab));
+					refreshFamilies(ctx.db, vocab);
+				}
+				syncRegistry(ctx.db, ctx.paths, vocab);
+			})();
+			// An ingredient file with errors keeps its last good rows and is not
+			// committed, like a recipe (docs/DATA-FLOW.md, "File watcher").
+			if (kind === 'ingredient' && ctx.db.prepare('SELECT 1 FROM registry_problems WHERE file_path = ? AND broken = 1').get(rel)) {
 				this.opts.onHandled?.(rel, 'flagged');
 				return;
 			}
 		}
-		if (kind === 'vocab') {
-			const vocab = loadVocab(ctx.paths.vocab);
-			ctx.db.transaction(() => {
-				retag(ctx.db, vocab, tagsHash(ctx.paths.vocab));
-				refreshFamilies(ctx.db, vocab);
-			})();
-		}
-		await this.commitIfDirty(rel, `${text === undefined ? 'delete' : 'edit'} (external): ${rel}`);
+		const committed = await this.commitIfDirty(rel, `${text === undefined ? 'delete' : 'edit'} (external): ${rel}`);
+		this.opts.onHandled?.(rel, committed ? 'committed' : 'unchanged');
 	}
 
 	private async handleRecipe(rel: string, text: string | undefined): Promise<void> {

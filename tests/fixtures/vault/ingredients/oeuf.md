@@ -6,6 +6,7 @@ names:
   en: [egg, eggs, egg yolk, egg white]
 default_unit: piece
 staple: true
+weights: { piece: 55 }
 substitutes: []
 allergens: [oeuf]
 ---

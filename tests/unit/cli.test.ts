@@ -74,6 +74,17 @@ describe('vault check', () => {
 		expect(vault(['check', '--vault', v, join(v, 'recipes', 'toasts-au-beurre-d-arachide.md')]).code).toBe(0);
 	});
 
+	it('--dir on a vault checks its recipes and its ingredient registry', () => {
+		const r = vault(['check', '--dir', 'tests/fixtures/vault']);
+		expect(r.code).toBe(1);
+		expect(r.out).toMatch(/✗ ingredients\/casse\.md {2}1 error/);
+		expect(r.out).toMatch(/! ingredients\/huile-vegetale\.md {2}1 warning/);
+		expect(r.out).toMatch(/37 ingredients: 1 failed, 36 passed/);
+		const j = JSON.parse(vault(['check', '--dir', 'tests/fixtures/vault', '--json']).out);
+		expect(j.files.length).toBe(22);
+		expect(j.ingredients.find((f: { name: string }) => f.name === 'ingredients/casse.md').diagnostics[0].code).toBe('E803');
+	});
+
 	it('exits 2 on usage and IO errors', () => {
 		expect(vault([]).code).toBe(2);
 		expect(vault(['check']).code).toBe(2);

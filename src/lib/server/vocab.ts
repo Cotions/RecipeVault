@@ -1,16 +1,21 @@
 // The live vocabularies in the vault's vocab/ folder (docs/VOCAB.md): tag
-// aliases and family labels. Read at index time; a missing or broken file
+// aliases, family labels, the plural rules and the allergen list. Read at index time; a missing or broken file
 // means an empty vocabulary, never a failed sync.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { fold } from '../vault/normalize';
+import { parseNormalizeVocab, type NormalizeVocab } from '../ingredients/normalize';
 
 export interface VaultVocab {
 	/** Folded alias or canonical tag → canonical tag. */
 	tags: Map<string, string>;
 	families: Map<string, { fr?: string; en?: string }>;
+	/** vocab/normalize.yaml: plural rules for ingredient lookup keys. */
+	normalize: NormalizeVocab;
+	/** vocab/allergens.yaml: allergen slug → labels. */
+	allergens: Map<string, { fr?: string; en?: string }>;
 }
 
 function readYaml(file: string): unknown {
@@ -33,18 +38,26 @@ export function loadVocab(vocabDir: string): VaultVocab {
 				for (const a of aliases) if (typeof a === 'string' && !tags.has(fold(a))) tags.set(fold(a), canonical);
 		}
 	}
-	const families = new Map<string, { fr?: string; en?: string }>();
-	const f = readYaml(join(vocabDir, 'families.yaml'));
-	if (isMap(f)) {
-		for (const [slug, labels] of Object.entries(f)) {
-			const l = isMap(labels) ? labels : {};
-			families.set(slug, {
-				fr: typeof l.fr === 'string' ? l.fr : undefined,
-				en: typeof l.en === 'string' ? l.en : undefined
-			});
-		}
+	return {
+		tags,
+		families: labelMap(readYaml(join(vocabDir, 'families.yaml'))),
+		normalize: parseNormalizeVocab(readYaml(join(vocabDir, 'normalize.yaml'))),
+		allergens: labelMap(readYaml(join(vocabDir, 'allergens.yaml')))
+	};
+}
+
+/** `slug: { fr: label, en: label }` → a map; malformed entries get no labels. */
+function labelMap(data: unknown): Map<string, { fr?: string; en?: string }> {
+	const out = new Map<string, { fr?: string; en?: string }>();
+	if (!isMap(data)) return out;
+	for (const [slug, labels] of Object.entries(data)) {
+		const l = isMap(labels) ? labels : {};
+		out.set(slug, {
+			fr: typeof l.fr === 'string' ? l.fr : undefined,
+			en: typeof l.en === 'string' ? l.en : undefined
+		});
 	}
-	return { tags, families };
+	return out;
 }
 
 /** A tag as the index stores it: canonical when known, else folded and pending. */

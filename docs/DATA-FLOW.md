@@ -152,9 +152,13 @@ and rebuilt (it is a cache). In outline:
 | `families` | family in use or in `vocab/families.yaml` | labels from the vocabulary; refreshed on every save, delete, restore, outside edit and sync |
 | `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten. A vocabulary change recomputes every row and the FTS `tags` column |
 | `seasons` | recipe × season | canonical value (`printemps`, `ete`, `automne`, `hiver`); aliases from `VOCAB.md` mapped at index time |
-| `meta` | key | index bookkeeping: `tags_hash`, the hash of `vocab/tags.yaml` at the last retag |
+| `meta` | key | index bookkeeping: `tags_hash`, the hash of `vocab/tags.yaml` at the last retag; `registry_hash`, over every ingredient file's hash plus `vocab/normalize.yaml` and `vocab/allergens.yaml` |
 | `ingredients` | ingredient item | `group_idx`, `group_name`, `group_optional`, `qty`, `qty_max` (numeric), `unit`, `name` (as written), `optional`, `recipe` (sub-recipe slug), `item` (normalized name: lowercase, NFC, no accents, markers stripped — registry resolution replaces it in P1.5) |
 | `media` | recipe × media file | |
+| `registry` | ingredient file (`ingredients/<slug>.md`) | `name` (display), `category`, `staple`, `au_gout`, `density`, `default_unit`, `entry_json` (the parsed entry), `file_hash`; a file that stops passing its check keeps its last good row |
+| `ingredient_names` | alias of an entry | `key` (lookup key, `INGREDIENTS.md` "Resolution"), `skey` (the key with the plural rules of `vocab/normalize.yaml`), `slug`, `lang`, `name` as written |
+| `substitutes`, `ingredient_allergens` | entry × substitute, entry × allergen | |
+| `registry_problems` | ingredient file with diagnostics | codes `E801`–`W811`; `broken = 1` when it has an error |
 | `recipes_fts` | recipe | FTS5 over title, body, ingredient names, author, tags |
 
 Durations are stored in seconds, the upper bound of a range; `total_s` is
@@ -188,7 +192,11 @@ them in a banner. A file whose `slug` differs from its file name is not indexed
 (the slug is the file name). When `vocab/tags.yaml` differs from the one the
 index last used (its hash is kept in `meta`), every tag row is recomputed even
 though no recipe file changed — a `git pull` of the vocabulary while the app was
-down. `vault reindex` deletes the index and rebuilds it.
+down. The ingredient registry (`ingredients/*.md`) is loaded the same way, by
+hash, before the recipes: skipped when `meta.registry_hash` matches, else the
+changed files are re-read (all of them when the plural rules or the allergen
+list changed), and the report lists the ingredient files with errors or
+warnings. `vault reindex` deletes the index and rebuilds it.
 
 With hashing, a no-op sync over 5000 files is a couple of seconds. Run it on app
 startup so hand-edits in a text editor are always picked up.
@@ -205,9 +213,11 @@ and `prices.csv`:
 - If it parses: commit it to the vault repo as `edit (external): <title>`
   (`delete (external): <title>` when the file was removed). Files under
   `ingredients/`, `vocab/` and `prices.csv` are committed as
-  `edit (external): <path>` when they still read as Markdown with frontmatter,
-  YAML, or text respectively; a vocabulary change re-derives the tag and family
-  rows.
+  `edit (external): <path>` when they still read: an ingredient file that
+  passes its check (no `E8xx` error; one that fails keeps its last good rows,
+  is flagged and is not committed, like a recipe), YAML, or text respectively.
+  A vocabulary change re-derives the tag and family rows; an ingredient file,
+  `vocab/normalize.yaml` or `vocab/allergens.yaml` change reloads the registry.
 - If it does not: keep the last good index rows, flag the recipe in the UI with the
   validation errors, and do not commit. A half-typed edit in Obsidian must never
   knock a recipe out of search.

@@ -67,7 +67,19 @@ export const CODE_FIXERS: Readonly<Record<string, Fixer>> = {
 	W607: 'ai',
 	W608: 'app',
 	W609: 'ai',
-	W610: 'ai'
+	W610: 'ai',
+	// Ingredient registry files (docs/VALIDATION.md, "Registry codes").
+	E801: 'app',
+	E802: 'app',
+	E803: 'app',
+	E804: 'app',
+	E805: 'app',
+	E806: 'app',
+	E807: 'app',
+	W808: 'app',
+	W809: 'app',
+	W810: 'app',
+	W811: 'app'
 };
 
 /** Who fixes a code. An unregistered code is kept away from the AI. */

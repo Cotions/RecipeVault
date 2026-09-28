@@ -25,21 +25,26 @@ import { syncVault } from '../lib/server/index/sync';
 import { PasteLog, pasteStats, readPasteLog } from '../lib/server/pastelog';
 import { save } from '../lib/server/save';
 import { initVault, vaultPaths } from '../lib/server/vault';
+import { seedVault } from '../lib/server/seed';
+import { checkRegistry, parseIngredient } from '../lib/ingredients/registry';
+import { loadVocab } from '../lib/server/vocab';
 
 const USAGE = `Usage:
   vault check <file...>          check files; '-' reads a paste from stdin
-  vault check --dir <dir>        every .md in a directory, batch rules on
+  vault check --dir <dir>        every .md in a directory, batch rules on; a vault
+                                 directory: recipes/ and ingredients/
   vault check --vault <dir>      also check collisions/references against a vault
         --json                   diagnostics as JSON
         --fix-block              print the fix-request block for failing files
         --quiet                  only the summary line
   vault prompt                   print the prompt from docs/AI-TEMPLATE.md
-  vault init <dir>               create a new vault (layout, vocab seed, git)
+  vault init <dir>               create a new vault (layout, vocab and ingredient seed, git)
+  vault ingredients seed         add the seed ingredients missing from the vault
   vault add <file...>            save files through the app's save path
   vault sync [--force]           bring the index in line with the files
   vault reindex                  delete the index and rebuild it
   vault stats                    code frequency over the paste log
-        --vault <dir>            (add, sync, reindex, stats) instead of the config's vault
+        --vault <dir>            (add, sync, reindex, stats, ingredients) instead of the config's vault
 
 Exit codes: 0 no errors (warnings allowed), 1 any error, 2 usage or IO failure.`;
 
@@ -56,6 +61,7 @@ async function main(argv: string[]): Promise<number> {
 		if (command === 'sync') return sync(rest, false);
 		if (command === 'reindex') return sync(rest, true);
 		if (command === 'stats') return stats(rest);
+		if (command === 'ingredients') return await ingredients(rest);
 		if (command === 'prompt') {
 			process.stdout.write(readPrompt());
 			return 0;
@@ -132,8 +138,20 @@ function openFromArgs(dir: string | undefined) {
 async function init(args: string[]): Promise<number> {
 	if (args.length !== 1) throw new UsageError('vault init needs exactly one directory');
 	const dir = resolve(args[0]);
-	await initVault(dir, readFileSync(join(REPO, 'docs/VOCAB.md'), 'utf8'), readAuthor());
+	await initVault(dir, readFileSync(join(REPO, 'docs/VOCAB.md'), 'utf8'), readAuthor(), readFileSync(join(REPO, 'docs/INGREDIENTS-SEED.yaml'), 'utf8'));
 	console.log(`vault created at ${dir}`);
+	return 0;
+}
+
+async function ingredients(args: string[]): Promise<number> {
+	const { dir, rest } = vaultArgs(args);
+	if (rest[0] !== 'seed' || rest.length !== 1) throw new UsageError('usage: vault ingredients seed [--vault <dir>]');
+	const ctx = openFromArgs(dir);
+	const r = await seedVault(ctx, readFileSync(join(REPO, 'docs/INGREDIENTS-SEED.yaml'), 'utf8'), readFileSync(join(REPO, 'docs/VOCAB.md'), 'utf8'));
+	const report = syncVault(ctx.db, ctx.paths);
+	await ctx.pusher.idle();
+	ctx.db.close();
+	console.log(`${plural(r.added.length, 'seed ingredient')} added${r.commit ? ` (commit ${r.commit.slice(0, 7)})` : ''}; the registry has ${plural(report.registry.files, 'ingredient')}.`);
 	return 0;
 }
 
@@ -186,7 +204,10 @@ function sync(args: string[], rebuild: boolean): number {
 	ctx.db.close();
 	console.log(`${r.scanned} files: ${r.indexed} indexed, ${r.unchanged} unchanged, ${r.removed} removed, ${r.problems.length} with errors (${r.ms} ms)`);
 	for (const p of r.problems) console.log(`  ${red('✗')} ${p.file}  ${p.codes.join(', ')}`);
-	return r.problems.length ? 1 : 0;
+	const broken = r.registry.problems.filter((p) => p.broken);
+	console.log(`${plural(r.registry.files, 'ingredient')}: ${r.registry.loaded} read, ${broken.length} with errors, ${r.registry.problems.length - broken.length} with warnings`);
+	for (const p of r.registry.problems) console.log(`  ${p.broken ? red('✗') : yellow('!')} ${p.file}  ${p.codes.join(', ')}`);
+	return r.problems.length || broken.length ? 1 : 0;
 }
 
 function stats(args: string[]): number {
@@ -263,8 +284,26 @@ function readVault(vaultDir: string, checking: Set<string>): VaultEntry[] {
 	return entries;
 }
 
+/** The ingredient files of a vault directory, checked one by one and across the registry. */
+function checkIngredients(vaultDir: string): { name: string; diagnostics: Diagnostic[] }[] {
+	const dir = join(vaultDir, 'ingredients');
+	if (!existsSync(dir)) return [];
+	const vocab = loadVocab(join(vaultDir, 'vocab'));
+	const allergens = vocab.allergens.size ? new Set(vocab.allergens.keys()) : undefined;
+	const files = mdFiles(dir).map((f) => {
+		const stem = basename(f, '.md');
+		return { name: `ingredients/${stem}.md`, ...parseIngredient(readFileSync(f, 'utf8'), { fileStem: stem, allergens }) };
+	});
+	const cross = checkRegistry(files.flatMap((f) => (f.entry ? [f.entry] : [])));
+	return files.map((f) => ({ name: f.name, diagnostics: [...f.diagnostics, ...(f.entry ? (cross.get(f.entry.slug) ?? []) : [])] }));
+}
+
 function check(args: string[]): number {
 	const o = parseArgs(args);
+	// A vault directory: its recipes, and its ingredient registry.
+	const vaultDir = o.dir && existsSync(join(o.dir, 'recipes')) ? o.dir : undefined;
+	if (vaultDir) o.dir = join(vaultDir, 'recipes');
+	const ingredientResults = vaultDir ? checkIngredients(vaultDir) : [];
 	const paths = [...(o.dir ? mdFiles(o.dir) : []), ...o.files.filter((f) => f !== '-')];
 	const inputs = paths.map((p) => ({ name: o.dir && !o.files.includes(p) ? basename(p) : p, text: readFileSync(p, 'utf8') }));
 	let outside = '';
@@ -278,19 +317,21 @@ function check(args: string[]): number {
 	const vault = o.vault ? readVault(o.vault, new Set(paths.map((p) => realpathSync(p)))) : undefined;
 	const result = checkBatch(inputs, { vault });
 	if (outside) addOutsideText(result, outside);
-	const failed = result.files.some((f) => hasErrors(f.diagnostics));
+	const failed = result.files.some((f) => hasErrors(f.diagnostics)) || ingredientResults.some((f) => hasErrors(f.diagnostics));
 
 	if (o.json) {
 		const out = {
 			files: result.files.map((f) => ({ name: f.name, ok: !hasErrors(f.diagnostics), diagnostics: f.diagnostics })),
 			pasteDiagnostics: result.pasteDiagnostics,
-			summary: result.summary
+			summary: result.summary,
+			...(vaultDir ? { ingredients: ingredientResults.map((f) => ({ ...f, ok: !hasErrors(f.diagnostics) })) } : {})
 		};
 		console.log(JSON.stringify(out, null, 2));
 	} else if (o.fixBlock) {
 		printFixBlock(result, inputs);
 	} else {
 		printHuman(result, o);
+		if (vaultDir) printIngredients(ingredientResults, o.quiet);
 	}
 	return failed ? 1 : 0;
 }
@@ -325,6 +366,18 @@ function printFixBlock(result: BatchResult, inputs: { name: string; text: string
 }
 
 // --- human output -----------------------------------------------------------
+
+function printIngredients(files: { name: string; diagnostics: Diagnostic[] }[], quiet: boolean): void {
+	if (!quiet)
+		for (const f of files) {
+			if (!f.diagnostics.length) continue;
+			console.log(`${hasErrors(f.diagnostics) ? red('✗') : yellow('!')} ${bold(f.name)}  ${counts(f.diagnostics)}`);
+			f.diagnostics.forEach(printDiagnostic);
+		}
+	const bad = files.filter((f) => hasErrors(f.diagnostics)).length;
+	const all = files.flatMap((f) => f.diagnostics);
+	console.log(`${plural(files.length, 'ingredient')}: ${bad} failed, ${files.length - bad} passed` + (all.length ? ` — ${counts(all)}` : ''));
+}
 
 const color = process.stdout.isTTY && !process.env.NO_COLOR;
 const paint = (code: string) => (s: string) => (color ? `\x1b[${code}m${s}\x1b[0m` : s);

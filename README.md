@@ -68,7 +68,8 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 ## The `vault` command
 
 ```sh
-npx vault init <dir>                  # create a vault: layout, vocab seed, git
+npx vault init <dir>                  # create a vault: layout, vocab and ingredient seed, git
+npx vault ingredients seed            # add the seed ingredients a vault lacks (never overwrites)
 npx vault add <file…>                 # save files through the app's save path (one commit)
 npx vault sync [--force]              # bring the index in line with the files
 npx vault reindex                     # delete the index and rebuild it
@@ -76,13 +77,14 @@ npx vault stats                       # code frequency over the paste log
 npx vault check recipe.md other.md    # check files
 npx vault check - < answer.txt        # a whole AI answer: every ```markdown fence is a file
 npx vault check --dir inbox/          # every .md in a folder, with a summary by code
+npx vault check --dir ~/vault         # a vault: its recipes and its ingredient files
 npx vault check --vault ~/vault new.md
 npx vault check --fix-block bad.md    # the block to paste back into the AI chat
 npx vault check --json recipe.md
 npx vault prompt | xclip -sel clip    # copy the AI prompt from docs/AI-TEMPLATE.md
 ```
 
-`add`, `sync`, `reindex` and `stats` use the config's vault, or `--vault <dir>`.
+`add`, `sync`, `reindex`, `stats` and `ingredients` use the config's vault, or `--vault <dir>`.
 `check` exit codes: 0 no errors (warnings allowed), 1 at least one error, 2 a
 usage or IO failure. `npm run vault -- …` works too.
 
