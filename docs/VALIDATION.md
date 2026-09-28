@@ -198,6 +198,8 @@ a recipe; warnings leave it in use.
 | W809 | app | an `allergens` value not in `vocab/allergens.yaml` — ignored |
 | W810 | app | alias collision: one lookup key (`INGREDIENTS.md`, "Resolution") written under two entries — recipes writing it stay unresolved (ambiguous) until one entry drops it |
 | W811 | app | unknown key in an ingredient file — ignored; the closest allowed key is suggested |
+| E820 | app | a `when` rule (`INGREDIENTS.md`, "Disambiguation rules") is malformed: not a list of mappings, no `names`, an unknown key, a `lang` other than `fr`/`en`, a `unit` value that is neither a canonical unit nor a unit class, empty `words`, or no condition at all |
+| W821 | app | two entries have rules for one name that can hold on the same line (their languages, units and words all meet) — such lines stay unresolved (ambiguous) |
 
 `E210` and `E211` are heuristics, deliberately hard errors rather than warnings.
 They catch the two AI mistakes that quietly corrupt the ingredient index, and a

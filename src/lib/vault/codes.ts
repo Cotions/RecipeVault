@@ -80,7 +80,10 @@ export const CODE_FIXERS: Readonly<Record<string, Fixer>> = {
 	W808: 'app',
 	W809: 'app',
 	W810: 'app',
-	W811: 'app'
+	W811: 'app',
+	// Disambiguation rules in ingredient files (docs/VALIDATION.md, "Registry codes").
+	E820: 'app',
+	W821: 'app'
 };
 
 /** Who fixes a code. An unregistered code is kept away from the AI. */

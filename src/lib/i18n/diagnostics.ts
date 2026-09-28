@@ -83,7 +83,9 @@ export const codeText: Readonly<Record<string, string>> = {
 	W808: 'Un substitut indiqué n’existe pas (ou c’est l’ingrédient lui-même). Créez-le ou retirez-le.',
 	W809: 'Allergène hors de la liste : il est ignoré. Choisissez-en un de la liste.',
 	W810: 'Deux ingrédients portent le même nom : les recettes qui l’écrivent restent non reliées. Gardez-le sous un seul.',
-	W811: 'Champ inconnu dans la fiche d’ingrédient (une faute de frappe ?) : il est ignoré.'
+	W811: 'Champ inconnu dans la fiche d’ingrédient (une faute de frappe ?) : il est ignoré.',
+	E820: 'Une règle « when » de l’ingrédient est mal écrite : il lui faut des noms et au moins une condition (langue, unité ou mots).',
+	W821: 'Deux ingrédients ont une règle pour le même nom qui peut valoir sur la même ligne : ces recettes restent non reliées. Rendez les conditions distinctes.'
 };
 
 /** The French explanation for a code; a code without one points to the technical detail. */

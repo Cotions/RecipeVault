@@ -1,6 +1,7 @@
 // One registry file, `ingredients/<slug>.md`: parse, check, serialize
 // (docs/INGREDIENTS.md, "The registry"; plan 03 Phase 1). Codes E801–W811
-// (docs/VALIDATION.md, "Registry codes"), all settled by the person (`app`).
+// and E820–W821 (docs/VALIDATION.md, "Registry codes"), all settled by the
+// person (`app`).
 // Browser-safe.
 
 import { isMap as isYamlMap, isScalar, isSeq, parseDocument, YAMLSeq, type Document, type YAMLMap } from 'yaml';
@@ -10,14 +11,16 @@ import { scalar } from '../vault/serialize';
 import { SLUG_RE } from '../vault/slug';
 import { UNITS, type Diagnostic, type Lang, type Unit } from '../vault/types';
 import { suggestKey } from '../vault/vocab';
+import { fold } from '../vault/normalize';
 import { lookupKey } from './normalize';
-import { CATEGORIES, NAME_LANGS, type Category, type RegistryEntry } from './types';
+import { CATEGORIES, NAME_LANGS, UNIT_CLASSES, type Category, type NameRule, type RegistryEntry } from './types';
 
 /** Frontmatter keys, in the order the serializer writes them. */
 export const REGISTRY_KEYS = [
 	'slug',
 	'category',
 	'names',
+	'when',
 	'default_unit',
 	'staple',
 	'au_gout',
@@ -41,6 +44,8 @@ export interface IngredientCheck {
 }
 
 const UNIT_SET = new Set<string>(UNITS);
+/** The keys of one `when` rule, in the order the serializer writes them. */
+export const RULE_KEYS = ['names', 'lang', 'unit', 'words'] as const;
 const CATEGORY_SET = new Set<string>(CATEGORIES);
 
 const isMap = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -101,6 +106,8 @@ export function parseIngredient(text: string, opts: IngredientCheckOptions = {})
 		if (!names.fr.length && !names.en.length && !out.some((d) => d.code === 'E804'))
 			report('E804', 'names', 'the ingredient has no name: `names.fr` and `names.en` are both empty.', 'Add at least one name.');
 	}
+
+	const when = parseWhen(fm.when, report);
 
 	let defaultUnit: Unit | undefined;
 	if (fm.default_unit !== undefined && fm.default_unit !== null) {
@@ -166,6 +173,7 @@ export function parseIngredient(text: string, opts: IngredientCheckOptions = {})
 			slug: slug as string,
 			category: category as Category,
 			names,
+			...(when.length ? { when } : {}),
 			...(defaultUnit ? { defaultUnit } : {}),
 			staple,
 			auGout,
@@ -177,6 +185,99 @@ export function parseIngredient(text: string, opts: IngredientCheckOptions = {})
 		},
 		diagnostics: out
 	};
+}
+
+type Report = (code: string, path: string | null, message: string, fix?: string) => void;
+
+/** A scalar or a list of text → the list; null when the value has another shape. */
+function textOrList(v: unknown): string[] | null {
+	const xs = Array.isArray(v) ? v : [v];
+	return xs.every(isText) ? xs.map((x) => normalizeText(x as string).trim()) : null;
+}
+
+/**
+ * `when:`, the disambiguation rules (docs/INGREDIENTS.md, "Disambiguation
+ * rules"): a list of `{ names, lang?, unit?, words? }` with at least one
+ * condition. Every problem is E820; a broken rule makes the file an error, like
+ * any malformed field, rather than a rule silently doing less than written.
+ */
+function parseWhen(v: unknown, report: Report): NameRule[] {
+	if (v === undefined || v === null) return [];
+	const example = 'Write `when: [ { names: [tomates], unit: [container] } ]`.';
+	if (!Array.isArray(v)) {
+		report('E820', 'when', '`when` must be a list of rules.', example);
+		return [];
+	}
+	const out: NameRule[] = [];
+	v.forEach((r, i) => {
+		const at = `when[${i}]`;
+		if (!isMap(r)) return report('E820', at, `\`${at}\` must be a mapping: \`{ names: [...], unit: [...] }\`.`, example);
+		let ok = true;
+		const bad = (path: string, message: string, fix?: string) => {
+			ok = false;
+			report('E820', `${at}.${path}`, message, fix);
+		};
+		for (const k of Object.keys(r))
+			if (!(RULE_KEYS as readonly string[]).includes(k)) {
+				const near = suggestKey(k, RULE_KEYS);
+				bad(k, `unknown key \`${k}\` in a rule; a rule has ${RULE_KEYS.join(', ')}.`, near ? `Did you mean \`${near}\`?` : undefined);
+			}
+		const names = textOrList(r.names);
+		if (!names?.length) bad('names', 'a rule needs `names`: the written names it gives a meaning to.');
+		const rule: NameRule = { names: names ?? [] };
+		if (r.lang !== undefined) {
+			if (typeof r.lang === 'string' && (NAME_LANGS as string[]).includes(r.lang)) rule.lang = r.lang as Lang;
+			else bad('lang', `\`lang\` must be ${NAME_LANGS.join(' or ')}, got ${JSON.stringify(r.lang)}.`);
+		}
+		if (r.unit !== undefined) {
+			const us = textOrList(r.unit);
+			if (!us?.length) bad('unit', '`unit` must be a unit or a list of units and unit classes.');
+			else {
+				us.forEach((u, j) => {
+					if (!UNIT_SET.has(u) && !(u in UNIT_CLASSES))
+						bad(`unit[${j}]`, `\`${u}\` is neither a canonical unit nor a unit class (${Object.keys(UNIT_CLASSES).join(', ')}).`);
+				});
+				rule.unit = us;
+			}
+		}
+		if (r.words !== undefined) {
+			const ws = textOrList(r.words);
+			if (!ws?.length) bad('words', '`words` must be a word or a list of words and phrases.');
+			else rule.words = ws;
+		}
+		if (ok && rule.lang === undefined && !rule.unit && !rule.words)
+			bad('names', 'a rule needs a condition (`lang`, `unit` or `words`); a name with no condition is an alias and goes in `names`.');
+		if (ok) out.push(rule);
+	});
+	return out;
+}
+
+/** The canonical units a rule's `unit` list stands for (classes expanded); null when the rule has no unit condition. */
+export function ruleUnits(rule: Pick<NameRule, 'unit'>): Set<string> | null {
+	if (!rule.unit) return null;
+	return new Set(rule.unit.flatMap((u) => (u in UNIT_CLASSES ? [...UNIT_CLASSES[u as keyof typeof UNIT_CLASSES]] : [u])));
+}
+
+/** A rule's words, folded, for matching against a line's folded `prep` and `note`. */
+export function ruleWords(rule: Pick<NameRule, 'words'>): string[] | null {
+	return rule.words ? rule.words.map((w) => fold(w)) : null;
+}
+
+/**
+ * Two rules overlap when, for each condition, one of them leaves it open or
+ * their values share a member: then a plain line fits both. (A line whose prep
+ * holds the words of both also fits both; it stays unresolved, which is safe,
+ * and is not worth a warning.)
+ */
+function rulesOverlap(a: NameRule, b: NameRule): boolean {
+	if (a.lang && b.lang && a.lang !== b.lang) return false;
+	const ua = ruleUnits(a);
+	const ub = ruleUnits(b);
+	if (ua && ub && ![...ua].some((u) => ub.has(u))) return false;
+	const wa = ruleWords(a);
+	const wb = ruleWords(b);
+	if (wa && wb && !wa.some((w) => wb.includes(w))) return false;
+	return true;
 }
 
 /**
@@ -196,6 +297,25 @@ export function checkRegistry(entries: RegistryEntry[]): Map<string, Diagnostic[
 				if (!owners.has(k)) owners.set(k, new Set());
 				owners.get(k)!.add(e.slug);
 			}
+	const rules = new Map<string, { slug: string; rule: NameRule; i: number }[]>();
+	for (const e of entries)
+		(e.when ?? []).forEach((rule, i) => {
+			for (const k of new Set(rule.names.map(lookupKey))) (rules.get(k) ?? rules.set(k, []).get(k)!).push({ slug: e.slug, rule, i });
+		});
+	for (const [k, rs] of rules)
+		for (const a of rs) {
+			const others = [...new Set(rs.filter((b) => b.slug !== a.slug && rulesOverlap(a.rule, b.rule)).map((b) => b.slug))];
+			if (others.length)
+				add(
+					a.slug,
+					warn(
+						'W821',
+						`when[${a.i}]`,
+						`the rule for "${k}" can hold on the same recipe line as a rule of ${others.join(', ')}; such lines stay unresolved (ambiguous).`,
+						'Give the rules conditions that cannot both hold (different units or languages).'
+					)
+				);
+		}
 	for (const e of entries) {
 		e.substitutes.forEach((s, i) => {
 			if (s === e.slug) add(e.slug, warn('W808', `substitutes[${i}]`, `\`${s}\` is listed as a substitute for itself.`));
@@ -228,6 +348,16 @@ const flowList = (xs: string[]) => `[${xs.map((x) => scalar(x, true)).join(', ')
 export function serializeIngredient(e: RegistryEntry): string {
 	const lines = ['---', `slug: ${e.slug}`, `category: ${e.category}`, 'names:'];
 	for (const lang of NAME_LANGS) lines.push(`  ${lang}: ${flowList(e.names[lang])}`);
+	if (e.when?.length) {
+		lines.push('when:');
+		for (const r of e.when) {
+			const parts = [`names: ${flowList(r.names)}`];
+			if (r.lang) parts.push(`lang: ${r.lang}`);
+			if (r.unit) parts.push(`unit: ${flowList(r.unit)}`);
+			if (r.words) parts.push(`words: ${flowList(r.words)}`);
+			lines.push(`  - { ${parts.join(', ')} }`);
+		}
+	}
 	if (e.defaultUnit) lines.push(`default_unit: ${e.defaultUnit}`);
 	lines.push(`staple: ${e.staple}`);
 	if (e.auGout) lines.push('au_gout: true');

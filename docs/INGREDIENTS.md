@@ -18,6 +18,8 @@ category: conserve                   # see categories below
 names:                               # every way it appears in a recipe
   fr: [tomates concassées, tomate concassée, pulpe de tomate, tomates pelées]
   en: [chopped tomatoes, crushed tomatoes, canned tomatoes]
+when:                                # optional; disambiguation rules, see below
+  - { names: [tomates, tomatoes], unit: [container] }
 default_unit: g                      # optional; see below
 staple: false                        # true = assumed always in the cupboard
 au_gout: false                       # optional; true = may be written "to taste"
@@ -34,10 +36,11 @@ Categories: `frais`, `viande`, `poisson`, `legume`, `fruit`, `cremerie`,
 `epicerie`, `conserve`, `surgele`, `epice`, `boisson`, `autre`.
 
 The app writes these files in that key order, names as flow lists
-(`fr: [a, b]`), and leaves out `default_unit`, `au_gout`, `density` and
-`weights` when unset. Only `slug`, `category` and one name are required.
-Problems in a file have stable codes, `E801`–`W811` (`VALIDATION.md`,
-"Registry codes"); a file with an error keeps its last good index rows.
+(`fr: [a, b]`), each `when` rule as a flow mapping, and leaves out `when`,
+`default_unit`, `au_gout`, `density` and `weights` when unset. Only `slug`,
+`category` and one name are required. Problems in a file have stable codes,
+`E801`–`W811`, `E820`–`W821` (`VALIDATION.md`, "Registry codes"); a file with
+an error keeps its last good index rows.
 
 - `default_unit` (plan 03, Q26): the unit vault-wide totals and "sorted by how
   much it uses" add quantities in, and the default `pack_unit` when entering a
@@ -50,9 +53,62 @@ Problems in a file have stable codes, `E801`–`W811` (`VALIDATION.md`,
   salt, pepper, oils, butter, herbs and spices. `W606` fires on `to_taste`
   items whose entry does not have it. It describes how a recipe uses the item;
   `category` describes where it is bought.
+- `when`: disambiguation rules, next section.
 - `allergens` (plan 03, Q20): values from `vocab/allergens.yaml`, seeded with
   the Health Canada priority allergens (`VOCAB.md`, "Allergens"). An unknown
   value is a warning (`W809`) and is ignored.
+
+### Disambiguation rules
+
+Some bare names mean one product or another depending on the line, not on the
+name: *tomates* by the can are canned tomatoes, by the piece or the pound fresh
+ones; *bœuf* with prep *haché* is ground beef, *en cubes* stewing beef; *lard* on
+a French card is salt pork, on an English one rendered lard. The lookup key is
+the name alone, so no alias can say this. A rule can:
+
+```yaml
+when:
+  - { names: [tomates, tomatoes], unit: [container] }   # tomates-en-conserve
+  - { names: [lard], lang: fr }                          # lard-sale
+  - { names: [bœuf, boeuf], words: [haché, hachée] }     # boeuf-hache
+```
+
+A rule says: these `names` mean this entry when **every** condition given holds
+on the recipe line.
+
+| Key | Condition |
+|---|---|
+| `names` | required: written names, matched by lookup key like aliases (exact, then singular) |
+| `lang` | the recipe's language, `fr` or `en` |
+| `unit` | the line's canonical unit is one of these units or in one of these classes: `mass` (g, kg, lb, oz), `volume` (ml, cl, l, cup, tbsp, tsp, qt, pint, pinch, drop), `count` (piece, clove, leaf, sprig, stalk, bunch, slice), `container` (can, packet, bottle, jar, bag). A line with no unit meets no `unit` condition |
+| `words` | one of these words or phrases appears, as whole words, in the line's `prep` or `note` (folded, and singularized with the recipe language's plural rules, so `hachés` meets `haché`) |
+
+At least one of `lang`, `unit`, `words` is required: a name with no condition is
+an alias and goes in `names`. A value may be a single item instead of a list.
+Rule names are **not** aliases: a rule name whose conditions do not hold resolves
+nothing through that rule. The classes group the canonical unit list, which is
+the app's contract with the prompt; which names depend on which condition is
+data, in the registry (plan 03, decision 1).
+
+How rules take part in resolution (step 4 below): the rules naming the key are
+checked first, since they are more specific than aliases.
+
+- The rules that hold point at **one** entry → resolved (`rule`).
+- They point at two or more → ambiguous, never auto-resolved.
+- None holds → the aliases decide as usual. So an entry may keep a bare name as
+  an alias for the common case while another entry claims it by rule for the
+  exception. When no alias settles it and rules of two or more entries name it,
+  the line is ambiguous; with one entry's rules only, it is unresolved and that
+  entry is the first candidate.
+
+`or` options are resolved on their own fields: a plain-name option has no unit,
+prep or note, so it meets only `lang` conditions.
+
+A rule never guesses: it states a fact the owner knows about this vault's cards.
+A bad rule is `E820` (the file is then in error, like any malformed field). Rules
+of two entries that can hold on one line (for each condition, one leaves it open
+or their values meet) are `W821`: such lines stay ambiguous, which is safe, but
+it is probably not what was meant.
 
 ### The seed
 
@@ -65,11 +121,15 @@ an existing vault without touching an entry already there. It is data, like the
 vocabulary seed: the resolve queue then starts with the long tail, not with
 *sel* and *farine* on every recipe.
 
-Its aliases are exact synonyms only. A bare name whose product depends on the
-unit or the prep (*tomates*, *champignons*: fresh or canned) is not an alias of
-either entry, nor is a word that means another product in the other language
-(English *lard* is saindoux, French *lard* is salt pork): the lookup key is the
-name alone, so such a name goes through the resolve queue.
+Its aliases are exact synonyms only, in both languages: the French and Québec
+names, the English names of an anglophone neighbour's card (*flour*, *brown
+sugar*), and common older or regional synonyms (*sucre brun* → cassonade,
+*gruau* → flocons d'avoine). A bare name whose product depends on the unit or
+the prep (*tomates*, *champignons*: fresh or canned) is not an alias of either
+entry, nor is a word that means another product in the other language (English
+*lard* is saindoux, French *lard* is salt pork). Those get a disambiguation rule
+where the condition is certain (*tomates* by the can, *lard* by language, *bœuf*
+with *haché*), and otherwise go through the resolve queue.
 
 ### `staple` is the important flag
 
@@ -90,14 +150,17 @@ registry. So at index time (on save, on sync, on an external edit):
    `ingredients/<item>.md` exists: W307.
 3. **Sub-recipe.** An entry with `recipe:` resolves to no registry item
    (`resolution = recipe`); the sub-recipe's own ingredients count instead.
-4. **Exact key.** The key matches an alias (`ingredient_names.key`) of exactly
+4. **Rules.** The disambiguation rules naming the key (exactly, else by its
+   singular key) whose conditions hold on the line point at exactly one entry →
+   resolved (`rule`); at two or more → ambiguous. See "Disambiguation rules".
+5. **Exact key.** The key matches an alias (`ingredient_names.key`) of exactly
    one entry → resolved (`alias`). A key that is an alias of two or more entries
    is **ambiguous** and never auto-resolved.
-5. **Singular key.** Each word is singularized with the recipe language's rules
+6. **Singular key.** Each word is singularized with the recipe language's rules
    in `vocab/normalize.yaml` (see `VOCAB.md`, "Plurals"); a match with the
    singular key of exactly one entry → resolved (`plural`). Two entries → not
    resolved.
-6. **Otherwise unresolved.** The resolve queue offers the top fuzzy candidates:
+7. **Otherwise unresolved.** The resolve queue offers the top fuzzy candidates:
    trigram similarity (Jaccard over padded word trigrams of the singular keys),
    best first, at most **3**, none below **0.15** (`FUZZY` in
    `src/lib/ingredients/resolve.ts`, tuned on `tests/fixtures/corpus`). A candidate
@@ -107,7 +170,8 @@ registry. So at index time (on save, on sync, on an external edit):
 The result goes in the index only (`ingredients.key`, `.item`, `.resolution`, and
 the same for each `or` option in `ingredient_or`); it is never written back into
 the recipe file (see `STORAGE.md`). A registry change re-resolves every indexed
-row from its stored key, without reading a recipe file.
+row from its stored key, without reading a recipe file (rows whose key a rule
+names also read the line's unit, prep and note from the index's stored parse).
 
 Unresolved names are reported as W305 (a candidate is waiting in the resolve
 queue) or W303 (nothing close). They do **not** change the recipe's `status`

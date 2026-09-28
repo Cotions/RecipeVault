@@ -1,19 +1,55 @@
 // Written name → registry slug (docs/INGREDIENTS.md, "Resolution"; plan 03
 // Phase 2). First match wins:
 //   1. `item:` in the entry: a manual override, taken as is;
-//   2. the exact lookup key, when it maps to exactly one slug;
-//   3. the singular key (plural rules from vocab/normalize.yaml), when it maps
+//   2. a disambiguation rule (`when:` in an ingredient file) naming the key,
+//      whose conditions on the line's language, unit and prep/note words hold,
+//      when the rules that hold point at exactly one slug;
+//   3. the exact lookup key, when it maps to exactly one slug;
+//   4. the singular key (plural rules from vocab/normalize.yaml), when it maps
 //      to exactly one slug;
-//   4. otherwise unresolved, with the top fuzzy (trigram) candidates for the
+//   5. otherwise unresolved, with the top fuzzy (trigram) candidates for the
 //      resolve queue. A candidate is never taken automatically (plan 03, Q1).
 // A key written under two entries is ambiguous and never auto-resolved: a
 // wrong resolution poisons every total that includes it. Browser-safe.
 
+import { fold } from '../vault/normalize';
 import type { Diagnostic, Ingredient, Lang, Recipe } from '../vault/types';
 import { lookupKey, singularKey, type PluralRules } from './normalize';
+import { ruleUnits, ruleWords } from './registry';
 import { NAME_LANGS, type RegistryEntry } from './types';
 
-export type Resolution = 'override' | 'alias' | 'plural' | 'none' | 'ambiguous' | 'recipe';
+export type Resolution = 'override' | 'rule' | 'alias' | 'plural' | 'none' | 'ambiguous' | 'recipe';
+
+/** What a disambiguation rule may look at on a recipe line, besides the name. */
+export interface LineContext {
+	unit?: string;
+	prep?: string;
+	note?: string;
+}
+
+/** One name of one `when` rule, as the resolver uses it. */
+export interface RuleRow {
+	key: string;
+	slug: string;
+	lang?: string;
+	/** Canonical units (classes expanded); absent: any unit, or none. */
+	units?: string[];
+	/** Folded words; absent: no word condition. */
+	words?: string[];
+}
+
+/** The rule rows of registry entries: one per rule name. */
+export function ruleRows(entries: Pick<RegistryEntry, 'slug' | 'when'>[]): RuleRow[] {
+	const out: RuleRow[] = [];
+	for (const e of entries)
+		for (const r of e.when ?? []) {
+			const units = ruleUnits(r);
+			const words = ruleWords(r);
+			for (const key of new Set(r.names.map(lookupKey)))
+				out.push({ key, slug: e.slug, ...(r.lang ? { lang: r.lang } : {}), ...(units ? { units: [...units] } : {}), ...(words ? { words } : {}) });
+		}
+	return out;
+}
 
 export interface Resolved {
 	key: string;
@@ -70,12 +106,16 @@ export class Resolver {
 	private bySkey = new Map<string, Set<string>>();
 	private fuzzyKeys: { skey: string; slug: string; grams: number }[] = [];
 	private gramIndex = new Map<string, number[]>();
+	private rulesByKey = new Map<string, RuleRow[]>();
+	/** Per recipe language: rules by the singular key of their name. Built on first use. */
+	private rulesBySkey = new Map<string, Map<string, RuleRow[]>>();
 	readonly slugs = new Set<string>();
 
 	constructor(
 		rows: NameRow[],
 		readonly plurals: PluralRules = {},
-		extraSlugs: Iterable<string> = []
+		extraSlugs: Iterable<string> = [],
+		readonly rules: RuleRow[] = []
 	) {
 		const add = (m: Map<string, Set<string>>, k: string, slug: string) => {
 			if (!m.has(k)) m.set(k, new Set());
@@ -97,6 +137,46 @@ export class Resolver {
 			}
 		}
 		for (const s of extraSlugs) this.slugs.add(s);
+		for (const r of rules) {
+			this.slugs.add(r.slug);
+			(this.rulesByKey.get(r.key) ?? this.rulesByKey.set(r.key, []).get(r.key)!).push(r);
+		}
+	}
+
+	/** Whether any rule names this key (exactly or by its singular): its resolution then depends on the line. */
+	hasRules(key: string, lang: Lang | string = 'fr'): boolean {
+		return this.rulesByKey.has(key) || this.skeyRules(lang).has(this.singular(key, lang));
+	}
+
+	private skeyRules(lang: string): Map<string, RuleRow[]> {
+		let m = this.rulesBySkey.get(lang);
+		if (!m) {
+			m = new Map();
+			for (const r of this.rules) {
+				const k = this.singular(r.key, lang);
+				(m.get(k) ?? m.set(k, []).get(k)!).push(r);
+			}
+			this.rulesBySkey.set(lang, m);
+		}
+		return m;
+	}
+
+	/** The rules naming a key: exact first, else by singular key. */
+	private rulesFor(key: string, lang: string): RuleRow[] {
+		return this.rulesByKey.get(key) ?? this.skeyRules(lang).get(this.singular(key, lang)) ?? [];
+	}
+
+	/** Whether a rule's conditions hold for a line. */
+	private holds(r: RuleRow, lang: string, ctx: LineContext): boolean {
+		if (r.lang && r.lang !== lang) return false;
+		if (r.units && !(ctx.unit && r.units.includes(ctx.unit))) return false;
+		if (r.words) {
+			// Whole words, singularized like names: `hachés` meets `haché`.
+			const norm = (t: string) => ` ${this.singular(fold(t).replace(/[^\p{L}\p{N}%]+/gu, ' ').trim(), lang)} `;
+			const text = norm(`${ctx.prep ?? ''} ${ctx.note ?? ''}`);
+			if (!r.words.some((w) => text.includes(norm(w)))) return false;
+		}
+		return true;
 	}
 
 	has(slug: string): boolean {
@@ -108,22 +188,35 @@ export class Resolver {
 		return singularKey(key, this.plurals[lang]);
 	}
 
-	/** Steps 2–4 for a lookup key. */
-	resolveKey(key: string, lang: Lang | string = 'fr'): Resolved {
+	/**
+	 * Steps 2–5 for a lookup key on a line. Rules are more specific than
+	 * aliases, so they are tried first: when the rules that hold point at one
+	 * entry, that is the answer; at two or more, the line stays ambiguous. When
+	 * none holds, the aliases decide as usual; a key that only rules name, and
+	 * that no alias settles, is ambiguous when its rules span two entries.
+	 */
+	resolveKey(key: string, lang: Lang | string = 'fr', ctx: LineContext = {}): Resolved {
+		const rules = this.rulesFor(key, lang);
+		if (rules.length) {
+			const held = new Set(rules.filter((r) => this.holds(r, lang, ctx)).map((r) => r.slug));
+			if (held.size === 1) return { key, item: [...held][0], resolution: 'rule' };
+			if (held.size > 1) return { key, item: null, resolution: 'ambiguous' };
+		}
 		const exact = this.byKey.get(key);
 		if (exact?.size === 1) return { key, item: [...exact][0], resolution: 'alias' };
 		if (exact && exact.size > 1) return { key, item: null, resolution: 'ambiguous' };
 		const plural = this.bySkey.get(this.singular(key, lang));
 		if (plural?.size === 1) return { key, item: [...plural][0], resolution: 'plural' };
+		if (new Set(rules.map((r) => r.slug)).size > 1) return { key, item: null, resolution: 'ambiguous' };
 		return { key, item: null, resolution: 'none' };
 	}
 
-	/** One ingredient entry (or one `or` option): the override, a sub-recipe, or the name. */
-	resolve(it: Pick<Ingredient, 'name' | 'item' | 'recipe'>, lang: Lang | string = 'fr'): Resolved {
+	/** One ingredient entry (or one `or` option): the override, a sub-recipe, or the name on its line. */
+	resolve(it: Pick<Ingredient, 'name' | 'item' | 'recipe' | 'unit' | 'prep' | 'note'>, lang: Lang | string = 'fr'): Resolved {
 		const key = lookupKey(it.name);
 		if (it.item) return { key, item: it.item, resolution: 'override' };
 		if (it.recipe) return { key, item: null, resolution: 'recipe' };
-		return this.resolveKey(key, lang);
+		return this.resolveKey(key, lang, it);
 	}
 
 	/**
@@ -133,8 +226,9 @@ export class Resolver {
 	 * at most `count`, none below `minScore`.
 	 */
 	candidates(key: string, lang: Lang | string = 'fr', { minScore = FUZZY.minScore, count = FUZZY.count } = {}): Candidate[] {
-		const exact = this.byKey.get(key);
-		if (exact && exact.size > 1) return [...exact].sort().map((slug) => ({ slug, score: 1 }));
+		const exact = new Set(this.byKey.get(key));
+		for (const r of this.rulesFor(key, lang)) exact.add(r.slug);
+		if (exact.size > 1) return [...exact].sort().map((slug) => ({ slug, score: 1 }));
 		const sk = this.singular(key, lang);
 		const grams = trigrams(sk);
 		if (!grams.size) return [];
@@ -146,6 +240,8 @@ export class Resolver {
 			const score = n / (grams.size + f.grams - n);
 			if (score >= minScore && score > (best.get(f.slug) ?? 0)) best.set(f.slug, score);
 		}
+		// A key only one entry's rules name: that entry first.
+		for (const slug of exact) best.set(slug, 1);
 		return [...best]
 			.map(([slug, score]) => ({ slug, score }))
 			.sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug))

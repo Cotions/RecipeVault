@@ -87,6 +87,62 @@ describe('registry files', () => {
 		}
 	});
 
+	it('reads, checks and writes disambiguation rules (`when`)', () => {
+		const text =
+			'---\nslug: tomates-inventees-en-boite\ncategory: conserve\nnames:\n  fr: [tomates inventées en boîte]\n  en: []\nwhen:\n  - { names: [tomates inventées, tomato inventée], unit: [container, lb] }\n  - { names: [lard inventé], lang: en }\n  - { names: [bœuf inventé], words: [haché, en cubes] }\nstaple: false\nsubstitutes: []\nallergens: []\n---\n';
+		const { entry, diagnostics } = parseIngredient(text);
+		expect(diagnostics).toEqual([]);
+		expect(entry?.when).toEqual([
+			{ names: ['tomates inventées', 'tomato inventée'], unit: ['container', 'lb'] },
+			{ names: ['lard inventé'], lang: 'en' },
+			{ names: ['bœuf inventé'], words: ['haché', 'en cubes'] }
+		]);
+		expect(serializeIngredient(entry!)).toBe(text);
+		// A scalar is read as a one-item list.
+		const one = parseIngredient(text.replace('unit: [container, lb]', 'unit: can')).entry;
+		expect(one?.when?.[0].unit).toEqual(['can']);
+	});
+
+	it('E820: every malformed rule, on its path', () => {
+		const base = '---\nslug: x\ncategory: autre\nnames: { fr: [x] }\nwhen: WHEN\n---\n';
+		const paths = (when: string) =>
+			parseIngredient(base.replace('WHEN', when))
+				.diagnostics.filter((d) => d.code === 'E820')
+				.map((d) => d.path);
+		expect(paths('{ names: [a], unit: can }')).toEqual(['when']);
+		expect(paths('[a]')).toEqual(['when[0]']);
+		expect(paths('[{ unit: [can] }]')).toEqual(['when[0].names']);
+		expect(paths('[{ names: [a] }]')).toEqual(['when[0].names']);
+		expect(paths('[{ names: [a], lang: de }]')).toEqual(['when[0].lang']);
+		expect(paths('[{ names: [a], unit: [can, boîte] }]')).toEqual(['when[0].unit[1]']);
+		expect(paths('[{ names: [a], words: [] }]')).toEqual(['when[0].words']);
+		expect(paths('[{ names: [a], prep: [haché] }]')).toEqual(['when[0].prep']);
+		expect(parseIngredient(base.replace('WHEN', '[{ names: [a], prep: [haché] }]')).entry).toBeUndefined();
+	});
+
+	it('W821: rules of two entries that can hold on one line; disjoint ones are quiet', () => {
+		const e = (slug: string, when: RegistryEntry['when']): RegistryEntry => ({
+			slug,
+			category: 'autre',
+			names: { fr: [slug], en: [] },
+			when,
+			staple: false,
+			auGout: false,
+			weights: {},
+			substitutes: [],
+			allergens: [],
+			body: ''
+		});
+		const quiet = checkRegistry([
+			e('en-boite', [{ names: ['tomates'], unit: ['container'] }, { names: ['lard'], lang: 'fr' }, { names: ['boeuf'], words: ['haché'] }]),
+			e('fraiches', [{ names: ['Tomates'], unit: ['piece', 'lb'] }, { names: ['lard'], lang: 'en' }, { names: ['bœuf'], words: ['en cubes'] }])
+		]);
+		expect([...quiet.values()].flat()).toEqual([]);
+		const loud = checkRegistry([e('a', [{ names: ['tomates'], unit: ['container'] }]), e('b', [{ names: ['tomates'], unit: ['can'] }])]);
+		expect(loud.get('a')?.map((d) => [d.code, d.path])).toEqual([['W821', 'when[0]']]);
+		expect(loud.get('b')?.map((d) => [d.code, d.path])).toEqual([['W821', 'when[0]']]);
+	});
+
 	it('writes a fixed key order, flow lists, and quotes what would misread', () => {
 		const e: RegistryEntry = {
 			slug: 'lait-inventé'.replace('é', 'e'),
@@ -121,7 +177,8 @@ describe('registry codes', () => {
 			expect([...new Set(r.diagnostics.map((d) => d.code))], f).toEqual([code]);
 			expect(r.entry === undefined, f).toBe(code[0] === 'E');
 		}
-		const perFile = Object.keys(CODE_FIXERS).filter((c) => /^[EW]8/.test(c) && !['W808', 'W810'].includes(c));
+		// Registry codes: 801–811 and 820–829 (812–819 are prices.csv's). W808, W810, W821 are cross-registry.
+		const perFile = Object.keys(CODE_FIXERS).filter((c) => /^[EW]8(0\d|1[01]|2\d)$/.test(c) && !['W808', 'W810', 'W821'].includes(c));
 		expect(files.map((f) => f.slice(0, 4)).sort()).toEqual(perFile.sort());
 	});
 

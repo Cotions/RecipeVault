@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lookupKey, singularKey, type PluralRules } from '../../src/lib/ingredients/normalize';
-import { FUZZY, resolutionDiagnostics, Resolver, trigrams } from '../../src/lib/ingredients/resolve';
+import { FUZZY, resolutionDiagnostics, Resolver, ruleRows, trigrams } from '../../src/lib/ingredients/resolve';
 import type { Recipe } from '../../src/lib/vault/types';
 
 const PLURALS: PluralRules = { fr: { suffixes: ['x', 's'], minLength: 4 }, en: { suffixes: ['s'], minLength: 4 } };
@@ -96,6 +96,72 @@ describe('resolution order', () => {
 			PLURALS
 		);
 		expect(r.resolveKey('nois')).toEqual({ key: 'nois', item: null, resolution: 'none' });
+	});
+});
+
+describe('disambiguation rules (`when`)', () => {
+	// Invented entries: a bare name the unit, the prep or the language decides.
+	const R = new Resolver(
+		[
+			{ key: 'tomates fraiches', skey: 'tomate fraiche', slug: 'tomates-fraiches' },
+			{ key: 'boeuf hache', skey: 'boeuf hache', slug: 'boeuf-hache' },
+			{ key: 'champignons', skey: 'champignon', slug: 'champignons' }
+		],
+		PLURALS,
+		[],
+		ruleRows([
+			{ slug: 'tomates-en-boite', when: [{ names: ['tomates', 'tomatoes'], unit: ['container'] }] },
+			{ slug: 'tomates-fraiches', when: [{ names: ['tomates', 'tomatoes'], unit: ['piece', 'lb'] }] },
+			{ slug: 'boeuf-hache', when: [{ names: ['bœuf'], words: ['haché', 'hachée'] }] },
+			{ slug: 'boeuf-en-cubes', when: [{ names: ['boeuf'], words: ['en cubes'] }] },
+			{ slug: 'lard-sale', when: [{ names: ['lard'], lang: 'fr' }] },
+			{ slug: 'saindoux', when: [{ names: ['lard'], lang: 'en' }] },
+			{ slug: 'champignons-en-boite', when: [{ names: ['champignons'], unit: ['container'] }] }
+		])
+	);
+	const r = (name: string, line: object = {}, lang = 'fr') => {
+		const x = R.resolve({ name, ...line }, lang);
+		return `${x.resolution}:${x.item}`;
+	};
+
+	it('the unit or unit class decides', () => {
+		expect(r('tomates', { unit: 'can', note: '28 oz' })).toBe('rule:tomates-en-boite');
+		expect(r('Tomatoes', { unit: 'jar' }, 'en')).toBe('rule:tomates-en-boite');
+		expect(r('tomates', { unit: 'piece' })).toBe('rule:tomates-fraiches');
+		expect(r('tomate', { unit: 'lb' })).toBe('rule:tomates-fraiches');
+	});
+
+	it('prep or note words decide, as whole words, singular or plural', () => {
+		expect(r('boeuf', { prep: 'haché' })).toBe('rule:boeuf-hache');
+		expect(r('bœuf', { prep: 'hachés maigre' })).toBe('rule:boeuf-hache');
+		expect(r('boeuf', { note: 'coupé en cubes' })).toBe('rule:boeuf-en-cubes');
+		expect(r('boeuf', { prep: 'hachoir' })).toBe('ambiguous:null');
+	});
+
+	it('the language decides', () => {
+		expect(r('lard', {}, 'fr')).toBe('rule:lard-sale');
+		expect(r('lard', {}, 'en')).toBe('rule:saindoux');
+	});
+
+	it('when no rule holds the name stays unresolved: ambiguous across entries, never a guess', () => {
+		expect(r('tomates', { unit: 'cup' })).toBe('ambiguous:null');
+		expect(r('tomates')).toBe('ambiguous:null');
+		expect(r('boeuf', { prep: 'en cubes, haché' })).toBe('ambiguous:null');
+		expect(R.candidates('tomates').map((c) => c.slug)).toEqual(['tomates-en-boite', 'tomates-fraiches']);
+	});
+
+	it('a rule beats an alias; when none holds, the alias decides', () => {
+		expect(r('champignons', { unit: 'can' })).toBe('rule:champignons-en-boite');
+		expect(r('champignons', { unit: 'cup' })).toBe('alias:champignons');
+	});
+
+	it('a rule name alone is not an alias, and plain names are unaffected', () => {
+		expect(r('tomates fraîches', { unit: 'can' })).toBe('alias:tomates-fraiches');
+		expect(R.hasRules('tomates')).toBe(true);
+		expect(R.hasRules('tomates fraiches')).toBe(false);
+		const one = new Resolver([], PLURALS, [], ruleRows([{ slug: 'boeuf-hache', when: [{ names: ['boeuf'], words: ['haché'] }] }]));
+		expect(one.resolve({ name: 'boeuf', prep: 'en cubes' }).resolution).toBe('none');
+		expect(one.candidates('boeuf')[0]).toEqual({ slug: 'boeuf-hache', score: 1 });
 	});
 });
 

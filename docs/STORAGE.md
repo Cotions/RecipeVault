@@ -31,7 +31,7 @@ Data splits by how it changes, because each kind wants a different format:
 │   ├── pate-brisee.md
 │   └── ...                          # flat; 5000 files in one directory is fine
 ├── ingredients/
-│   ├── tomates-concassees.md        # aliases, category, substitutes — NO price
+│   ├── tomates-concassees.md        # aliases, disambiguation rules, category, substitutes — NO price
 │   └── ...
 ├── vocab/
 │   ├── families.yaml                # family slug → { fr, en } labels, set on the family page
@@ -114,6 +114,17 @@ two ingredients → edit one alias list, one small commit, re-index. Recipes unt
 `item:` may still appear in a recipe entry, but only as a deliberate **manual
 override** for a genuinely ambiguous name in one specific recipe ("farine" here
 means `farine-t45`). Rare, intentional, and visible in the diff.
+
+A name whose meaning depends on the line rather than the recipe (*tomates* by the
+can are canned, by the pound fresh; *bœuf* with prep *haché* is ground beef) is
+settled in the registry too, not with an `item:` in every recipe: an ingredient
+file may carry **disambiguation rules**, `when:`, a list of
+`{ names, lang?, unit?, words? }` — "these names mean this entry when the
+recipe's language is `lang`, the line's unit is one of `unit` (canonical units or
+the classes `mass`, `volume`, `count`, `container`), and its `prep` or `note`
+holds one of `words`" (`INGREDIENTS.md`, "Disambiguation rules"). Like an alias,
+a rule is one line in one ingredient file, one small commit, and every recipe
+using the name is re-resolved; no recipe file changes.
 
 ### Prices are an append-only log, not a field
 

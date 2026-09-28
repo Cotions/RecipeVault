@@ -58,6 +58,18 @@ describe('resolution in the index', () => {
 		expect(line('tarte-au-sucre', 'pâte brisée')).toMatchObject({ resolution: 'recipe' });
 	});
 
+	it('a disambiguation rule resolves by the line, and is re-applied when the registry changes', () => {
+		const f = join(v.dir, 'ingredients/huile-vegetale.md');
+		const text = readFileSync(f, 'utf8');
+		// Invented rule: "huile" by the cup is the neutral oil.
+		writeFileSync(f, text.replace(/\nstaple:/, '\nwhen:\n  - { names: [huile], unit: [cup] }\nstaple:'));
+		syncVault(v.ctx.db, v.ctx.paths);
+		expect(line('muffins-bleuets', 'huile')).toMatchObject({ item: 'huile-vegetale', resolution: 'rule' });
+		writeFileSync(f, text.replace(/\nstaple:/, '\nwhen:\n  - { names: [huile], unit: [tbsp] }\nstaple:'));
+		syncVault(v.ctx.db, v.ctx.paths);
+		expect(line('muffins-bleuets', 'huile')).toMatchObject({ item: null, resolution: 'ambiguous' });
+	});
+
 	it('the family table groups unresolved lines by key, then by item once resolved', () => {
 		const before = familyDiff(v.ctx.db, 'lasagna')!;
 		expect(before.common).toContain('feuilles de lasagne');
