@@ -16,6 +16,9 @@
 <h1>{t.queue.title}</h1>
 <p class="intro">{t.queue.intro}</p>
 
+{#if data.gone && !form?.message}
+	<p class="flash" role="status">{t.queue.gone}</p>
+{/if}
 {#if form?.message}
 	<p class="flash" class:error={!form.ok} role={form.ok ? 'status' : 'alert'}>{form.message}</p>
 {/if}
@@ -43,6 +46,9 @@
 
 				{#if row.ambiguous}
 					<p class="warn">{t.queue.ambiguous}</p>
+					{#if row.ruleClash.length}
+						<p class="warn" data-rule-clash>{t.queue.ruleClash(row.ruleClash.map((s) => `« ${row.candidates.find((c) => c.slug === s)?.name ?? s} »`).join(' et de '))}</p>
+					{/if}
 					<h3>{t.queue.owners}</h3>
 					<ul class="cands">
 						{#each row.candidates as c (c.slug)}
@@ -79,18 +85,20 @@
 					{/if}
 				{/if}
 
-				<details class="more">
-					<summary>{t.queue.link}</summary>
-					<form method="POST" action="?/link" use:enhance={keep}>
-						<input type="hidden" name="key" value={row.key} />
-						<input type="hidden" name="form" value={row.forms[0].name} />
-						<label>
-							{t.queue.linkField}
-							<input name="slug" list="entries" required autocomplete="off" />
-						</label>
-						<button class="btn" type="submit">{t.queue.linkSubmit}</button>
-					</form>
-				</details>
+				{#if !row.ruleClash.length}
+					<details class="more">
+						<summary>{t.queue.link}</summary>
+						<form method="POST" action="?/link" use:enhance={keep}>
+							<input type="hidden" name="key" value={row.key} />
+							<input type="hidden" name="form" value={row.forms[0].name} />
+							<label>
+								{t.queue.linkField}
+								<input name="slug" list="entries" required autocomplete="off" />
+							</label>
+							<button class="btn" type="submit">{t.queue.linkSubmit}</button>
+						</form>
+					</details>
+				{/if}
 				<details class="more">
 					<summary>{t.queue.rule}</summary>
 					<form method="POST" action="?/rule" use:enhance={keep}>
@@ -126,28 +134,30 @@
 						<button class="btn" type="submit">{t.queue.ruleSubmit}</button>
 					</form>
 				</details>
-				<details class="more">
-					<summary>{t.queue.create}</summary>
-					<form method="POST" action="?/create" use:enhance={keep}>
-						<input type="hidden" name="key" value={row.key} />
-						<label>
-							{t.queue.slug}
-							<input name="slug" value={row.slug} required pattern="[a-z0-9]+(-[a-z0-9]+)*" />
-						</label>
-						<p class="help">{t.queue.slugHelp}</p>
-						<label>
-							{t.queue.category}
-							<select name="category" required>
-								<option value="">{t.queue.categoryPick}</option>
-								{#each data.categories as c (c)}
-									<option value={c}>{t.category[c] ?? c}</option>
-								{/each}
-							</select>
-						</label>
-						<label class="check"><input type="checkbox" name="staple" /> {t.queue.staple}</label>
-						<button class="btn" type="submit">{t.queue.createSubmit}</button>
-					</form>
-				</details>
+				{#if !row.ruleClash.length}
+					<details class="more">
+						<summary>{t.queue.create}</summary>
+						<form method="POST" action="?/create" use:enhance={keep}>
+							<input type="hidden" name="key" value={row.key} />
+							<label>
+								{t.queue.slug}
+								<input name="slug" value={row.slug} required pattern="[a-z0-9]+(-[a-z0-9]+)*" />
+							</label>
+							<p class="help">{t.queue.slugHelp}</p>
+							<label>
+								{t.queue.category}
+								<select name="category" required>
+									<option value="">{t.queue.categoryPick}</option>
+									{#each data.categories as c (c)}
+										<option value={c}>{t.category[c] ?? c}</option>
+									{/each}
+								</select>
+							</label>
+							<label class="check"><input type="checkbox" name="staple" /> {t.queue.staple}</label>
+							<button class="btn" type="submit">{t.queue.createSubmit}</button>
+						</form>
+					</details>
+				{/if}
 			</li>
 		{/each}
 	</ol>

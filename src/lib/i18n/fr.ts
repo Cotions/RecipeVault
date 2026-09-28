@@ -120,6 +120,8 @@ export const fr = {
 		count: (n: number, r: number) => `${n} fois dans ${r === 1 ? '1 recette' : `${r} recettes`}`,
 		recipes: 'Voir les recettes',
 		ambiguous: 'Ce nom appartient à plusieurs ingrédients : il reste non relié tant qu’il n’en garde qu’un.',
+		ruleClash: (names: string) =>
+			`Les règles de ${names} valent toutes deux sur certaines lignes. Une règle passe avant un nom : relier ce nom ou créer un ingrédient n’y changerait rien. Retirez le nom (et sa règle) de l’un d’eux, ou rendez leurs conditions distinctes.`,
 		suggestions: 'Suggestions',
 		none: 'Aucun ingrédient proche.',
 		thisOne: 'C’est ça',
@@ -149,6 +151,7 @@ export const fr = {
 		ruled: (form: string, name: string, n: number) =>
 			`Règle ajoutée : « ${form} » va à ${name} ${n === 1 ? 'sur 1 ligne' : `sur ${n} lignes`} qui la remplissent.`,
 		more: (n: number) => `${n} autres noms plus bas dans la liste.`,
+		gone: 'Ce nom est déjà relié au registre : il n’est plus dans la liste.',
 		lang: { fr: 'recettes en français', en: 'recettes en anglais' } as Record<string, string>
 	},
 	ingredients: {

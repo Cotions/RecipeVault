@@ -463,6 +463,38 @@ export function withoutKey(text: string, key: string): string {
 	});
 }
 
+/**
+ * The file without the rule names that `matches` (a lookup key → whether it
+ * names the key being taken off): a rule left with no name is dropped, and
+ * `when` with it when it empties. A rule's `names` may be a single string.
+ */
+export function withoutRuleNames(text: string, matches: (key: string) => boolean): string {
+	return editDoc(text, (root) => {
+		const when = root.get('when', true);
+		if (!isSeq(when)) return false;
+		let changed = false;
+		const hit = (n: unknown) => isScalar(n) && typeof n.value === 'string' && matches(lookupKey(n.value));
+		when.items = when.items.filter((r) => {
+			if (!isYamlMap(r)) return true;
+			const names = r.get('names', true);
+			if (isSeq(names)) {
+				const kept = names.items.filter((n) => !hit(n));
+				if (kept.length === names.items.length) return true;
+				changed = true;
+				names.items = kept;
+				return kept.length > 0;
+			}
+			if (hit(names)) {
+				changed = true;
+				return false;
+			}
+			return true;
+		});
+		if (changed && !when.items.length) root.delete('when');
+		return changed;
+	});
+}
+
 /** A slug proposed from a written name: `Crème 35 %` → `creme-35`. */
 export function proposeSlug(name: string): string {
 	return lookupKey(name)

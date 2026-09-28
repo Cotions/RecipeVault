@@ -9,12 +9,15 @@ import type { Actions, PageServerLoad } from './$types';
 
 const LIMIT = 30;
 
-export const load: PageServerLoad = () => {
+export const load: PageServerLoad = ({ url }) => {
 	const app = getApp();
-	const { total, rows } = resolveQueue(app.ctx.db, () => loadVocab(app.ctx.paths.vocab), { limit: LIMIT });
+	const cle = url.searchParams.get('cle') ?? undefined;
+	const { total, rows } = resolveQueue(app.ctx.db, () => loadVocab(app.ctx.paths.vocab), { limit: LIMIT, include: cle });
 	const entries = app.ctx.db.prepare('SELECT slug, name FROM registry ORDER BY name').all() as { slug: string; name: string }[];
 	return {
 		total,
+		/** The key a link asked for, when it is no longer waiting (linked meanwhile). */
+		gone: cle !== undefined && !rows.some((r) => r.key === cle) ? cle : null,
 		rows: rows.map((r) => ({ ...r, slug: proposeSlug(r.forms[0].name) })),
 		entries,
 		categories: [...CATEGORIES],

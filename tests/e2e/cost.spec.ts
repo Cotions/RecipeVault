@@ -44,7 +44,7 @@ test('ingredient names link to the index, or to their row in the resolve queue',
 	await expect(page.locator('.cost .line')).toContainText('Pas assez de prix · 1 ingrédient sur 9');
 
 	const unlinked = list.locator('li', { hasText: 'concentré de tomate' }).getByRole('link', { name: 'non relié' });
-	await expect(unlinked).toHaveAttribute('href', '/resoudre#k-concentre-de-tomate');
+	await expect(unlinked).toHaveAttribute('href', '/resoudre?cle=concentre%20de%20tomate#k-concentre-de-tomate');
 	await unlinked.click();
 	await expect(page.locator('#k-concentre-de-tomate')).toBeInViewport();
 });

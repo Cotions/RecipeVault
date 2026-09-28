@@ -285,7 +285,7 @@ describe('links', () => {
 	it('a queue row id needs no escaping', async () => {
 		const { queueRowId, queueHref, ingredientHref, ingredientRowHref } = await import('../../src/lib/render/links');
 		expect(queueRowId('creme 35 %')).toBe('k-creme-35-');
-		expect(queueHref("huile d'olive")).toBe('/resoudre#k-huile-d-olive');
+		expect(queueHref("huile d'olive")).toBe("/resoudre?cle=huile%20d'olive#k-huile-d-olive");
 		expect(ingredientHref('farine')).toBe('/ingredients/farine');
 		expect(ingredientRowHref('farine')).toBe('/ingredients#i-farine');
 	});

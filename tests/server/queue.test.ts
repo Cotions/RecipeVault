@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { parseIngredient, withName, withoutKey, withRule } from '../../src/lib/ingredients/registry';
+import { parseIngredient, withName, withoutKey, withoutRuleNames, withRule } from '../../src/lib/ingredients/registry';
 import { resolutionDiagnostics } from '../../src/lib/ingredients/resolve';
 import { getResolver } from '../../src/lib/server/index/resolve';
-import { addRule, createFromKey, linkKey, queueCount, QueueError, resolveQueue, unlinkKey } from '../../src/lib/server/queue';
+import { addRule, commitEntries, createFromKey, linkKey, queueCount, QueueError, resolveQueue, unlinkKey } from '../../src/lib/server/queue';
 import { loadVocab } from '../../src/lib/server/vocab';
 import { fixtureVault, type TempVault } from '../helpers/vault';
 
@@ -50,6 +50,18 @@ describe('edits of an ingredient file', () => {
 			{ names: ['gros sel'], unit: ['container'], words: ['moulu'] },
 			{ names: ['sel'], lang: 'en' }
 		]);
+	});
+});
+
+describe('taking rule names off an ingredient file', () => {
+	const text = '---\nslug: x\ncategory: legume\nnames:\n  fr: [x]\n  en: []\nwhen:\n  - {names: [tomates, tomate], unit: [can]}\n  - {names: tomates, lang: fr}\n  - {names: [lard], lang: en}\nstaple: false\n---\n';
+	it('removes the matching names, drops a rule left with none, and `when` when it empties', () => {
+		const out = withoutRuleNames(text, (k) => k === 'tomates');
+		expect(out).toContain('when:\n  - {names: [tomate], unit: [can]}\n  - {names: [lard], lang: en}\nstaple');
+		expect(parseIngredient(out, { fileStem: 'x' }).diagnostics).toEqual([]);
+		const none = withoutRuleNames(out, (k) => k === 'tomate' || k === 'lard');
+		expect(none).not.toContain('when');
+		expect(withoutRuleNames(text, (k) => k === 'poivre')).toBe(text);
 	});
 });
 
@@ -132,6 +144,40 @@ describe('the resolve queue', () => {
 		// huile d'olive keeps the alias: the name is still hers where no rule holds.
 		expect(v.read('ingredients/huile-d-olive.md')).toMatch(/\bhuile\b.*\]/);
 		expect(v.git('status', '--porcelain').trim()).toBe('');
+	});
+
+	it('a name ambiguous by rule: Relier and Créer are refused, Retirer takes the rule off', async () => {
+		// Both rules hold on `12 piece tomates, en dés`: by unit and by word.
+		const edit = (slug: string, rule: Parameters<typeof withRule>[1]) => ({ rel: `ingredients/${slug}.md`, text: withRule(v.read(`ingredients/${slug}.md`), rule) });
+		await commitEntries(v.ctx, vocab(), [edit('tomates-fraiches', { names: ['tomates'], unit: ['count'] }), edit('tomates-concassees', { names: ['tomates'], words: ['en dés'] })], 'test: two rules');
+		expect(line('ketchup-aux-fruits', 'tomates')).toEqual({ item: null, resolution: 'ambiguous' });
+		const r = row('tomates')!;
+		expect(r.ambiguous).toBe(true);
+		expect(r.ruleClash).toEqual(['tomates-concassees', 'tomates-fraiches']);
+		expect(r.candidates.map((c) => c.slug)).toEqual(['tomates-concassees', 'tomates-fraiches']);
+		const head = v.git('rev-parse', 'HEAD').trim();
+		await expect(linkKey(v.ctx, 'tomates', 'tomates-fraiches')).rejects.toThrow(/règles de tomates-concassees et de tomates-fraiches/);
+		await expect(createFromKey(v.ctx, 'tomates', { slug: 'tomates-x', category: 'legume', staple: false })).rejects.toThrow(/reste ambigu/);
+		expect(v.git('rev-parse', 'HEAD').trim()).toBe(head);
+		await unlinkKey(v.ctx, 'tomates', 'tomates-concassees', hashOf('tomates-concassees'));
+		expect(lastCommit()).toBe('ingredient: tomates-concassees - "tomates"');
+		expect(v.read('ingredients/tomates-concassees.md')).not.toContain('when');
+		expect(line('ketchup-aux-fruits', 'tomates')).toEqual({ item: 'tomates-fraiches', resolution: 'rule' });
+		expect(row('tomates')).toBeUndefined();
+	});
+
+	it('a key asked for is shown even beyond the page, first; one no longer waiting is not', () => {
+		const all = queue().rows;
+		const last = all[all.length - 1].key;
+		const { total, rows } = resolveQueue(v.ctx.db, vocab(), { limit: 2, include: last });
+		expect(total).toBe(all.length);
+		expect(rows.map((r) => r.key)).toEqual([last, all[0].key, all[1].key]);
+		expect(resolveQueue(v.ctx.db, vocab(), { limit: 2, include: all[1].key }).rows.map((r) => r.key)).toEqual([all[0].key, all[1].key]);
+		expect(resolveQueue(v.ctx.db, vocab(), { limit: 2, include: 'sel' }).rows).toHaveLength(2);
+	});
+
+	it('an alias-ambiguous name has no rule clash', () => {
+		expect(row('huile')!.ruleClash).toEqual([]);
 	});
 
 	it('refuses a stale entry, a bad slug or category, a taken slug, and a name no longer in the queue — nothing committed', async () => {

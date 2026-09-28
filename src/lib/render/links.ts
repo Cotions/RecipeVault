@@ -14,4 +14,5 @@ export const ingredientRowHref = (slug: string) => `/ingredients#i-${slug}`;
  */
 export const queueRowId = (key: string) => `k-${key.replace(/[^\p{L}\p{N}]+/gu, '-')}`;
 
-export const queueHref = (key: string) => `/resoudre#${queueRowId(key)}`;
+/** A key's row in the resolve queue: `cle` makes the page show it even beyond the first page. */
+export const queueHref = (key: string) => `/resoudre?cle=${encodeURIComponent(key)}#${queueRowId(key)}`;

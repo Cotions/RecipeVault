@@ -200,7 +200,14 @@ Each row offers its candidates ("C'est ça"), a link to any entry, or a new entr
 created from the name; an ambiguous name is settled by taking it off all but one
 entry, or by giving one entry a rule for it ("Selon l'unité ou la préparation":
 units or unit classes seen on the lines, words of `prep` or `note`, the language;
-see "Disambiguation rules"). Only ingredient files change (`DATA-FLOW.md`, "Ingredient edits").
+see "Disambiguation rules"). Taking a name off an entry ("Retirer") removes its
+aliases with that key and the names of its rules that reach the key (a rule
+left with no name goes). A name ambiguous because the rules of two entries
+both hold on some of its lines cannot be settled by a new alias, since rules
+come first: the row says so, and offers no "Relier" nor "Créer" (the server
+refuses them too). Every « non relié » link opens the queue on its own row
+(`/resoudre?cle=<key>`), shown first when it is beyond the first page. Only
+ingredient files change (`DATA-FLOW.md`, "Ingredient edits").
 
 ## Cost
 

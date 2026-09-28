@@ -6,7 +6,7 @@
 // "Disambiguation rules"). Each action edits one ingredient file, commits it,
 // and re-resolves the index. No recipe file is touched (docs/STORAGE.md).
 
-import { IngredientEditError, parseIngredient, serializeIngredient, withName, withoutKey, withRule } from '../ingredients/registry';
+import { IngredientEditError, parseIngredient, serializeIngredient, withName, withoutKey, withoutRuleNames, withRule } from '../ingredients/registry';
 import type { Candidate } from '../ingredients/resolve';
 import { CATEGORIES, UNIT_CLASSES, type Category, type NameRule, type RegistryEntry } from '../ingredients/types';
 import { stripMarkers } from '../vault/markers';
@@ -15,7 +15,7 @@ import { UNITS, type Lang } from '../vault/types';
 import type { VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
 import type { DB } from './index/db';
-import { getResolver, reresolve } from './index/resolve';
+import { getResolver, reresolve, ruleClash } from './index/resolve';
 import { ingredientPath, syncRegistry } from './registry';
 import { loadVocab, type VaultVocab } from './vocab';
 
@@ -44,6 +44,11 @@ export interface QueueRow {
 	units: { unit: string | null; count: number }[];
 	/** For an ambiguous key: the entries that share it. Otherwise the nearest entries. */
 	candidates: QueueCandidate[];
+	/**
+	 * The entries whose rules hold together on some of its lines: a new alias
+	 * cannot settle those (rules come first), only taking one entry's rule off.
+	 */
+	ruleClash: string[];
 }
 
 /** How many keys wait in the queue (the nav badge). */
@@ -54,7 +59,7 @@ export function queueCount(db: DB): number {
 		.get() as number;
 }
 
-export type QueueGroup = Omit<QueueRow, 'candidates'>;
+export type QueueGroup = Omit<QueueRow, 'candidates' | 'ruleClash'>;
 type Group = QueueGroup;
 
 /** The queue without candidates, most frequent key first. */
@@ -95,16 +100,28 @@ export function queueGroups(db: DB): Group[] {
 		.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
 
-export function resolveQueue(db: DB, vocab: Pick<VaultVocab, 'normalize'> | (() => Pick<VaultVocab, 'normalize'>), { limit = 50, offset = 0 } = {}): { total: number; rows: QueueRow[] } {
+/**
+ * A page of the queue. `include`: a key to show even when it falls outside the
+ * page (a « non relié » link from a recipe lands on its row): it then comes
+ * first.
+ */
+export function resolveQueue(
+	db: DB,
+	vocab: Pick<VaultVocab, 'normalize'> | (() => Pick<VaultVocab, 'normalize'>),
+	{ limit = 50, offset = 0, include }: { limit?: number; offset?: number; include?: string } = {}
+): { total: number; rows: QueueRow[] } {
 	const all = queueGroups(db);
 	const resolver = getResolver(db, vocab);
 	const entry = db.prepare('SELECT name, file_hash FROM registry WHERE slug = ?');
-	const rows = all.slice(offset, offset + limit).map((g): QueueRow => ({
+	const page = all.slice(offset, offset + limit);
+	const extra = include !== undefined && !page.some((g) => g.key === include) ? all.find((g) => g.key === include) : undefined;
+	const rows = (extra ? [extra, ...page] : page).map((g): QueueRow => ({
 		...g,
 		candidates: resolver.candidates(g.key, g.lang).flatMap((c) => {
 			const e = entry.get(c.slug) as { name: string; file_hash: string } | undefined;
 			return e ? [{ ...c, name: e.name, hash: e.file_hash }] : [];
-		})
+		}),
+		ruleClash: g.ambiguous ? ruleClash(db, resolver, g.key) : []
 	}));
 	return { total: all.length, rows };
 }
@@ -112,6 +129,16 @@ export function resolveQueue(db: DB, vocab: Pick<VaultVocab, 'normalize'> | (() 
 /** The queue row of one key, if it is still in the queue. */
 function rowOf(db: DB, key: string): Group | undefined {
 	return queueGroups(db).find((r) => r.key === key);
+}
+
+/** Refuse a new alias for a key some of whose lines are ambiguous by rule: it would change nothing there. */
+function refuseRuleClash(db: DB, vocab: VaultVocab, row: Group): void {
+	const clash = ruleClash(db, getResolver(db, vocab), row.key);
+	if (clash.length)
+		throw new QueueError(
+			`« ${row.forms[0].name} » reste ambigu : les règles de ${clash.join(' et de ')} valent toutes deux sur certaines lignes, et une règle passe avant un nom. ` +
+				`Un nouveau nom n’y changerait rien ; retirez ce nom (et sa règle) de l’un d’eux, ou rendez leurs conditions distinctes.`
+		);
 }
 
 /**
@@ -169,6 +196,7 @@ export function linkKey(ctx: VaultContext, key: string, slug: string, hash?: str
 		const vocab = loadVocab(ctx.paths.vocab);
 		const row = rowOf(ctx.db, key);
 		if (!row) throw new QueueError('ce nom est déjà relié ; rechargez la page.');
+		refuseRuleClash(ctx.db, vocab, row);
 		const file = current(ctx, slug, hash);
 		const form = row.forms[0].name;
 		let text: string;
@@ -195,6 +223,7 @@ export function createFromKey(ctx: VaultContext, key: string, input: NewIngredie
 		const vocab = loadVocab(ctx.paths.vocab);
 		const row = rowOf(ctx.db, key);
 		if (!row) throw new QueueError('ce nom est déjà relié ; rechargez la page.');
+		refuseRuleClash(ctx.db, vocab, row);
 		const slug = input.slug.trim();
 		if (!SLUG_RE.test(slug)) throw new QueueError('identifiant invalide : lettres minuscules sans accents, chiffres et traits d’union.');
 		if (!(CATEGORIES as readonly string[]).includes(input.category)) throw new QueueError('choisissez une catégorie.');
@@ -216,24 +245,31 @@ export function createFromKey(ctx: VaultContext, key: string, input: NewIngredie
 	});
 }
 
-/** Retirer: take an ambiguous alias off one of the entries that share it. */
+/**
+ * Retirer: take an ambiguous name off one of the entries that claim it — its
+ * aliases with that key, and the names of its rules through which the key
+ * reaches them (docs/INGREDIENTS.md, "Resolution"); a rule left with no name
+ * goes.
+ */
 export function unlinkKey(ctx: VaultContext, key: string, slug: string, hash: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
 		const vocab = loadVocab(ctx.paths.vocab);
 		const file = current(ctx, slug, hash);
+		const resolver = getResolver(ctx.db, vocab);
+		const row = rowOf(ctx.db, key);
+		const lang = row?.lang ?? 'fr';
 		let text: string;
 		try {
-			text = withoutKey(file.text, key);
+			text = withoutRuleNames(withoutKey(file.text, key), (k) => resolver.ruleNameReaches(k, key, lang));
 		} catch (e) {
 			throw new QueueError(`${ingredientPath(slug)} ne se lit pas ; corrigez-le d’abord (${(e as IngredientEditError).message}).`);
 		}
 		if (text === file.text) throw new QueueError(`ce nom n’est plus un nom de ${slug} ; rechargez la page.`);
 		checked(text, slug, vocab);
 		const names = ctx.db.prepare('SELECT name FROM ingredient_names WHERE slug = ? AND key = ?').pluck().all(slug, key) as string[];
-		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} - "${names[0] ?? key}"`) };
+		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} - "${names[0] ?? row?.forms[0].name ?? key}"`) };
 	});
 }
-
 
 export interface RuleInput {
 	/** Canonical units or unit classes. */

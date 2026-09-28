@@ -188,6 +188,18 @@ export class Resolver {
 		return true;
 	}
 
+	/** The entries whose rules naming the key hold on a line (two or more: the line is ambiguous by rule). */
+	heldBy(key: string, lang: Lang | string = 'fr', ctx: LineContext = {}): string[] {
+		return [...new Set(this.rulesFor(key, lang).filter((r) => this.holds(r, lang, ctx)).map((r) => r.slug))].sort();
+	}
+
+	/** Whether a rule name (a lookup key) is one through which `key` reaches its rules (see rulesFor). */
+	ruleNameReaches(ruleKey: string, key: string, lang: Lang | string = 'fr'): boolean {
+		if (ruleKey === key) return true;
+		if (this.rulesByKey.has(key) || this.byKey.has(key)) return false;
+		return this.singular(ruleKey, lang) === this.singular(key, lang);
+	}
+
 	has(slug: string): boolean {
 		return this.slugs.has(slug);
 	}

@@ -112,6 +112,36 @@ function reresolveLines(db: DB, resolver: Resolver, ruled: { table: string; key:
 }
 
 /**
+ * The entries whose rules hold together on some ambiguous line of `key`: the
+ * lines a new alias cannot settle, since rules are tried before aliases
+ * (docs/INGREDIENTS.md, "Resolution"). Empty when no line is ambiguous by rule.
+ */
+export function ruleClash(db: DB, resolver: Resolver, key: string): string[] {
+	const out = new Set<string>();
+	const json = db.prepare('SELECT data_json FROM recipes WHERE slug = ?').pluck();
+	const cache = new Map<string, Ingredient[]>();
+	for (const table of ['ingredients', 'ingredient_or']) {
+		const alt = table === 'ingredient_or';
+		const rows = db
+			.prepare(`SELECT i.slug, i.position${alt ? ', i.alt_idx' : ''}, r.lang FROM ${table} i JOIN recipes r ON r.slug = i.slug WHERE i.key = ? AND i.resolution = 'ambiguous'`)
+			.all(key) as { slug: string; position: number; alt_idx?: number; lang: string }[];
+		for (const row of rows) {
+			if (!resolver.hasRules(key, row.lang)) continue;
+			let xs = cache.get(row.slug);
+			if (!xs) {
+				const j = json.get(row.slug) as string | undefined;
+				cache.set(row.slug, (xs = j ? (JSON.parse(j) as Recipe).ingredients.flatMap((g) => g.items) : []));
+			}
+			const it = xs[row.position];
+			const line = alt ? it?.or?.[row.alt_idx!] : it;
+			const held = resolver.heldBy(key, row.lang, line ?? {});
+			if (held.length > 1) for (const s of held) out.add(s);
+		}
+	}
+	return [...out].sort();
+}
+
+/**
  * W303 / W305 / W307 for a recipe against the registry as indexed: added to
  * the checker's diagnostics by the paste check, the save result and the
  * recipe page. They never change a recipe's status (plan 03, Q3).
