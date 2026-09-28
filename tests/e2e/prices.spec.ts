@@ -40,6 +40,11 @@ test('a price entered inline is appended to prices.csv, committed, and shown aft
 	await page.reload();
 	await expect(page.locator('#i-farine .money')).toHaveText(/4,99\s\$/);
 	await expect(page.locator('#i-farine .pack')).toHaveText('/ 2,5 kg');
+
+	// Its default unit is g: the editor still takes size and unit together from the last price.
+	await page.locator('#i-farine').getByRole('button', { name: 'Saisir un prix pour farine' }).click();
+	await expect(page.locator('tr.editor input[name="pack_qty"]')).toHaveValue('2.5');
+	await expect(page.locator('tr.editor select[name="pack_unit"]')).toHaveValue('kg');
 });
 
 test('filters and sorts live in the URL', async ({ page }) => {

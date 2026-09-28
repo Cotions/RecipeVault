@@ -94,6 +94,21 @@ describe('appendPrice', () => {
 		expect(v.read('prices.csv')).toBe(text);
 	});
 
+	it('writes in the order of a hand-made header, and the price is current; refuses a shop with no column, changing nothing', async () => {
+		writeFileSync(join(v.dir, 'prices.csv'), 'date,ingredient,pack_qty,pack_unit,amount\n2026-01-01,farine,2,kg,3.99\n');
+		v.git('commit', '-qam', 'hand-made prices');
+		syncVault(v.ctx.db, v.ctx.paths);
+		await appendPrice(v.ctx, { ingredient: 'farine', amount: 5.49, packQty: 2, packUnit: 'kg', date: '2026-09-27' });
+		expect(lines().at(-1)).toBe('2026-09-27,farine,2,kg,5.49');
+		expect(currentPricesOf(v.ctx.db, ['farine']).get('farine')).toMatchObject({ amount: 5.49, packQty: 2, packUnit: 'kg' });
+		expect(priceProblems(v.ctx.db, 'CAD')).toEqual([]);
+		const text = v.read('prices.csv');
+		const head = v.git('rev-parse', 'HEAD').trim();
+		await expect(appendPrice(v.ctx, { ingredient: 'farine', amount: 5.29, packQty: 2, packUnit: 'kg', shop: 'IGA' })).rejects.toThrow(/pas de colonne shop/);
+		expect(v.read('prices.csv')).toBe(text);
+		expect(v.git('rev-parse', 'HEAD').trim()).toBe(head);
+	});
+
 	it('puts the file back when the commit fails', async () => {
 		const text = v.read('prices.csv');
 		writeFileSync(join(v.dir, '.git/index.lock'), '');

@@ -173,6 +173,12 @@ Behaviour (plan 03, Phase 4, Q7–Q9):
   reported with its line number. Codes `E812`–`W815` (`VALIDATION.md`, "Price
   codes").
 - A price is **stale** once it is more than a year old: still used, flagged.
+- The app writes a new row in the order of the file's own header (a column it
+  does not know gets an empty cell; a missing `currency` column is the
+  config's). It refuses, writing nothing, when the header lacks a required
+  column, when a shop or note was typed and the header has no column for it,
+  or when the line would not read back as the row entered. A new or empty file
+  gets the header above.
 - The app only appends, one line and one commit per price (Q9):
   `price: <slug> <amount> / <pack_qty> <pack_unit>`, rolled back if the commit
   fails. Prices are entered inline on the ingredient index, `/ingredients`

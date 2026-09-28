@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n/fr';
 	import { codeText } from '$lib/i18n/diagnostics';
-	import { formatMoney, formatPack } from '$lib/render/money';
+	import { formatMoney, formatPack, packDefaults } from '$lib/render/money';
 	import { ingredientHref } from '$lib/render/links';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import type { PageProps } from './$types';
@@ -182,6 +182,7 @@
 					</td>
 				</tr>
 				{#if editing === r.slug}
+					{@const pack = packDefaults(r.price, r.defaultUnit)}
 					<tr class="editor">
 						<td colspan="5">
 							<form method="POST" action="?/price" use:enhance={submit}>
@@ -192,11 +193,11 @@
 								</label>
 								<label>
 									{t.ingredients.packQty}
-									<input name="pack_qty" inputmode="decimal" required autocomplete="off" size="6" value={r.price?.packQty ?? ''} />
+									<input name="pack_qty" inputmode="decimal" required autocomplete="off" size="6" value={pack.qty} />
 								</label>
 								<label>
 									{t.ingredients.packUnit}
-									<select name="pack_unit" required value={r.defaultUnit ?? r.price?.packUnit ?? ''}>
+									<select name="pack_unit" required value={pack.unit}>
 										<option value="">{t.ingredients.unitPick}</option>
 										{#each data.units as u (u)}<option value={u}>{t.ingredients.unit[u] ?? u}</option>{/each}
 									</select>

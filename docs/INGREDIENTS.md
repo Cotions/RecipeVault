@@ -47,8 +47,8 @@ The app writes these files in that key order, names as flow lists
 an error keeps its last good index rows.
 
 - `default_unit` (plan 03, Q26): the unit vault-wide totals and "sorted by how
-  much it uses" add quantities in, and the default `pack_unit` when entering a
-  price. A canonical unit.
+  much it uses" add quantities in, and the default `pack_unit` when entering the
+  first price (later ones start from the last price's pack). A canonical unit.
 - `weights` (plan 03, Q12): canonical unit → grams for one of it, for count and
   spoon units a recipe writes: `{ piece: 55, clove: 5, pinch: 0.4 }`. This is the
   "explicit average weight" and the "per-ingredient table" of "Unit conversion"
@@ -389,7 +389,9 @@ so it needs inline editing. Sorting by "used in most recipes, unpriced" gives th
 exact order to enter prices in for maximum benefit.
 
 Prices are entered by hand (Q8), on this screen or in `prices.csv` with a
-spreadsheet; no scraping. Each row opens an inline editor: amount, pack size,
-pack unit (the entry's `default_unit` by default, Q26), shop (suggested from the
+spreadsheet; no scraping. Each row opens an inline editor: amount, pack size
+and pack unit (both from the last price, so a size is never saved in another
+pack's unit; with no price yet, the entry's `default_unit` and no size, Q26),
+shop (suggested from the
 shops already in `prices.csv` plus the config's `shops`), date (today). Saving
 appends one row and makes one commit (Q9).

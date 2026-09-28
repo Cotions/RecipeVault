@@ -9,6 +9,7 @@ import {
 	csvNumber,
 	foreignCurrency,
 	parsePrices,
+	PriceFileError,
 	PRICES_FILE,
 	today,
 	unknownSlug,
@@ -160,7 +161,19 @@ export function appendPrice(ctx: VaultContext, input: NewPrice): Promise<{ commi
 			note: clean(input.note)
 		};
 		const file = readVaultFile(ctx, PRICES_FILE);
-		const text = appendPriceLine(file.text, row);
+		let text: string;
+		try {
+			text = appendPriceLine(file.text, row);
+		} catch (e) {
+			if (!(e instanceof PriceFileError)) throw e;
+			throw new PriceError(
+				e.reason === 'header'
+					? `la première ligne de prices.csv n’est pas un en-tête lisible (il manque ${e.columns.join(', ')}) ; corrigez-la d’abord. Rien n’a été écrit.`
+					: e.reason === 'column'
+						? `prices.csv n’a pas de colonne ${e.columns.join(' ni ')} : ajoutez-la à l’en-tête, ou laissez ce champ vide. Rien n’a été écrit.`
+						: `la ligne ne se relirait pas telle que saisie avec l’en-tête de prices.csv ; vérifiez le fichier. Rien n’a été écrit.`
+			);
+		}
 		let commit: string | undefined;
 		try {
 			commit = await writeAndCommit(ctx, [{ rel: PRICES_FILE, text }], `price: ${slug} ${csvNumber(row.amount)} / ${csvNumber(row.packQty)} ${row.packUnit}`);

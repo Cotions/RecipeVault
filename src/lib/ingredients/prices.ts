@@ -214,13 +214,86 @@ export function csvNumber(n: number): string {
 	return String(Math.round(n * 1e6) / 1e6);
 }
 
-/** One CSV line (no newline) for a new row. */
-export function priceLine(r: Omit<PriceRow, 'line'>): string {
-	return [r.date, r.ingredient, csvNumber(r.amount), r.currency, csvNumber(r.packQty), r.packUnit, r.shop, r.note].map(cell).join(',');
+/** The cell a new row writes under a column (empty for a column the app does not know). */
+function rowCell(r: Omit<PriceRow, 'line'>, column: string): string {
+	switch (column) {
+		case 'date':
+			return r.date;
+		case 'ingredient':
+			return r.ingredient;
+		case 'amount':
+			return csvNumber(r.amount);
+		case 'currency':
+			return r.currency;
+		case 'pack_qty':
+			return csvNumber(r.packQty);
+		case 'pack_unit':
+			return r.packUnit;
+		case 'shop':
+			return r.shop;
+		case 'note':
+			return r.note;
+		default:
+			return '';
+	}
 }
 
-/** The file with one row appended: the header first when the file is new or empty, a newline before when the last line lacks one. */
+/** One CSV line (no newline) for a new row, in the given column order (default: PRICE_COLUMNS). */
+export function priceLine(r: Omit<PriceRow, 'line'>, columns: readonly string[] = PRICE_COLUMNS): string {
+	return columns.map((c) => cell(rowCell(r, c))).join(',');
+}
+
+/**
+ * Why a row cannot be appended to a prices.csv as it is: its header lacks a
+ * required column (`header`, E812), lacks a column that would drop a value
+ * the person typed (`column`: `shop` or `note`), or the line would not read
+ * back as the row entered (`readback`). Nothing is written.
+ */
+export class PriceFileError extends Error {
+	constructor(
+		readonly reason: 'header' | 'column' | 'readback',
+		readonly columns: string[] = []
+	) {
+		super(
+			reason === 'header'
+				? `prices.csv has no header with ${columns.join(', ')}`
+				: reason === 'column'
+					? `prices.csv has no ${columns.join(', ')} column`
+					: 'the new row would not read back as entered'
+		);
+	}
+}
+
+/**
+ * The file with one row appended (docs/STORAGE.md, "Prices are an append-only
+ * log"): the default header first when the file is new or empty; otherwise the
+ * cells follow the file's own header, since columns are found by name — a
+ * column the app does not know gets an empty cell, a missing `currency` is the
+ * config's. Refused (PriceFileError) rather than written wrong: a header
+ * lacking a required column, a typed shop or note with no column to hold it,
+ * or a line that does not read back as the row entered. A newline goes before
+ * the row when the last line lacks one.
+ */
 export function appendPriceLine(text: string, r: Omit<PriceRow, 'line'>): string {
-	const base = text.trim() ? text : `${PRICE_HEADER}\n`;
-	return `${base}${base.endsWith('\n') ? '' : '\n'}${priceLine(r)}\n`;
+	if (!text.trim()) return `${PRICE_HEADER}\n${priceLine(r)}\n`;
+	const header = csvRecords(text)[0].cells.map((c) => c.trim().toLowerCase());
+	const missing = REQUIRED.filter((c) => !header.includes(c));
+	if (missing.length) throw new PriceFileError('header', missing);
+	const lost = (['shop', 'note'] as const).filter((c) => r[c] && !header.includes(c));
+	if (lost.length) throw new PriceFileError('column', lost);
+	const out = `${text}${text.endsWith('\n') ? '' : '\n'}${priceLine(r, header)}\n`;
+	const back = parsePrices(out, { currency: r.currency }).rows.at(-1);
+	const same =
+		back &&
+		back.date === r.date &&
+		back.ingredient === r.ingredient &&
+		back.amount === Number(csvNumber(r.amount)) &&
+		back.currency === r.currency.toUpperCase() &&
+		back.packQty === Number(csvNumber(r.packQty)) &&
+		back.packUnit === r.packUnit &&
+		back.shop === r.shop.trim() &&
+		back.note === r.note.trim() &&
+		back.line === csvRecords(out).at(-1)!.line;
+	if (!same) throw new PriceFileError('readback');
+	return out;
 }

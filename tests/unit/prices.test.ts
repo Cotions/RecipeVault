@@ -6,10 +6,11 @@ import {
 	isStale,
 	parsePrices,
 	PRICE_HEADER,
+	PriceFileError,
 	priceLine,
 	today
 } from '../../src/lib/ingredients/prices';
-import { formatMoney, formatPack } from '../../src/lib/render/money';
+import { formatMoney, formatPack, packDefaults } from '../../src/lib/render/money';
 
 // Invented rows, invented shops.
 const CSV = `${PRICE_HEADER}
@@ -90,6 +91,37 @@ describe('writing a row', () => {
 		expect(appendPriceLine(`${PRICE_HEADER}\nx`, row)).toBe(`${PRICE_HEADER}\nx\n${priceLine(row)}\n`);
 		const round = parsePrices(appendPriceLine('', row), { currency: 'CAD' });
 		expect(round.rows).toEqual([{ ...row, line: 2 }]);
+	});
+	it('follows the header already in the file: its order, empty cells for columns it adds, none for columns it lacks', () => {
+		const read = (text: string) => parsePrices(text, { currency: 'CAD' });
+		const plain = { ...row, shop: '' };
+		for (const header of [
+			'date,ingredient,amount,pack_qty,pack_unit',
+			'date,ingredient,amount,pack_qty,pack_unit,shop',
+			'date,ingredient,pack_qty,pack_unit,amount,currency,shop,note',
+			'date,ingredient,pack_qty,amount,pack_unit,note,shop,currency',
+			'Note,Shop,Pack_Unit,Pack_Qty,Amount,Ingredient,Date,rayon'
+		]) {
+			const text = `${header}\n2026-01-01,x,,,,\n`;
+			const out = appendPriceLine(text, plain);
+			const { rows, problems } = read(out);
+			expect(problems.filter((p) => p.line === 3), header).toEqual([]);
+			expect(rows.at(-1), header).toEqual({ ...plain, line: 3 });
+		}
+		expect(appendPriceLine('date,ingredient,pack_qty,pack_unit,amount\n', plain)).toBe('date,ingredient,pack_qty,pack_unit,amount\n2026-09-27,farine,2.5,kg,4.5\n');
+	});
+	it('refuses rather than write a row that would be lost or misread', () => {
+		expect(() => appendPriceLine('date,ingredient,amount,pack_qty,pack_unit\n', row)).toThrow(expect.objectContaining({ reason: 'column', columns: ['shop'] }));
+		expect(() => appendPriceLine('2026-01-01,farine,1,CAD,1,kg,,\n', row)).toThrow(expect.objectContaining({ reason: 'header' }));
+		expect(() => appendPriceLine(`${PRICE_HEADER}\n2026-01-01,farine,1,CAD,1,kg,"open quote\n`, row)).toThrow(PriceFileError);
+	});
+});
+
+describe('the price editor', () => {
+	it('takes the pack size and unit together from the last price, else the default unit with no size', () => {
+		expect(packDefaults({ packQty: 2.5, packUnit: 'kg' }, 'g')).toEqual({ qty: '2.5', unit: 'kg' });
+		expect(packDefaults(null, 'g')).toEqual({ qty: '', unit: 'g' });
+		expect(packDefaults(undefined, null)).toEqual({ qty: '', unit: '' });
 	});
 });
 
