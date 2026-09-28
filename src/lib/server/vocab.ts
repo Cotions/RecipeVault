@@ -7,6 +7,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { fold } from '../vault/normalize';
+import { tagFor } from '../vault/rules/vaultvocab';
+import { parseWordList, type CheckWords } from '../vault/words';
+import { seedVocab } from './vault';
 import { parseNormalizeVocab, type NormalizeVocab } from '../ingredients/normalize';
 import { parseConversions, type Conversions } from '../ingredients/units';
 
@@ -56,6 +59,35 @@ export function loadConversions(vocabDir: string): Conversions {
 	return parseConversions(readYaml(join(vocabDir, 'conversions.yaml')));
 }
 
+/**
+ * The word lists of W302 / W304 / W607 (vocab/participles.yaml,
+ * descriptors.yaml, brands.yaml). A missing or broken file turns its check off.
+ * Plain data: the paste page gets the same object, so its live check agrees
+ * with the server's.
+ */
+export function loadCheckWords(vocabDir: string): CheckWords {
+	return checkWords((file) => readYaml(join(vocabDir, file)));
+}
+
+/** The seed word lists of docs/VOCAB.md, for a check outside any vault (`vault check` on loose files, tests). */
+export function seedCheckWords(vocabDoc: string): CheckWords {
+	const seed = seedVocab(vocabDoc);
+	return checkWords((file) => parse(seed[file], { version: '1.2' }));
+}
+
+type WordFile = 'participles.yaml' | 'descriptors.yaml' | 'brands.yaml';
+
+function checkWords(read: (file: WordFile) => unknown): CheckWords {
+	const out: CheckWords = {};
+	const participles = parseWordList(read('participles.yaml'));
+	const descriptors = parseWordList(read('descriptors.yaml'));
+	const brands = parseWordList(read('brands.yaml'));
+	if (participles) out.participles = participles;
+	if (descriptors) out.descriptors = descriptors;
+	if (brands) out.brands = brands;
+	return out;
+}
+
 /** `slug: { fr: label, en: label }` → a map; malformed entries get no labels. */
 function labelMap(data: unknown): Map<string, { fr?: string; en?: string }> {
 	const out = new Map<string, { fr?: string; en?: string }>();
@@ -73,6 +105,6 @@ function labelMap(data: unknown): Map<string, { fr?: string; en?: string }> {
 /** A tag as the index stores it: canonical when known, else folded and pending. */
 export function canonicalTag(vocab: VaultVocab, tag: string): { tag: string; pending: boolean } {
 	const key = fold(tag);
-	const canonical = vocab.tags.get(key) ?? vocab.tags.get(key.replace(/\s+/g, '-'));
+	const canonical = tagFor(vocab.tags, tag);
 	return canonical ? { tag: canonical, pending: false } : { tag: key.replace(/\s+/g, '-'), pending: true };
 }

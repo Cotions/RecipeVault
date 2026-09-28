@@ -325,6 +325,8 @@ export const fr = {
 		by: 'de',
 		unresolved: (n: number) => `Ingrédients non reliés (${n})`,
 		unresolvedHelp: 'Ces noms ne correspondent à aucun ingrédient du registre. La recette reste utilisable ; ils restent seulement hors des listes d’épicerie et des coûts tant qu’ils ne sont pas reliés.',
+		vocab: (n: number) => `Étiquettes et famille à revoir (${n})`,
+		vocabHelp: 'Une étiquette hors du vocabulaire du coffre, ou un nom de famille très proche d’une autre famille. La recette reste utilisable ; corrigez le fichier ou le vocabulaire (vocab/tags.yaml, vocab/families.yaml).',
 		source: 'Provenance',
 		/** A `source` without `type`: the kind of source was not evident. */
 		sourceUnknown: 'Type de source inconnu',

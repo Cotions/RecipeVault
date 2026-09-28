@@ -7,6 +7,7 @@ import type { App } from './app';
 import { familyDiff, getRecipe, titles as titlesOf, usedBy, type RecipeDetail } from './index/query';
 import { currentFile } from './save';
 import { unresolvedDiagnostics } from './index/resolve';
+import { recipeVocabDiagnostics } from './checkopts';
 import { DEFAULT_LOCALE } from './config';
 import { costOfRecipe } from './cost';
 import { loadConversions } from './vocab';
@@ -58,6 +59,8 @@ export function loadRecipePage(app: App, slug: string) {
 		familyName: family?.label ?? null,
 		/** W303 / W305 / W307: ingredients not linked to the registry (plan 03, Phase 2). */
 		unresolved: broken ? [] : unresolvedDiagnostics(app.ctx.db, app.ctx.paths.vocab, recipe),
+		/** W501 / W502: a tag outside the vocabulary, a family near another (plan 03, Q23). */
+		vocab: broken ? [] : recipeVocabDiagnostics(app.ctx, recipe),
 		file: file ?? { text: '', hash: row.file_hash },
 		/** Per line, by position across groups: where the name links (plan 03, Phase 5). */
 		links: ingredientLinks(app, slug),

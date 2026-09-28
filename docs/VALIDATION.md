@@ -152,17 +152,17 @@ Warnings. Save, mark `needs-review`.
 
 | Code | Fixed by | Condition |
 |---|---|---|
-| W302 | ai | `name` ends in a known preparation participle (`émincé`, `râpé`, `haché`) |
+| W302 | ai | `name` starts or ends with a word of the vault's preparation list, `vocab/participles.yaml` (`émincé`, `râpé`, `haché`, *chopped*; `VOCAB.md`, "Preparation words"), with other words left and no `keep` name covering it (*porc haché* is a product) — move it to `prep`. The lists travel with the paste page, so the browser's check and the server's agree (plan 03, Q22) |
 | W303 | app | `name` resolves to no registry entry (`INGREDIENTS.md`, "Resolution") and no entry is close enough to suggest — create it from the resolve queue. Computed in the app (recipe page, server check, save result) from the registry, never in the fix-request block |
-| W304 | ai | `name` starts with a known size descriptor (`gros`, `petit`, `grande`) |
+| W304 | ai | `name` starts or ends with a word of `vocab/descriptors.yaml` (`gros`, `petit`, `grande`, *large*; `VOCAB.md`, "Size words"), same rules as W302 (*gros sel*, *petits pois* are kept) — move it to `note` |
 | W305 | app | `name` resolves to no registry entry, or is a name of several entries (ambiguous), and the resolve queue has a candidate waiting — confirm it there. A fuzzy match never resolves on its own (plan 03, Q1) |
 | W306 | app | `recipe:` points at a slug not in the vault yet |
 | W307 | app | `item:` (a manual override, `STORAGE.md`) names a slug with no registry entry |
 | W401 | ai | no method section in the body |
 | W402 | ai | a step exceeds ~400 characters — probably several steps merged |
 | W403 | ai | a method section has text but no steps — no numbered (`1.`) or `-` / `*` bullet line. Its text would not be shown one step at a time in kitchen mode, nor checked by `W402` and `W609`. Fix: write each step as a numbered or `-` line |
-| W501 | app | tag not in the vocabulary, closest canonical suggested |
-| W502 | app | `family` within edit distance 2 of an existing family — drift suspected |
+| W501 | app | tag not in the vault's `vocab/tags.yaml` (canonical or alias), closest canonical suggested within two edits. The tag is kept and indexed as pending (`VOCAB.md`, "Tags"). `app`: the AI cannot see the vault's vocabulary; the fix is choosing the suggestion or adding the tag or alias to the vocabulary. Server check, save result and recipe page (plan 03, Q23), never the browser-only check |
+| W502 | app | `family` within edit distance 2 of an existing family (`vocab/families.yaml` plus the families in use, without the ones only this recipe uses) and not itself an existing family — drift suspected. `app`: family is decided in the app (`AI-TEMPLATE.md` rule 19). Server check, save result and recipe page |
 | W503 | app | near-identical `title` already in the vault — duplicate paste |
 | W504 | ai | a `season` value not in the fixed list of `VOCAB.md` — `printemps`, `ete`, `automne`, `hiver` or one of their aliases (`été`, `summer`, `fall`, …); the closest season is suggested |
 | W601 | app | no `servings` |
@@ -170,8 +170,8 @@ Warnings. Save, mark `needs-review`.
 | W603 | app | no dish photo |
 | W604 | app | `source` entirely absent — provenance lost |
 | W605 | app | `[?]`, `[?: …]`, or `[illisible]` present — each location listed |
-| W606 | ai | `to_taste: true` on something the registry does not class as seasoning or fat — probably should be a plain name without amount |
-| W607 | ai | `name` contains a word from the known-brands list — suggest `brand:` |
+| W606 | ai | `to_taste: true` on a line that resolves to a registry entry without `au_gout: true` (plan 03, Q21) — probably should be a plain name without amount (`AI-TEMPLATE.md` rule 13). An unresolved name is not judged. Computed from the registry in the server check and the save result; reaches the fix-request block through the server check |
+| W607 | ai | `name` contains a brand of `vocab/brands.yaml` (`VOCAB.md`, "Brands"), with other words left — suggest `brand:`. The list holds only brands whose removal leaves an exact product name (rule 10 keeps *Jell-O*, *fromage Philadelphia* as names) |
 | W608 | app | same title as an existing recipe — offer to make both members of a family |
 | W609 | ai | step text mentions an oven temperature but `oven` is absent |
 | W610 | ai | unknown frontmatter key (`serving:`, `temps:`), in the frontmatter or inside `source`, `times`, `oven`, `yield`, `media`, a group or an ingredient entry — its value is ignored; the closest allowed key is suggested |

@@ -2,10 +2,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkBatch, checkRecipe } from '../../src/lib/vault/check';
+import { seedCheckOptions } from '../helpers/checkopts';
 
 const DIR = 'tests/fixtures/check';
 const md = (dir: string) => readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
 const read = (dir: string, f: string) => ({ name: f, text: readFileSync(join(dir, f), 'utf8') });
+// The seed word lists and tag vocabulary of a new vault, and one existing family (W302, W304, W501, W502, W607).
+const OPTS = seedCheckOptions(['pate-chinois', 'lasagna']);
 const errorCodes = (ds: { code: string; severity: string }[]) => [...new Set(ds.filter((d) => d.severity === 'error').map((d) => d.code))];
 
 /** Every E-code this checker implements; each needs an invalid fixture. */
@@ -24,6 +27,11 @@ describe('valid fixtures', () => {
 		expect(r.recipe).toBeDefined();
 	});
 
+	it('name-words-kept.md: listed words that are part of a product name, known tags, an existing family — no warning', () => {
+		const r = checkRecipe(read(`${DIR}/valid`, 'name-words-kept.md').text, OPTS);
+		expect(r.diagnostics.filter((d) => ['W302', 'W304', 'W501', 'W502', 'W607'].includes(d.code))).toEqual([]);
+	});
+
 	it('have no errors checked together', () => {
 		const r = checkBatch(files);
 		expect(r.files.flatMap((f) => errorCodes(f.diagnostics))).toEqual([]);
@@ -35,7 +43,7 @@ describe('invalid fixtures', () => {
 
 	it.each(files)('%s fires its code and no other error', (f) => {
 		const code = f.slice(0, 4);
-		const { diagnostics } = checkRecipe(read(`${DIR}/invalid`, f).text);
+		const { diagnostics } = checkRecipe(read(`${DIR}/invalid`, f).text, OPTS);
 		if (code[0] === 'W') {
 			// A warning: the file saves, the warning is there.
 			expect(errorCodes(diagnostics)).toEqual([]);
@@ -70,5 +78,10 @@ describe('coverage', () => {
 	it('every implemented E-code has a fixture', () => {
 		const covered = new Set([...md(`${DIR}/invalid`), ...readdirSync(`${DIR}/batch`)].map((f) => f.slice(0, 4)));
 		expect(IMPLEMENTED.filter((c) => !covered.has(c))).toEqual([]);
+	});
+
+	it('every checker warning turned on from vault data has a fixture (W606 needs the registry: tests/server/checks.test.ts)', () => {
+		const covered = new Set(md(`${DIR}/invalid`).map((f) => f.slice(0, 4)));
+		expect(['W302', 'W304', 'W501', 'W502', 'W607'].filter((c) => !covered.has(c))).toEqual([]);
 	});
 });

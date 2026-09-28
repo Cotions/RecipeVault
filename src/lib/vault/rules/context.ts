@@ -4,6 +4,18 @@ import type { BodyChunk } from '../body';
 import type { Body, Diagnostic, Lang, Severity } from '../types';
 import { findMarkers, misreadMarker, stripMarkers } from '../markers';
 import { suggestKey } from '../vocab';
+import type { CheckWords } from '../words';
+import type { VaultVocabOptions } from './vaultvocab';
+
+/**
+ * Vault data some rules need: the word lists of W302 / W304 / W607 (also given
+ * to the browser's live check) and the tag and family vocabulary of W501 /
+ * W502 (server only). A rule whose data is absent does not run.
+ */
+export interface CheckOptions {
+	words?: CheckWords;
+	vocab?: VaultVocabOptions;
+}
 
 export interface RuleContext {
 	fm: Record<string, unknown>;
@@ -11,6 +23,7 @@ export interface RuleContext {
 	bodyChunks: BodyChunk[];
 	/** The recipe's language, `fr` when absent or invalid. Picks `t`/`T` meanings. */
 	lang: Lang;
+	opts: CheckOptions;
 	report(code: string, path: string | null, message: string, fix?: string, severity?: Severity): void;
 }
 
@@ -20,10 +33,12 @@ export function createContext(
 	fm: Record<string, unknown>,
 	body: Body,
 	bodyChunks: BodyChunk[],
-	out: Diagnostic[]
+	out: Diagnostic[],
+	opts: CheckOptions = {}
 ): RuleContext {
 	return {
 		fm,
+		opts,
 		body,
 		bodyChunks,
 		lang: fm.lang === 'en' ? 'en' : 'fr',

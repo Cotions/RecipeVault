@@ -29,7 +29,7 @@
 	/** The file on disk that fails, to name the places of its errors. */
 	const brokenFile = $derived(data.broken ? parseRecipe(data.file.text) : undefined);
 	/** The file as parsed, to name the ingredients that are not linked. */
-	const unresolvedFile = $derived(data.unresolved.length ? parseRecipe(data.file.text) : undefined);
+	const unresolvedFile = $derived(data.unresolved.length || data.vocab.length ? parseRecipe(data.file.text) : undefined);
 
 	const uncertain = $derived(data.recipe.markers.some((m) => m.kind !== 'added'));
 	// Always say how much: an old kitchen session must not win over what this page shows.
@@ -132,6 +132,18 @@
 		<p class="hint">{t.recipe.unresolvedHelp}</p>
 		<ul>
 			{#each data.unresolved as d, i (i)}
+				<DiagnosticItem {d} file={unresolvedFile} />
+			{/each}
+		</ul>
+	</details>
+{/if}
+
+{#if data.vocab.length}
+	<details class="unresolved vocab no-print">
+		<summary>{t.recipe.vocab(data.vocab.length)}</summary>
+		<p class="hint">{t.recipe.vocabHelp}</p>
+		<ul>
+			{#each data.vocab as d, i (i)}
 				<DiagnosticItem {d} file={unresolvedFile} />
 			{/each}
 		</ul>

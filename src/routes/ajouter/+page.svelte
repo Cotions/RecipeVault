@@ -22,6 +22,9 @@
 	import type { Diagnostic } from '$lib/vault/types';
 	import type { ServerCheckFile } from '$lib/server/paste';
 	import type { SaveResult } from '$lib/server/save';
+	import type { PageProps } from './$types';
+
+	let { data }: PageProps = $props();
 
 	const PROMPT = extractPrompt(templateDoc);
 
@@ -57,7 +60,8 @@
 
 	const split = $derived(splitPaste(text));
 	const files = $derived(text.trim() ? (split.files.length ? split.files : [text]) : []);
-	const local = $derived(checkBatch(files.map((f, i) => ({ name: t.add.recipeN(i + 1), text: f }))));
+	// The vault's name-word lists (W302 / W304 / W607), so this check matches the server's.
+	const local = $derived(checkBatch(files.map((f, i) => ({ name: t.add.recipeN(i + 1), text: f })), { words: data.words }));
 
 	function slugIn(f: string): string | undefined {
 		const fm = parseRecipe(f).frontmatter;

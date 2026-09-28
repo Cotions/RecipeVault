@@ -52,11 +52,11 @@ export function writeSeed(root: string, entries: RegistryEntry[]): string[] {
 	return written;
 }
 
-/** vocab files an older vault may lack (plural rules, allergens, unit conversions): written when absent, never overwritten. */
+/** vocab files an older vault may lack (plural rules, allergens, unit conversions, name-word lists): written when absent, never overwritten. */
 export function writeMissingVocab(root: string, vocabDoc: string): string[] {
 	const seed = seedVocab(vocabDoc);
 	const written: string[] = [];
-	for (const name of ['normalize.yaml', 'allergens.yaml', 'conversions.yaml'] as (keyof SeedVocab)[]) {
+	for (const name of ['normalize.yaml', 'allergens.yaml', 'conversions.yaml', 'participles.yaml', 'descriptors.yaml', 'brands.yaml'] as (keyof SeedVocab)[]) {
 		const rel = `${VOCAB}/${name}`;
 		const abs = join(root, rel);
 		if (existsSync(abs)) continue;

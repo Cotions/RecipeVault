@@ -5,7 +5,8 @@ import { fileSlug } from '../vault/rules/batch';
 import type { Diagnostic } from '../vault/types';
 import type { App } from './app';
 import { titles } from './index/query';
-import { unresolvedDiagnostics } from './index/resolve';
+import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
+import { checkOptions } from './checkopts';
 import { referencedSlugs } from './pages';
 import { currentFile, save, vaultEntries, type SaveFile, type SaveResult } from './save';
 
@@ -28,7 +29,7 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 	const { entries, trash } = vaultEntries(app.ctx);
 	const result = checkBatch(
 		texts.map((text, i) => ({ name: `recipe ${i + 1}`, text })),
-		{ vault: entries }
+		{ vault: entries, ...checkOptions(app.ctx) }
 	);
 	const taken = new Set([...entries.map((e) => e.slug), ...texts.map(slugOf).filter((s): s is string => !!s)]);
 	return result.files.map((f, i) => {
@@ -36,7 +37,11 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 		const out: ServerCheckFile = { diagnostics: f.diagnostics, slug, titles: {} };
 		if (f.recipe) {
 			out.titles = Object.fromEntries(titles(app.ctx.db, referencedSlugs(f.recipe, '')));
-			out.diagnostics = [...f.diagnostics, ...unresolvedDiagnostics(app.ctx.db, app.ctx.paths.vocab, f.recipe)];
+			out.diagnostics = [
+				...f.diagnostics,
+				...unresolvedDiagnostics(app.ctx.db, app.ctx.paths.vocab, f.recipe),
+				...toTasteWarnings(app.ctx.db, app.ctx.paths.vocab, f.recipe)
+			];
 		}
 		if (slug && f.diagnostics.some((d) => d.code === 'E103')) {
 			let n = 2;

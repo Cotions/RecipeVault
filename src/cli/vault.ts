@@ -15,6 +15,7 @@ import {
 	splitPaste,
 	vaultEntryFor,
 	type BatchResult,
+	type CheckOptions as RecipeCheckOptions,
 	type Diagnostic,
 	type VaultEntry
 } from '../lib/vault/index';
@@ -27,7 +28,7 @@ import { save } from '../lib/server/save';
 import { initVault, vaultPaths } from '../lib/server/vault';
 import { seedVault } from '../lib/server/seed';
 import { checkRegistry, parseIngredient } from '../lib/ingredients/registry';
-import { loadVocab } from '../lib/server/vocab';
+import { loadCheckWords, loadVocab, seedCheckWords } from '../lib/server/vocab';
 import { resolveQueue } from '../lib/server/queue';
 import { priceProblems } from '../lib/server/prices';
 import { parsePrices, PRICES_FILE, type PriceProblem } from '../lib/ingredients/prices';
@@ -358,6 +359,21 @@ function checkPricesFile(vaultDir: string, ingredientsChecked: { name: string }[
 	return { rows: rows.length, problems };
 }
 
+/**
+ * The name-word lists (W302 / W304 / W607) and, in a vault, its tag vocabulary
+ * (W501): the vault's own files, else the seed of docs/VOCAB.md. W502 needs
+ * the index's families and is left to the app.
+ */
+function checkWordOptions(vaultDir: string | undefined): RecipeCheckOptions {
+	if (vaultDir && existsSync(join(vaultDir, 'vocab')))
+		return { words: loadCheckWords(join(vaultDir, 'vocab')), vocab: { tags: loadVocab(join(vaultDir, 'vocab')).tags } };
+	try {
+		return { words: seedCheckWords(readFileSync(join(REPO, 'docs/VOCAB.md'), 'utf8')) };
+	} catch {
+		return {};
+	}
+}
+
 function check(args: string[]): number {
 	const o = parseArgs(args);
 	// A vault directory: its recipes, and its ingredient registry.
@@ -376,7 +392,7 @@ function check(args: string[]): number {
 		pasted.forEach((text, i) => inputs.push({ name: pasted.length > 1 ? `stdin #${i + 1}` : 'stdin', text }));
 	}
 	const vault = o.vault ? readVault(o.vault, new Set(paths.map((p) => realpathSync(p)))) : undefined;
-	const result = checkBatch(inputs, { vault });
+	const result = checkBatch(inputs, { vault, ...checkWordOptions(vaultDir) });
 	if (outside) addOutsideText(result, outside);
 	const failed =
 		result.files.some((f) => hasErrors(f.diagnostics)) ||

@@ -3,15 +3,17 @@
 import { buildRecipe } from './build';
 import { splitPaste } from './fences';
 import { parseRecipe } from './parse';
-import { createContext } from './rules/context';
+import { createContext, type CheckOptions } from './rules/context';
 import { checkBatchRules, type VaultEntry } from './rules/batch';
 import { checkBody } from './rules/body';
 import { checkIdentity } from './rules/identity';
 import { checkIngredients } from './rules/ingredients';
 import { checkMarkers, collectMarkers } from './rules/markers';
+import { checkNames } from './rules/names';
 import { checkSource } from './rules/source';
 import { checkTextFields } from './rules/text';
 import { checkOven, checkServings, checkTimes } from './rules/times';
+import { checkVaultVocab } from './rules/vaultvocab';
 import type { Body, Diagnostic, Recipe, Severity } from './types';
 
 export interface CheckResult {
@@ -27,15 +29,17 @@ export interface FileCheck extends CheckResult {
 	body?: Body;
 }
 
-const RULES = [checkIdentity, checkSource, checkTimes, checkServings, checkOven, checkIngredients, checkTextFields, checkMarkers, checkBody];
+const RULES = [checkIdentity, checkSource, checkTimes, checkServings, checkOven, checkIngredients, checkNames, checkTextFields, checkMarkers, checkBody, checkVaultVocab];
 
-export function checkFile(text: string): FileCheck {
+export type { CheckOptions };
+
+export function checkFile(text: string, opts: CheckOptions = {}): FileCheck {
 	const parsed = parseRecipe(text);
 	if (!parsed.frontmatter || !parsed.body || !parsed.bodyChunks) {
 		return { diagnostics: sortDiagnostics(parsed.diagnostics) };
 	}
 	const diagnostics: Diagnostic[] = [];
-	const ctx = createContext(parsed.frontmatter, parsed.body, parsed.bodyChunks, diagnostics);
+	const ctx = createContext(parsed.frontmatter, parsed.body, parsed.bodyChunks, diagnostics, opts);
 	for (const rule of RULES) rule(ctx);
 	const result: FileCheck = { frontmatter: parsed.frontmatter, body: parsed.body, diagnostics: sortDiagnostics(diagnostics) };
 	if (!hasErrors(diagnostics)) result.recipe = buildRecipe(parsed.frontmatter, collectMarkers(ctx));
@@ -43,8 +47,8 @@ export function checkFile(text: string): FileCheck {
 }
 
 /** Check one recipe file. */
-export function checkRecipe(text: string): CheckResult {
-	const { recipe, diagnostics } = checkFile(text);
+export function checkRecipe(text: string, opts: CheckOptions = {}): CheckResult {
+	const { recipe, diagnostics } = checkFile(text, opts);
 	return recipe ? { recipe, diagnostics } : { diagnostics };
 }
 
@@ -91,7 +95,7 @@ export interface BatchResult {
 	summary: { code: string; severity: Severity; count: number }[];
 }
 
-export interface BatchOptions {
+export interface BatchOptions extends CheckOptions {
 	/** Recipes already in the vault, for E103 / W306 / E213 / W503 / W608. */
 	vault?: VaultEntry[];
 }
@@ -99,7 +103,7 @@ export interface BatchOptions {
 /** Check several files together: single-file rules, then cross-file rules. */
 export function checkBatch(files: { name: string; text: string }[], opts: BatchOptions = {}): BatchResult {
 	const items = files.map((f) => {
-		const r = checkFile(f.text);
+		const r = checkFile(f.text, opts);
 		return { name: f.name, frontmatter: r.frontmatter, recipe: r.recipe, diagnostics: r.diagnostics.map((d) => ({ ...d, file: f.name })) };
 	});
 	checkBatchRules(items, opts.vault ?? []);

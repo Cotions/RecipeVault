@@ -163,6 +163,81 @@ noix: { fr: Noix, en: Tree nuts }
 gluten: { fr: Blé et gluten, en: Wheat and gluten }
 ```
 
+## Preparation words
+
+What the cook does to an ingredient, which belongs in `prep`, not in `name`
+(`AI-TEMPLATE.md` rule 10; `W302`, plan 03, Q22). Seeded into
+`vocab/participles.yaml`. The three name-word lists share one shape: `words`
+(one list, or one per language; every language's words apply, as a card may mix
+them) and `keep`, names in which a listed word is part of the product's name
+rather than something to split out. Words and names are compared case- and
+accent-insensitively, as whole words. A word is flagged at the start or the end
+of a name (French puts it after the noun, English before) and only when other
+words remain, so a name that is the word alone is left alone. A name in `keep`
+covering the flagged word is not flagged. Every gender and number form is listed:
+the match is exact, with no grammar in code.
+
+```yaml
+words:
+  fr: [haché, hachée, hachés, hachées, émincé, émincée, émincés, émincées,
+       râpé, râpée, râpés, râpées, tranché, tranchée, tranchés, tranchées,
+       coupé, coupée, coupés, coupées, pelé, pelée, pelés, pelées,
+       fondu, fondue, fondus, fondues, battu, battue, battus, battues,
+       tamisé, tamisée, ciselé, ciselée, ciselés, ciselées,
+       écrasé, écrasée, écrasés, écrasées, pilé, pilée, pilés, pilées,
+       égoutté, égouttée, égouttés, égouttées, épépiné, épépinée, épépinés, épépinées,
+       émietté, émiettée, émiettés, émiettées, en cubes]
+  en: [chopped, minced, diced, sliced, grated, shredded, melted, beaten, sifted,
+       peeled, mashed, drained, cubed, crumbled]
+keep: [bœuf haché, porc haché, veau haché, poulet haché, dinde hachée, agneau haché,
+       steak haché, viande hachée, noix de coco râpée, coco râpé, tomates pelées,
+       ananas écrasé, à fondue, bouillon en cubes, shredded coconut, shredded wheat,
+       diced tomatoes]
+```
+
+Ground meat, shredded coconut, canned peeled tomatoes are sold that way: the
+word names the product, and the registry has them as their own entries.
+*Moulu* / *ground* is not in the list for the same reason (*cannelle moulue*).
+
+## Size words
+
+A size, which belongs in `note` (`AI-TEMPLATE.md` rule 10, *1 gros oignon* →
+`note: gros`; `W304`). Seeded into `vocab/descriptors.yaml`, same shape as
+"Preparation words".
+
+```yaml
+words:
+  fr: [gros, grosse, grosses, petit, petite, petits, petites, moyen, moyenne, moyens, moyennes,
+       grand, grande, grands, grandes]
+  en: [large, small, medium, big, jumbo, extra-large]
+keep: [gros sel, gros gruau, petits pois, petit pois, petit lait, petits fruits,
+       petites guimauves, petites fèves, grand marnier, medium ground, small curd, large flake]
+```
+
+*Gros sel*, *petits pois*, *petit lait* (buttermilk), *petits fruits* (berries)
+and *petites guimauves* (miniature marshmallows) are products, not sizes.
+
+## Brands
+
+Brands that go in `brand`, not in `name` (`AI-TEMPLATE.md` rule 10, *ketchup
+Heinz* → `brand: Heinz`; `W607`). Seeded into `vocab/brands.yaml`, same shape
+as "Preparation words"; a brand is flagged anywhere in a name. Only brands
+whose removal leaves a name that still says exactly what the product is are
+listed: brands that *are* the product on a Québec card (Jell-O, Cool Whip,
+Philadelphia, Minute Rice, Cheez Whiz, Miracle Whip, Rice Krispies, Bovril,
+Carnation, Eagle Brand, Kraft Dinner) are left out, because rule 10 keeps them
+as the name.
+
+```yaml
+words: [Heinz, Campbell, Campbell's, Robin Hood, Five Roses, Lantic, Redpath, Windsor,
+        Club House, Magic, Cow Brand, Keen's, Fry's, Quaker, Aylmer, Mazola, Crown,
+        Clover Leaf, Grandma, Baker's, Lipton, Crosby's, Kraft, Fleischmann's,
+        Lea & Perrins, Hellmann's, Squirrel, Crisco, Tenderflake, Catelli, Primo,
+        Del Monte, Libby's, Maple Leaf, Schneiders, Becel, Bick's, French's,
+        Kellogg's, Christie, Nabisco]
+keep: [Kraft Dinner]
+```
+
 ## Seasons
 
 Fixed, four values plus none: `printemps`, `ete`, `automne`, `hiver`.

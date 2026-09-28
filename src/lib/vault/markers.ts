@@ -20,6 +20,11 @@ export function findMarkers(s: string, path: string): Marker[] {
 	return out;
 }
 
+/** Blank out valid markers, keeping every other character at its offset. */
+export function maskMarkers(s: string): string {
+	return s.replace(MARKER_RE, (m) => ' '.repeat(m.length));
+}
+
 /** Remove valid markers and tidy the whitespace they leave: 'boeuf [?]' → 'boeuf'. */
 export function stripMarkers(s: string): string {
 	return s

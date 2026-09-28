@@ -16,7 +16,8 @@ import type { VaultEntry } from '../vault/rules/batch';
 import type { VaultContext } from './context';
 import { FileWriteError, writeAndCommit } from './files';
 import { refreshFamilies, sha256 } from './index/build';
-import { unresolvedDiagnostics } from './index/resolve';
+import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
+import { checkOptions } from './checkopts';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
 import { loadVocab } from './vocab';
 
@@ -200,7 +201,7 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 	const overwriting = new Set(files.map((f, i) => (f.overwrite !== undefined ? fileSlugOf(texts[i]) : undefined)).filter(Boolean));
 	const checked = checkBatch(
 		texts.map((text, i) => ({ name: `recipe ${i + 1}`, text })),
-		{ vault: entries.filter((e) => !overwriting.has(e.slug) || trash.has(e.slug)) }
+		{ vault: entries.filter((e) => !overwriting.has(e.slug) || trash.has(e.slug)), ...checkOptions(ctx) }
 	);
 	const taken = new Set([...entries.map((e) => e.slug), ...checked.files.map((f) => f.recipe?.slug ?? '')]);
 
@@ -249,7 +250,7 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 			extractedBy: recipe.extractedBy ?? 'hand'
 		};
 		ready.push({ slug, title: recipe.title, text: serialize(final, file.body!), created: !cur, verb: cur ? 'edit' : 'add' });
-		const unresolved = unresolvedDiagnostics(ctx.db, ctx.paths.vocab, recipe);
+		const unresolved = [...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, recipe)];
 		results.push({ status: 'saved', slug, title: recipe.title, recipeStatus: final.status!, created: !cur, diagnostics: [...diagnostics, ...unresolved] });
 	});
 	if (!ready.length) return { files: results };

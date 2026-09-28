@@ -5,6 +5,7 @@
 // the same pattern as `retag`.
 
 import { Resolver, resolutionDiagnostics, ruleRows, type NameRow } from '../../ingredients/resolve';
+import { toTasteDiagnostics } from '../../ingredients/totaste';
 import type { RegistryEntry } from '../../ingredients/types';
 import type { Diagnostic, Ingredient, Recipe } from '../../vault/types';
 import { loadVocab, type VaultVocab } from '../vocab';
@@ -117,4 +118,15 @@ function reresolveLines(db: DB, resolver: Resolver, ruled: { table: string; key:
  */
 export function unresolvedDiagnostics(db: DB, vocabDir: string, recipe: Pick<Recipe, 'ingredients' | 'lang'>): Diagnostic[] {
 	return resolutionDiagnostics(recipe, getResolver(db, () => loadVocab(vocabDir)));
+}
+
+/**
+ * W606 for a recipe against the registry as indexed (`registry.au_gout`,
+ * plan 03 Q21): added to the checker's diagnostics by the paste check and the
+ * save result, so an `ai` code reaches the fix-request block through
+ * /api/check.
+ */
+export function toTasteWarnings(db: DB, vocabDir: string, recipe: Pick<Recipe, 'ingredients' | 'lang'>): Diagnostic[] {
+	const auGout = new Set(db.prepare('SELECT slug FROM registry WHERE au_gout = 1').pluck().all() as string[]);
+	return toTasteDiagnostics(recipe, getResolver(db, () => loadVocab(vocabDir)), auGout);
 }
