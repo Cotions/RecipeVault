@@ -385,18 +385,46 @@ function splitFile(text: string): { yaml: string; rest: string } {
 }
 
 /** `edit` returns false when it changed nothing: the file then comes back as it was. */
-function editNames(text: string, edit: (names: YAMLMap) => boolean): string {
+function editDoc(text: string, edit: (root: YAMLMap, doc: Document) => boolean): string {
 	const { yaml, rest } = splitFile(text);
 	const doc = parseDocument(yaml, { version: '1.2' }) as unknown as Document;
 	if (doc.errors.length || !isYamlMap(doc.contents)) throw new IngredientEditError('the ingredient file does not read.');
-	const root = doc.contents as YAMLMap;
-	let names: unknown = root.get('names', true);
-	if (!isYamlMap(names)) {
-		names = doc.createNode({});
-		root.set('names', names);
-	}
-	if (!edit(names as YAMLMap)) return text;
+	if (!edit(doc.contents as YAMLMap, doc)) return text;
 	return `---\n${doc.toString({ lineWidth: 0, flowCollectionPadding: false })}---\n${rest}`.normalize('NFC');
+}
+
+function editNames(text: string, edit: (names: YAMLMap) => boolean): string {
+	return editDoc(text, (root, doc) => {
+		let names: unknown = root.get('names', true);
+		if (!isYamlMap(names)) {
+			names = doc.createNode({});
+			root.set('names', names);
+		}
+		return edit(names as YAMLMap);
+	});
+}
+
+/**
+ * The file with one more disambiguation rule in `when` (created right after
+ * `names` when absent). Unchanged when the same rule is already there.
+ */
+export function withRule(text: string, rule: NameRule): string {
+	const clean: NameRule = { ...rule, names: rule.names.map((n) => normalizeText(n).replace(/\s+/g, ' ').trim()) };
+	const plain = (r: NameRule) => JSON.stringify(RULE_KEYS.map((k) => r[k] ?? null));
+	return editDoc(text, (root, doc) => {
+		let when: unknown = root.get('when', true);
+		if (isSeq(when) && when.items.some((r) => isYamlMap(r) && plain(r.toJSON() as NameRule) === plain(clean))) return false;
+		if (!isSeq(when)) {
+			when = new YAMLSeq();
+			const at = root.items.findIndex((p) => isScalar(p.key) && p.key.value === 'names');
+			root.items.splice(at + 1, 0, doc.createPair('when', when) as (typeof root.items)[number]);
+		}
+		const node = doc.createNode(Object.fromEntries(RULE_KEYS.filter((k) => clean[k] !== undefined).map((k) => [k, clean[k]]))) as YAMLMap;
+		node.flow = true;
+		for (const p of node.items) if (isSeq(p.value)) p.value.flow = true;
+		(when as YAMLSeq).add(node);
+		return true;
+	});
 }
 
 /** The file with `name` added to `names.<lang>` (unchanged when an alias already has its lookup key). */

@@ -1,9 +1,9 @@
 import { fail } from '@sveltejs/kit';
 import { getApp } from '$lib/server/app';
 import { loadVocab } from '$lib/server/vocab';
-import { createFromKey, linkKey, QueueError, resolveQueue, unlinkKey } from '$lib/server/queue';
+import { addRule, createFromKey, linkKey, QueueError, resolveQueue, unlinkKey } from '$lib/server/queue';
 import { proposeSlug } from '$lib/ingredients/registry';
-import { CATEGORIES } from '$lib/ingredients/types';
+import { CATEGORIES, UNIT_CLASSES } from '$lib/ingredients/types';
 import { t } from '$lib/i18n/fr';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -17,11 +17,22 @@ export const load: PageServerLoad = () => {
 		total,
 		rows: rows.map((r) => ({ ...r, slug: proposeSlug(r.forms[0].name) })),
 		entries,
-		categories: [...CATEGORIES]
+		categories: [...CATEGORIES],
+		unitClasses: Object.keys(UNIT_CLASSES)
 	};
 };
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
+
+/** A slug typed in the picker may come as "Name (slug)" or as the display name. */
+function pickedSlug(typed: string): string {
+	const app = getApp();
+	return (
+		(app.ctx.db.prepare('SELECT slug FROM registry WHERE slug = ? OR name = ? LIMIT 1').pluck().get(typed, typed) as string | undefined) ??
+		/\(([a-z0-9-]+)\)$/.exec(typed)?.[1] ??
+		typed
+	);
+}
 
 async function run(fn: () => Promise<string>) {
 	try {
@@ -37,12 +48,7 @@ export const actions: Actions = {
 		const app = getApp();
 		const f = await request.formData();
 		const key = str(f, 'key');
-		const typed = str(f, 'slug');
-		// A slug typed in the picker may come as "Name (slug)" or as the display name.
-		const slug =
-			(app.ctx.db.prepare('SELECT slug FROM registry WHERE slug = ? OR name = ? LIMIT 1').pluck().get(typed, typed) as string | undefined) ??
-			/\(([a-z0-9-]+)\)$/.exec(typed)?.[1] ??
-			typed;
+		const slug = pickedSlug(str(f, 'slug'));
 		const hash = f.has('hash') ? str(f, 'hash') : undefined;
 		return run(async () => {
 			await linkKey(app.ctx, key, slug, hash);
@@ -66,6 +72,18 @@ export const actions: Actions = {
 			await unlinkKey(app.ctx, str(f, 'key'), slug, str(f, 'hash'));
 			const name = (app.ctx.db.prepare('SELECT name FROM registry WHERE slug = ?').pluck().get(slug) as string | undefined) ?? slug;
 			return t.queue.removed(name);
+		});
+	},
+	rule: async ({ request }) => {
+		const app = getApp();
+		const f = await request.formData();
+		const slug = pickedSlug(str(f, 'slug'));
+		const unit = f.getAll('unit').map(String);
+		const words = str(f, 'words').split(',');
+		return run(async () => {
+			const r = await addRule(app.ctx, str(f, 'key'), slug, { unit, words, sameLang: f.get('lang') === 'on' }, f.has('hash') ? str(f, 'hash') : undefined);
+			const name = (app.ctx.db.prepare('SELECT name FROM registry WHERE slug = ?').pluck().get(slug) as string | undefined) ?? slug;
+			return t.queue.ruled(str(f, 'form'), name, r.resolved);
 		});
 	}
 };

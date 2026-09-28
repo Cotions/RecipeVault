@@ -188,7 +188,9 @@ A "resolve queue" screen (`/resoudre`) lists every unresolved name across the
 vault, most frequent first. Resolving `farine T55` once fixes it in 200 recipes.
 Each row offers its candidates ("C'est ça"), a link to any entry, or a new entry
 created from the name; an ambiguous name is settled by taking it off all but one
-entry. Only ingredient files change (`DATA-FLOW.md`, "Ingredient edits").
+entry, or by giving one entry a rule for it ("Selon l'unité ou la préparation":
+units or unit classes seen on the lines, words of `prep` or `note`, the language;
+see "Disambiguation rules"). Only ingredient files change (`DATA-FLOW.md`, "Ingredient edits").
 
 ## Cost
 

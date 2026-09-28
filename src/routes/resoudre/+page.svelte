@@ -27,7 +27,7 @@
 
 {#if data.rows.length}
 	<ol class="queue">
-		{#each data.rows as row (row.key)}
+		{#each data.rows as row, ri (row.key)}
 			<li class="row" data-key={row.key}>
 				<div class="head">
 					<h2 class="name">{row.forms[0].name}</h2>
@@ -88,6 +88,41 @@
 							<input name="slug" list="entries" required autocomplete="off" />
 						</label>
 						<button class="btn" type="submit">{t.queue.linkSubmit}</button>
+					</form>
+				</details>
+				<details class="more">
+					<summary>{t.queue.rule}</summary>
+					<form method="POST" action="?/rule" use:enhance={keep}>
+						<input type="hidden" name="key" value={row.key} />
+						<input type="hidden" name="form" value={row.forms[0].name} />
+						<p class="help">{t.queue.ruleHelp}</p>
+						<label>
+							{t.queue.linkField}
+							<input name="slug" list={row.ambiguous ? `owners-${ri}` : 'entries'} required autocomplete="off" />
+						</label>
+						{#if row.ambiguous}
+							<datalist id={`owners-${ri}`}>
+								{#each row.candidates as c (c.slug)}
+									<option value={c.slug}>{c.name}</option>
+								{/each}
+							</datalist>
+						{/if}
+						<fieldset>
+							<legend>{t.queue.ruleUnits}</legend>
+							{#each row.units.filter((u) => u.unit !== null) as u (u.unit)}
+								<label class="check"><input type="checkbox" name="unit" value={u.unit} /> {u.unit} ({u.count})</label>
+							{/each}
+							{#each data.unitClasses as c (c)}
+								<label class="check"><input type="checkbox" name="unit" value={c} /> {t.queue.ruleClass[c] ?? c}</label>
+							{/each}
+						</fieldset>
+						<label>
+							{t.queue.ruleWords}
+							<input name="words" autocomplete="off" />
+						</label>
+						<p class="help">{t.queue.ruleWordsHelp}</p>
+						<label class="check"><input type="checkbox" name="lang" /> {t.queue.ruleLang(t.queue.lang[row.lang] ?? row.lang)}</label>
+						<button class="btn" type="submit">{t.queue.ruleSubmit}</button>
 					</form>
 				</details>
 				<details class="more">
@@ -230,6 +265,18 @@
 		display: grid;
 		gap: 0.15rem;
 		font-weight: 600;
+	}
+	.more fieldset {
+		border: 0;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem 0.9rem;
+	}
+	.more legend {
+		font-weight: 600;
+		padding: 0;
 	}
 	.more .check {
 		display: flex;

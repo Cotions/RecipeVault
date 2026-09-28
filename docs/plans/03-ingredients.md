@@ -228,7 +228,8 @@ broken entry, watcher reload.
   `poisson`, `sesame`, `soya`, `sulfites`, `noix`, `gluten` in
   `vocab/allergens.yaml` (`VOCAB.md`, "Allergens"). Plural rules in
   `vocab/normalize.yaml` (`VOCAB.md`, "Plurals").
-- The seed is `docs/INGREDIENTS-SEED.yaml` (243 entries). `vault ingredients
+- The seed is `docs/INGREDIENTS-SEED.yaml` (243 entries; 268 with 10 rules
+  after the 2026-09-27 decisions, Phase 2 notes). `vault ingredients
   seed` also writes `vocab/normalize.yaml` and `vocab/allergens.yaml` when a
   vault lacks them (an older vault), never overwriting.
 - The watcher does not commit an ingredient file with an error (the recipe
@@ -287,11 +288,13 @@ numbers are printed and kept in the final report):
 | Id | Registry used | Measure | Gate |
 |---|---|---|---|
 | R0 | every variant from `expected-ingredients.yaml` as an alias | share of corpus item occurrences resolved to their expected id | 100 %, 0 wrong |
-| R1 | **one** name per expected id (its first variant) | share of the other distinct variants auto-resolved to their expected id, by normalization alone | ≥ 60 % of distinct variants and ≥ 75 % of occurrences; **0 wrong** |
+| R1 | **one** name per expected id (its first variant) | share of the other distinct variants auto-resolved to their expected id, by normalization alone | report (no longer a gate, owner 2026-09-27); **0 wrong** |
 | R2 | same as R1 | for each variant R1 left unresolved, the expected id is among the top 3 fuzzy candidates | ≥ 85 % |
-| R3 | the shipped seed registry | occurrences auto-resolved; **merges**: two different expected ids resolving to one seed slug | report coverage; merges **0** |
+| R3 / S0 | the shipped seed registry, its rules included | occurrences resolved to their expected id ("seed coverage"); **merges**: two different expected ids resolving to one seed slug | ≥ 90 %; merges **0**; **0 wrong** |
+| SN | the seed, then N simulated queue actions (link or create the most frequent unresolved key, from the answer key) | occurrences resolved to their expected id after N = 10, 25, 50, 100 | ≥ 95 % at N = 25; **0 wrong** |
+| RA | the seed | uses of ambiguous names (the answer key's `given`) settled by rules | report; **0 wrong** |
 | R4 | empty, then built by simulating the queue (resolve the most frequent entry, check the answer key, repeat) | queue actions needed to cover 90 % of occurrences, against the distinct-name count | report |
-| T | fixture registry + `resolve-traps.yaml` | trap pairs resolved to the same slug | **0** |
+| T | fixture registry, then the seed, + `resolve-traps.yaml` | trap pairs resolved to the same slug | **0** |
 
 "Wrong" means auto-resolved to a slug other than the expected one. It is a hard
 gate: if a coverage target cannot be met without a wrong resolution, keep
@@ -356,6 +359,56 @@ given the data; the seed was not. Those bare aliases were removed from the seed
 (its header and `INGREDIENTS.md` "The seed" now state the rule), not special-cased
 in code.
 
+**Owner decisions of 2026-09-27, implemented.**
+
+1. *Ambiguous names get disambiguation rules, as data in the registry.* The
+   smallest generic form: an entry's `when` list, each rule
+   `{ names, lang?, unit?, words? }` with at least one condition. `unit` takes
+   canonical units or the classes `mass`, `volume`, `count`, `container` (a
+   grouping of the canonical units, in `types.ts`); `words` match as whole
+   words in the line's folded, singularized `prep` and `note`; `lang` is the
+   recipe's language. All conditions of a rule must hold. Rules come after the
+   override and before aliases (resolution value `rule`): one entry's rule
+   holding links the line; rules of two entries holding leave it ambiguous; no
+   rule holding lets the aliases decide (so a still-shared alias stays
+   ambiguous). A rule name is not an alias. Plain-name `or` options carry no
+   unit, prep or note, so only `lang` rules meet them. Codes: **E820** (a
+   malformed rule) and **W821** (rules of two entries for one name that can
+   hold on the same line); E812–W815 are the prices. Documented in
+   `INGREDIENTS.md` "Disambiguation rules", `STORAGE.md`, `DATA-FLOW.md`,
+   `VALIDATION.md`. Re-resolution stays set-based for keys no rule names; keys
+   a rule names are re-resolved line by line from `data_json` (no schema
+   change). The queue can add a rule (Phase 3 notes).
+2. *English names and common synonyms in the seed.* Seed now 268 entries, 10
+   rules (`tomates`/`tomatoes` by container or count, `champignons`/`mushrooms`
+   likewise, `bœuf`/`porc` by *haché*/*ground* or *en cubes*/*stewing*, `lard`
+   by language, `soupe à l'oignon` by `packet`). The answer key was not copied:
+   typos and bare words whose meaning varies (*huile*, *poulet*, *noix*,
+   *échalotes*, *levure*, *fécule*…) are left to the queue. R1 is reported, not
+   a gate; seed coverage (S0), seed + N actions (SN) and rule accuracy (RA)
+   replace it. The answer key gained `given` (the id of each use of an
+   ambiguous name; `hand` ids in `scripts/corpus/ingredients.ts` for hand-card
+   uses, regenerated by `scripts/gen-corpus.ts`).
+3. *Jell-O flavours are one ingredient*, the flavour in `note` (already the
+   case in the seed and the answer key).
+
+Measured before and after (same corpus; R0, R1, R2, R4 do not use the seed and
+are unchanged):
+
+| Id | Before (243 entries, no rules) | After (268 entries, 10 rules) | Gate |
+|---|---|---|---|
+| S0 | 2512/2927 (85.8 %), 141/169 ids, 0 wrong, merges 0 | **2778/2927 (94.9 %)**, 164/169 ids, 425/479 distinct forms, 0 wrong, merges 0 | ≥ 90 %: met |
+| SN | N=10 88.8 %, N=25 91.2 %, N=50 94.0 %, N=100 97.0 % | N=10 97.1 %, **N=25 98.5 %**, N=50 99.6 %; every non-ambiguous name after 53 actions (99.7 %); 0 wrong | ≥ 95 % at 25: met |
+| RA | 0 of 40 decidable ambiguous uses | 36 of 40 right (90 %), 0 wrong, 10 of 46 left unresolved | report |
+| T | fixture 0/20; seed **2/20** | fixture 0/20; seed 0/20 | met |
+
+The seed trap: bare *pâte* resolved to `pates-alimentaires` through the plural
+step (*pâtes*); *pâte* is now an alias of `pate-a-tarte`. The seed additions
+were chosen after seeing which corpus forms the seed left unresolved, so S0
+overstates what a new vault sees; SN is the more honest number. Seed choices the
+owner may revisit: French *lard* → `lard-sale` (English *lard* → `saindoux`);
+no rule sends *porc en cubes* to a cut.
+
 ### Phase 3 — the resolve queue (`/resoudre`)
 
 Depends on: Q1, Q4, Q25 (merge).
@@ -406,6 +459,13 @@ re-resolution). E2E: resolve the top row, then the recipes using it lose W303.
 - The recipe-count link of a row opens `/?q=<form>&relies=non` (full-text
   search on the name, restricted to recipes with unlinked names): there is no
   browse filter by lookup key.
+- "Selon l'unité ou la préparation" (2026-09-27): adds a rule for the key's
+  most frequent written form to one entry (for an ambiguous key, its owners
+  are offered): units seen on the unresolved lines, unit classes, words
+  (comma-separated), "only in <language> recipes". Edited as a YAML document
+  (`withRule`), refused with no condition, an unknown unit, or the same rule
+  already there. Commit `ingredient: <slug> + rule "<form>" (<conditions>)`.
+  Lines the rule does not meet stay in the queue.
 
 ### Phase 4 — prices and the ingredient index (`/ingredients`)
 
@@ -659,7 +719,8 @@ in the final report and in `DATA-FLOW.md` next to the plan 02 figures.
 
 - Every ingredient item in the index has a resolution state. Unresolved names are
   in the queue, most frequent first, and never block a save.
-- R0 = 100 %, R1 ≥ targets with 0 wrong, R2 ≥ 85 %, R3 merges = 0, traps = 0,
+- R0 = 100 %, S0 ≥ 90 % and SN ≥ 95 % at N = 25, 0 wrong (R1 reported),
+  R2 ≥ 85 %, R3 merges = 0, traps = 0,
   or a report of why a coverage target was not reached without losing precision.
 - No recipe file is written by resolution, queue actions, price entry or cost.
 - The cost line shows coverage and never a figure that looks complete when it

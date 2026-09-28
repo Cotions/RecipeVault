@@ -1,16 +1,17 @@
 // The resolve queue (plan 03, Phase 3; docs/INGREDIENTS.md, "Resolution"):
 // every unresolved or ambiguous lookup key across the vault, most frequent
-// first, and the three actions that settle one — link the name to an existing
-// ingredient, create an ingredient from it, or take an ambiguous alias off an
-// entry. Each action edits one ingredient file, commits it, and re-resolves the
-// index. No recipe file is touched (docs/STORAGE.md).
+// first, and the actions that settle one — link the name to an existing
+// ingredient, create an ingredient from it, take an ambiguous alias off an
+// entry, or give an entry a disambiguation rule for it (docs/INGREDIENTS.md,
+// "Disambiguation rules"). Each action edits one ingredient file, commits it,
+// and re-resolves the index. No recipe file is touched (docs/STORAGE.md).
 
-import { IngredientEditError, parseIngredient, serializeIngredient, withName, withoutKey } from '../ingredients/registry';
+import { IngredientEditError, parseIngredient, serializeIngredient, withName, withoutKey, withRule } from '../ingredients/registry';
 import type { Candidate } from '../ingredients/resolve';
-import { CATEGORIES, type Category, type RegistryEntry } from '../ingredients/types';
+import { CATEGORIES, UNIT_CLASSES, type Category, type NameRule, type RegistryEntry } from '../ingredients/types';
 import { stripMarkers } from '../vault/markers';
 import { SLUG_RE } from '../vault/slug';
-import type { Lang } from '../vault/types';
+import { UNITS, type Lang } from '../vault/types';
 import type { VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit } from './files';
 import type { DB } from './index/db';
@@ -39,6 +40,8 @@ export interface QueueRow {
 	/** The language most of those recipes are in: where a new alias goes. */
 	lang: Lang;
 	ambiguous: boolean;
+	/** The units of the unresolved lines (null: no unit), most frequent first: what a rule may be conditioned on. */
+	units: { unit: string | null; count: number }[];
 	/** For an ambiguous key: the entries that share it. Otherwise the nearest entries. */
 	candidates: QueueCandidate[];
 }
@@ -57,18 +60,19 @@ type Group = Omit<QueueRow, 'candidates'>;
 function groups(db: DB): Group[] {
 	const uses = db
 		.prepare(
-			`SELECT x.key, x.name, x.resolution, x.slug, r.lang FROM (
-			   SELECT slug, key, name, resolution FROM ingredients WHERE ${UNRESOLVED}
-			   UNION ALL SELECT slug, key, name, resolution FROM ingredient_or WHERE ${UNRESOLVED}
+			`SELECT x.key, x.name, x.resolution, x.slug, x.unit, r.lang FROM (
+			   SELECT slug, key, name, resolution, unit FROM ingredients WHERE ${UNRESOLVED}
+			   UNION ALL SELECT slug, key, name, resolution, NULL FROM ingredient_or WHERE ${UNRESOLVED}
 			 ) x JOIN recipes r ON r.slug = x.slug`
 		)
-		.all() as { key: string; name: string; resolution: string; slug: string; lang: string }[];
-	const byKey = new Map<string, { forms: Map<string, number>; recipes: Map<string, string>; count: number; ambiguous: boolean }>();
+		.all() as { key: string; name: string; resolution: string; slug: string; unit: string | null; lang: string }[];
+	const byKey = new Map<string, { forms: Map<string, number>; units: Map<string | null, number>; recipes: Map<string, string>; count: number; ambiguous: boolean }>();
 	for (const u of uses) {
 		let g = byKey.get(u.key);
-		if (!g) byKey.set(u.key, (g = { forms: new Map(), recipes: new Map(), count: 0, ambiguous: false }));
+		if (!g) byKey.set(u.key, (g = { forms: new Map(), units: new Map(), recipes: new Map(), count: 0, ambiguous: false }));
 		const form = stripMarkers(u.name).trim();
 		g.forms.set(form, (g.forms.get(form) ?? 0) + 1);
+		g.units.set(u.unit, (g.units.get(u.unit) ?? 0) + 1);
 		g.recipes.set(u.slug, u.lang);
 		g.count++;
 		g.ambiguous ||= u.resolution === 'ambiguous';
@@ -83,7 +87,8 @@ function groups(db: DB): Group[] {
 				count: g.count,
 				recipes: g.recipes.size,
 				lang: ([...langs].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? 'fr') as Lang,
-				ambiguous: g.ambiguous
+				ambiguous: g.ambiguous,
+				units: [...g.units].map(([unit, count]) => ({ unit, count })).sort((a, b) => b.count - a.count || String(a.unit).localeCompare(String(b.unit)))
 			};
 		})
 		.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
@@ -223,3 +228,47 @@ export function unlinkKey(ctx: VaultContext, key: string, slug: string, hash: st
 	});
 }
 
+
+export interface RuleInput {
+	/** Canonical units or unit classes. */
+	unit?: string[];
+	/** Words or phrases of `prep` or `note`. */
+	words?: string[];
+	/** Only in recipes of the row's language. */
+	sameLang?: boolean;
+}
+
+/**
+ * Selon…: give an entry a disambiguation rule for the key's most frequent
+ * written form, so the lines whose unit, words or language match resolve to it
+ * (docs/INGREDIENTS.md, "Disambiguation rules"). The other lines stay in the
+ * queue. `hash` as for `linkKey`.
+ */
+export function addRule(ctx: VaultContext, key: string, slug: string, input: RuleInput, hash?: string): Promise<{ commit?: string; resolved: number }> {
+	return ctx.lock.run(async () => {
+		const vocab = loadVocab(ctx.paths.vocab);
+		const row = rowOf(ctx.db, key);
+		if (!row) throw new QueueError('ce nom est déjà relié ; rechargez la page.');
+		const known = new Set<string>([...UNITS, ...Object.keys(UNIT_CLASSES)]);
+		const unit = [...new Set((input.unit ?? []).map((u) => u.trim()).filter(Boolean))];
+		const bad = unit.filter((u) => !known.has(u));
+		if (bad.length) throw new QueueError(`unité inconnue : ${bad.join(', ')}.`);
+		const words = [...new Set((input.words ?? []).map((w) => w.replace(/\s+/g, ' ').trim()).filter(Boolean))];
+		if (!unit.length && !words.length && !input.sameLang) throw new QueueError('choisissez au moins une condition : une unité, un mot ou la langue.');
+		const form = row.forms[0].name;
+		const rule: NameRule = { names: [form], ...(input.sameLang ? { lang: row.lang } : {}), ...(unit.length ? { unit } : {}), ...(words.length ? { words } : {}) };
+		const file = current(ctx, slug, hash);
+		let text: string;
+		try {
+			text = withRule(file.text, rule);
+		} catch (e) {
+			throw new QueueError(`${ingredientPath(slug)} ne se lit pas ; corrigez-le d’abord (${(e as IngredientEditError).message}).`);
+		}
+		if (text === file.text) throw new QueueError(`${slug} a déjà cette règle.`);
+		checked(text, slug, vocab);
+		const before = row.count;
+		const cond = [rule.lang && `lang: ${rule.lang}`, unit.length && `unit: ${unit.join(', ')}`, words.length && `words: ${words.join(', ')}`].filter(Boolean).join('; ');
+		const commit = await commitEntry(ctx, vocab, ingredientPath(slug), text, `ingredient: ${slug} + rule "${form}" (${cond})`);
+		return { commit, resolved: before - (rowOf(ctx.db, key)?.count ?? 0) };
+	});
+}

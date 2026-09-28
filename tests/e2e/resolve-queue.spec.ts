@@ -35,6 +35,19 @@ test('the top row of the queue becomes a new ingredient; the recipes using it lo
 	expect(await unresolvedCount(page, 'lasagna-courgettes')).toBe(before - 1);
 });
 
+test('an ambiguous name gets a rule on one entry; lines the rule misses stay in the queue', async ({ page }) => {
+	await page.goto('/resoudre');
+	const row = page.locator('li.row', { has: page.locator('h2', { hasText: /^huile$/ }) });
+	await row.getByText('Selon l’unité ou la préparation').click();
+	await row.getByLabel('Ingrédient').last().fill('huile-vegetale');
+	await row.getByLabel('tout contenant').check();
+	await row.getByRole('button', { name: 'Ajouter la règle' }).click();
+	await expect(page.locator('.flash')).toHaveText('Règle ajoutée : « huile » va à huile végétale sur 0 lignes qui la remplissent.');
+	await expect(page.locator('li.row h2', { hasText: /^huile$/ })).toHaveCount(1);
+	expect(lastCommit()).toBe('ingredient: huile-vegetale + rule "huile" (unit: container)');
+	expect(readFileSync(`${VAULT}/ingredients/huile-vegetale.md`, 'utf8')).toContain('  - {names: [huile], unit: [container]}');
+});
+
 test('an ambiguous name is settled by taking it off one entry', async ({ page }) => {
 	await page.goto('/resoudre');
 	const row = page.locator('li.row', { has: page.locator('h2', { hasText: /^huile$/ }) });

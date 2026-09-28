@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { withName, withoutKey } from '../../src/lib/ingredients/registry';
+import { parseIngredient, withName, withoutKey, withRule } from '../../src/lib/ingredients/registry';
 import { resolutionDiagnostics } from '../../src/lib/ingredients/resolve';
 import { getResolver } from '../../src/lib/server/index/resolve';
-import { createFromKey, linkKey, queueCount, QueueError, resolveQueue, unlinkKey } from '../../src/lib/server/queue';
+import { addRule, createFromKey, linkKey, queueCount, QueueError, resolveQueue, unlinkKey } from '../../src/lib/server/queue';
 import { loadVocab } from '../../src/lib/server/vocab';
 import { fixtureVault, type TempVault } from '../helpers/vault';
 
@@ -36,6 +36,20 @@ describe('edits of an ingredient file', () => {
 	it('removes every alias with a key, in any language', () => {
 		expect(withoutKey(text, 'salt')).toContain('  en: []');
 		expect(withoutKey(text, 'poivre')).toBe(text);
+	});
+	it('adds a rule after names, once, and the file still reads', () => {
+		const out = withRule(text, { names: ['gros  sel'], unit: ['container'], words: ['moulu'] });
+		expect(out).toContain('  en: [salt]\nwhen:\n  - {names: [gros sel], unit: [container], words: [moulu]}\nstaple: true');
+		expect(out).toContain('# a comment');
+		expect(withRule(out, { names: ['gros sel'], unit: ['container'], words: ['moulu'] })).toBe(out);
+		const again = withRule(out, { names: ['sel'], lang: 'en' });
+		expect(again).toContain('  - {names: [sel], lang: en}');
+		const r = parseIngredient(again, { fileStem: 'sel' });
+		expect(r.diagnostics).toEqual([]);
+		expect(r.entry!.when).toEqual([
+			{ names: ['gros sel'], unit: ['container'], words: ['moulu'] },
+			{ names: ['sel'], lang: 'en' }
+		]);
 	});
 });
 
@@ -95,6 +109,29 @@ describe('the resolve queue', () => {
 		expect(v.read('ingredients/huile-d-olive.md')).toContain("fr: [huile d'olive]");
 		expect(line('muffins-bleuets', 'huile')).toEqual({ item: 'huile-vegetale', resolution: 'alias' });
 		expect(row('huile')).toBeUndefined();
+	});
+
+	it('gives an entry a rule for an ambiguous name: only the lines that meet it are linked', async () => {
+		expect(row('huile')!.units).toEqual([{ unit: 'cup', count: 1 }]);
+		const head = v.git('rev-parse', 'HEAD').trim();
+		await expect(addRule(v.ctx, 'huile', 'huile-vegetale', {})).rejects.toThrow(/au moins une condition/);
+		await expect(addRule(v.ctx, 'huile', 'huile-vegetale', { unit: ['tasse'] })).rejects.toThrow(/unité inconnue/);
+		expect(v.git('rev-parse', 'HEAD').trim()).toBe(head);
+		// A rule no line meets: committed, the name stays in the queue.
+		expect(await addRule(v.ctx, 'huile', 'huile-vegetale', { unit: ['tbsp'] }, hashOf('huile-vegetale'))).toMatchObject({ resolved: 0 });
+		expect(lastCommit()).toBe('ingredient: huile-vegetale + rule "huile" (unit: tbsp)');
+		expect(row('huile')!.ambiguous).toBe(true);
+		await expect(addRule(v.ctx, 'huile', 'huile-vegetale', { unit: ['tbsp'] })).rejects.toThrow(/déjà cette règle/);
+		// By unit class and language: the cup of oil is now the vegetable oil.
+		expect(await addRule(v.ctx, 'huile', 'huile-vegetale', { unit: ['volume'], words: [' ', ''], sameLang: true })).toMatchObject({ resolved: 1 });
+		expect(lastCommit()).toBe('ingredient: huile-vegetale + rule "huile" (lang: fr; unit: volume)');
+		expect(recipesTouched()).toEqual(['ingredients/huile-vegetale.md']);
+		expect(v.read('ingredients/huile-vegetale.md')).toContain('  - {names: [huile], lang: fr, unit: [volume]}');
+		expect(line('muffins-bleuets', 'huile')).toEqual({ item: 'huile-vegetale', resolution: 'rule' });
+		expect(row('huile')).toBeUndefined();
+		// huile d'olive keeps the alias: the name is still hers where no rule holds.
+		expect(v.read('ingredients/huile-d-olive.md')).toMatch(/\bhuile\b.*\]/);
+		expect(v.git('status', '--porcelain').trim()).toBe('');
 	});
 
 	it('refuses a stale entry, a bad slug or category, a taken slug, and a name no longer in the queue — nothing committed', async () => {
