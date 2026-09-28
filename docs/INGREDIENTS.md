@@ -65,6 +65,12 @@ an existing vault without touching an entry already there. It is data, like the
 vocabulary seed: the resolve queue then starts with the long tail, not with
 *sel* and *farine* on every recipe.
 
+Its aliases are exact synonyms only. A bare name whose product depends on the
+unit or the prep (*tomates*, *champignons*: fresh or canned) is not an alias of
+either entry, nor is a word that means another product in the other language
+(English *lard* is saindoux, French *lard* is salt pork): the lookup key is the
+name alone, so such a name goes through the resolve queue.
+
 ### `staple` is the important flag
 
 Salt, pepper, oil, flour, sugar, butter, water. Marked `staple: true`, they are
@@ -93,7 +99,7 @@ registry. So at index time (on save, on sync, on an external edit):
    resolved.
 6. **Otherwise unresolved.** The resolve queue offers the top fuzzy candidates:
    trigram similarity (Jaccard over padded word trigrams of the singular keys),
-   best first, at most **3**, none below **0.3** (`FUZZY` in
+   best first, at most **3**, none below **0.15** (`FUZZY` in
    `src/lib/ingredients/resolve.ts`, tuned on `tests/fixtures/corpus`). A candidate
    is **never** taken automatically: a wrong resolution poisons every total that
    includes it. An ambiguous key's candidates are the entries sharing it.

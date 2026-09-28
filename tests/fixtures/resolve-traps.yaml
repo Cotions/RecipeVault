@@ -1,0 +1,30 @@
+# Invented pairs of written names that must never resolve to the same registry
+# entry, although they fold or de-pluralize alike (plan 03, Phase 0, metric T).
+# Test data, not resolver rules: the resolver knows none of these words.
+# Resolved against the fixture registry, tests/fixtures/vault/ingredients/.
+# Each pair: [name, name], or { pair: [name, name], lang: en }. Default lang: fr.
+
+traps:
+  # A singular that is another product than its plural.
+  - [pâte, pâtes]
+  - [Pâte, PÂTES]
+  - [pâte à tarte, pâtes]
+  # The percentage is the product.
+  - [crème 15 %, crème 35 %]
+  - [crème 15%, crème 35%]
+  - [crème 15 %, crème 35%]
+  - [crème à fouetter, crème champêtre]
+  # A colour or kind word changes the product.
+  - [piment vert, piment fort]
+  - [piments verts, piments forts]
+  - [poivron vert, piment fort]
+  - [tomates fraîches, tomates concassées]
+  - [tomate fraîche, tomate concassée]
+  - [sucre, sucre à glacer]
+  - [sucre blanc, sucre brun]
+  - [huile d'olive, huile végétale]
+  - [maïs en crème, crème 35 %]
+  - [coulis de tomate, tomates concassées]
+  - { pair: [olive oil, vegetable oil], lang: en }
+  - { pair: [15% cream, whipping cream], lang: en }
+  - { pair: [green pepper, hot pepper], lang: en }

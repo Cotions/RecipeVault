@@ -11,6 +11,7 @@
 
 import type { Diagnostic, Ingredient, Lang, Recipe } from '../vault/types';
 import { lookupKey, singularKey, type PluralRules } from './normalize';
+import { NAME_LANGS, type RegistryEntry } from './types';
 
 export type Resolution = 'override' | 'alias' | 'plural' | 'none' | 'ambiguous' | 'recipe';
 
@@ -27,14 +28,30 @@ export interface Candidate {
 	score: number;
 }
 
-/** Tuned on tests/fixtures/corpus (R1, R2): see docs/INGREDIENTS.md, "Resolution". */
-export const FUZZY = { minScore: 0.3, count: 3 };
+/**
+ * Tuned on tests/fixtures/corpus (metric R2, tests/ingredients-corpus.test.ts):
+ * see docs/INGREDIENTS.md, "Resolution". 0.15 is the knee: lower adds noise
+ * candidates for almost no more hits.
+ */
+export const FUZZY = { minScore: 0.15, count: 3 };
 
 export interface NameRow {
 	key: string;
 	/** The key with the alias's language plural rules applied. */
 	skey: string;
 	slug: string;
+}
+
+/** The alias rows of registry entries, as the index stores them in `ingredient_names`. */
+export function nameRows(entries: Pick<RegistryEntry, 'slug' | 'names'>[], plurals: PluralRules = {}): NameRow[] {
+	const out: NameRow[] = [];
+	for (const e of entries)
+		for (const lang of NAME_LANGS)
+			for (const n of e.names[lang] ?? []) {
+				const key = lookupKey(n);
+				out.push({ key, skey: singularKey(key, plurals[lang]), slug: e.slug });
+			}
+	return out;
 }
 
 /** Padded word trigrams, as pg_trgm computes them: `  w`, ` wo`, `wor`, `ord`, `rd `. */

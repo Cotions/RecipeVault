@@ -12,6 +12,13 @@
 # for one unit. Aliases are exact synonyms only: a generic word goes under an
 # entry only when a card using it can mean nothing else. Plurals come from the
 # rules in vocab/normalize.yaml; irregular ones are listed.
+#
+# Not aliases: a bare name whose product depends on the unit or the prep
+# (tomates: fresh or canned; champignons: fresh or canned), and a word that means
+# another product in the other language (English "lard" is saindoux, French
+# "lard" is salt pork; Québec English "shallots" are often green onions). The
+# first R3 measurement found these four as a merge or an auto-resolved ambiguous
+# form; they were removed, and such names go through the resolve queue.
 
 # --- Épicerie: farines, sucres, levures ---------------------------------------
 farine-tout-usage:
@@ -305,7 +312,7 @@ graisse-vegetale:
   density: 0.86
 saindoux:
   category: epicerie
-  names: { fr: [saindoux, graisse de porc, lard fondu], en: [lard] }
+  names: { fr: [saindoux, graisse de porc, lard fondu], en: [pork lard] }
   default_unit: g
   au_gout: true
   density: 0.9
@@ -857,7 +864,7 @@ oignons-verts:
   weights: { piece: 15 }
 echalote-francaise:
   category: legume
-  names: { fr: [échalote française, échalotes françaises, échalote sèche], en: [shallot, shallots] }
+  names: { fr: [échalote française, échalotes françaises, échalote sèche], en: [French shallot, French shallots] }
   default_unit: piece
   weights: { piece: 30 }
 poireau:
@@ -937,7 +944,7 @@ piment-fort:
   au_gout: true
 tomate:
   category: legume
-  names: { fr: [tomate, tomates, tomate fraîche, tomates fraîches], en: [tomato, tomatoes, fresh tomatoes] }
+  names: { fr: [tomate fraîche, tomates fraîches], en: [fresh tomato, fresh tomatoes] }
   default_unit: piece
   weights: { piece: 125 }
 tomates-cerises:
@@ -961,7 +968,7 @@ aubergine:
   weights: { piece: 400 }
 champignons:
   category: legume
-  names: { fr: [champignons, champignons blancs, champignons de Paris, champignons frais], en: [mushrooms, white mushrooms, button mushrooms] }
+  names: { fr: [champignons frais, champignons blancs, champignons de Paris], en: [fresh mushrooms, white mushrooms, button mushrooms] }
   default_unit: g
 champignons-en-conserve:
   category: conserve

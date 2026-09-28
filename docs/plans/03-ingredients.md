@@ -163,6 +163,18 @@ stop and report.
 
 Tests: the loader, and ground-truth consistency (no variant listed under two ids).
 
+**Implementation notes (Phase 0, done after Phase 2).** The corpus landed after
+the Phase 2 code, so the harness and the metric bodies came together
+(`tests/helpers/corpus.ts`, `tests/ingredients-corpus.test.ts`), with no `todo`
+stage. The answer key's shape: `ingredients` (id → variants), `ambiguous`
+(written form → candidate ids) and `confusables`. Every occurrence is resolved on
+its name alone (`resolveKey(lookupKey(name))`), sub-recipe lines included: the
+metric is about names. An ambiguous form counts as correct when it stays
+unresolved, and as wrong when it resolves to anything. `resolve-traps.yaml`
+sits at `tests/fixtures/resolve-traps.yaml` (outside the generated corpus
+folder). Only the hard gates are asserted (R0 complete, 0 wrong, 0 seed merge,
+no ambiguous form auto-resolved, T = 0); R1 and R2 print their verdict.
+
 ### Phase 1 — the registry
 
 Depends on: Q5 (seed), Q6 (codes), Q12 (unit-weight field), Q20 (allergens),
@@ -313,6 +325,36 @@ unresolved rows, and the corpus metrics.
 - Q3 A in the UI: an "Ingrédients non reliés (N)" section on the recipe page
   (not printed) and a browse facet *Ingrédients → Non reliés au registre*
   (`?relies=non`).
+
+**Measured (corpus of 320 recipes, 2927 names, 169 ids).**
+
+| Id | Result | Gate |
+|---|---|---|
+| R0 | 2881/2881 resolved, 0 wrong; the 46 ambiguous occurrences stay unresolved | met |
+| R1 | 26/310 distinct other variants (8.4 %), 190/1132 of their occurrences (16.8 %); 67.3 % of all occurrences; **0 wrong** | coverage **not met**; 0 wrong met |
+| R2 | 165/284 (58.1 %) with the expected id in the top 3 at min score 0.15 (46.1 % at the first value, 0.3) | **not met** |
+| R3 | seed of 243 entries: 2512/2927 occurrences (85.8 %), 141/169 ids; merges 0; ambiguous forms auto-resolved 0 | met, after a seed fix |
+| R4 | 254 queue actions cover 90 % (50 % after 35, 75 % after 120), against 489 distinct lookup keys; 0 wrong | report |
+| T | 0 of 20 trap pairs | met |
+
+Why R1 and R2 miss: of the 284 variants R1 leaves unresolved, 137 are on
+English cards (*flour*, *brown sugar*), and most of the rest are synonyms or
+older words (*sucre brun*, *gruau*, *abaisse*, *lait Carnation*) or descriptors
+(*eau bouillante*, *pommes McIntosh*). No normalization or trigram measure links
+*sucre brun* to *cassonade*; only aliases do (the seed, then the queue). Reaching
+the targets would take a translation table or looser matching, which decision 1
+and the 0-wrong gate rule out. Precision kept, coverage reported. Min score
+tuned on R2: 0.05 → 60.2 % hits with 3.00 candidates shown on average; 0.1 →
+59.5 %, 2.69; **0.15 → 58.1 %, 1.94**; 0.2 → 53.9 %, 1.51; 0.3 → 46.1 %, 0.93.
+0.15 is the knee.
+
+R3 at first found 1 merge (English *shallots* in `echalote-francaise`, while the
+Québec cards use it for green onions) and 35 auto-resolved ambiguous occurrences
+(*tomates*/*tomatoes* → `tomate`, *champignons*/*mushrooms* → `champignons`,
+English *lard* → `saindoux` matching French *lard*). The resolver was right
+given the data; the seed was not. Those bare aliases were removed from the seed
+(its header and `INGREDIENTS.md` "The seed" now state the rule), not special-cased
+in code.
 
 ### Phase 3 — the resolve queue (`/resoudre`)
 

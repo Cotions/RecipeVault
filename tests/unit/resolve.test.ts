@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { lookupKey, singularKey, type PluralRules } from '../../src/lib/ingredients/normalize';
-import { resolutionDiagnostics, Resolver, trigrams } from '../../src/lib/ingredients/resolve';
+import { FUZZY, resolutionDiagnostics, Resolver, trigrams } from '../../src/lib/ingredients/resolve';
 import type { Recipe } from '../../src/lib/vault/types';
 
 const PLURALS: PluralRules = { fr: { suffixes: ['x', 's'], minLength: 4 }, en: { suffixes: ['s'], minLength: 4 } };
@@ -104,7 +104,7 @@ describe('candidates', () => {
 		const c = resolver.candidates(lookupKey('tomate fraîches en dés'));
 		expect(c[0].slug).toBe('tomates-fraiches');
 		expect(c.length).toBeLessThanOrEqual(3);
-		expect(c.every((x) => x.score >= 0.3 && x.score <= 1)).toBe(true);
+		expect(c.every((x) => x.score >= FUZZY.minScore && x.score <= 1)).toBe(true);
 		expect(resolver.candidates('zzz')).toEqual([]);
 	});
 
