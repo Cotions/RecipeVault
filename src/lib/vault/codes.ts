@@ -81,6 +81,11 @@ export const CODE_FIXERS: Readonly<Record<string, Fixer>> = {
 	W809: 'app',
 	W810: 'app',
 	W811: 'app',
+	// prices.csv (docs/VALIDATION.md, "Price codes").
+	E812: 'app',
+	E813: 'app',
+	W814: 'app',
+	W815: 'app',
 	// Disambiguation rules in ingredient files (docs/VALIDATION.md, "Registry codes").
 	E820: 'app',
 	W821: 'app'

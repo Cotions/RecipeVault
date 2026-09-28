@@ -19,7 +19,7 @@ import {
 	type VaultEntry
 } from '../lib/vault/index';
 import { extractPrompt } from '../lib/vault/prompt';
-import { findConfig, loadConfig, type GitAuthor } from '../lib/server/config';
+import { DEFAULT_CURRENCY, findConfig, loadConfig, type GitAuthor } from '../lib/server/config';
 import { openVault } from '../lib/server/context';
 import { syncVault } from '../lib/server/index/sync';
 import { PasteLog, pasteStats, readPasteLog } from '../lib/server/pastelog';
@@ -29,6 +29,8 @@ import { seedVault } from '../lib/server/seed';
 import { checkRegistry, parseIngredient } from '../lib/ingredients/registry';
 import { loadVocab } from '../lib/server/vocab';
 import { resolveQueue } from '../lib/server/queue';
+import { priceProblems } from '../lib/server/prices';
+import { parsePrices, PRICES_FILE, type PriceProblem } from '../lib/ingredients/prices';
 
 const USAGE = `Usage:
   vault check <file...>          check files; '-' reads a paste from stdin
@@ -112,6 +114,18 @@ function readAuthor(): GitAuthor {
 	return { name: cfg('user.name') || 'RecipeVault', email: cfg('user.email') || 'recipevault@localhost' };
 }
 
+/** The config's currency when a config exists, else the default. */
+function readCurrency(): string {
+	try {
+		const f = findConfig();
+		const c = f ? JSON.parse(readFileSync(f, 'utf8')).currency : undefined;
+		if (typeof c === 'string' && /^[A-Za-z]{3}$/.test(c)) return c.toUpperCase();
+	} catch {
+		// fall through
+	}
+	return DEFAULT_CURRENCY;
+}
+
 /** Split `--vault <dir>` and flags off the arguments. */
 function vaultArgs(args: string[], flags: string[] = []): { dir?: string; rest: string[]; set: Set<string> } {
 	const rest: string[] = [];
@@ -132,10 +146,10 @@ function openFromArgs(dir: string | undefined) {
 	if (dir) {
 		const root = resolve(dir);
 		if (!existsSync(join(root, 'recipes'))) throw new Error(`${root} is not a vault (no recipes/ folder)`);
-		return openVault({ root, author: readAuthor(), push: false });
+		return openVault({ root, author: readAuthor(), push: false, currency: readCurrency() });
 	}
 	const config = loadConfig();
-	return openVault({ root: config.vaultDirectory, author: config.gitAuthor, push: config.gitPush });
+	return openVault({ root: config.vaultDirectory, author: config.gitAuthor, push: config.gitPush, currency: config.currency });
 }
 
 async function init(args: string[]): Promise<number> {
@@ -151,7 +165,7 @@ async function ingredients(args: string[]): Promise<number> {
 	if (rest[0] !== 'seed' || rest.length !== 1) throw new UsageError('usage: vault ingredients seed [--vault <dir>]');
 	const ctx = openFromArgs(dir);
 	const r = await seedVault(ctx, readFileSync(join(REPO, 'docs/INGREDIENTS-SEED.yaml'), 'utf8'), readFileSync(join(REPO, 'docs/VOCAB.md'), 'utf8'));
-	const report = syncVault(ctx.db, ctx.paths);
+	const report = syncVault(ctx.db, ctx.paths, { currency: ctx.currency });
 	await ctx.pusher.idle();
 	ctx.db.close();
 	console.log(`${plural(r.added.length, 'seed ingredient')} added${r.commit ? ` (commit ${r.commit.slice(0, 7)})` : ''}; the registry has ${plural(report.registry.files, 'ingredient')}.`);
@@ -162,7 +176,7 @@ async function add(args: string[]): Promise<number> {
 	const { dir, rest } = vaultArgs(args);
 	if (!rest.length) throw new UsageError('vault add needs files');
 	const ctx = openFromArgs(dir);
-	syncVault(ctx.db, ctx.paths);
+	syncVault(ctx.db, ctx.paths, { currency: ctx.currency });
 	const inputs: { name: string; text: string }[] = [];
 	for (const f of rest) {
 		const text = f === '-' ? readFileSync(0, 'utf8') : readFileSync(f, 'utf8');
@@ -206,7 +220,7 @@ function queue(args: string[]): number {
 	const { dir, rest } = vaultArgs(args);
 	if (rest.length) throw new UsageError(`unexpected argument ${rest[0]}`);
 	const ctx = openFromArgs(dir);
-	syncVault(ctx.db, ctx.paths);
+	syncVault(ctx.db, ctx.paths, { currency: ctx.currency });
 	const vocab = loadVocab(ctx.paths.vocab);
 	const { total, rows } = resolveQueue(ctx.db, vocab, { limit });
 	const occurrences = rows.reduce((n, r) => n + r.count, 0);
@@ -235,14 +249,16 @@ function sync(args: string[], rebuild: boolean): number {
 		for (const suffix of ['', '-wal', '-shm']) rmSync(ctx.paths.index + suffix, { force: true });
 		ctx = openFromArgs(dir);
 	}
-	const r = syncVault(ctx.db, ctx.paths, { force: set.has('--force') || rebuild });
+	const r = syncVault(ctx.db, ctx.paths, { force: set.has('--force') || rebuild, currency: ctx.currency });
+	const priceIssues = priceProblems(ctx.db, ctx.currency);
 	ctx.db.close();
 	console.log(`${r.scanned} files: ${r.indexed} indexed, ${r.unchanged} unchanged, ${r.removed} removed, ${r.problems.length} with errors (${r.ms} ms)`);
 	for (const p of r.problems) console.log(`  ${red('✗')} ${p.file}  ${p.codes.join(', ')}`);
 	const broken = r.registry.problems.filter((p) => p.broken);
 	console.log(`${plural(r.registry.files, 'ingredient')}: ${r.registry.loaded} read, ${broken.length} with errors, ${r.registry.problems.length - broken.length} with warnings`);
 	for (const p of r.registry.problems) console.log(`  ${p.broken ? red('✗') : yellow('!')} ${p.file}  ${p.codes.join(', ')}`);
-	return r.problems.length || broken.length ? 1 : 0;
+	if (r.prices.rows || priceIssues.length) printPrices(r.prices.rows, priceIssues, true);
+	return r.problems.length || broken.length || r.prices.skipped ? 1 : 0;
 }
 
 function stats(args: string[]): number {
@@ -333,12 +349,22 @@ function checkIngredients(vaultDir: string): { name: string; diagnostics: Diagno
 	return files.map((f) => ({ name: f.name, diagnostics: [...f.diagnostics, ...(f.entry ? (cross.get(f.entry.slug) ?? []) : [])] }));
 }
 
+/** prices.csv of a vault directory (docs/VALIDATION.md, "Price codes"), against its ingredient files. */
+function checkPricesFile(vaultDir: string, ingredientsChecked: { name: string }[]): { rows: number; problems: PriceProblem[] } | undefined {
+	const f = join(vaultDir, PRICES_FILE);
+	if (!existsSync(f)) return undefined;
+	const slugs = new Set(ingredientsChecked.map((i) => basename(i.name, '.md')));
+	const { rows, problems } = parsePrices(readFileSync(f, 'utf8'), { currency: readCurrency(), slugs });
+	return { rows: rows.length, problems };
+}
+
 function check(args: string[]): number {
 	const o = parseArgs(args);
 	// A vault directory: its recipes, and its ingredient registry.
 	const vaultDir = o.dir && existsSync(join(o.dir, 'recipes')) ? o.dir : undefined;
 	if (vaultDir) o.dir = join(vaultDir, 'recipes');
 	const ingredientResults = vaultDir ? checkIngredients(vaultDir) : [];
+	const priceResult = vaultDir ? checkPricesFile(vaultDir, ingredientResults) : undefined;
 	const paths = [...(o.dir ? mdFiles(o.dir) : []), ...o.files.filter((f) => f !== '-')];
 	const inputs = paths.map((p) => ({ name: o.dir && !o.files.includes(p) ? basename(p) : p, text: readFileSync(p, 'utf8') }));
 	let outside = '';
@@ -352,14 +378,18 @@ function check(args: string[]): number {
 	const vault = o.vault ? readVault(o.vault, new Set(paths.map((p) => realpathSync(p)))) : undefined;
 	const result = checkBatch(inputs, { vault });
 	if (outside) addOutsideText(result, outside);
-	const failed = result.files.some((f) => hasErrors(f.diagnostics)) || ingredientResults.some((f) => hasErrors(f.diagnostics));
+	const failed =
+		result.files.some((f) => hasErrors(f.diagnostics)) ||
+		ingredientResults.some((f) => hasErrors(f.diagnostics)) ||
+		!!priceResult?.problems.some((p) => p.severity === 'error');
 
 	if (o.json) {
 		const out = {
 			files: result.files.map((f) => ({ name: f.name, ok: !hasErrors(f.diagnostics), diagnostics: f.diagnostics })),
 			pasteDiagnostics: result.pasteDiagnostics,
 			summary: result.summary,
-			...(vaultDir ? { ingredients: ingredientResults.map((f) => ({ ...f, ok: !hasErrors(f.diagnostics) })) } : {})
+			...(vaultDir ? { ingredients: ingredientResults.map((f) => ({ ...f, ok: !hasErrors(f.diagnostics) })) } : {}),
+			...(priceResult ? { prices: priceResult } : {})
 		};
 		console.log(JSON.stringify(out, null, 2));
 	} else if (o.fixBlock) {
@@ -367,6 +397,7 @@ function check(args: string[]): number {
 	} else {
 		printHuman(result, o);
 		if (vaultDir) printIngredients(ingredientResults, o.quiet);
+		if (priceResult) printPrices(priceResult.rows, priceResult.problems, !o.quiet);
 	}
 	return failed ? 1 : 0;
 }
@@ -412,6 +443,16 @@ function printIngredients(files: { name: string; diagnostics: Diagnostic[] }[], 
 	const bad = files.filter((f) => hasErrors(f.diagnostics)).length;
 	const all = files.flatMap((f) => f.diagnostics);
 	console.log(`${plural(files.length, 'ingredient')}: ${bad} failed, ${files.length - bad} passed` + (all.length ? ` — ${counts(all)}` : ''));
+}
+
+function printPrices(rows: number, problems: PriceProblem[], detail: boolean): void {
+	if (detail)
+		for (const p of problems) {
+			console.log(`  ${(p.severity === 'error' ? red : yellow)(p.code)} ${PRICES_FILE} line ${p.line}: ${p.message}`);
+			if (p.fix) console.log(dim(`       ${p.fix}`));
+		}
+	const e = problems.filter((p) => p.severity === 'error').length;
+	console.log(`${PRICES_FILE}: ${plural(rows, 'price row')}, ${plural(e, 'line')} skipped, ${plural(problems.length - e, 'warning')}`);
 }
 
 const color = process.stdout.isTTY && !process.env.NO_COLOR;

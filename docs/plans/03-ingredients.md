@@ -438,6 +438,46 @@ Tests: CSV parsing (ties, stale, foreign currency, unknown slug, bad lines),
 append with rollback on a failed commit, sort orders. E2E: enter a price inline,
 reload, the price is there and `prices.csv` gained one line.
 
+**Implementation notes (Phase 4).**
+
+- Codes (Q6): `E812` (no header, or a required column missing: nothing read),
+  `E813` (a line that does not read: skipped), `W814` (a slug with no registry
+  entry: kept), `W815` (another currency: shown, not costed). All `app`,
+  reported with the line number instead of a path. `VALIDATION.md`, "Price
+  codes". `W814` and `W815` are derived at query time, so creating the entry or
+  changing the config's currency clears them without a reload.
+- Parsing: columns found by the header's names; RFC 4180 quoting; an empty
+  `currency` is the config's; a decimal comma is read (in a quoted cell);
+  `pack_unit` must be canonical (no aliases). `amount` and `pack_qty` > 0.
+- Current price: the latest row **in the config's currency** (a later row in
+  another currency does not hide an earlier usable one). View `current_price`
+  over `prices.usable`; the `prices` table is rebuilt whole when
+  `meta.prices_hash` (file + currency) changes.
+- Config: `currency` (default `CAD`), `locale` (`fr-CA`), `shops` (`[]`),
+  documented in `DEPLOY.md`. The currency travels on the `VaultContext` and as
+  a `syncVault` option; `vault` CLI reads it from the config when there is one.
+- "Number of recipes" counts recipes where the entry is a main line
+  (`ingredients.item`); an `or` option is not costed, so it does not raise the
+  entry's priority for pricing.
+- Sorts: `a-saisir` (default: unpriced first, most recipes, name), `nom`,
+  `categorie`, `recettes`, `date` (oldest price first, so stale ones surface;
+  unpriced last). Clicking the current column's header reverses it. Filters:
+  category, priced, staple, and a text search over every alias (folded). State
+  in the URL.
+- Inline entry: one editor open at a time (a row's "Saisir un prix"), not a
+  form per row, so 1000 rows stay light. Pack unit defaults to `default_unit`,
+  else the last price's unit; pack size to the last price's; shop to the one
+  typed last in this sitting, else the last price's; date to today. Enter saves
+  and opens the next row (of the list as it was before the save); Escape
+  closes. Amounts accept `0,89`.
+- No stale guard for a price: the file is only appended to, read under the
+  lock at write time. Commit: `price: farine 4.99 / 2.5 kg`.
+- The watcher reloads `prices.csv` and commits it even with a bad line (data,
+  not a document; the line is listed); `vault sync` prints the price summary
+  and exits 1 when a line was skipped; `vault check --dir <vault>` checks it.
+- Rows carry an anchor (`/ingredients#i-<slug>`); the ingredient view
+  (`/ingredients/<slug>`) is Phase 6.
+
 ### Phase 5 — unit conversion and cost on the recipe page
 
 Depends on: Q10–Q18.

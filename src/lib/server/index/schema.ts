@@ -4,7 +4,7 @@
 // (Vite) load it the same way.
 
 /** Bump on any change below: the index is then rebuilt from scratch. */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const SCHEMA_SQL = `
 CREATE TABLE recipes (
@@ -50,7 +50,8 @@ CREATE TABLE problems (
 );
 
 -- Index bookkeeping: tags_hash = sha256 of vocab/tags.yaml at the last retag;
--- registry_hash = sha256 over the ingredient files and the vocab they depend on.
+-- registry_hash = sha256 over the ingredient files and the vocab they depend on;
+-- prices_hash = sha256 of prices.csv and the config's currency at the last load.
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE families (
@@ -143,6 +144,38 @@ CREATE TABLE registry_problems (
   diagnostics TEXT NOT NULL             -- JSON list of { code, severity, path, message, fix? }
 );
 
+-- prices.csv (docs/STORAGE.md, "Prices"): every row that reads. usable = 1 when
+-- the row is in the config's currency (a row in another one is shown, never costed).
+CREATE TABLE prices (
+  line       INTEGER PRIMARY KEY,       -- line number in prices.csv
+  date       TEXT NOT NULL,             -- YYYY-MM-DD
+  ingredient TEXT NOT NULL,             -- registry slug (may name no entry: W814)
+  amount     REAL NOT NULL,
+  currency   TEXT NOT NULL,
+  pack_qty   REAL NOT NULL,
+  pack_unit  TEXT NOT NULL,
+  shop       TEXT NOT NULL DEFAULT '',
+  note       TEXT NOT NULL DEFAULT '',
+  usable     INTEGER NOT NULL
+);
+
+-- prices.csv lines that do not read (E812, E813): skipped, listed with their line.
+CREATE TABLE price_problems (
+  line    INTEGER NOT NULL,
+  code    TEXT NOT NULL,
+  message TEXT NOT NULL,
+  fix     TEXT
+);
+
+-- The current price of an ingredient: its latest usable row, a same-day tie
+-- going to the later line (plan 03, Q7: one price, whatever the shop).
+CREATE VIEW current_price AS
+  SELECT p.* FROM prices p
+  WHERE p.usable = 1 AND NOT EXISTS (
+    SELECT 1 FROM prices q
+    WHERE q.ingredient = p.ingredient AND q.usable = 1 AND (q.date > p.date OR (q.date = p.date AND q.line > p.line))
+  );
+
 CREATE TABLE media (
   slug TEXT NOT NULL,
   kind TEXT NOT NULL,                   -- final | step
@@ -178,4 +211,5 @@ CREATE INDEX idx_or_key  ON ingredient_or(key);
 CREATE INDEX idx_names_key  ON ingredient_names(key);
 CREATE INDEX idx_names_skey ON ingredient_names(skey);
 CREATE INDEX idx_substitutes_sub ON substitutes(substitute);
+CREATE INDEX idx_prices_current ON prices(ingredient, usable, date, line);
 `;

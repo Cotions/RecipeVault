@@ -84,6 +84,10 @@ export const codeText: Readonly<Record<string, string>> = {
 	W809: 'Allergène hors de la liste : il est ignoré. Choisissez-en un de la liste.',
 	W810: 'Deux ingrédients portent le même nom : les recettes qui l’écrivent restent non reliées. Gardez-le sous un seul.',
 	W811: 'Champ inconnu dans la fiche d’ingrédient (une faute de frappe ?) : il est ignoré.',
+	E812: 'Le fichier des prix doit commencer par sa ligne de titres (date, ingredient, amount…) : aucun prix n’est lu.',
+	E813: 'Cette ligne du fichier des prix ne se lit pas (date, montant, format ou unité) : elle est ignorée.',
+	W814: 'Ce prix vise un ingrédient qui n’est pas au registre : il est gardé, mais ne sert pas.',
+	W815: 'Ce prix est dans une autre monnaie : il est affiché, mais ne compte pas dans le coût des recettes.',
 	E820: 'Une règle « when » de l’ingrédient est mal écrite : il lui faut des noms et au moins une condition (langue, unité ou mots).',
 	W821: 'Deux ingrédients ont une règle pour le même nom qui peut valoir sur la même ligne : ces recettes restent non reliées. Rendez les conditions distinctes.'
 };

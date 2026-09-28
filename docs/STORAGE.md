@@ -144,6 +144,27 @@ date,ingredient,amount,currency,pack_qty,pack_unit,shop,note
 - One CSV for the whole vault — a few thousand rows over years. Opens in any
   spreadsheet, which matters if prices are ever entered in bulk from receipts.
 
+Behaviour (plan 03, Phase 4, Q7–Q9):
+
+- The first line is the header; columns are found by name. `shop`, `note` and
+  `currency` may be empty (an empty `currency` is the config's). Numbers use a
+  dot (a decimal comma is read in a quoted cell); `pack_unit` is a canonical
+  unit (`VOCAB.md`); text holding a comma is quoted.
+- **One current price per ingredient** (Q7): the latest row by `date`
+  whatever the shop, a same-day tie going to the later line. The shop is a
+  label shown next to the price.
+- A row in another currency than the config's `currency` is kept and shown,
+  never used for cost. A row whose `ingredient` names no registry entry is kept
+  and used once the entry exists. A line that does not read is skipped and
+  reported with its line number. Codes `E812`–`W815` (`VALIDATION.md`, "Price
+  codes").
+- A price is **stale** once it is more than a year old: still used, flagged.
+- The app only appends, one line and one commit per price (Q9):
+  `price: <slug> <amount> / <pack_qty> <pack_unit>`, rolled back if the commit
+  fails. Prices are entered inline on the ingredient index, `/ingredients`
+  (Q8). A hand edit is picked up by the watcher or the next sync and committed
+  as `edit (external): prices.csv`.
+
 ### Vocabularies are data, not docs
 
 Tags, families, and units grow as she uses the app — a new family is created every

@@ -21,7 +21,17 @@ export interface Config {
 	gitPush: boolean;
 	/** Extra host names the app is reached on, besides the defaults (see hosts.ts). */
 	hosts: string[];
+	/** ISO 4217 code of the prices used for cost (plan 03, decision 2). */
+	currency: string;
+	/** BCP 47 locale for money formatting. */
+	locale: string;
+	/** Shop names suggested when entering a price, besides those already in prices.csv. */
+	shops: string[];
 }
+
+/** The owner's defaults (plan 03, decision 2): data in the config, not in the cost code. */
+export const DEFAULT_CURRENCY = 'CAD';
+export const DEFAULT_LOCALE = 'fr-CA';
 
 export class ConfigError extends Error {}
 
@@ -85,6 +95,13 @@ export function loadConfig(opts: ConfigEnv = {}): Config {
 	const hosts = raw.hosts ?? [];
 	if (!Array.isArray(hosts) || hosts.some((h) => typeof h !== 'string' || !h.trim()))
 		throw new ConfigError(`${file}: "hosts" must be a list of host names, like ["recettes.example.lan"].`);
+	const currency = raw.currency === undefined ? DEFAULT_CURRENCY : raw.currency;
+	if (typeof currency !== 'string' || !/^[A-Za-z]{3}$/.test(currency)) throw new ConfigError(`${file}: "currency" must be a three-letter code, like "CAD".`);
+	const locale = raw.locale === undefined ? DEFAULT_LOCALE : raw.locale;
+	if (typeof locale !== 'string' || !validLocale(locale)) throw new ConfigError(`${file}: "locale" must be a locale, like "fr-CA".`);
+	const shops = raw.shops ?? [];
+	if (!Array.isArray(shops) || shops.some((s) => typeof s !== 'string' || !s.trim()))
+		throw new ConfigError(`${file}: "shops" must be a list of shop names.`);
 	return {
 		file,
 		vaultDirectory: resolve(dir),
@@ -92,6 +109,17 @@ export function loadConfig(opts: ConfigEnv = {}): Config {
 		host: typeof raw.host === 'string' && raw.host ? raw.host : DEFAULT_HOST,
 		gitAuthor,
 		gitPush: raw.git_push !== false,
-		hosts: hosts as string[]
+		hosts: hosts as string[],
+		currency: currency.toUpperCase(),
+		locale,
+		shops: (shops as string[]).map((s) => s.trim())
 	};
+}
+
+function validLocale(locale: string): boolean {
+	try {
+		return Intl.NumberFormat.supportedLocalesOf([locale]).length > 0;
+	} catch {
+		return false;
+	}
 }

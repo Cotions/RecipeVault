@@ -9,6 +9,8 @@ import type { Diagnostic } from '../../vault/types';
 import { RECIPES, type VaultPaths } from '../vault';
 import { loadVocab, type VaultVocab } from '../vocab';
 import { syncRegistry, type RegistryReport } from '../registry';
+import { syncPrices, type PricesReport } from '../prices';
+import { DEFAULT_CURRENCY } from '../config';
 import { getResolver, reresolve } from './resolve';
 import type { DB } from './db';
 import { bodyOf, deleteRecipeRows, getMeta, recordProblem, refreshFamilies, retag, sha256, upsertRecipe } from './build';
@@ -26,6 +28,8 @@ export interface SyncReport {
 	problems: SyncProblem[];
 	/** The ingredient registry (ingredients/*.md). */
 	registry: RegistryReport;
+	/** prices.csv. */
+	prices: PricesReport;
 	ms: number;
 }
 
@@ -88,7 +92,7 @@ export function tagsHash(vocabDir: string): string {
 	return existsSync(f) ? sha256(readFileSync(f)) : '';
 }
 
-export function syncVault(db: DB, paths: VaultPaths, { force = false } = {}): SyncReport {
+export function syncVault(db: DB, paths: VaultPaths, { force = false, currency = DEFAULT_CURRENCY } = {}): SyncReport {
 	const t0 = performance.now();
 	const vocab = loadVocab(paths.vocab);
 	const files = existsSync(paths.recipes) ? readdirSync(paths.recipes).filter(isRecipeFile).sort() : [];
@@ -99,11 +103,13 @@ export function syncVault(db: DB, paths: VaultPaths, { force = false } = {}): Sy
 		removed: 0,
 		problems: [],
 		registry: { files: 0, loaded: 0, removed: 0, changed: false, problems: [] },
+		prices: { rows: 0, changed: false, skipped: 0 },
 		ms: 0
 	};
 	const present = new Set(files.map((f) => `${RECIPES}/${f}`));
 	db.transaction(() => {
 		report.registry = syncRegistry(db, paths, vocab, { force });
+		report.prices = syncPrices(db, paths, currency, { force });
 		for (const f of files) {
 			const outcome = syncFile(db, paths, `${RECIPES}/${f}`, vocab, force);
 			if (outcome === 'indexed') report.indexed++;

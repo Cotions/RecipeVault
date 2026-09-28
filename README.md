@@ -62,6 +62,8 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 | `/r/<slug>` | a recipe: servings adjuster, print view, Vérifié, Supprimer, the raw file |
 | `/r/<slug>/cuisine` | kitchen mode: screen kept on, checklist, one step at a time, timers, offline |
 | `/familles`, `/famille/<slug>` | families and the variant diff table |
+| `/ingredients` | the ingredient registry with current prices; inline price entry, sorted by what to price first |
+| `/resoudre` | ingredient names not linked to the registry, most frequent first |
 | `/ajouter` | the paste box: live checks, fix-request block, web import |
 | `/corbeille` | the trash, with restore |
 

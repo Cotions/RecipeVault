@@ -17,7 +17,10 @@ network is the boundary. See `DATA-FLOW.md`, "Authentication".
   "host": "0.0.0.0",
   "git_author": { "name": "Your Name", "email": "you@example.com" },
   "git_push": true,
-  "hosts": ["recettes.maison.lan"]
+  "hosts": ["recettes.maison.lan"],
+  "currency": "CAD",
+  "locale": "fr-CA",
+  "shops": ["Épicerie du coin"]
 }
 ```
 
@@ -34,6 +37,12 @@ the vault. Always accepted without configuration: `localhost`, any IP address
 and any Tailscale `*.ts.net` name. Anything else — a router DNS name, a
 `/etc/hosts` alias — goes in `hosts`, exactly or as `*.maison.lan`; otherwise
 the page answers `421 Unknown host`.
+
+`currency` (default `"CAD"`) is the currency of the prices used for cost: a
+`prices.csv` row in another currency is shown but never costed. `locale`
+(default `"fr-CA"`) formats money (`0,89 $`). `shops` (optional) are shop names
+suggested when entering a price, after the shops already in `prices.csv`
+(plan 03, decision 2: none of this is in the code).
 
 `host: "127.0.0.1"` keeps the app off the LAN entirely, reachable only through
 Tailscale (step 4) — the stricter choice.

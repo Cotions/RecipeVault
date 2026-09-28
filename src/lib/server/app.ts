@@ -20,8 +20,8 @@ let app: App | undefined;
 export function startApp(): App {
 	if (app) return app;
 	const config = loadConfig();
-	const ctx = openVault({ root: config.vaultDirectory, author: config.gitAuthor, push: config.gitPush });
-	const startup = syncVault(ctx.db, ctx.paths);
+	const ctx = openVault({ root: config.vaultDirectory, author: config.gitAuthor, push: config.gitPush, currency: config.currency });
+	const startup = syncVault(ctx.db, ctx.paths, { currency: ctx.currency });
 	console.log(
 		`recipevault: vault ${config.vaultDirectory} — ${startup.scanned} recipes, ${startup.indexed} (re)indexed, ${startup.problems.length} with errors (${startup.ms} ms)`
 	);

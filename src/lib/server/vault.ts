@@ -13,6 +13,7 @@ export const VOCAB = 'vocab';
 export const MEDIA = 'media';
 export const TRASH = '_trash';
 export const CACHE = 'cache';
+export const PRICES = 'prices.csv';
 
 export interface VaultPaths {
 	root: string;
@@ -24,6 +25,7 @@ export interface VaultPaths {
 	cache: string;
 	index: string;
 	pasteLog: string;
+	prices: string;
 }
 
 export function vaultPaths(root: string): VaultPaths {
@@ -36,7 +38,8 @@ export function vaultPaths(root: string): VaultPaths {
 		trash: join(root, TRASH),
 		cache: join(root, CACHE),
 		index: join(root, CACHE, 'index.db'),
-		pasteLog: join(root, CACHE, 'paste-log.jsonl')
+		pasteLog: join(root, CACHE, 'paste-log.jsonl'),
+		prices: join(root, PRICES)
 	};
 }
 

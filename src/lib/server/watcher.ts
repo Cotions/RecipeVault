@@ -17,6 +17,7 @@ import { INGREDIENTS, RECIPES, VOCAB } from './vault';
 import { loadVocab } from './vocab';
 import { syncRegistry } from './registry';
 import { getResolver, reresolve } from './index/resolve';
+import { syncPrices } from './prices';
 
 export interface WatcherOptions {
 	debounceMs?: number;
@@ -125,6 +126,10 @@ export class Watcher {
 				return;
 			}
 		}
+		// prices.csv: reload the table; lines that do not read are skipped and
+		// listed, the file is still committed (it is data, one bad line does not
+		// make the others wrong).
+		if (kind === 'prices') ctx.db.transaction(() => syncPrices(ctx.db, ctx.paths, ctx.currency))();
 		const committed = await this.commitIfDirty(rel, `${text === undefined ? 'delete' : 'edit'} (external): ${rel}`);
 		this.opts.onHandled?.(rel, committed ? 'committed' : 'unchanged');
 	}

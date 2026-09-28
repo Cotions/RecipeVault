@@ -118,6 +118,18 @@ Writes of every kind (recipes, family labels, ingredients) go through one helper
 `src/lib/server/files.ts`. The nav shows "À relier (N)" while N > 0; `vault
 queue [--limit N]` prints the same queue.
 
+### Price entry: the ingredient index
+
+`/ingredients` (plan 03, Phase 4) lists every registry entry with its category,
+the recipes using it as a main ingredient line, and its current price. The
+default order is the order to enter prices in: unpriced first, then the most
+recipes. Each row opens an inline editor (amount, pack size and unit — the
+entry's `default_unit` by default —, shop, date — today by default). Saving
+appends one line to `prices.csv` and commits it alone as `price: <slug>
+<amount> / <pack_qty> <pack_unit>`, through the same helper (atomic write,
+rollback on a failed commit, recorded as the app's own write); then the
+`prices` rows are reloaded. Enter saves and opens the next row.
+
 ### Concurrent edit
 
 Files mean last-write-wins, which silently eats an edit. Cheap guard: every
@@ -177,13 +189,16 @@ and rebuilt (it is a cache). In outline:
 | `families` | family in use or in `vocab/families.yaml` | labels from the vocabulary; refreshed on every save, delete, restore, outside edit and sync |
 | `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten. A vocabulary change recomputes every row and the FTS `tags` column |
 | `seasons` | recipe × season | canonical value (`printemps`, `ete`, `automne`, `hiver`); aliases from `VOCAB.md` mapped at index time |
-| `meta` | key | index bookkeeping: `tags_hash`, the hash of `vocab/tags.yaml` at the last retag; `registry_hash`, over every ingredient file's hash plus `vocab/normalize.yaml` and `vocab/allergens.yaml` |
+| `meta` | key | index bookkeeping: `tags_hash`, the hash of `vocab/tags.yaml` at the last retag; `registry_hash`, over every ingredient file's hash plus `vocab/normalize.yaml` and `vocab/allergens.yaml`; `prices_hash`, over `prices.csv` and the config's `currency` |
 | `ingredients` | ingredient item | `group_idx`, `group_name`, `group_optional`, `qty`, `qty_max` (numeric), `qty_s` (as written), `unit`, `name` (as written), `optional`, `to_taste`, `recipe` (sub-recipe slug), `buy_instead`, `key` (lookup key), `item` (registry slug, NULL when unresolved), `resolution` (`override`, `rule`, `alias`, `plural`, `none`, `ambiguous`, `recipe`; `INGREDIENTS.md` "Resolution") |
 | `ingredient_or` | `or` option of an ingredient item | `position` (the item's), `alt_idx`, `name`, `recipe`, `key`, `item`, `resolution`, resolved like an item |
 | `media` | recipe × media file | |
 | `registry` | ingredient file (`ingredients/<slug>.md`) | `name` (display), `category`, `staple`, `au_gout`, `density`, `default_unit`, `entry_json` (the parsed entry), `file_hash`; a file that stops passing its check keeps its last good row |
 | `ingredient_names` | alias of an entry | `key` (lookup key, `INGREDIENTS.md` "Resolution"), `skey` (the key with the plural rules of `vocab/normalize.yaml`), `slug`, `lang`, `name` as written |
 | `substitutes`, `ingredient_allergens` | entry × substitute, entry × allergen | |
+| `prices` | `prices.csv` row that reads | `line` (its line number), `date`, `ingredient`, `amount`, `currency`, `pack_qty`, `pack_unit`, `shop`, `note`, `usable` (1 when in the config's `currency`); rebuilt whole when the file or the currency changed |
+| `price_problems` | `prices.csv` line that does not read | `line`, `code` (`E812`, `E813`), message |
+| `current_price` (view) | ingredient with a usable row | its latest usable row, a same-day tie going to the later line |
 | `registry_problems` | ingredient file with diagnostics | codes `E801`–`W811`; `broken = 1` when it has an error |
 | `recipes_fts` | recipe | FTS5 over title, body, ingredient names, author, tags |
 
@@ -232,7 +247,9 @@ row is re-resolved from its stored `key` (set-based, no recipe file read), like
 a retag. Rows whose key a disambiguation rule names (`INGREDIENTS.md`,
 "Disambiguation rules") also need the line's unit, prep and note: they are
 re-resolved one by one from the recipe's stored parse (`data_json`), still
-without reading a recipe file. `vault reindex` deletes the index and rebuilds it.
+without reading a recipe file. `prices.csv` is reloaded whole when it or the
+config's `currency` changed (`meta.prices_hash`); lines that do not read are
+listed. `vault reindex` deletes the index and rebuilds it.
 
 With hashing, a no-op sync over 5000 files is a couple of seconds. Run it on app
 startup so hand-edits in a text editor are always picked up.
@@ -253,7 +270,9 @@ and `prices.csv`:
   passes its check (no `E8xx` error; one that fails keeps its last good rows,
   is flagged and is not committed, like a recipe), YAML, or text respectively.
   A vocabulary change re-derives the tag and family rows; an ingredient file,
-  `vocab/normalize.yaml` or `vocab/allergens.yaml` change reloads the registry.
+  `vocab/normalize.yaml` or `vocab/allergens.yaml` change reloads the registry;
+  a `prices.csv` change reloads the prices (a line that does not read is
+  skipped and listed; the file is still committed).
 - If it does not: keep the last good index rows, flag the recipe in the UI with the
   validation errors, and do not commit. A half-typed edit in Obsidian must never
   knock a recipe out of search.

@@ -201,6 +201,21 @@ a recipe; warnings leave it in use.
 | E820 | app | a `when` rule (`INGREDIENTS.md`, "Disambiguation rules") is malformed: not a list of mappings, no `names`, an unknown key, a `lang` other than `fr`/`en`, a `unit` value that is neither a canonical unit nor a unit class, empty `words`, or no condition at all |
 | W821 | app | two entries have rules for one name that can hold on the same line (their languages, units and words all meet) — such lines stay unresolved (ambiguous) |
 
+## Price codes
+
+Problems in `prices.csv` (`STORAGE.md`, "Prices are an append-only log"; plan
+03, Phase 4). The file is data, not a recipe: a problem is reported with its
+line number rather than a path. A line that does not read is skipped; the
+others are used. They show in `vault check --dir <vault>`, `vault sync`, and on
+the ingredient index (`/ingredients`). The watcher still commits the file.
+
+| Code | Fixed by | Condition |
+|---|---|---|
+| E812 | app | the first line is not the header, or the header lacks `date`, `ingredient`, `amount`, `pack_qty` or `pack_unit` — no row is read |
+| E813 | app | a line does not read — skipped: more cells than columns (an unquoted comma), `date` not YYYY-MM-DD, `ingredient` not a slug, `amount` or `pack_qty` not a positive number, `pack_unit` not a canonical unit, `currency` not a three-letter code. An empty `currency` is the config's |
+| W814 | app | the row's `ingredient` names no registry entry — kept, used once the entry exists |
+| W815 | app | the row's `currency` is not the config's `currency` — shown, never used for cost |
+
 `E210` and `E211` are heuristics, deliberately hard errors rather than warnings.
 They catch the two AI mistakes that quietly corrupt the ingredient index, and a
 false positive costs one manual override — far cheaper than discovering at recipe
