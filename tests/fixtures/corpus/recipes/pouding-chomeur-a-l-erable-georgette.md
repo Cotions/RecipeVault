@@ -1,0 +1,49 @@
+---
+schema: 3
+title: Pouding chômeur à l’érable
+slug: pouding-chomeur-a-l-erable-georgette
+lang: fr
+family: pouding-chomeur
+variant: georgette
+source:
+  type: family
+  author: Georgette
+  note: carte recette écrite au crayon
+times:
+  cook: 45m
+oven: { temp: 350, unit: F }
+servings: 8
+tags: [dessert, four, quebecois]
+difficulty: 1
+rating: 5
+ingredients:
+  - group: Sirop
+    items:
+      - { qty: 1, unit: cup, name: cassonade pâle }
+      - { qty: 2, unit: cup, name: eau, note: bouillante }
+  - group: Pâte
+    items:
+      - { qty: "1/4 [?]", unit: cup, name: beurre }
+      - { qty: 1, unit: cup, name: sucre }
+      - { qty: 1, unit: piece, name: oeuf }
+      - { qty: 1, unit: cup, name: farine tout usage }
+      - { qty: 2, unit: tsp, name: poudre à pâte }
+      - { qty: "1/4", unit: tsp, name: sel }
+      - { qty: "3/4", unit: cup, name: lait }
+      - { qty: 1, unit: tsp, name: extrait de vanille }
+status: needs-review
+added: 2026-01-28
+extracted_by: ai
+---
+
+## Préparation
+
+1. Faire bouillir la cassonade et l’eau quelques minutes. Ajouter le beurre.
+2. Crémer le beurre et le sucre. Ajouter l’oeuf.
+3. Ajouter la farine, la poudre à pâte et le sel en alternant avec le lait.
+4. Étendre la pâte dans un plat beurré et verser le sirop chaud par-dessus.
+5. Cuire au four à 350 °F, 45 minutes. La pâte remonte et le sirop reste au fond.
+
+## Notes
+
+Matante le fait avec du sirop d’érable au printemps.
