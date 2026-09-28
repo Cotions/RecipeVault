@@ -799,6 +799,64 @@ Tests: a fixture per code (valid and invalid), the test that every code has a
 fixer and a French text, and one check that the browser and server results
 agree on W302/W304/W607.
 
+**Implementation notes (Phase 8).**
+
+- *Word lists (Q22 A).* `docs/VOCAB.md` gained "Preparation words", "Size words"
+  and "Brands"; `seedVocab` writes them as `vocab/participles.yaml`,
+  `descriptors.yaml` and `brands.yaml`, and `writeMissingVocab` adds them to an
+  older vault without overwriting. Each file is `words:` (a list, or lists per
+  language, all applied since a card may mix languages) plus `keep:`, the names
+  in which a listed word is part of the product (*porc haché*, *gros sel*,
+  *petits pois*, *Kraft Dinner*). Brands that are the product's own name
+  (*Jell-O*, *Philadelphia*, *Cheez Whiz*) are not listed at all. The matching
+  code (`src/lib/vault/words.ts`, `rules/names.ts`) is browser-safe and holds no
+  words; a missing or malformed list turns its check off. The paste page gets the
+  lists from `src/routes/ajouter/+page.server.ts`, so its live check equals
+  `/api/check` (tested through JSON).
+- *Deviation from the letter of VALIDATION.md.* W302 and W304 match a listed
+  word at the start **or** the end of the name, with other words left: French
+  puts the participle or size after the noun, English before it. A word in the
+  middle (*oignon haché fin*) is not flagged — that shape is already rare and the
+  risk of a false hit on a product name is higher there. W607 matches anywhere.
+  VALIDATION.md now says this.
+- *W501 / W502 (Q23 A).* Computed from vocab plus the index, in the server check,
+  the save result and on the recipe page (`recipeVocabDiagnostics`,
+  `src/lib/server/checkopts.ts`), with no stored rows: a `tags.yaml` edit is
+  re-derived through `retag` and families through the `families` table on the
+  next sync, and the page never reads the recipe file for them. Families =
+  `families.yaml` keys ∪ families in use. On the page a recipe's own use of its
+  family is left out, so a family only that recipe uses is compared with the
+  others; an existing family never warns. W501 suggests the closest canonical tag
+  (≤ 2 edits and under half its length). Tag lookup is shared with the index
+  (`tagFor`), so aliases and spaces-for-hyphens count as known.
+- *W606 (Q21 A).* `registry.au_gout` drives it (`src/lib/ingredients/totaste.ts`).
+  Only lines the resolver resolves are judged, sub-recipes never. It runs in
+  `/api/check` and the save result, not on the recipe page (a family card's
+  *farine au goût* is not worth a permanent banner).
+- *Fixers* (unchanged from `codes.ts`): W302, W304, W607 `ai` — the AI moves the
+  word to `prep`, `note` or `brand` (rule 10), and the fix text gives the exact
+  entry. W606 `ai` — the AI drops `to_taste` (rule 13); it reaches the fix block
+  through `/api/check`. W501, W502 `app` — the AI cannot see the vault's
+  vocabulary or families; the person settles them in the app or in `vocab/`.
+- *CLI.* `vault check` uses a vault's own lists and tags when given one, else the
+  seed lists from `docs/VOCAB.md`; W502 and W606 are left to the app.
+- *Corpus (320 invented cards, seed lists, tags and registry):* W302 3, W304 0,
+  W501 13 (all the tag `tarte`, not in the seed vocabulary), W502 0, W606 0,
+  W607 3 (*graisse Crisco* / *Tenderflake*); no errors
+  (`tests/check-corpus.test.ts`).
+- *Template, draft 3.3 (Q24 B).* Rule 10: the name in the source's own words —
+  no article, not translated or modernized, singular or plural as written, and
+  lowercase except proper nouns (the refinement: *blé d'Inde*, *Jell-O*). Rule
+  15: a sub-recipe gives `yield: { qty, unit }` when the source says how much it
+  makes and the parent's line uses that unit; rule 22 points to it. Re-running
+  sources 01, 02, 03, 08, 13 and 15: structured yield used, every preparation in
+  `prep`, one W607 kept on purpose; rule 15's example changed to a covered tarte
+  (`qty: 2`) after the run.
+- *Corpus generator.* The pâte-à-tarte dish writes its "2/3 abaisses" yields as
+  `{ qty, unit: piece, note: abaisses }` (`yieldObjects`, no new random draw, 6
+  files changed). Cost on the corpus: sub-recipe lines left unpriced 19 → 1,
+  flattened lines 0 → 103, recipes with a figure 98 → 108 of 320.
+
 ### Phase 9 — scale, docs, report
 
 1. `scripts/gen-vault.ts` also writes an invented registry of ~1000 entries

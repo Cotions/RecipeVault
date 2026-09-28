@@ -9,7 +9,7 @@ source:
   type: family
   author: Tante Gisèle
   note: carte de la boîte à recettes en métal
-yield: 2 abaisses
+yield: { qty: 2, unit: piece, note: abaisses }
 tags: [dessert, four, quebecois]
 difficulty: 2
 ingredients:

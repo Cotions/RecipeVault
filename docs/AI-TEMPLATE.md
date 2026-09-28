@@ -1,9 +1,10 @@
 # Master template — the prompt given to an AI to produce a recipe file
 
-Draft 3.2. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
+Draft 3.3. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
 years old, through a free chat AI); draft 3 after round 2, the same ten re-run with
 draft 2; draft 3.1 after the checker's first run; draft 3.2 after the decisions on
-the checker's stress test. What changed and why is at the end.
+the checker's stress test; draft 3.3 after the ingredient registry (plan 03). What
+changed and why is at the end.
 
 This file is the contract. The parser, the validator, cost, and pantry search all
 assume output matching it exactly.
@@ -104,6 +105,10 @@ INGREDIENTS — in frontmatter, never as prose bullets
       "Cool Whip", "Jell-O", "Minute Rice" → keep as the name
     Never replace a brand with what you think the product is — the app maps
     names to products.
+    Write the name in the source's own words: no article ("farine", not
+    "de la farine"), not translated, not modernized ("piment vert" stays
+    "piment vert", "oléo" stays "oléo"), singular or plural as written,
+    lowercase except proper nouns ("blé d'Inde", "Jell-O").
 11. Size of a can or pack goes in note: { qty: 1, unit: can, name: tomates,
     note: "796 ml" }. A size printed in two measures keeps both, the second
     in parentheses: note: "19 oz (540 ml)". One size only — an alternative
@@ -126,7 +131,16 @@ INGREDIENTS — in frontmatter, never as prose bullets
     at the end of the method — not as a "Suggestion:" step. A suggestion with
     no ingredients goes in ## Notes.
 15. If an ingredient is another recipe on the same source ("pâte, voir p. 12"),
-    add recipe: with that recipe's slug.
+    add recipe: with that recipe's slug. When the source says how much that
+    other recipe makes, give it yield: { qty, unit } instead of text, and
+    write the line that uses it in the same unit:
+      pâte brisée, "donne 2 abaisses" → yield: { qty: 2, unit: piece, note: abaisses }
+      a covered tarte (bottom and top) → { qty: 2, unit: piece, name: pâte brisée,
+                                          recipe: pate-brisee }
+      sauce, "donne 2 tasses"         → yield: { qty: 2, unit: cup }
+      the line using half of it       → { qty: 1, unit: cup, name: sauce brune,
+                                          recipe: sauce-brune }
+    Never invent a yield the source does not give.
 
 FRONTMATTER
 16. First line is always schema: 3.
@@ -139,7 +153,8 @@ FRONTMATTER
     Keys: prep, cook, rest. What the rest is for ("au frigo") goes in the steps.
 21. oven: { temp: 350, unit: F } when a temperature is given. Range: temp_max.
 22. servings: an integer; range with servings_max. Things not counted in
-    portions ("24 biscuits", "1 moule 9x13") go in yield: as text instead.
+    portions ("24 biscuits", "1 moule 9x13") go in yield: as text instead —
+    except a recipe another one uses, whose yield is { qty, unit } (rule 15).
 23. source: everything the source says about where the recipe came from.
       type: family | book | website | magazine | tv | invented
       author: the person the recipe comes from — a name in the corner of a card,
@@ -326,6 +341,17 @@ Draft 3.2 — decisions on cases the checker's stress test (invented files) and 
 | A bare marker on `qty`, `unit`, `source.type` or a time was told "wrap it in quotes", and the quoted value failed again | An unreadable number, unit, type or time is left out and asked about (rule 2, rule 4); the checker's fix says so |
 | A `source` with an author and a note but no `type` was rejected (`E106`), pushing the AI to guess a type | `type` optional; left out when the kind of source is not evident (rule 23) |
 | `source.url` held a bare domain, a site name or a `javascript:` address, and nothing flagged it | `url` is the full `http(s)://` address (rule 23); anything else is `E114` |
+
+Draft 3.3 — the ingredient registry (`docs/plans/03-ingredients.md`): resolution
+measured on an invented corpus of 320 cards, and the checker codes that needed the
+registry and the vault's word lists turned on:
+
+| Found | Fix |
+|---|---|
+| Stray articles (*de la farine*) and "corrected" names (*poivron* for *piment vert*, singular for a plural written on the card) are the variations the ingredient resolver cannot fold safely: an article or a translation turns a known name into an unresolved one, and a regional word is exactly what the registry's aliases are for (plan 03, Q24) | Rule 10: the name in the source's own words — no article, not translated or modernized, singular or plural as written, lowercase except proper nouns |
+| No sub-recipe in the corpus could be costed: its `yield` was text (`"2 abaisses"`) or absent, and the parent wrote `{ qty: 1, unit: piece, recipe: … }`, so cost had nothing to scale by. Against `servings: 8` a `1 piece` line would have cost one portion where the card meant one crust | Rule 15: a recipe used as a sub-recipe gives `yield: { qty, unit }` when the source says how much it makes, and the parent's line uses the same unit. Rule 22 points to it |
+| Re-run of sources 01, 02, 03, 08, 13 and 15 with this draft: the pâte brisée came back with `yield: { qty: 2, unit: piece, note: abaisses }` and the tarte's line in `piece`; every preparation went to `prep` (*oignon, prep: râpé*; *oignons, prep: hachés fin*). The only name warning was W607 on *graisse Crisco*, which the answer kept whole on purpose. Unsolved, and not new: two oven stages, a sub-recipe on another card, water "to complete to 1/2 cup" (written as a note, E216) | Rule 15's example said `qty: 1` for the tarte, which read wrong for a covered pie that uses both crusts: the example now uses a covered tarte, `qty: 2` |
+| W302 (preparation in `name`), W304 (size), W607 (brand) and W606 (`to_taste` on something not seasoning or fat) are now checked, from the vault's word lists and ingredient registry | No change: rules 10 and 13 already ask for it, and each warning's fix names the field to use |
 
 ## Failure modes to watch for
 

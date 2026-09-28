@@ -54,6 +54,12 @@ export interface Dish {
   servings?: number[];
   yields?: string[];
   yieldsEn?: string[];
+  /**
+   * A yield written as `{ qty, unit }`, the way AI-TEMPLATE.md draft 3.3
+   * (rule 15) asks of a recipe used as a sub-recipe: the text form → the object.
+   * Yields not listed stay text, as a draft 3.2 transcription wrote them.
+   */
+  yieldObjects?: Record<string, string>;
   difficulty: number[];
   groups: Group[];
   steps: string[];
@@ -91,6 +97,10 @@ export const DISHES: Dish[] = [
     tags: ["dessert", "four", "quebecois"],
     yields: ["2 abaisses", "3 abaisses", "4 abaisses doubles", "pour 2 tartes"],
     yieldsEn: ["2 double crusts", "pastry for 3 pies"],
+    yieldObjects: {
+      "2 abaisses": "{ qty: 2, unit: piece, note: abaisses }",
+      "3 abaisses": "{ qty: 3, unit: piece, note: abaisses }",
+    },
     difficulty: [2, 3],
     groups: [
       {

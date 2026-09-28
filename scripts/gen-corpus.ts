@@ -574,8 +574,10 @@ function generate(dish: Dish, lang: Lang, ctx: Ctx): Generated {
     fm.push(`servings: ${marks.servings ? `"${s} [?]"` : s}`);
     if (marks.servings) uncertain = true;
     if (chance(0.15)) fm.push(`servings_max: ${s + 2}`);
-  } else if (yields.length && chance(0.85))
-    fm.push(`yield: ${y(pick(yields))}`);
+  } else if (yields.length && chance(0.85)) {
+    const yv = pick(yields);
+    fm.push(`yield: ${dish.yieldObjects?.[yv] ?? y(yv)}`);
+  }
 
   let tags = [...dish.tags];
   if (tags.length > 3 && chance(0.3)) tags.splice(int(0, tags.length - 1), 1);

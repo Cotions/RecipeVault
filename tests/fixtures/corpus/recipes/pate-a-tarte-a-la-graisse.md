@@ -6,7 +6,7 @@ lang: fr
 source:
   type: family
   author: Matante Pierrette
-yield: 3 abaisses
+yield: { qty: 3, unit: piece, note: abaisses }
 tags: [dessert, four, quebecois]
 difficulty: 2
 rating: 4

@@ -5,7 +5,7 @@ slug: pate-brisee
 source:
   type: family
   author: Mononc’ Réal
-yield: 2 abaisses
+yield: { qty: 2, unit: piece, note: abaisses }
 tags: [dessert, four, quebecois]
 difficulty: 2
 ingredients:

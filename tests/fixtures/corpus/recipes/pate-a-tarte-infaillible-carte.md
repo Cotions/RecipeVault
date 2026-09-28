@@ -7,7 +7,7 @@ source:
   type: tv
   title: Midi-Cuisine (Télé-Coteau)
   note: "émission du vendredi, recopiée pendant l’émission"
-yield: 3 abaisses
+yield: { qty: 3, unit: piece, note: abaisses }
 tags: [dessert, four, quebecois]
 difficulty: 3
 ingredients:

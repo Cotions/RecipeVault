@@ -6,7 +6,7 @@ source:
   type: family
   author: Maman
   note: "écriture de Mémère, encre bleue"
-yield: 2 abaisses
+yield: { qty: 2, unit: piece, note: abaisses }
 tags: [dessert, four, quebecois]
 difficulty: 3
 ingredients:

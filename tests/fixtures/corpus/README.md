@@ -2,7 +2,10 @@
 
 About 320 recipe files in the vault format (`schema: 3`). They are written the way a
 chat AI following `docs/AI-TEMPLATE.md` (draft 3.2) would transcribe a Québécois
-family's recipe cards from 1990 to 2000. The corpus is the test bed for the
+family's recipe cards from 1990 to 2000. One draft 3.3 rule is applied: the pastry
+recipes that others use as sub-recipes give `yield: { qty, unit }` when they make
+2 or 3 crusts (rule 15, `yieldObjects` in `scripts/corpus/dishes.ts`), so their
+parents' cost can scale; other yields stay text. The corpus is the test bed for the
 ingredient registry (plan 03, P1.5): resolution, the answer key, and pantry search.
 
 **Everything here is invented.** The people, the card notes, the books, magazines
