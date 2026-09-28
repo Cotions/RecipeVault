@@ -16,6 +16,7 @@ import { isRecipeFile, syncFile, tagsHash, type FileOutcome } from './index/sync
 import { INGREDIENTS, RECIPES, VOCAB } from './vault';
 import { loadVocab } from './vocab';
 import { syncRegistry } from './registry';
+import { getResolver, reresolve } from './index/resolve';
 
 export interface WatcherOptions {
 	debounceMs?: number;
@@ -115,7 +116,7 @@ export class Watcher {
 					retag(ctx.db, vocab, tagsHash(ctx.paths.vocab));
 					refreshFamilies(ctx.db, vocab);
 				}
-				syncRegistry(ctx.db, ctx.paths, vocab);
+				if (syncRegistry(ctx.db, ctx.paths, vocab).changed) reresolve(ctx.db, getResolver(ctx.db, vocab));
 			})();
 			// An ingredient file with errors keeps its last good rows and is not
 			// committed, like a recipe (docs/DATA-FLOW.md, "File watcher").

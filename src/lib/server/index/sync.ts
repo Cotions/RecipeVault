@@ -9,6 +9,7 @@ import type { Diagnostic } from '../../vault/types';
 import { RECIPES, type VaultPaths } from '../vault';
 import { loadVocab, type VaultVocab } from '../vocab';
 import { syncRegistry, type RegistryReport } from '../registry';
+import { getResolver, reresolve } from './resolve';
 import type { DB } from './db';
 import { bodyOf, deleteRecipeRows, getMeta, recordProblem, refreshFamilies, retag, sha256, upsertRecipe } from './build';
 
@@ -121,6 +122,9 @@ export function syncVault(db: DB, paths: VaultPaths, { force = false } = {}): Sy
 		const hash = tagsHash(paths.vocab);
 		if (force || getMeta(db, 'tags_hash') !== hash) retag(db, vocab, hash);
 		refreshFamilies(db, vocab);
+		// The registry changed while the app was down: unchanged recipe files
+		// were skipped above, so re-resolve every row from its lookup key.
+		if (report.registry.changed) reresolve(db, getResolver(db, vocab));
 	})();
 	const problems = db.prepare('SELECT file_path, diagnostics FROM problems ORDER BY file_path').all() as { file_path: string; diagnostics: string }[];
 	report.problems = problems.map((p) => ({

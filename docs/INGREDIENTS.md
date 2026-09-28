@@ -75,17 +75,40 @@ the feature is worthless. This one boolean is the difference between a usable
 ### Resolution: recipe `name` to registry `slug`
 
 Recipes are written with a human `name`. The AI generating them does not know the
-registry. So on save:
+registry. So at index time (on save, on sync, on an external edit):
 
-1. Normalize the written name — lowercase, strip accents, strip plurals.
-2. Look it up in the `ingredient_names` index (every alias of every ingredient).
-3. Exact alias hit → resolved. The result goes in the index only; it is never
-   written back into the recipe file (see `STORAGE.md`).
-4. No hit → fuzzy match (trigram) and offer the top candidates in the UI:
-   link to an existing ingredient, or create a new registry entry from this name.
-5. Still unresolved → unresolved in the index, recipe flagged `needs-review`. The recipe still
-   saves and renders; it is only missing from cost totals and pantry search until
+1. **Lookup key.** The written name with markers stripped (`[?]`, `[illisible]`…),
+   apostrophe and hyphen variants unified, then folded (lowercase, no accents,
+   `œ` → `oe`), spaces around `'` and `-` removed, and `35 %` written `35%`.
+2. **`item:` override.** An entry with `item:` is taken as written. If no
+   `ingredients/<item>.md` exists: W307.
+3. **Sub-recipe.** An entry with `recipe:` resolves to no registry item
+   (`resolution = recipe`); the sub-recipe's own ingredients count instead.
+4. **Exact key.** The key matches an alias (`ingredient_names.key`) of exactly
+   one entry → resolved (`alias`). A key that is an alias of two or more entries
+   is **ambiguous** and never auto-resolved.
+5. **Singular key.** Each word is singularized with the recipe language's rules
+   in `vocab/normalize.yaml` (see `VOCAB.md`, "Plurals"); a match with the
+   singular key of exactly one entry → resolved (`plural`). Two entries → not
    resolved.
+6. **Otherwise unresolved.** The resolve queue offers the top fuzzy candidates:
+   trigram similarity (Jaccard over padded word trigrams of the singular keys),
+   best first, at most **3**, none below **0.3** (`FUZZY` in
+   `src/lib/ingredients/resolve.ts`, tuned on `tests/fixtures/corpus`). A candidate
+   is **never** taken automatically: a wrong resolution poisons every total that
+   includes it. An ambiguous key's candidates are the entries sharing it.
+
+The result goes in the index only (`ingredients.key`, `.item`, `.resolution`, and
+the same for each `or` option in `ingredient_or`); it is never written back into
+the recipe file (see `STORAGE.md`). A registry change re-resolves every indexed
+row from its stored key, without reading a recipe file.
+
+Unresolved names are reported as W305 (a candidate is waiting in the resolve
+queue) or W303 (nothing close). They do **not** change the recipe's `status`
+(plan 03, Q3): the recipe saves and renders, lists them under "Ingrédients non
+reliés" on its page, and can be found with the browse filter *Ingrédients : non
+reliés au registre*. It is only missing from cost totals and pantry search until
+resolved.
 
 Unresolved ingredients must never block saving a recipe. A recipe with an unknown
 ingredient is still a recipe; losing it to a validation wall would be worse than an

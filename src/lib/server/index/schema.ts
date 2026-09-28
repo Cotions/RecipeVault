@@ -4,7 +4,7 @@
 // (Vite) load it the same way.
 
 /** Bump on any change below: the index is then rebuilt from scratch. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const SCHEMA_SQL = `
 CREATE TABLE recipes (
@@ -76,12 +76,30 @@ CREATE TABLE ingredients (
   group_optional INTEGER NOT NULL DEFAULT 0,
   qty        REAL,
   qty_max    REAL,
+  qty_s      TEXT,                      -- qty as written ("1 1/2"), for display
   unit       TEXT,
   name       TEXT NOT NULL,             -- as written
   optional   INTEGER NOT NULL DEFAULT 0,
+  to_taste   INTEGER NOT NULL DEFAULT 0,
   recipe     TEXT,                      -- sub-recipe slug
-  item       TEXT NOT NULL,             -- normalized name (P1.5: registry resolution)
+  buy_instead INTEGER NOT NULL DEFAULT 0,
+  key        TEXT NOT NULL,             -- lookup key (docs/INGREDIENTS.md, Resolution 1)
+  item       TEXT,                      -- the resolved registry slug, NULL when unresolved
+  resolution TEXT NOT NULL,             -- override | alias | plural | none | ambiguous | recipe
   PRIMARY KEY (slug, position)
+);
+
+-- The \`or\` options of an ingredient entry, resolved the same way.
+CREATE TABLE ingredient_or (
+  slug       TEXT NOT NULL,
+  position   INTEGER NOT NULL,          -- the entry's position in ingredients
+  alt_idx    INTEGER NOT NULL,
+  name       TEXT NOT NULL,
+  recipe     TEXT,
+  key        TEXT NOT NULL,
+  item       TEXT,
+  resolution TEXT NOT NULL,
+  PRIMARY KEY (slug, position, alt_idx)
 );
 
 -- The ingredient registry, ingredients/<slug>.md (docs/INGREDIENTS.md). A file
@@ -151,6 +169,9 @@ CREATE INDEX idx_recipes_updated ON recipes(updated);
 CREATE INDEX idx_tags_tag        ON tags(tag);
 CREATE INDEX idx_ingredients_item ON ingredients(item);
 CREATE INDEX idx_ingredients_recipe ON ingredients(recipe);
+CREATE INDEX idx_ingredients_key ON ingredients(key);
+CREATE INDEX idx_or_item ON ingredient_or(item);
+CREATE INDEX idx_or_key  ON ingredient_or(key);
 CREATE INDEX idx_names_key  ON ingredient_names(key);
 CREATE INDEX idx_names_skey ON ingredient_names(skey);
 CREATE INDEX idx_substitutes_sub ON substitutes(substitute);

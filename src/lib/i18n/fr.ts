@@ -68,8 +68,10 @@ export const fr = {
 			servings: 'Portions',
 			source: 'Provenance',
 			author: 'Auteur',
-			status: 'État'
+			status: 'État',
+			unresolved: 'Ingrédients'
 		} as Record<string, string>,
+		unresolved: { non: 'Non reliés au registre' } as Record<string, string>,
 		more: (n: number) => `${n} de plus`,
 		less: 'Moins',
 		pending: 'hors vocabulaire',
@@ -105,6 +107,8 @@ export const fr = {
 	},
 	recipe: {
 		by: 'de',
+		unresolved: (n: number) => `Ingrédients non reliés (${n})`,
+		unresolvedHelp: 'Ces noms ne correspondent à aucun ingrédient du registre. La recette reste utilisable ; ils restent seulement hors des listes d\'épicerie et des coûts tant qu\'ils ne sont pas reliés.',
 		source: 'Provenance',
 		/** A `source` without `type`: the kind of source was not evident. */
 		sourceUnknown: 'Type de source inconnu',

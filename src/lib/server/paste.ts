@@ -5,6 +5,7 @@ import { fileSlug } from '../vault/rules/batch';
 import type { Diagnostic } from '../vault/types';
 import type { App } from './app';
 import { titles } from './index/query';
+import { unresolvedDiagnostics } from './index/resolve';
 import { referencedSlugs } from './pages';
 import { currentFile, save, vaultEntries, type SaveFile, type SaveResult } from './save';
 
@@ -33,7 +34,10 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 	return result.files.map((f, i) => {
 		const slug = slugOf(texts[i]);
 		const out: ServerCheckFile = { diagnostics: f.diagnostics, slug, titles: {} };
-		if (f.recipe) out.titles = Object.fromEntries(titles(app.ctx.db, referencedSlugs(f.recipe, '')));
+		if (f.recipe) {
+			out.titles = Object.fromEntries(titles(app.ctx.db, referencedSlugs(f.recipe, '')));
+			out.diagnostics = [...f.diagnostics, ...unresolvedDiagnostics(app.ctx.db, app.ctx.paths.vocab, f.recipe)];
+		}
 		if (slug && f.diagnostics.some((d) => d.code === 'E103')) {
 			let n = 2;
 			while (taken.has(`${slug}-${n}`)) n++;

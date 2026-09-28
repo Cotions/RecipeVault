@@ -6,6 +6,7 @@ import type { Ingredient, Recipe } from '../vault/types';
 import type { App } from './app';
 import { familyDiff, getRecipe, titles as titlesOf, usedBy, type RecipeDetail } from './index/query';
 import { currentFile } from './save';
+import { unresolvedDiagnostics } from './index/resolve';
 
 const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]/g;
 
@@ -51,6 +52,8 @@ export function loadRecipePage(app: App, slug: string) {
 		usedBy: usedBy(app.ctx.db, slug),
 		/** The family's display label from vocab/families.yaml, if set. */
 		familyName: family?.label ?? null,
+		/** W303 / W305 / W307: ingredients not linked to the registry (plan 03, Phase 2). */
+		unresolved: broken ? [] : unresolvedDiagnostics(app.ctx.db, app.ctx.paths.vocab, recipe),
 		file: file ?? { text: '', hash: row.file_hash }
 	};
 }

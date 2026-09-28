@@ -19,9 +19,10 @@
 		servings: 'portions',
 		source: 'source',
 		author: 'auteur',
-		status: 'etat'
+		status: 'etat',
+		unresolved: 'relies'
 	};
-	const ORDER: FacetName[] = ['family', 'tags', 'season', 'time', 'servings', 'status', 'source', 'author'];
+	const ORDER: FacetName[] = ['family', 'tags', 'season', 'time', 'servings', 'status', 'source', 'author', 'unresolved'];
 	const SHOWN = 8;
 
 	// svelte-ignore state_referenced_locally -- kept in sync by the effect below
@@ -79,6 +80,8 @@
 				return t.status[value] ?? value;
 			case 'source':
 				return t.source[value] ?? value;
+			case 'unresolved':
+				return t.browse.unresolved[value] ?? value;
 			default:
 				return value;
 		}

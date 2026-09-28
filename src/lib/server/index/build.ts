@@ -7,6 +7,7 @@ import { fold } from '../../vault/normalize';
 import type { Diagnostic, Duration, Recipe } from '../../vault/types';
 import { seasonFor } from '../../vault/vocab';
 import { canonicalTag, type VaultVocab } from '../vocab';
+import { getResolver } from './resolve';
 import type { DB } from './db';
 
 export const sha256 = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
@@ -41,7 +42,7 @@ export function deleteRecipeRows(db: DB, slug: string): void {
 	const row = db.prepare('SELECT id FROM recipes WHERE slug = ?').get(slug) as { id: number } | undefined;
 	if (row) db.prepare('DELETE FROM recipes_fts WHERE rowid = ?').run(row.id);
 	db.prepare('DELETE FROM recipes WHERE slug = ?').run(slug);
-	for (const t of ['tags', 'seasons', 'ingredients', 'media']) db.prepare(`DELETE FROM ${t} WHERE slug = ?`).run(slug);
+	for (const t of ['tags', 'seasons', 'ingredients', 'ingredient_or', 'media']) db.prepare(`DELETE FROM ${t} WHERE slug = ?`).run(slug);
 }
 
 /** Replace every row of one recipe. Call inside a transaction when batching. */
@@ -94,28 +95,43 @@ export function upsertRecipe(db: DB, vocab: VaultVocab, { recipe: r, body, fileP
 	for (const season of r.season) insSeason.run(r.slug, canonicalSeason(season));
 
 	const insIng = db.prepare(
-		`INSERT INTO ingredients (slug, position, group_idx, group_name, group_optional, qty, qty_max, unit, name, optional, recipe, item)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		`INSERT INTO ingredients (slug, position, group_idx, group_name, group_optional, qty, qty_max, qty_s, unit, name, optional, to_taste, recipe, buy_instead, key, item, resolution)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	);
+	const insOr = db.prepare(
+		`INSERT OR REPLACE INTO ingredient_or (slug, position, alt_idx, name, recipe, key, item, resolution) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	);
+	const resolver = getResolver(db, vocab);
 	let position = 0;
 	const names: string[] = [];
 	r.ingredients.forEach((g, gi) => {
 		for (const it of g.items) {
 			names.push(it.name, ...(it.or ?? []).map((o) => o.name));
+			const res = resolver.resolve(it, r.lang);
 			insIng.run(
 				r.slug,
-				position++,
+				position,
 				gi,
 				g.group ?? null,
 				g.optional ? 1 : 0,
 				it.qty?.value ?? null,
 				it.qtyMax?.value ?? null,
+				it.qty ? String(it.qty.raw) : null,
 				it.unit ?? null,
 				it.name,
 				it.optional ? 1 : 0,
+				it.toTaste ? 1 : 0,
 				it.recipe ?? null,
-				it.item ?? searchText(it.name)
+				it.buyInstead ? 1 : 0,
+				res.key,
+				res.item,
+				res.resolution
 			);
+			(it.or ?? []).forEach((o, j) => {
+				const ro = resolver.resolve(o, r.lang);
+				insOr.run(r.slug, position, j, o.name, o.recipe ?? null, ro.key, ro.item, ro.resolution);
+			});
+			position++;
 		}
 	});
 

@@ -22,6 +22,8 @@ export interface BrowseParams {
 	/** Total time up to 30 / 60 / 120 minutes, or more than 2 h. */
 	time?: string;
 	servings?: string;
+	/** 'non': recipes with at least one ingredient not linked to the registry (plan 03, Q3). */
+	unresolved?: string;
 	sort?: Sort;
 	page?: number;
 	pageSize?: number;
@@ -50,7 +52,7 @@ export interface FacetValue {
 	pending?: boolean;
 }
 
-export type FacetName = 'family' | 'tags' | 'season' | 'source' | 'author' | 'status' | 'time' | 'servings';
+export type FacetName = 'family' | 'tags' | 'season' | 'source' | 'author' | 'status' | 'time' | 'servings' | 'unresolved';
 
 export interface BrowseResult {
 	total: number;
@@ -93,6 +95,12 @@ const SERVINGS_SQL: Record<string, string> = {
 	'7+': 'r.servings >= 7'
 };
 
+/** Recipes with an ingredient line or `or` option that resolved to no registry entry. */
+const UNRESOLVED_SQL: Record<string, string> = {
+	non: `r.slug IN (SELECT slug FROM ingredients WHERE resolution IN ('none', 'ambiguous')
+	      UNION SELECT slug FROM ingredient_or WHERE resolution IN ('none', 'ambiguous'))`
+};
+
 /** The WHERE clause for the filters, leaving one facet out (for that facet's own counts). */
 function where(p: BrowseParams, fts: string | undefined, omit?: FacetName): Where {
 	const sql: string[] = [];
@@ -121,6 +129,7 @@ function where(p: BrowseParams, fts: string | undefined, omit?: FacetName): Wher
 	}
 	if (p.time && TIME_SQL[p.time] && omit !== 'time') sql.push(TIME_SQL[p.time]);
 	if (p.servings && SERVINGS_SQL[p.servings] && omit !== 'servings') sql.push(SERVINGS_SQL[p.servings]);
+	if (p.unresolved && UNRESOLVED_SQL[p.unresolved] && omit !== 'unresolved') sql.push(UNRESOLVED_SQL[p.unresolved]);
 	return { sql: sql.length ? `WHERE ${sql.join(' AND ')}` : '', args };
 }
 
@@ -162,7 +171,8 @@ function facetCounts(db: DB, p: BrowseParams, fts: string | undefined): Record<F
 		author: run('author', 'r.author AS value, count(*) AS count', 'recipes r', 'r.author'),
 		status: run('status', 'r.status AS value, count(*) AS count', 'recipes r', 'r.status'),
 		time: bucket('time', TIME_SQL),
-		servings: bucket('servings', SERVINGS_SQL)
+		servings: bucket('servings', SERVINGS_SQL),
+		unresolved: bucket('unresolved', UNRESOLVED_SQL)
 	};
 }
 
@@ -194,7 +204,7 @@ export function browse(db: DB, p: BrowseParams, { withFacets = true } = {}): Bro
 	items = items.map((c) => ({ ...c, broken: Boolean(c.broken) }));
 	const facets = withFacets
 		? facetCounts(db, p, fts)
-		: { family: [], tags: [], season: [], source: [], author: [], status: [], time: [], servings: [] };
+		: { family: [], tags: [], season: [], source: [], author: [], status: [], time: [], servings: [], unresolved: [] };
 	return { total, page, pages, pageSize, items, facets };
 }
 
@@ -309,7 +319,10 @@ export function familyDiff(db: DB, family: string): FamilyDiff | undefined {
 	if (!variants.length) return undefined;
 	const label = (db.prepare('SELECT label_fr FROM families WHERE slug = ?').pluck().get(family) as string | null) ?? null;
 	const rows = db
-		.prepare(`SELECT i.slug, i.item, i.name FROM ingredients i JOIN recipes r ON r.slug = i.slug WHERE r.family = ? ORDER BY i.position`)
+		// Unresolved rows group by their lookup key, so the table still works before the queue is worked.
+		.prepare(
+			`SELECT i.slug, COALESCE(i.item, 'k:' || i.key) AS item, i.name FROM ingredients i JOIN recipes r ON r.slug = i.slug WHERE r.family = ? ORDER BY i.position`
+		)
 		.all(family) as { slug: string; item: string; name: string }[];
 	const byItem = new Map<string, { label: string; in: Set<string> }>();
 	for (const r of rows) {

@@ -16,6 +16,7 @@ import type { VaultEntry } from '../vault/rules/batch';
 import type { VaultContext } from './context';
 import { commitPaths, unstage } from './git';
 import { refreshFamilies, sha256 } from './index/build';
+import { unresolvedDiagnostics } from './index/resolve';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
 import { loadVocab } from './vocab';
 
@@ -275,7 +276,8 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 			extractedBy: recipe.extractedBy ?? 'hand'
 		};
 		ready.push({ slug, title: recipe.title, text: serialize(final, file.body!), created: !cur, verb: cur ? 'edit' : 'add' });
-		results.push({ status: 'saved', slug, title: recipe.title, recipeStatus: final.status!, created: !cur, diagnostics });
+		const unresolved = unresolvedDiagnostics(ctx.db, ctx.paths.vocab, recipe);
+		results.push({ status: 'saved', slug, title: recipe.title, recipeStatus: final.status!, created: !cur, diagnostics: [...diagnostics, ...unresolved] });
 	});
 	if (!ready.length) return { files: results };
 	const { commit, indexError } = await writeCommitIndex(ctx, ready);

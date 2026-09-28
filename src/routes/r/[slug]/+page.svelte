@@ -27,6 +27,8 @@
 	let copied = $state(false);
 	/** The file on disk that fails, to name the places of its errors. */
 	const brokenFile = $derived(data.broken ? parseRecipe(data.file.text) : undefined);
+	/** The file as parsed, to name the ingredients that are not linked. */
+	const unresolvedFile = $derived(data.unresolved.length ? parseRecipe(data.file.text) : undefined);
 
 	const uncertain = $derived(data.recipe.markers.some((m) => m.kind !== 'added'));
 	// Always say how much: an old kitchen session must not win over what this page shows.
@@ -110,6 +112,18 @@
 	</nav>
 {/if}
 
+{#if data.unresolved.length}
+	<details class="unresolved no-print">
+		<summary>{t.recipe.unresolved(data.unresolved.length)}</summary>
+		<p class="hint">{t.recipe.unresolvedHelp}</p>
+		<ul>
+			{#each data.unresolved as d, i (i)}
+				<DiagnosticItem {d} file={unresolvedFile} />
+			{/each}
+		</ul>
+	</details>
+{/if}
+
 <details class="file no-print">
 	<summary>{t.recipe.file}</summary>
 	<p class="hint">{t.recipe.fileHelp}</p>
@@ -180,12 +194,18 @@
 		margin: 0;
 		padding-left: 1.1rem;
 	}
-	.file {
+	.file,
+	.unresolved {
 		margin-top: 2rem;
 		border-top: 1px solid var(--line);
 		padding-top: 1rem;
 	}
-	.file summary {
+	.unresolved ul {
+		list-style: none;
+		padding: 0;
+	}
+	.file summary,
+	.unresolved summary {
 		cursor: pointer;
 		color: var(--link);
 		font-weight: 600;

@@ -153,10 +153,11 @@ Warnings. Save, mark `needs-review`.
 | Code | Fixed by | Condition |
 |---|---|---|
 | W302 | ai | `name` ends in a known preparation participle (`émincé`, `râpé`, `haché`) |
-| W303 | app | `name` matches no registry alias and fuzzy matching found no candidate |
+| W303 | app | `name` resolves to no registry entry (`INGREDIENTS.md`, "Resolution") and no entry is close enough to suggest — create it from the resolve queue. Computed in the app (recipe page, server check, save result) from the registry, never in the fix-request block |
 | W304 | ai | `name` starts with a known size descriptor (`gros`, `petit`, `grande`) |
-| W305 | app | ingredient resolved by fuzzy match rather than exact alias — confirm |
+| W305 | app | `name` resolves to no registry entry, or is a name of several entries (ambiguous), and the resolve queue has a candidate waiting — confirm it there. A fuzzy match never resolves on its own (plan 03, Q1) |
 | W306 | app | `recipe:` points at a slug not in the vault yet |
+| W307 | app | `item:` (a manual override, `STORAGE.md`) names a slug with no registry entry |
 | W401 | ai | no method section in the body |
 | W402 | ai | a step exceeds ~400 characters — probably several steps merged |
 | W403 | ai | a method section has text but no steps — no numbered (`1.`) or `-` / `*` bullet line. Its text would not be shown one step at a time in kitchen mode, nor checked by `W402` and `W609`. Fix: write each step as a numbered or `-` line |

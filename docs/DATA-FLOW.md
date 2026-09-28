@@ -153,7 +153,8 @@ and rebuilt (it is a cache). In outline:
 | `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten. A vocabulary change recomputes every row and the FTS `tags` column |
 | `seasons` | recipe × season | canonical value (`printemps`, `ete`, `automne`, `hiver`); aliases from `VOCAB.md` mapped at index time |
 | `meta` | key | index bookkeeping: `tags_hash`, the hash of `vocab/tags.yaml` at the last retag; `registry_hash`, over every ingredient file's hash plus `vocab/normalize.yaml` and `vocab/allergens.yaml` |
-| `ingredients` | ingredient item | `group_idx`, `group_name`, `group_optional`, `qty`, `qty_max` (numeric), `unit`, `name` (as written), `optional`, `recipe` (sub-recipe slug), `item` (normalized name: lowercase, NFC, no accents, markers stripped — registry resolution replaces it in P1.5) |
+| `ingredients` | ingredient item | `group_idx`, `group_name`, `group_optional`, `qty`, `qty_max` (numeric), `qty_s` (as written), `unit`, `name` (as written), `optional`, `to_taste`, `recipe` (sub-recipe slug), `buy_instead`, `key` (lookup key), `item` (registry slug, NULL when unresolved), `resolution` (`override`, `alias`, `plural`, `none`, `ambiguous`, `recipe`; `INGREDIENTS.md` "Resolution") |
+| `ingredient_or` | `or` option of an ingredient item | `position` (the item's), `alt_idx`, `name`, `recipe`, `key`, `item`, `resolution`, resolved like an item |
 | `media` | recipe × media file | |
 | `registry` | ingredient file (`ingredients/<slug>.md`) | `name` (display), `category`, `staple`, `au_gout`, `density`, `default_unit`, `entry_json` (the parsed entry), `file_hash`; a file that stops passing its check keeps its last good row |
 | `ingredient_names` | alias of an entry | `key` (lookup key, `INGREDIENTS.md` "Resolution"), `skey` (the key with the plural rules of `vocab/normalize.yaml`), `slug`, `lang`, `name` as written |
@@ -196,7 +197,9 @@ down. The ingredient registry (`ingredients/*.md`) is loaded the same way, by
 hash, before the recipes: skipped when `meta.registry_hash` matches, else the
 changed files are re-read (all of them when the plural rules or the allergen
 list changed), and the report lists the ingredient files with errors or
-warnings. `vault reindex` deletes the index and rebuilds it.
+warnings. When the registry changed, every `ingredients` and `ingredient_or`
+row is re-resolved from its stored `key` (set-based, no recipe file read), like
+a retag. `vault reindex` deletes the index and rebuilds it.
 
 With hashing, a no-op sync over 5000 files is a couple of seconds. Run it on app
 startup so hand-edits in a text editor are always picked up.

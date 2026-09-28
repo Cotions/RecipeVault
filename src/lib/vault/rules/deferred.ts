@@ -4,9 +4,7 @@
 
 export const DEFERRED_RULES = {
 	W302: '`name` ends in a known preparation participle — needs the participle list from vocab/',
-	W303: '`name` matches no registry alias — needs ingredients/',
 	W304: '`name` starts with a known size descriptor — needs the descriptor list from vocab/',
-	W305: 'ingredient resolved by fuzzy match — needs ingredients/',
 	W501: 'tag not in the vocabulary — needs vocab/tags.yaml',
 	W502: '`family` near an existing family — needs vocab/families.yaml',
 	W603: 'no dish photo — needs media/; meaningless on the paste path, where there never is one',

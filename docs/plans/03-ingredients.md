@@ -294,6 +294,26 @@ from data), resolution order, ambiguity, the `item:` override, re-resolution
 after an alias edit without reading recipe files, the family diff on
 unresolved rows, and the corpus metrics.
 
+**Implementation notes (Phase 2).**
+
+- A sub-recipe line (`recipe:`) gets `resolution = recipe` and `item` NULL: it is
+  not an ingredient to buy, and it must not show as unresolved. Not in the plan's
+  list of values; smallest consistent choice.
+- An `item:` naming no registry entry is a new code, **W307** (`app`, warning),
+  on path `…item`, rather than reusing W303, whose meaning (no match, nothing
+  close) is about the name.
+- A singular key shared by two entries resolves to neither (`none`, with
+  candidates), as step 2's ambiguity rule applied to step 3. Only an exact key
+  shared by two entries is stored as `ambiguous`.
+- Re-resolution reads the stored `ingredients.key` / `ingredient_or.key`, not
+  `data_json`: the key is all resolution needs, and it is set-based (one
+  temp-table update per table). Overrides and sub-recipe rows are left alone.
+- W303 / W305 / W307 are computed with the resolver of the indexed registry
+  (`unresolvedDiagnostics`), not read from index rows: candidates are not stored.
+- Q3 A in the UI: an "Ingrédients non reliés (N)" section on the recipe page
+  (not printed) and a browse facet *Ingrédients → Non reliés au registre*
+  (`?relies=non`).
+
 ### Phase 3 — the resolve queue (`/resoudre`)
 
 Depends on: Q1, Q4, Q25 (merge).

@@ -16,6 +16,7 @@ function paramsFrom(url: URL): BrowseParams {
 		status: one('etat'),
 		time: one('temps'),
 		servings: one('portions'),
+		unresolved: one('relies'),
 		sort: sort && (SORTS as readonly string[]).includes(sort) ? (sort as Sort) : undefined,
 		page: Number(one('page') ?? 1) || 1
 	};
