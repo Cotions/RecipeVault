@@ -34,7 +34,7 @@ Data splits by how it changes, because each kind wants a different format:
 │   ├── tomates-concassees.md        # aliases, category, substitutes — NO price
 │   └── ...
 ├── vocab/
-│   ├── families.yaml                # canonical family slugs + labels fr/en
+│   ├── families.yaml                # family slug → { fr, en } labels, set on the family page
 │   ├── tags.yaml                    # canonical tags + aliases
 │   └── units.yaml                   # canonical units + aliases
 ├── prices.csv                       # append-only price history

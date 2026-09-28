@@ -95,7 +95,13 @@ export const fr = {
 		totalTime: 'Temps total',
 		servings: 'Portions',
 		difficulty: 'Difficulté',
-		rating: 'Note'
+		rating: 'Note',
+		rename: 'Changer le nom de la famille',
+		label: 'Nom affiché',
+		labelHelp: (slug: string) =>
+			`Le nom montré partout pour cette famille. Les recettes gardent l’identifiant « ${slug} ». Laissez vide pour revenir au nom tiré de l’identifiant.`,
+		labelSave: 'Enregistrer le nom',
+		labelSaved: 'Nom de la famille enregistré.'
 	},
 	recipe: {
 		by: 'de',

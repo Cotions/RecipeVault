@@ -1,11 +1,12 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { t, familyLabel } from '$lib/i18n/fr';
 	import { formatSeconds } from '$lib/render/duration';
 	import Marked from '$lib/components/Marked.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import type { PageProps } from './$types';
 
-	let { data }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	const d = $derived(data.diff);
 	const name = $derived(familyLabel(d.family, d.label));
 	const stars = (n: number | null) => (n ? '★'.repeat(n) + '☆'.repeat(5 - n) : '—');
@@ -17,6 +18,31 @@
 <p class="up"><a href="/familles">{t.families.title}</a></p>
 <h1>{name}</h1>
 <p class="count">{t.families.variants(d.variants.length)}</p>
+
+{#if form?.message}
+	<p class="flash" class:error={!form.ok} role="status">{form.message}</p>
+{/if}
+
+<details class="rename" open={form?.ok === false}>
+	<summary>{t.families.rename}</summary>
+	<form method="POST" action="?/label" use:enhance={() => ({ update }) => update({ reset: false })}>
+		<input type="hidden" name="hash" value={data.labelsHash} />
+		<label for="family-label">{t.families.label}</label>
+		<p class="help" id="family-label-help">{t.families.labelHelp(d.family)}</p>
+		<div class="row">
+			<input
+				id="family-label"
+				name="label"
+				type="text"
+				maxlength={data.labelMax}
+				value={form?.ok === false ? (form.label ?? '') : (d.label ?? '')}
+				placeholder={familyLabel(d.family)}
+				aria-describedby="family-label-help"
+			/>
+			<button class="btn" type="submit">{t.families.labelSave}</button>
+		</div>
+	</form>
+</details>
 
 <ul class="variants">
 	{#each d.variants as v (v.slug)}
@@ -84,6 +110,46 @@
 	.count {
 		color: var(--ink-soft);
 		margin: 0.25rem 0 1.25rem;
+	}
+	.flash {
+		padding: 0.6rem 1rem;
+		background: #e7f2ec;
+		border-left: 4px solid var(--ok);
+		margin: 0 0 1rem;
+		max-width: 40rem;
+	}
+	.flash.error {
+		background: #fbeceb;
+		border-left-color: var(--rule-red);
+	}
+	.rename {
+		margin: 0 0 1.25rem;
+		max-width: 40rem;
+	}
+	.rename summary {
+		cursor: pointer;
+		color: var(--link);
+		font-weight: 600;
+		font-size: var(--step--1);
+	}
+	.rename form {
+		margin-top: 0.5rem;
+	}
+	.rename label {
+		font-weight: 600;
+	}
+	.rename .help {
+		margin: 0.15rem 0 0.4rem;
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+	}
+	.rename .row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.rename input {
+		flex: 1 1 14rem;
 	}
 	.variants {
 		list-style: none;

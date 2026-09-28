@@ -23,6 +23,7 @@
 		titles = {},
 		photo = null,
 		links = true,
+		familyName = null,
 		servings = $bindable(recipe.servings ?? 0),
 		multiplier = $bindable(1)
 	}: {
@@ -33,6 +34,8 @@
 		photo?: string | null;
 		/** False in the paste preview: tags and family do not link away. */
 		links?: boolean;
+		/** The family's display label (vocab/families.yaml), when it has one. */
+		familyName?: string | null;
 		servings?: number;
 		multiplier?: number;
 	} = $props();
@@ -112,7 +115,7 @@
 	<header class="head">
 		{#if recipe.family}
 			<p class="family">
-				{#if links}<a href="/famille/{recipe.family}">{familyLabel(recipe.family)}</a>{:else}{familyLabel(recipe.family)}{/if}
+				{#if links}<a href="/famille/{recipe.family}">{familyLabel(recipe.family, familyName)}</a>{:else}{familyLabel(recipe.family, familyName)}{/if}
 				{#if recipe.variant}<span class="variant">— {recipe.variant.replace(/-/g, ' ')}</span>{/if}
 			</p>
 		{/if}

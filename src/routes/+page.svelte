@@ -66,7 +66,7 @@
 	function label(facet: FacetName, value: string): string {
 		switch (facet) {
 			case 'family':
-				return familyLabel(value);
+				return familyLabel(value, data.familyLabels[value]);
 			case 'tags':
 				return tagLabel(value);
 			case 'season':

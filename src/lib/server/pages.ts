@@ -49,6 +49,8 @@ export function loadRecipePage(app: App, slug: string) {
 		broken,
 		variants: (family?.variants ?? []).filter((v) => v.slug !== slug).map((v) => ({ slug: v.slug, title: v.title, variant: v.variant })),
 		usedBy: usedBy(app.ctx.db, slug),
+		/** The family's display label from vocab/families.yaml, if set. */
+		familyName: family?.label ?? null,
 		file: file ?? { text: '', hash: row.file_hash }
 	};
 }

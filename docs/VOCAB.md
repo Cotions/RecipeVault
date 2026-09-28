@@ -85,6 +85,29 @@ three). Handling:
 - Creating a near-duplicate family is a warning, not a block — sometimes two
   similar names really are different things.
 
+**Labels.** `vocab/families.yaml` maps a slug to its display names, one entry
+per line in flow style:
+
+```yaml
+lasagna: { fr: Lasagnes, en: Lasagna }
+pate-chinois: { fr: Pâté chinois }
+```
+
+The slug is ASCII (`pates`, not `pâtes`), so the label is what every page
+shows: the family pages, the family filter, recipe cards and recipe pages. A
+family without a label shows its slug with hyphens as spaces and a capital
+(`pate-chinois` → "Pate chinois"). The seed is empty (`{}`); a family exists as
+soon as a recipe names it, label or not.
+
+**Setting a label (P1).** On `/famille/<slug>`, "Changer le nom de la famille"
+sets the French label; an empty field removes it (and the entry once it holds
+no label). The write goes through the same guarantees as a recipe save
+(`DATA-FLOW.md`, "Family labels"). The paste box's "Mettre en famille" only
+writes `family`/`variant` into the new recipe; it does not write a label —
+naming the family is a separate, later step on the family page. English
+labels (`en`) are kept when present but not edited by the app until there is
+an English UI.
+
 ## Regional ingredient names
 
 Quebec French names map to the same registry entries as France French ones — this

@@ -81,11 +81,23 @@ taken again. A slug in the trash counts as taken for a new paste (`E103`, offere
 only the suffixed slug), so a deleted slug is never silently reused. Combined
 with the git history this means no single click she makes is unrecoverable.
 
+### Family labels
+
+`/famille/<slug>` sets a family's French display label in
+`vocab/families.yaml` (`VOCAB.md`, "Families"). Same order as a save: the
+page carries the hash of `families.yaml` it was rendered from and the write is
+refused if the file changed since; the file is rewritten atomically (comments
+and other entries kept), committed alone as `family: <slug> → <label>` (or
+`family: <slug> (label removed)`), then the `families` index rows are refreshed
+and the push scheduled. A failed commit puts the file back. The watcher
+ignores the write by its hash, like a recipe save. A `families.yaml` that no
+longer reads as YAML is not overwritten: the page says to fix it first.
+
 ### Concurrent edit
 
 Files mean last-write-wins, which silently eats an edit. Cheap guard: every
 edit carries the hash of the file it was based on — the paste box's
-"Remplacer", the "Vérifié" button, delete — and the save refuses when the file
+"Remplacer", the "Vérifié" button, delete, a family label — and the save refuses when the file
 on disk no longer has that hash. (A hash rather than `updated`: `updated` is a
 date, too coarse to see two edits on the same day.) Two users at this scale will
 rarely collide, but the one time they do it should not be silent.

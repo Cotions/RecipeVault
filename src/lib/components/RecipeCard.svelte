@@ -13,7 +13,7 @@
 	<a class="main" href="/r/{card.slug}">
 		<span class="title"><Marked text={card.title} /></span>
 		{#if card.family}
-			<span class="family">{familyLabel(card.family)}{#if card.variant}{` — ${card.variant.replace(/-/g, ' ')}`}{/if}</span>
+			<span class="family">{familyLabel(card.family, card.family_label)}{#if card.variant}{` — ${card.variant.replace(/-/g, ' ')}`}{/if}</span>
 		{/if}
 	</a>
 	<p class="meta">

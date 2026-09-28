@@ -1,5 +1,5 @@
 import { getApp } from '$lib/server/app';
-import { browse, orphanProblems, SORTS, type BrowseParams, type Sort } from '$lib/server/index/query';
+import { browse, familyLabels, orphanProblems, SORTS, type BrowseParams, type Sort } from '$lib/server/index/query';
 import type { PageServerLoad } from './$types';
 
 function paramsFrom(url: URL): BrowseParams {
@@ -27,5 +27,5 @@ export const load: PageServerLoad = ({ url }) => {
 	const result = browse(app.ctx.db, params);
 	const problems = orphanProblems(app.ctx.db);
 	const vaultEmpty = result.total === 0 && (app.ctx.db.prepare('SELECT count(*) FROM recipes').pluck().get() as number) === 0;
-	return { params, result, problems, vaultEmpty };
+	return { params, result, problems, vaultEmpty, familyLabels: familyLabels(app.ctx.db) };
 };

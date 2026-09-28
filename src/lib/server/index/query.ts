@@ -31,6 +31,8 @@ export interface Card {
 	slug: string;
 	title: string;
 	family: string | null;
+	/** The family's label from vocab/families.yaml, if set. */
+	family_label: string | null;
 	variant: string | null;
 	total_s: number | null;
 	servings: number | null;
@@ -130,7 +132,8 @@ const ORDER: Record<Exclude<Sort, 'relevance'>, string> = {
 	rating: 'r.rating IS NULL, r.rating DESC, r.title_sort ASC'
 };
 
-const CARD_COLS = `r.slug, r.title, r.family, r.variant, r.total_s, r.servings, r.servings_max, r.status, r.photo, r.uncertain, r.broken_json IS NOT NULL AS broken`;
+const CARD_COLS = `r.slug, r.title, r.family, r.variant, r.total_s, r.servings, r.servings_max, r.status, r.photo, r.uncertain, r.broken_json IS NOT NULL AS broken,
+  (SELECT f.label_fr FROM families f WHERE f.slug = r.family) AS family_label`;
 
 function facetCounts(db: DB, p: BrowseParams, fts: string | undefined): Record<FacetName, FacetValue[]> {
 	const run = (facet: FacetName, select: string, from: string, group: string) => {
@@ -262,6 +265,12 @@ export function families(db: DB): FamilySummary[] {
 			 LEFT JOIN recipes r ON r.family = f.slug GROUP BY f.slug HAVING count > 0 ORDER BY f.slug`
 		)
 		.all() as FamilySummary[];
+}
+
+/** Family slug → French label, for the families that have one in `vocab/families.yaml`. */
+export function familyLabels(db: DB): Record<string, string> {
+	const rows = db.prepare('SELECT slug, label_fr FROM families WHERE label_fr IS NOT NULL').all() as { slug: string; label_fr: string }[];
+	return Object.fromEntries(rows.map((r) => [r.slug, r.label_fr]));
 }
 
 export interface Variant {

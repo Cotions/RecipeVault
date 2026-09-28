@@ -83,13 +83,13 @@
 	<p class="hint no-print">{t.recipe.verifyBlocked}</p>
 {/if}
 
-<RecipeView recipe={data.recipe} body={data.body} titles={data.titles} photo={data.photo} bind:servings bind:multiplier />
+<RecipeView recipe={data.recipe} body={data.body} titles={data.titles} photo={data.photo} familyName={data.familyName} bind:servings bind:multiplier />
 
 {#if data.variants.length || data.usedBy.length}
 	<nav class="related no-print">
 		{#if data.variants.length}
 			<section>
-				<h2>{t.recipe.variants}{#if data.recipe.family}{' — '}<a href="/famille/{data.recipe.family}">{familyLabel(data.recipe.family)}</a>{/if}</h2>
+				<h2>{t.recipe.variants}{#if data.recipe.family}{' — '}<a href="/famille/{data.recipe.family}">{familyLabel(data.recipe.family, data.familyName)}</a>{/if}</h2>
 				<ul>
 					{#each data.variants as v (v.slug)}
 						<li><a href="/r/{v.slug}"><Marked text={v.title} /></a></li>
