@@ -97,20 +97,24 @@ export function unitForAlias(alias: string, lang: Lang): Unit | null | undefined
 // Pattern for "a number, then a unit alias" inside free text (E210, E216). Run
 // against accent-stripped text; all aliases of both languages are included since
 // this only detects, it does not convert.
-// '1-1/2' is a mixed number as recipe cards write it, not a range.
-const NUMBER_SRC = String.raw`(\d+-\d+\/\d+|\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔⅛]|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])`;
+// '1-1/2' is a mixed number as recipe cards write it, not a range. A leading
+// decimal point (`.75 l`) is a number too, and a match never starts right
+// after a dot, nor after a digit and a comma: `.75 l` is 0.75 l, never 75 l
+// (`de.75 l` reads as no amount at all rather than a wrong one).
+const NUMBER_SRC = String.raw`(\d+-\d+\/\d+|\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔⅛]|\d+(?:[.,]\d+)?|[.,]\d+|[½¼¾⅓⅔⅛])`;
 const ALIAS_SRC = [...new Set(UNITS.flatMap((u) => UNIT_ALIASES[u]).map((a) => stripAccents(a)))]
 	.sort((a, b) => b.length - a.length)
 	.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*'))
 	.join('|');
 const QTY_UNIT_RE_ALL = new RegExp(
-	String.raw`(?<![\p{L}\p{N}])${NUMBER_SRC}\s*(${ALIAS_SRC})(?![\p{L}\p{N}])`,
+	String.raw`(?<![\p{L}\p{N}.]|\p{N},)${NUMBER_SRC}\s*(${ALIAS_SRC})(?![\p{L}\p{N}])`,
 	'giu'
 );
 
 export interface QtyUnitMatch {
 	/** The whole match, as written in the original text. */
 	match: string;
+	/** The number as written, except a leading decimal point gets its 0 (`.75` → `0.75`). */
 	qty: string;
 	unitText: string;
 	/** Offsets of the match in the original text. */
@@ -143,7 +147,8 @@ export function findAllQtyUnits(text: string): QtyUnitMatch[] {
 		const start = origin[at];
 		const end = origin[at + m[0].length];
 		const unitStart = origin[at + m[0].length - m[2].length];
-		return { match: src.slice(start, end), qty: m[1], unitText: src.slice(unitStart, end), start, end };
+		// `.75` → `0.75`: the qty as a number reads it.
+		return { match: src.slice(start, end), qty: m[1].replace(/^[.,](?=\d)/, '0.'), unitText: src.slice(unitStart, end), start, end };
 	});
 }
 

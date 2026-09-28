@@ -70,6 +70,26 @@ describe('conversions', () => {
 		expect(noteSize('398 ml ou 796 ml', 'fr')).toBeUndefined();
 		expect(noteSize('égouttées', 'fr')).toBeUndefined();
 	});
+
+	it('a multipack in the note is the whole pack (N × size); unsure forms stay unpriced', () => {
+		expect(noteSize('2 x 400 g', 'fr')).toEqual([{ qty: 800, unit: 'g' }]);
+		expect(noteSize('6 × 355 ml', 'fr')).toEqual([{ qty: 2130, unit: 'ml' }]);
+		expect(noteSize('paquet de 2 X 225 g', 'fr')).toEqual([{ qty: 450, unit: 'g' }]);
+		expect(packs(1, 'packet', 1, 'kg', {}, '2 x 400 g')).toBeCloseTo(0.8);
+		expect(noteSize('2 x 14 oz (2 x 398 ml)', 'fr')).toBeUndefined();
+		expect(noteSize('6x355 ml', 'fr')).toBeUndefined();
+		expect(noteSize('0 x 400 g', 'fr')).toBeUndefined();
+	});
+
+	it('a leading decimal point is a decimal: .75 l is 0.75 l, never 75 l', () => {
+		expect(noteSize('.75 l', 'fr')).toEqual([{ qty: 0.75, unit: 'l' }]);
+		expect(noteSize('bouteille de .5 l', 'fr')).toEqual([{ qty: 0.5, unit: 'l' }]);
+		expect(noteSize(',75 l', 'fr')).toEqual([{ qty: 0.75, unit: 'l' }]);
+		// A match never starts inside a number or right after a dot.
+		expect(noteSize('de.75 l', 'fr')).toBeUndefined();
+		expect(noteSize('1.75 l', 'fr')).toEqual([{ qty: 1.75, unit: 'l' }]);
+		expect(packs(1, 'bottle', 750, 'ml', {}, '.75 l')).toBeCloseTo(1);
+	});
 });
 
 // A small invented world: entries, prices, recipes.
@@ -192,6 +212,21 @@ describe('recipe cost', () => {
 		expect(half.total).toBeGreaterThan(0);
 		const all = recipeCost(r, { ...world([r], { roux: ['beurre', 'farine', 'sel'] }), entry: (s) => (s === 'farine' ? { ...ENTRIES.farine, staple: true } : ENTRIES[s]) });
 		expect(all).toMatchObject({ counted: 0, enough: true });
+	});
+
+	it('when nothing counts, a line with no amount (a bare staple, not to taste) does not hold the figure back', () => {
+		const r = recipe({ slug: 'pate', ingredients: [{ items: [{ qty: 2, unit: 'cup', name: 'farine' }, { name: 'sel' }, { name: 'eau' }] }] });
+		const staple = (s: string) => (s === 'farine' ? { ...ENTRIES.farine, staple: true } : s === 'eau' ? { staple: true } : ENTRIES[s]);
+		const c = recipeCost(r, { ...world([r], { pate: ['farine', 'sel', 'eau'] }), entry: staple });
+		expect(c.lines.map((l) => [l.name, l.amount, l.cost !== undefined])).toEqual([
+			['farine', true, true],
+			['sel', false, false],
+			['eau', false, false]
+		]);
+		expect(c).toMatchObject({ counted: 0, coverage: null, enough: true });
+		// No line with an amount at all: nothing to show.
+		const bare = recipe({ slug: 'b', ingredients: [{ items: [{ name: 'sel' }] }] });
+		expect(recipeCost(bare, world([bare], { b: ['sel'] })).enough).toBe(false);
 	});
 
 	it('a line with no quantity counts and is unpriced; a count unit alone is one', () => {

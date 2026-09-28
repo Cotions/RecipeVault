@@ -30,7 +30,7 @@ export function stripMarkers(s: string): string {
 	return s
 		.replace(MARKER_RE, ' ')
 		.replace(/[ \t]+/g, ' ')
-		.replace(/ +([,.;:)])/g, '$1')
+		.replace(/ +([;:)]|[,.](?!\d))/g, '$1')
 		.trim();
 }
 

@@ -89,6 +89,11 @@ describe('E210 / E216 fixes', () => {
 		expect(d.fix).toContain('`{ qty: "1/4", unit: lb, name: beurre }`');
 	});
 
+	it('reads a leading decimal point as a decimal', () => {
+		const [d] = find(edit('{ qty: 2, unit: tbsp, name: beurre }', '{ name: vin blanc, note: .75 l }'), 'E216');
+		expect(d.fix).toContain('`{ qty: 0.75, unit: l, name: vin blanc }`');
+	});
+
 	it('points an alternative amount at or', () => {
 		const [d] = find(edit('{ qty: 2, unit: tbsp, name: beurre }', '{ qty: 2, unit: tbsp, name: beurre, note: ou 1 c. à soupe de margarine }'), 'E216');
 		expect(d.fix).toContain('`or: [{ qty: 1, unit: tbsp, name: … }]`');
@@ -103,7 +108,9 @@ describe('E210 / E216 fixes', () => {
 		'{ qty: 2, unit: slice, name: bacon, note: 1/4 lb en tout }',
 		'{ qty: 1, unit: can, name: pois chiches, note: "19 oz (540 ml)" }',
 		'{ qty: 1, unit: can, name: pois chiches, note: "540 ml (19 oz), égouttés" }',
-		'{ qty: 1, unit: can, name: épices, note: "4 ml (3/4 c. à thé)" }'
+		'{ qty: 1, unit: can, name: épices, note: "4 ml (3/4 c. à thé)" }',
+		'{ qty: 1, unit: bottle, name: vin blanc, note: .75 l }',
+		'{ qty: 1, unit: packet, name: saucisses, note: 2 x 400 g }'
 	])('allows one size on a counted or contained item: %s', (entry) => {
 		expect(codes(item(entry))).toEqual([]);
 	});

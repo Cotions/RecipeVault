@@ -70,6 +70,8 @@ export interface CostLine {
 	toTaste: boolean;
 	/** In the coverage denominator: not optional, not `to_taste`, not a staple (Q17). */
 	counted: boolean;
+	/** The line has an amount: a `qty`, or a count or container unit alone (`unit: can` is one can). */
+	amount: boolean;
 	/** The price used is more than a year old. */
 	stale: boolean;
 }
@@ -129,6 +131,13 @@ export function subRecipeFactor(item: Ingredient, sub: Recipe, conv: Conversions
 	return undefined;
 }
 
+/** Whether a line has an amount to price: a qty, or a count or container unit alone. */
+function hasAmount(item: Ingredient): boolean {
+	if (item.qty !== undefined || item.qtyMax !== undefined) return true;
+	const cls = item.unit ? UNIT_CLASS_OF[item.unit] : undefined;
+	return cls === 'count' || cls === 'container';
+}
+
 /** The consumed cost of one line: packs × price, or the reason it has none. */
 function lineCost(item: Ingredient, entry: CostEntry, price: CostPrice, conv: Conversions, lang: Recipe['lang']): { cost?: number; reason?: CostReason } {
 	let q = upper(item.qty, item.qtyMax);
@@ -165,8 +174,9 @@ export function recipeCost(recipe: Recipe, src: CostSources, threshold = COVERAG
 	const coverage = counted ? priced / counted : null;
 	const servings = recipe.servings ?? null;
 	// Nothing counts (every line a staple or to taste): a figure only when every
-	// line that has an amount is priced, else it would pass for complete.
-	const pool = lines.filter((l) => l.reason !== 'optional' && !l.toTaste);
+	// line that has an amount is priced, else it would pass for complete. A bare
+	// `eau` has nothing to price and does not hold the figure back.
+	const pool = lines.filter((l) => l.reason !== 'optional' && !l.toTaste && l.amount);
 	return {
 		total,
 		priced,
@@ -192,6 +202,7 @@ function walk(recipe: Recipe, factor: number, via: string[], at: number | undefi
 				staple: false,
 				toTaste: !!item.toTaste,
 				counted: false,
+				amount: hasAmount(item),
 				stale: false
 			};
 			if (g.optional || item.optional) {

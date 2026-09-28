@@ -119,25 +119,34 @@ function sizeNumber(q: string): number | undefined {
 	return r.ok ? r.value : undefined;
 }
 
+/** A multipack count right before a size: `2 x `, `6× `. */
+const MULTIPACK_RE = /(?<![\p{L}\p{N}.,])(\d+)\s*[x×]\s*$/iu;
+
 /**
  * The size of one container, from `note` (Q13 B), in the E216 grammar: one
  * size (`796 ml`), or one size with its equivalent in parentheses
- * (`19 oz (540 ml)`). Anything else (two sizes, an alternative, an ambiguous
- * unit) gives nothing, and the item stays unpriced.
+ * (`19 oz (540 ml)`). A multipack, `2 x 400 g` or `6 × 355 ml`, is the whole
+ * pack: 800 g, 2130 ml. Anything else (two sizes, an alternative, an ambiguous
+ * unit, a multipack with an equivalent) gives nothing, and the item stays
+ * unpriced.
  */
 export function noteSize(note: string | undefined, lang: Lang): { qty: number; unit: Unit }[] | undefined {
 	if (!note) return undefined;
 	const text = stripMarkers(note);
 	const found = findAllQtyUnits(text);
 	if (found.length === 0 || found.length > 2) return undefined;
+	const times = found.map((f) => MULTIPACK_RE.exec(text.slice(0, f.start)));
 	if (found.length === 2) {
 		const [a, b] = found;
+		if (times.some(Boolean)) return undefined;
 		if (!/^\s*\(\s*$/.test(text.slice(a.end, b.start)) || !/^\s*\)/.test(text.slice(b.end))) return undefined;
 	}
 	const out: { qty: number; unit: Unit }[] = [];
-	for (const f of found) {
+	for (const [i, f] of found.entries()) {
 		const unit = unitForAlias(f.unitText, lang);
-		const qty = sizeNumber(f.qty);
+		const n = times[i] ? Number(times[i]![1]) : 1;
+		const size = sizeNumber(f.qty);
+		const qty = size === undefined || !(n > 0) ? undefined : size * n;
 		if (!unit || qty === undefined) return undefined;
 		const cls = UNIT_CLASS_OF[unit];
 		if (cls !== 'mass' && cls !== 'volume') return undefined;

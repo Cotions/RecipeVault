@@ -274,7 +274,11 @@ ingredient's density or weights.
   or a price row in the same unit. Otherwise unpriceable, never estimated.
 - Containers (`can`, `packet`, `jar`, `bottle`, `bag`): a price row in the same
   unit, or the size in the line's `note` (`796 ml`, `19 oz (540 ml)` — the
-  grammar `E216` allows), measured like any amount (Q13).
+  grammar `E216` allows), measured like any amount (Q13). A multipack,
+  `2 x 400 g` or `6 × 355 ml`, is the whole pack (800 g, 2130 ml); a multipack
+  with an equivalent in parentheses, or a size run into letters (`6x355 ml`),
+  gives nothing and the line stays unpriced. A leading decimal point is a
+  decimal: `.75 l` is 0.75 l.
 - `alt` is the same amount in another measure: used when the main one cannot
   be priced.
 

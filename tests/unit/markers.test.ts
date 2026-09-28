@@ -21,7 +21,9 @@ describe('stripMarkers', () => {
 		['250 [?]', '250'],
 		['Bouchées au canard [+]', 'Bouchées au canard'],
 		['sel [illisible], poivre', 'sel, poivre'],
-		['Jeanne Tremblay [?: Tremblé]', 'Jeanne Tremblay']
+		['Jeanne Tremblay [?: Tremblé]', 'Jeanne Tremblay'],
+		['bouteille de .75 l [?]', 'bouteille de .75 l'],
+		['sel [?] , poivre', 'sel, poivre']
 	])('%s → %s', (a, b) => expect(stripMarkers(a)).toBe(b));
 });
 
