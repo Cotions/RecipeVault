@@ -20,6 +20,7 @@ import { loadVocab } from '../src/lib/server/vocab';
 import { queueCount, resolveQueue } from '../src/lib/server/queue';
 import { costOfRecipe } from '../src/lib/server/cost';
 import { ingredientView } from '../src/lib/server/ingredient';
+import { pantryQuery } from '../src/lib/server/index/pantry';
 import { ingredientIndex, INDEX_SORTS } from '../src/lib/server/ingredients';
 import { appendPrice } from '../src/lib/server/prices';
 import { PRICE_HEADER } from '../src/lib/ingredients/prices';
@@ -212,6 +213,13 @@ if (bench) {
 	const top = ctx.db.prepare('SELECT item FROM ingredients WHERE item IS NOT NULL GROUP BY item ORDER BY count(*) DESC LIMIT 1').pluck().get() as string;
 	const uses = ingredientView(ctx.db, top, vocab)!.uses.length;
 	time(`ingredient view (${top}, ${uses} recipes)`, () => ingredientView(ctx.db, top, loadVocab(ctx.paths.vocab)), 20);
+	// Plan 03, Phase 7: pantry search. The first query builds the model from the index; the next reuse it.
+	const pick = ctx.db.prepare('SELECT item FROM ingredients WHERE item IS NOT NULL GROUP BY item ORDER BY count(*) DESC LIMIT 8').pluck().all() as string[];
+	const tp = performance.now();
+	const found = pantryQuery(ctx.db, { have: pick.slice(0, 3) }).length;
+	console.log(`${'pantry model build + first query'.padEnd(34)} ${(performance.now() - tp).toFixed(1)} ms (${found} results)`);
+	time('pantry query, 3 picked', () => pantryQuery(ctx.db, { have: pick.slice(0, 3) }), 50);
+	time('pantry query, 8 picked + avoid', () => pantryQuery(ctx.db, { have: pick, avoid: ['noix-de-grenoble'], allergens: ['arachides'] }), 50);
 	// A real vault has every file committed: git's first look at 6000 untracked files is not what an append costs.
 	await commitPaths(dir, ['recipes', 'ingredients', 'prices.csv'], 'scale fixture', { name: 'Scale Test', email: 'scale@example.invalid' });
 	const appends: number[] = [];

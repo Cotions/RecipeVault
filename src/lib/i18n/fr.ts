@@ -8,6 +8,7 @@ export const fr = {
 			browse: 'Recettes',
 			families: 'Familles',
 			ingredients: 'Ingrédients',
+			pantry: 'Garde-manger',
 			add: 'Ajouter',
 			trash: 'Corbeille',
 			queue: (n: number) => `À relier (${n})`
@@ -306,6 +307,47 @@ export const fr = {
 		problems: 'Problèmes dans le fichier',
 		broken: 'Le fichier de cet ingrédient ne passe plus la validation. La page montre la dernière version valide.',
 		file: (path: string) => `Fichier : ${path}`
+	},
+	/** Pantry search, /garde-manger (plan 03, Phase 7). */
+	pantry: {
+		title: 'Garde-manger',
+		intro: 'Dites ce que vous avez sous la main : les recettes qu’on peut faire tout de suite viennent en premier, puis celles où il manque peu.',
+		have: 'J’ai',
+		must: 'Doit contenir',
+		avoid: 'À éviter',
+		add: 'Ajouter un ingrédient',
+		addTo: 'dans',
+		addSubmit: 'Ajouter',
+		addHelp: 'Un nom d’ingrédient, en français ou en anglais.',
+		remove: (name: string) => `Retirer ${name}`,
+		unknown: (name: string) => `« ${name} » n’est pas un ingrédient du registre.`,
+		allergens: 'Sans allergènes',
+		staples: 'Supposer les essentiels (sel, farine, beurre…)',
+		apply: 'Chercher',
+		clear: 'Tout effacer',
+		empty: 'Ajoutez au moins un ingrédient que vous avez.',
+		none: 'Aucune recette n’emploie ces ingrédients.',
+		tiers: {
+			pret: 'Prêt à cuisiner',
+			substitution: 'Avec une substitution',
+			presque: 'Presque',
+			idees: 'Idées'
+		} as Record<string, string>,
+		tierHelp: {
+			pret: 'Rien ne manque.',
+			substitution: 'Ce qui manque se remplace par ce que vous avez : ce n’est plus tout à fait la recette d’origine.',
+			presque: 'Il manque un ou deux ingrédients.',
+			idees: 'Emploie au moins un de vos ingrédients.'
+		} as Record<string, string>,
+		count: (n: number) => (n === 1 ? '1 recette' : `${n} recettes`),
+		more: (n: number) => `Voir les ${n} autres`,
+		coverage: (m: number, r: number) => `${m} sur ${r}`,
+		coverageTitle: 'Ingrédients requis que vous avez (les essentiels supposés, les « au goût » et les facultatifs ne comptent pas)',
+		missing: 'Manque :',
+		or: ' ou ',
+		swaps: 'Remplacer :',
+		unresolved: (n: number) => (n === 1 ? '+ 1 ingrédient non relié' : `+ ${n} ingrédients non reliés`),
+		unresolvedTitle: 'Ces noms ne sont reliés à aucun ingrédient du registre : la recherche ne peut pas savoir si vous les avez.'
 	},
 	category: {
 		frais: 'Frais',

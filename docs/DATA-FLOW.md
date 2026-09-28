@@ -165,6 +165,17 @@ link shows on the next load. The server sends the totals at the base servings
 and every line's cost; the browser multiplies the total by the servings
 adjuster. The rules are `INGREDIENTS.md`, "Cost".
 
+### Pantry search
+
+`/garde-manger` (plan 03, Phase 7) is read-only. The first search builds every
+recipe's needs from the index (`ingredients.item`, `ingredient_or`, sub-recipes
+flattened, `registry.staple`, `substitutes`, `ingredient_allergens`) and keeps
+them in memory; any later write to the index (a save, a sync, a registry edit)
+rebuilds them on the next search. The state is the URL
+(`?have=…&must=…&avoid=…&allergenes=…&essentiels=non`); the last one is also
+kept in the browser's `localStorage`. The rules are `INGREDIENTS.md`,
+"Pantry search".
+
 ### Concurrent edit
 
 Files mean last-write-wins, which silently eats an edit. Cheap guard: every

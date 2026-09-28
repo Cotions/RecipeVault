@@ -278,13 +278,24 @@ close they are to cookable.
 
 ```
 have      = selected ingredient slugs  (+ all staples, if "assume staples" is on)
-required  = recipe ingredients where NOT optional AND NOT to_taste AND NOT staple
+required  = recipe ingredients where NOT optional AND NOT to_taste
             AND NOT in an optional group
+            AND NOT (a staple, when staples are assumed, unless she selected it)
             (an entry with or: [...] is matched if ANY of its options is in have)
 matched   = required ∩ have
 missing   = required − have
 coverage  = |matched| / |required|
+used      = selected ingredients that meet a required line (staples included)
 ```
+
+A sub-recipe line counts the sub-recipe's own lines, recursively; with
+`buy_instead`, a registry entry with the sub-recipe's slug also meets it
+(→ `RECIPE-SCHEMA.md` §Sub-recipes). Lines not linked to the registry are left
+out of `required` and counted: the result says "+ N ingrédients non reliés".
+
+A recipe is a result only when `used ≥ 1`: with the staples assumed, every
+recipe would otherwise match through its flour and salt, and a recipe made of
+staples alone does not answer "what can I make with this".
 
 Three modes, one query:
 
@@ -292,10 +303,10 @@ Three modes, one query:
 |---|---|---|
 | Cookable now | `missing = 0` | "dinner, tonight, no shopping" |
 | Almost there | `missing ≤ 2` | "what do I grab on the way home" |
-| Ideas | `matched ≥ 1` | "inspire me, I have leftover penne" |
+| Ideas | `used ≥ 1` | "inspire me, I have leftover penne" |
 
-Ranking within a mode: coverage descending, then fewest missing, then highest
-`rating`, then shortest `total_s`. Rating before time because at 5000 recipes the
+Ranking within a mode: coverage descending, then fewest missing, then most
+selected ingredients used, then highest `rating`, then shortest `total_s`. Rating before time because at 5000 recipes the
 top of the list should be recipes she actually likes.
 
 Every result shows its missing ingredients inline. A result you cannot act on is
@@ -313,12 +324,19 @@ and "almost there", labelled so she knows it is not the original.
 - "must use" — pin an ingredient so only recipes containing it are considered
   (she bought courgettes and needs them gone).
 - "must avoid" — exclude recipes containing an ingredient or allergen.
+  Conservative: an optional line, an `or` choice or a sub-recipe's line counts
+  as containing it. An allergen is avoided through the entries that carry it
+  (`allergens`, values from `vocab/allergens.yaml`); an entry that lists none is
+  not known to be safe, only not known to carry one.
+
+Pinned ("must use") ingredients count as had.
 
 ### It stays fast
 
-This is a join over `ingredients(item)` grouped by recipe. At 5000 recipes and
-maybe 60000 ingredient rows, SQLite answers in single-digit milliseconds with an
-index on `item`. No special machinery.
+Each recipe's needs are read once from the index (`ingredients.item`,
+`ingredient_or`, sub-recipes flattened) and kept in memory until the index
+changes; a search is one pass over them. At 5000 recipes and ~60 000 ingredient
+rows: ~50 ms to build, ~3–4 ms per search after that.
 
 ## Two views
 

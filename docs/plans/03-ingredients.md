@@ -771,6 +771,53 @@ Tests: a fixture vault with a hand-computed expected tier for each recipe, `or`,
 optional groups, `buy_instead`, substitution direction, must/avoid, allergen
 avoid. E2E: pick two ingredients, see the tiers, open a result.
 
+Implementation notes (done):
+
+- Code: the tier rules are pure and browser-safe in
+  `src/lib/ingredients/pantry.ts` (`pantrySearch`); the needs are built from
+  the index in `src/lib/server/index/pantry.ts` (`pantryQuery`) and kept in
+  memory per connection until `total_changes()` or `data_version` moves (any
+  write, from the app or the CLI). In memory rather than SQL: the recursion,
+  `or`, `buy_instead` and the substitution tier are one pass in code, and the
+  target is met (below).
+- Staples (Q19 A, on by default): an assumed staple is left out of `required`
+  unless she picked it; a picked staple counts, matched. Otherwise "œufs,
+  farine, lait" would read "0 sur 1" on a ready recipe.
+- Results need `used ≥ 1` (a picked ingredient, staples included, meets a
+  required line), not `matched ≥ 1` as the doc said: with the staples assumed
+  every recipe matches through its flour and salt. `INGREDIENTS.md` updated.
+  Tiebreak added after "fewest missing": most picked ingredients used.
+- Substitution tier: every missing line has, among its accepted slugs, one
+  whose `substitutes` lists something in `have` (staples included when
+  assumed). Directional: the missing entry's list only.
+- Sub-recipes: flattened, memoised, cycles cut. `buy_instead` is met by a
+  registry entry with the sub-recipe's slug (then it counts once, and its
+  inner unresolved lines do not); a sub-recipe missing from the vault counts
+  as its bought entry if one exists, else as unresolved.
+- Unresolved lines (no registry item, no resolved `or` choice) are out of
+  `required` and shown as "+ N ingrédients non reliés" (Q19).
+- Avoid (ingredients and allergens, Q20 A from `vocab/allergens.yaml`) is
+  conservative: optional lines, `or` choices and sub-recipe lines count.
+  Pinned "doit contenir" items must be used anywhere and count as had.
+- Page `/garde-manger` (nav "Garde-manger"): a GET form; a typed name (either
+  language, a `<datalist>` of every alias) is resolved like a recipe line
+  (exact slug or display name, then the resolver's alias and plural steps) and
+  the page redirects to the canonical URL
+  `?have=a,b&must=…&avoid=…&allergenes=…&essentiels=non`. An unknown name is
+  said so. Chips are links that remove the item. Four sections in tier order,
+  20 each, "Voir les N autres" (`voir=<tier>`). Coverage shows as "m sur r".
+  The last pantry is kept in `localStorage`; an empty `/garde-manger` reopens
+  it, "Tout effacer" (`?vide=1`) forgets it.
+- No new diagnostic codes.
+- Corpus sanity (`tests/pantry-corpus.test.ts`, seed + 320 cards): the corpus
+  has no plain batter, so "œufs, farine, lait" gives 0 ready, 8 with a
+  substitution (cassonade → sucre, pouding chômeur and kin), 48 almost, 133
+  ideas; adding cassonade makes 8 ready. The fixture vault's crêpes are ready
+  for "œufs, farine, lait" (`tests/server/pantry.test.ts`, e2e).
+- Speed (`gen-vault.ts --bench`, 5000 recipes): model build + first query
+  ~50 ms, then 3.4 ms (3 picked) and 4.1 ms (8 picked + avoid + allergen);
+  target < 10 ms.
+
 ### Phase 8 — the deferred checker codes and the AI template
 
 Depends on: Q21, Q22, Q23, Q24.
