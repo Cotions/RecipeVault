@@ -216,6 +216,15 @@ describe('Fusionner dans… (Q25 B)', () => {
 		expect(lastCommit()).toBe('override');
 	});
 
+	it('is refused when a recipe buys the absorbed slug instead of making it (recipe: + buy_instead)', async () => {
+		writeFileSync(join(v.dir, 'ingredients/pate-brisee.md'), '---\nslug: pate-brisee\ncategory: epicerie\nnames:\n  fr: [pâte brisée du commerce]\n  en: []\nstaple: false\nsubstitutes: []\nallergens: []\n---\n');
+		await commitPaths(v.dir, ['ingredients'], 'pate-brisee', AUTHOR);
+		syncVault(v.ctx.db, v.ctx.paths);
+		await expect(mergeEntry(v.ctx, 'pate-brisee', 'pate-a-tarte', hashOf('pate-brisee'))).rejects.toThrow(/buy_instead: true » : tarte-au-sucre, tarte-aux-pommes-grand-mere\)/);
+		expect(existsSync(join(v.dir, 'ingredients/pate-brisee.md'))).toBe(true);
+		expect(lastCommit()).toBe('pate-brisee');
+	});
+
 	it('is refused on a stale page', async () => {
 		const old = hashOf('margarine');
 		await addAlias(v.ctx, 'margarine', old, 'fr', 'margarine molle');

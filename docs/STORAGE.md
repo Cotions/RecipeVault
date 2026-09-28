@@ -117,8 +117,9 @@ Instead: recipe files contain only what was written — `name`. The registry's a
 lists are the mapping. Resolution happens when building the index, every time. Merge
 two ingredients → edit one alias list, one small commit, re-index. Recipes untouched.
 The app's "Fusionner dans…" does exactly that (`DATA-FLOW.md`, "Ingredient
-edits: the ingredient view"), and refuses while `prices.csv` or an `item:`
-override names the absorbed slug.
+edits: the ingredient view"), and refuses while `prices.csv`, an `item:`
+override or a bought-instead sub-recipe line (`recipe:` with `buy_instead: true`)
+names the absorbed slug.
 
 `item:` may still appear in a recipe entry, but only as a deliberate **manual
 override** for a genuinely ambiguous name in one specific recipe ("farine" here

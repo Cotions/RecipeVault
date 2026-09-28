@@ -379,8 +379,9 @@ serving, with coverage), and per-ingredient links into the ingredient view.
 - unresolved written names mapped onto it, so drift is visible
 - "Fusionner dans…" (Q25): its names, rules, substitutes and allergens move to
   another entry and its file is deleted, in one commit; refused while
-  `prices.csv` has rows for it (the file stays append-only) or a recipe names it
-  in `item:`
+  `prices.csv` has rows for it (the file stays append-only), a recipe names it
+  in `item:`, or a sub-recipe line `recipe: <it>` has `buy_instead: true` (that
+  line counts through the entry of its slug); the refusal lists the recipes
 
 **Ingredient index** — sortable table of every ingredient: name, category, price,
 number of recipes, priced or not. This is the working screen for entering prices,

@@ -325,8 +325,9 @@ export function addAlias(ctx: VaultContext, slug: string, hash: string, lang: La
  * its notes are appended, entries naming `from` as a substitute name `into`
  * instead, and its file is deleted — one commit, `ingredient: merge <from>
  * into <into>`. Refused when prices.csv has rows for `from` (the file stays
- * append-only) or a recipe names it in `item:` (resolution never writes a
- * recipe). Both hashes are the files as the person saw them.
+ * append-only), a recipe names it in `item:` (resolution never writes a
+ * recipe), or a sub-recipe line `recipe: <from>` has `buy_instead: true` (it
+ * counts through the entry of that slug). Both hashes are the files as the person saw them.
  */
 export function mergeEntry(ctx: VaultContext, from: string, into: string, fromHash: string, intoHash?: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
@@ -344,6 +345,12 @@ export function mergeEntry(ctx: VaultContext, from: string, into: string, fromHa
 			.pluck()
 			.all(from, from) as string[];
 		if (overrides.length) throw new IngredientError(`des recettes nomment ${from} dans « item: » (${overrides.join(', ')}) ; corrigez-les d’abord.`);
+		// A sub-recipe line bought instead counts through the entry of its slug (cost, pantry).
+		const bought = ctx.db.prepare('SELECT DISTINCT slug FROM ingredients WHERE recipe = ? AND buy_instead = 1 ORDER BY 1').pluck().all(from) as string[];
+		if (bought.length)
+			throw new IngredientError(
+				`des recettes achètent ${from} au lieu de le faire (« recipe: ${from} » avec « buy_instead: true » : ${bought.join(', ')}) ; sans l’ingrédient ${from}, ces lignes perdraient leur prix et leur place au garde-manger. Corrigez-les d’abord.`
+			);
 		const absorbed = checked(a.text, from, vocab);
 		const target = checked(b.text, into, vocab);
 
