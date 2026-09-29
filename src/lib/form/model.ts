@@ -189,6 +189,10 @@ export interface FormError {
 	id: string;
 	field: string;
 	reason: string;
+	/** The checker's code, when the checker found it (a rule the form did not state first). */
+	code?: string;
+	/** The words at fault, as she typed them (`[voir note]`, `incertain`). */
+	value?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -509,6 +513,8 @@ export interface FromForm {
 	 * The form id behind each group, item and `or` path of `recipe`
 	 * (`ingredients[0]`, `ingredients[0].items[2]`, `….or[1]`): empty rows are
 	 * left out, so a diagnostic's path is mapped back to its row through this.
+	 * The body too: `body.sections[i]` → section id, `body.steps[i]` → step
+	 * row id, `method` → the method section's id (written or not).
 	 */
 	ids: Record<string, string>;
 }
@@ -671,7 +677,7 @@ export function fromForm(form: FormRecipe): FromForm {
 				if (typeof tempMax === 'string') recipe.oven.tempMaxRaw = tempMax;
 			}
 		}
-	}
+	} else if (!blank(form.oven.tempMax)) errors.push({ id: 'recipe', field: 'oven.tempMax', reason: 'qty' }); // a maximum alone is never dropped silently
 
 	const servings = read(w, 'servings', form.servings, num, err('servings'));
 	if (servings !== undefined) {
@@ -727,9 +733,21 @@ export function fromForm(form: FormRecipe): FromForm {
 	if (Object.keys(form.media).length) recipe.media = { ...form.media };
 	for (const k of ['status', 'added', 'updated', 'extractedBy'] as const) if (form.app[k] !== undefined) recipe[k] = form.app[k];
 
-	const sections = form.sections.map((s) => sectionFromForm(s, errors)).filter((s): s is Section => !!s);
+	// Body paths too (`body.sections[1]`, `body.steps[4]`, `method`), so a diagnostic on the body finds its row.
+	const sections: Section[] = [];
+	const stepIds: string[] = [];
+	for (const s of form.sections) {
+		if (s.kind === 'method' && ids.method === undefined) ids.method = s.id;
+		const sec = sectionFromForm(s, errors);
+		if (!sec) continue;
+		ids[`body.sections[${sections.length}]`] = s.id;
+		sections.push(sec);
+		if (s.kind === 'method') for (const r of s.rows) if (r.type === 'step' && r.text.trim()) stepIds.push(r.id);
+	}
 	const body: Body = { preamble: form.preamble, sections, steps: [] };
 	body.steps = parseBody(serializeBody(body, lang)).body.steps;
+	// Rows and steps line up unless the method holds something the rows do not show; then a step maps to its section.
+	if (stepIds.length === body.steps.length) stepIds.forEach((id, i) => (ids[`body.steps[${i}]`] = id));
 	return { recipe, body, errors, ids };
 }
 

@@ -11,3 +11,4 @@ export * from './rows';
 export * from './draft';
 export * from './family';
 export * from './compare';
+export * from './check';

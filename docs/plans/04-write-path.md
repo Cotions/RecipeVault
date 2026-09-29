@@ -524,6 +524,50 @@ logged with its code and never returned as text.
   `ingredient_or.recipe`.
 - Tests: `tests/server/formsave.test.ts` (20), `tests/unit/form/rows.test.ts`.
 
+**Fixes after the P2 review — the checker behind Save.** The review found
+values the form let through and the checker refused (E210/E211 in a name,
+E216 in a note, E217 in her own prose, E108 decimal servings, E202/E203/E205 on
+the yield and the alt, E301 once every step is removed, an oven maximum
+dropped without a word): each ended in the one plain `failed` sentence, no
+field named. The separate inputs do not make E210/E211 impossible after all
+(a comma, `tomates 796 ml`).
+- **The net (`form/check.ts`).** `blocks()` runs the checker itself on what
+  Save would write (`formFile` → `checkFile`, in the browser as the paste box
+  does) and maps every error back to its row and field through `fromForm`'s
+  `ids` (now also `body.sections[i]`, `body.steps[i]` → step row, `method`).
+  A mapped block carries its `code`; the form's own rules come first and keep
+  their reasons. New reasons: `integer` (E108), `nameQuantity` (E210),
+  `nameComma` (E211), `noteQuantity` (E216), `marker` (E217, with `value`, the
+  words at fault), `method` (E301), `checker` (any other code: its French line
+  is `explain(code)`).
+- **The server runs the same gate.** `formSave` refuses with `invalid` and
+  those blocks before writing; an error only the vault check sees (E213) comes
+  back from `saveLocked` mapped the same way, and `formCheck` returns the vault
+  check's errors as `errors` beside the hints. A block with a `code` is a gap
+  in the form's own rules: logged with the code. `failed` is left for a save
+  that could not run, or an error no field holds. This replaces "shown to her
+  as one plain sentence" above: she sees the field named, still never a code.
+- **Specific rules** stated before the net: whole servings, the yield amount
+  like an item's (unit ↔ quantity, range), the alt range, the method emptied
+  beside an unrecognized section (`method` on the method section), an oven
+  maximum without a temperature (a `fromForm` error: refused, never dropped).
+- **⚑ Flagged — E217 in her own text is blocked, not escaped.** The docs do
+  not say what a person's typed `[voir note]`, "temps incertain", "illisible"
+  or "?)" become: the file format has no escape for `[`, and the prose rule
+  is the checker's (`VALIDATION.md` E217). Rewriting her text (brackets to
+  parentheses) would change what she wrote without her seeing it, so the
+  safest reading is a block on the field, naming the words, asking her to
+  write it another way. The four markers typed by hand are blocked the same
+  way (Q15 A: she cannot add markers). A field still showing the file's value
+  is never blocked for markers it held. If the owner prefers an automatic
+  rewrite, or wants "incertain" allowed in typed text, that is a checker or
+  schema change first.
+- **⚑ Flagged — `VALIDATION.md` §Human-facing validation** still says the
+  separate inputs make E210/E211 "cannot be expressed"; they can (see above).
+  Left for the owner to reword.
+- Tests: `tests/unit/form/check.test.ts`, `tests/server/formsave.test.ts`
+  ("what the checker refuses comes back on its field").
+
 ### Phase 4 — the form UI, core: title, ingredients, method, notes
 
 Depends on: Q5, Q6, Q7, Q8, Q9, Q15, Q17.

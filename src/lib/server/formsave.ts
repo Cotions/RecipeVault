@@ -12,8 +12,12 @@
 // - a new family's French label written to vocab/families.yaml, and the other
 //   recipe of a same-title pair put in the family, in the recipe's commit
 //   (Q10 A);
-// - the vault warnings mapped to form fields, as plain hints (Q9 A); an error
-//   from the checker is a bug in the form: logged with its codes, never shown.
+// - the vault warnings mapped to form fields, as plain hints (Q9 A);
+// - the checker's errors mapped to form fields too (`checkerBlocks`): the same
+//   Save gate as the browser's (`blocks`) is run before anything is written,
+//   and an error only the vault check finds (E213) comes back on its field.
+//   An error the form's own rules did not state first is a gap in the form:
+//   logged with its code; she sees the field named, never the code.
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,6 +29,8 @@ import { isSlug, slugify } from '../vault/slug';
 import type { Diagnostic, Recipe } from '../vault/types';
 import { suggestTag } from '../vault/rules/vaultvocab';
 import { fromForm, toForm, type FormError, type FormRecipe } from '../form/model';
+import { checkerBlocks, formFile } from '../form/check';
+import { blocks, type Block } from '../form/rows';
 import type { FormHint } from '../form/hints';
 import type { VaultStats } from '../form/defaults';
 import { lookupKey } from '../ingredients/normalize';
@@ -67,22 +73,20 @@ export type FormSaveResult =
 	| { status: 'stale'; slug: string; theirs: { form: FormRecipe; hash: string } | null }
 	/** The recipe is gone (deleted since), or its file has errors the form cannot open (Q3 A). */
 	| { status: 'refused'; reason: 'gone' | 'broken' | 'pair' }
-	/** Values the file format cannot hold: the form should have prevented them. */
+	/** Values the file format cannot hold, each on its row and field (the `blocks` shape: `code` when the checker found it). */
 	| { status: 'invalid'; errors: FormError[] }
-	/** The checker refused the text: a bug in the form, logged; she sees one plain sentence. */
+	/** The save could not run, or the checker refused something no field holds: logged; she sees one plain sentence. */
 	| { status: 'failed' };
 
 export interface FormSaveOptions extends SaveOptions {}
 
 /** The recipe the form writes: the app's fields left for the save path to set (the form's text never holds `status` or `added`). */
-function formRecipe(form: FormRecipe, slug: string): { recipe: Recipe; body: ReturnType<typeof fromForm>['body']; ids: Record<string, string>; errors: FormError[] } {
-	const { recipe, body, errors, ids } = fromForm(form);
-	recipe.slug = slug;
-	recipe.slugDerived = false;
-	delete recipe.status;
-	delete recipe.added;
-	delete recipe.updated;
-	return { recipe, body, errors, ids };
+const formRecipe = (form: FormRecipe, slug: string) => formFile(form, slug);
+
+/** Blocks the form's own rules did not state (the checker's net): each a gap in the form, logged with its code. */
+function logGaps(ctx: VaultContext, slug: string, errors: FormError[]): void {
+	const gaps = errors.filter((e) => e.code);
+	if (gaps.length) ctx.log(`recipevault: form refused by the checker for ${slug}: ${gaps.map((e) => `${e.code} ${e.id}.${e.field}`).join(', ')}`);
 }
 
 /** The first free slug for a title: `<slug>`, else `<slug>-2`, … (a slug in the trash is never reused). */
@@ -126,8 +130,13 @@ async function formSaveLocked(ctx: VaultContext, req: FormSaveRequest, opts: For
 		slug = freeSlug(ctx, form.title);
 	}
 
-	const { recipe, body, errors, ids } = formRecipe(form, slug);
-	if (errors.length) return { status: 'invalid', errors };
+	// The browser's Save gate, run again before anything is written.
+	const problems = blocks(form);
+	if (problems.length) {
+		logGaps(ctx, slug, problems);
+		return { status: 'invalid', errors: problems };
+	}
+	const { recipe, body, text, ids } = formRecipe(form, slug);
 
 	if (cur) {
 		const file = checkFile(cur.text);
@@ -137,7 +146,6 @@ async function formSaveLocked(ctx: VaultContext, req: FormSaveRequest, opts: For
 		if (serialize({ ...same, slug }, body) === serialize(file.recipe, file.body)) return { status: 'unchanged', slug, hash: cur.hash };
 	}
 
-	const text = serialize(recipe, body);
 	const extra: NonNullable<SaveOptions['extra']> = {};
 	const files: FileWrite[] = [];
 	if (recipe.family && req.familyLabel !== undefined) {
@@ -186,9 +194,11 @@ async function formSaveLocked(ctx: VaultContext, req: FormSaveRequest, opts: For
 		const theirs = openForm(ctx, slug);
 		return { status: 'stale', slug, theirs: 'form' in theirs ? theirs : null };
 	}
-	// A collision cannot happen (the slug was free, under the lock) and a rejection is a bug in the form.
+	// A collision cannot happen (the slug was free, under the lock). A rejection is an error only the vault
+	// check finds (E213), or a gap in the form: on its field when it has one.
 	ctx.log(`recipevault: form save refused by the checker for ${slug} (${r.status}): ${r.diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.code} ${d.path ?? ''}`).join(', ')}`);
-	return { status: 'failed' };
+	const errors = checkerBlocks(r.diagnostics, ids);
+	return errors.length ? { status: 'invalid', errors } : { status: 'failed' };
 }
 
 /** The other recipe of a W608 pair, put in the family (Q10 A): its text, or undefined when it changed or cannot be read. */
@@ -282,13 +292,19 @@ export function hintsFrom(ctx: VaultContext, diagnostics: Diagnostic[], ids: Rec
 /**
  * The vault hints for a form not yet saved (the live check while she types,
  * Q9 A): the same check the save runs, nothing written. A W608 comes with the
- * other recipe's hash, for "mettre en famille" (Q10 A).
+ * other recipe's hash, for "mettre en famille" (Q10 A). `errors`: the
+ * vault check's errors on their fields (`blocks` shape), the ones the
+ * browser's own check cannot see (E213) included; a new recipe's E103 is not
+ * hers (its slug is chosen free on save).
  */
-export function formCheck(ctx: VaultContext, form: FormRecipe, base?: FormBase): { hints: FormHint[]; same: { slug: string; title: string; hash: string; family: string | null }[] } {
+export function formCheck(
+	ctx: VaultContext,
+	form: FormRecipe,
+	base?: FormBase
+): { hints: FormHint[]; errors: Block[]; same: { slug: string; title: string; hash: string; family: string | null }[] } {
 	const slug = base?.slug ?? (slugify(form.title) || 'recette');
-	const { recipe, body, ids } = formRecipe(form, slug);
+	const { recipe, text, ids } = formRecipe(form, slug);
 	const { entries } = vaultEntries(ctx);
-	const text = serialize(recipe, body);
 	const checked = checkBatch([{ name: 'recipe 1', text }], {
 		// An edit is checked as a replacement of itself; a new recipe's slug is chosen free on save, so E103 is not hers.
 		vault: entries.filter((e) => e.slug !== slug),
@@ -297,7 +313,7 @@ export function formCheck(ctx: VaultContext, form: FormRecipe, base?: FormBase):
 	const f = checked.files[0];
 	const diagnostics = [...f.diagnostics];
 	if (f.recipe) diagnostics.push(...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, f.recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, f.recipe));
-	return { hints: hintsFrom(ctx, diagnostics, ids, recipe), same: titleMatches(ctx, recipe.title, base?.slug).same };
+	return { hints: hintsFrom(ctx, diagnostics, ids, recipe), errors: checkerBlocks(f.diagnostics.filter((d) => d.code !== 'E103'), ids), same: titleMatches(ctx, recipe.title, base?.slug).same };
 }
 
 // ---------------------------------------------------------------------------

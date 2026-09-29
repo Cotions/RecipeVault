@@ -16,7 +16,7 @@ import {
 import { currentFile, save } from '../../src/lib/server/save';
 import { remove } from '../../src/lib/server/trash';
 import { checkFile } from '../../src/lib/vault/check';
-import { confirmField, emptyForm, fieldMarkers, formText, newItem, type FormRecipe } from '../../src/lib/form/model';
+import { confirmField, emptyForm, fieldMarkers, formText, newItem, type FormRecipe, type MethodSection } from '../../src/lib/form/model';
 import { defaultsFor } from '../../src/lib/form/defaults';
 import { fixtureVault, tempVault, type TempVault } from '../helpers/vault';
 
@@ -99,15 +99,97 @@ describe('formSave — new recipe', () => {
 		expect(commits()).toHaveLength(before);
 	});
 
-	it('logs a checker error with its code and returns no text of it', async () => {
+	it('a checker error the form missed: logged with its code, returned on its field, nothing written', async () => {
 		const f = newForm('Biscuits inventés');
 		// A unit outside the list: the picker cannot produce it; the checker still refuses it.
 		(f.groups[0].items[0] as { unit: string }).unit = 'tasse';
 		const before = commits().length;
 		const r = await formSave(ctx(), { form: f });
-		expect(r).toEqual({ status: 'failed' });
+		expect(r).toEqual({ status: 'invalid', errors: [{ id: f.groups[0].items[0].id, field: 'unit', reason: 'checker', code: 'E201' }] });
 		expect(logs.join('\n')).toMatch(/E201/);
+		expect(JSON.stringify(r)).not.toMatch(/tasse|not allowed/);
 		expect(commits()).toHaveLength(before);
+	});
+});
+
+describe('formSave — what the checker refuses comes back on its field (P2 review)', () => {
+	/** Saves, expects `invalid` with a block on (id, field), nothing committed. */
+	async function refused(f: FormRecipe, id: string, field: string, reason: string) {
+		const before = commits().length;
+		const r = await formSave(ctx(), { form: f });
+		expect(r.status).toBe('invalid');
+		const errors = r.status === 'invalid' ? r.errors : [];
+		expect(errors.find((e) => e.id === id && e.field === field)).toMatchObject({ reason });
+		expect(commits()).toHaveLength(before);
+		return errors;
+	}
+	const item = (f: FormRecipe) => f.groups[0].items[0];
+	const step = (f: FormRecipe) => (f.sections[0] as MethodSection).rows[0];
+
+	it('E211 / E210 in the name', async () => {
+		const a = newForm('Soupe inventée', (f) => Object.assign(item(f), { qty: '', unit: '', name: 'sel, poivre', toTaste: true }));
+		const errors = await refused(a, item(a).id, 'name', 'nameComma');
+		expect(errors[0].code).toBe('E211');
+		expect(logs.join('\n')).toMatch(/E211/);
+		const b = newForm('Soupe inventée', (f) => Object.assign(item(f), { qty: '1', unit: 'can', name: 'tomates 796 ml' }));
+		await refused(b, item(b).id, 'name', 'nameQuantity');
+	});
+
+	it('E216 in the note', async () => {
+		const f = newForm('Galettes inventées', (f) => (item(f).note = '1/2 lb'));
+		await refused(f, item(f).id, 'note', 'noteQuantity');
+	});
+
+	it('E217 in a step and in a note', async () => {
+		const f = newForm('Galettes inventées', (f) => (step(f).text = 'Cuire [voir note].'));
+		expect((await refused(f, step(f).id, 'text', 'marker'))[0].value).toBe('[voir note]');
+		const g = newForm('Galettes inventées', (f) => (item(f).note = 'lecture incertaine'));
+		await refused(g, item(g).id, 'note', 'marker');
+	});
+
+	it('E108: decimal servings', async () => {
+		await refused(newForm('Galettes inventées', (f) => (f.servings = '2,5')), 'recipe', 'servings', 'integer');
+	});
+
+	it('E202 / E203 / E205 on the yield; E205 on the alt', async () => {
+		const y = (edit: Partial<FormRecipe['yield']>) => newForm('Galettes inventées', (f) => (f.yield = { kind: 'amount', text: '', qty: '', qtyMax: '', unit: '', note: '', ...edit }));
+		await refused(y({ qty: '12' }), 'recipe', 'yield.unit', 'unit');
+		await refused(y({ unit: 'piece' }), 'recipe', 'yield.qty', 'qty');
+		await refused(y({ qty: '3', qtyMax: '2', unit: 'piece' }), 'recipe', 'yield.qtyMax', 'range');
+		const a = newForm('Galettes inventées', (f) => (item(f).alt = { qty: '250', qtyMax: '100', unit: 'ml', written: {} }));
+		await refused(a, item(a).id, 'alt.qtyMax', 'range');
+	});
+
+	it('E301: every step removed beside a section the file does not know', async () => {
+		const text = `---\nschema: 3\ntitle: Galettes inventées\nslug: galettes-inventees\nlang: fr\ningredients:\n  - items:\n      - { qty: 1, unit: cup, name: farine }\n---\n\n## Préparation\n\n1. Mélanger.\n\n## Conservation\n\nAu frais.\n`;
+		await save(v.ctx, [{ text }]);
+		const o = opened('galettes-inventees');
+		const m = o.form.sections.find((s) => s.kind === 'method') as MethodSection;
+		m.rows.splice(0);
+		const before = commits().length;
+		const r = await formSave(ctx(), { form: o.form, base: { slug: 'galettes-inventees', hash: o.hash } });
+		expect(r).toMatchObject({ status: 'invalid', errors: [{ id: m.id, field: 'steps', reason: 'method' }] });
+		expect(commits()).toHaveLength(before);
+	});
+
+	it('an oven maximum without a temperature is refused, not dropped', async () => {
+		await refused(newForm('Galettes inventées', (f) => (f.oven = { temp: '', tempMax: '375', unit: 'F' })), 'recipe', 'oven.tempMax', 'qty');
+	});
+
+	it('an error only the vault finds (E213) comes back on its row, from the live check and the save', async () => {
+		const o = opened('bouillon-de-legumes');
+		const it = newItem();
+		Object.assign(it, { qty: '1', unit: 'piece', name: 'pizza', recipe: 'pizza-maison' });
+		o.form.groups[0].items.push(it);
+		expect(formCheck(v.ctx, o.form, { slug: 'bouillon-de-legumes', hash: o.hash }).errors).toContainEqual(expect.objectContaining({ id: it.id, code: 'E213' }));
+		const r = await formSave(ctx(), { form: o.form, base: { slug: 'bouillon-de-legumes', hash: o.hash } });
+		expect(r.status).toBe('invalid');
+		expect(r.status === 'invalid' && r.errors.some((e) => e.id === it.id && e.code === 'E213')).toBe(true);
+		expect(logs.join('\n')).toMatch(/E213/);
+	});
+
+	it('a clean form has no errors in the live check', () => {
+		expect(formCheck(v.ctx, newForm('Galettes inventées')).errors).toEqual([]);
 	});
 });
 
