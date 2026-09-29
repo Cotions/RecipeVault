@@ -260,3 +260,12 @@ of these states, but not all (a comma or "796 ml" can still be typed in a name).
 So the form runs the checker on exactly what Save would write, and every error
 comes back as a French hint on its row and field that blocks Save — never a
 code, never a generic failure.
+
+Warnings reach the form as hints, never blocking (plan 04, Q9 A): `W302`,
+`W304` and `W607` live in the browser on the name field, each with its one-tap
+fix (move the word to *préparation*, the note or *marque*); `W501`, `W502`,
+`W503`/`W608`, `W303`/`W305`, `W306` and `W605` from the server check the form
+runs while she types (`DATA-FLOW.md`, "Her form"). Their French texts are a
+second table beside the codes' own, `formHintText` in
+`src/lib/i18n/diagnostics.ts`, with a test requiring an entry for every code
+the form maps (`FORM_HINT_CODES`).

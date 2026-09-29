@@ -1,7 +1,8 @@
 # Plan 04 — P2, her write path
 
-Status: **waiting on the owner's answers to the open questions** (end of this
-doc). Written 2026-09-28 for a fresh agent session.
+Status: **built** (Phases 0–9, 2026-09-28; the final report is at the end of
+"Final report"). Written 2026-09-28 for a fresh agent session; the open
+questions were decided the same day (recommended options).
 Previous plans: `02-read-app.md` (done: vault, save path, index, paste box,
 browse, recipe page, kitchen mode, trash), `03-ingredients.md` (done: registry,
 resolution and queue, prices, cost, pantry search).
@@ -969,24 +970,91 @@ tags stop being pending; no recipe file changes.
    questions 4 and 5), `README.md`.
 3. The one end-of-work review (decision 3); leftovers become GitHub issues.
 
+**Implementation notes (Phase 9).**
+
+- *Bench.* `gen-vault.ts --bench` keeps the plan 02 and 03 timings, then
+  `benchWritePath`: an invented 74-line recipe (two groups, three
+  sub-headings, a `[?]`) is added in the first of ~20 000 commits written with
+  `git fast-import` (each changes one random recipe's rating; 49 of them,
+  spread evenly, edit the bench recipe in turn: rating, an ingredient, a step,
+  the title, the notes — 50 versions), then `git reset --hard` and a sync. Every
+  write goes through a context with an invented author (`withAuthor`). The
+  photo is a 12 MP JPEG of noise made by `sharp` in the run (7.5 MB, heavier
+  than a phone's). Accounts, `users.json` and `sessions.db` live in their own
+  temp folder. One generator change: every 50th recipe also carries one of 20
+  invented tags (`essai-N`, by index, so the random draws — and plan 03's
+  figures — stay as they were), so `/etiquettes` has small pending tags beside
+  the two big ones the generator already had (`rapide`, `fetes`: not in the
+  seed vocabulary).
+- *Git comparison lines.* The bench also times `git log` of one path without
+  `--follow`, then again after `git commit-graph write --reachable
+  --changed-paths` (Bloom filters), for the report below; they change nothing
+  in the app. git 2.43 uses Bloom filters for a single pathspec only, and never
+  with `--follow`.
+- *Load.* The machine was in desktop use during every run (load average 5–13;
+  a browser, a game client, the parallel review). The recorded run is the last
+  one, on the code after the review's fixes (`5cf0a93`…`e1be4d6`), load
+  average 7–9: a price append took 267 ms there against 166 ms in plan 03, so
+  the write-path figures are ~1.6× pessimistic. An earlier run at load ~5
+  (before the review's fixes) gave: form save 369 / 431 ms, undo 542 ms,
+  photo 670 ms, history 2.4 s.
+- *No `src/` change* (the brief: report a speed problem, do not refactor). Two
+  real problems found, in the final report: the history page, and the retag
+  after a pending-tag action.
+- *Docs.* `DATA-FLOW.md` ("Her form", a new section; undo route; photo from the
+  form; guard pages; Authentication's question marked decided; W603 in the
+  warnings list; the P2 figures), `STORAGE.md` (the `markdown` flag's nav
+  entry; a measured caveat under "Flat directory"), `VOCAB.md` (a pending tag
+  is kept in the file and pending in the index — not a `status:` field; the
+  form's family picker and label), `VALIDATION.md` (the form's hints and their
+  table), `DEPLOY.md` (`--markdown`), `INGREDIENTS.md` (`item:` and the form),
+  `PLANNING.md` (P2 built, open questions 4 and 5 decided), `README.md` (pages,
+  layout, bench). Everything else was already recorded phase by phase.
+
 ## Speed targets
 
 Measured on the generated 5000-recipe vault on this machine; recorded in the
 final report and in `DATA-FLOW.md` next to the plan 02 and 03 figures.
 
-| Operation | Target | Why |
-|---|---|---|
-| open the edit form (server load, a 40-line recipe) | < 100 ms | she opens it from the recipe page on a tablet |
-| suggestions for one keystroke (ingredient names, ~1000 entries + names in use) | < 10 ms server | type-ahead on weak kitchen wifi |
-| hints for one field while typing (browser, name-word lists) | < 5 ms | no input lag on a mid-range tablet |
-| form save: check + serialize + write + commit + index | < 500 ms | git dominates (a price append is ~170 ms) |
-| unchanged form save | no commit | the round-trip promise |
-| photo upload, 12 MP JPEG: store + both derived copies | < 2 s | a phone photo |
-| derived copy on demand after `cache/` deleted | < 1 s each | the first page after a cache wipe |
-| history page, 50 versions, ~20 000-commit vault | < 300 ms | `git log --follow` on one path |
-| undo / restore a version | < 500 ms | same path as a save |
-| sign in (argon2id verify) | 100–500 ms | slow on purpose, not slower |
-| session lookup per request | < 0.5 ms | every request |
+| Operation | Target | Why | Measured (Phase 9) |
+|---|---|---|---|
+| open the edit form (server load, a 40-line recipe) | < 100 ms | she opens it from the recipe page on a tablet | **11.9 ms** (74-line recipe: `openForm` + `formPageData`); 46 ms the first time after a write (vault stats recomputed); new-recipe form 9.8 ms |
+| suggestions for one keystroke (ingredient names, ~1000 entries + names in use) | < 10 ms server | type-ahead on weak kitchen wifi | **2.8 ms** (names + the "relié" check, 18 prefixes); authors 1.6 ms; sub-recipe picker with the E213 walk 15.5 ms |
+| hints for one field while typing (browser, name-word lists) | < 5 ms | no input lag on a mid-range tablet | **0.03 ms** (`nameHint`, timed in Node on a desktop CPU; a tablet ~10× slower is still far under) |
+| form save: check + serialize + write + commit + index | < 500 ms | git dominates (a price append is ~170 ms) | **450 ms** edit (one step), **486 ms** new recipe (medians of 5; 369 / 431 ms in a lighter-load run) |
+| unchanged form save | no commit | the round-trip promise | **no write, no commit** (HEAD unchanged; 11.5 ms) |
+| photo upload, 12 MP JPEG: store + both derived copies | < 2 s | a phone photo | **817 ms** (7.5 MB, commit included) |
+| derived copy on demand after `cache/` deleted | < 1 s each | the first page after a cache wipe | **71 ms** thumbnail, **348 ms** display |
+| history page, 50 versions, ~20 000-commit vault | < 300 ms | `git log --follow` on one path | **2.1 s — not met** (`git log --follow` alone 1.7 s); ordinary recipes (6–10 versions) **4.2–11.8 s** |
+| undo / restore a version | < 500 ms | same path as a save | undo **620 ms — not met** under this load (542 ms lighter); restore **2.8 s — not met** (it reads the whole history first) |
+| sign in (argon2id verify) | 100–500 ms | slow on purpose, not slower | **160 ms**; unknown login (decoy hash) 160 ms |
+| session lookup per request | < 0.5 ms | every request | **0.05 ms** (`currentUser`: cookie → `sessions.db` → `users.json` stat) |
+
+Not in the targets, measured for the report: the form's debounced server check
+(`formCheck`, whole form) 199 ms; `/etiquettes` load (22 pending tags, two of
+them on 883 and 753 recipes) 37 ms; accepting a pending tag, commit included,
+3.8 s whatever its size (the retag, below); growing the vault to 20 012
+commits (`fast-import` + sync) 61 s.
+
+Measured 2026-09-28 on an AMD Ryzen 5 5600X (desktop in use, load average
+7–9), git 2.43, Node 24.20: `npx tsx scripts/gen-vault.ts --bench`, 5000
+recipes, 1000 registry entries, 3000 price rows, 20 012 commits.
+
+Git's share of the history page, per path (`git log --format=%H -- recipes/<slug>.md`,
+same vault):
+
+| Recipe (sorts at) | `--follow` | plain | plain + Bloom commit-graph | `--follow` + Bloom |
+|---|---|---|---|---|
+| `banc-d-essai-…` (b) | 1.7–2.3 s | 1.9 s | **0.29 s** | 1.9 s |
+| `gateau-aux-n…` (g) | (page 4.2 s) | 4.3 s | **0.32 s** | 3.9 s |
+| `pouding-au-f…` (p) | (page 5.5 s) | 6.3 s | 2.0 s | 5.5 s |
+| `tourte-au-su…` (t) | (page 11.8 s) | 8.7 s | 3.0 s | 7.9 s |
+
+A path-limited walk diffs `recipes/` at every commit, and in a flat 5000-entry
+tree git reaches a later name later, so the cost grows with the file's place
+in the alphabet. Bloom filters skip most commits but not all (git's filters
+for one-path commits gave ~25 % false positives on some names here), and
+`--follow` disables them.
 
 ## Testing summary
 
@@ -1023,6 +1091,22 @@ final report and in `DATA-FLOW.md` next to the plan 02 and 03 figures.
 - Speed targets met or measured and reported.
 - Docs updated for every answered question; all tests and `svelte-check` pass.
 
+**Checked 2026-09-28 (Phase 9), item by item** (E2E not re-run in this pass:
+the review was running it in parallel; the E2E files are cited as written):
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| Signs in once per device and stays signed in (Q1) | met | `tests/server/auth.test.ts` (a year, renewed on use at most once a day; ended by `passwd`/`remove`); `tests/e2e/auth.spec.ts` (phone) |
+| A new recipe with everything, on a phone, without Markdown, a code or an error | met, with the leftovers below | `tests/e2e/form.spec.ts` (phone and tablet projects: groups, fraction, range, steps, family, own tag, photo, hints, drafts, a comma named on its row); sub-recipe, oven, portions and source through the model (`tests/unit/form/*.test.ts`); tablet screens not eyeballed |
+| Unchanged → byte-identical, changed → only the changed parts (Q4) | met | `tests/unit/form/roundtrip.test.ts` (fixture vault 22/22, `check/valid` 11/11, corpus 320/320); `tests/server/formsave.test.ts` "unchanged form → no commit"; bench: HEAD unchanged after an unchanged save |
+| Every save, undo and restore one commit by her | met | `tests/server/author.test.ts`, `formsave.test.ts`, `history.test.ts`, `photos.test.ts`; `tests/e2e/guard.spec.ts` (every write attributed) |
+| Undo and "Revenir à cette version" per Q16, no history rewritten | met; **slow** (speed table) | `tests/server/history.test.ts`, `tests/e2e/history.spec.ts` |
+| Photos: original untouched, copies rotated and stripped, original never served | met | `tests/server/photos.test.ts`, `tests/e2e/photo.spec.ts` |
+| Paste box, queue, prices and the rest still work, every write attributed | met | the plan 02/03 suites, all green; `tests/e2e/guard.spec.ts` |
+| Deleting `cache/` loses nothing but sessions | met | sessions are `cache/sessions.db` alone; `tests/server/photos.test.ts` (copies regenerate); `tests/server/ingredients-invariants.test.ts`, `index.test.ts` (index rebuilt equal) |
+| Speed targets met or measured and reported | measured; **3 not met** | "Speed targets" above: history page, undo (under load), restore |
+| Docs; tests; `svelte-check` | met | Phase 9 notes; `npm test` 1480 passed, 1 skipped (the private corpus); `npm run check` 0 errors, 0 warnings |
+
 ## Final report
 
 Asked for:
@@ -1037,6 +1121,144 @@ Asked for:
    person, any new dependency's system package), without touching the real
    vault from the agent session.
 6. Anything deferred, and why; the review's leftovers as GitHub issue links.
+
+**Report, 2026-09-28** (Phase 9, written beside the end-of-work review, which
+ran separately and whose own leftovers it files).
+
+*1. Built.*
+
+| Phase | What | Commits |
+|---|---|---|
+| — | plan, questions decided (recommended options, Q1–Q18) | `bfc9796`, `f62e310` |
+| 0 | author per write: `withAuthor(ctx, author)`, no signature changed | `f7d09b9` |
+| 1 | accounts (`users.json`, argon2id, `vault user …`), sessions (`cache/sessions.db`), `/connexion`, throttle, deny-by-default write guard, `markdown` flag | `8b21c77` |
+| 2 | form model: `toForm`/`fromForm` with the byte-identical round trip, quantities, durations, step rows, markers, defaults from data | `ed7558a` |
+| 3 | `formSave` into the paste's save, status rule (Q14 A), family label and W608 pair in one commit, hints, suggestions, vault stats | `de6b98b` |
+| 4–5 | the form UI, core and rest, in one commit: `/nouvelle`, `/r/<slug>/modifier`, rows, markers, hints, autosave, stale compare, family picker, tags, source, times, oven, portions, photo, Annuler | `4278a41` |
+| 6 | photos: upload, derived WebP copies in `cache/img/`, serving without the original | `aa1ce57` |
+| 7 | undo and per-recipe history, `/r/<slug>/historique` | `763f540` |
+| 8 | pending tags on `/etiquettes`, `vocab/tag-labels.yaml` | `7620e88` |
+| review | fixes from the end-of-work review (separate pass, still running when this was written) | `5cf0a93`, `f1038ea`, `a9142e0`, `e1be4d6`, `6ffc105` |
+| 9 | bench of the write path over ~20 000 commits; docs; this report | this pass's `perf(bench)` and `docs` commits |
+
+Deviations from the plan, each recorded in its phase's notes: the author
+travels in the context (Phase 0); `markdown: true` instead of a role (Q2 B),
+and a deny-by-default guard instead of a list of write routes (Phase 1); form
+strings in `src/lib/i18n/fr-form.ts` beside `fr.ts`, nav label "Nouvelle
+recette", pure-logic component tests under vitest with the UI in Playwright
+(Phase 4); Phases 4 and 5 in one commit; the photo's commit is the recipe file
+alone (`media/` is git-ignored) and the photo prompt came to the recipe page
+before the form existed (Phase 6); the git reads live in `history.ts`, and undo
+/ restore write the old bytes rather than go through `save()` (Phase 7);
+"Retirer" added and `vocab/tag-labels.yaml` introduced, "C'est comme…" an alias
+rather than a rewrite (Phase 8, flagged there). `api/suggest` has
+`kind=name|author|recipe`; families and tags come with the page load instead.
+
+*2. Round trip* (`tests/unit/form/roundtrip.test.ts`): fixture vault 22/22,
+`tests/fixtures/check/valid` 11/11, corpus 320/320, byte-identical to
+`serialize(x)`, directly and after a JSON round trip of the form. The Q4 loss is
+tested by name: a YAML comment and an unknown key are gone after the form, as
+after any app save.
+
+*3. Speed* at 5000 recipes and ~20 000 commits: the "Speed targets" table.
+Met: form open (12 ms), suggestions (3 ms), browser hints (0.03 ms), form save
+(450 / 486 ms, tight under load), unchanged save (no commit), photo (0.8 s),
+copies on demand (71 / 348 ms), sign-in (160 ms), session lookup (0.05 ms).
+**Not met:**
+- **History page: 2.1 s for the 50-version recipe, 4–12 s for ordinary ones**
+  (target 300 ms). Cause: `git log --follow -- recipes/<slug>.md` walks all
+  ~20 000 commits; in the flat 5000-entry `recipes/` tree each step costs more
+  the later the name sorts; `--follow` cannot use changed-path Bloom filters.
+  Without `--follow`, after `git commit-graph write --reachable
+  --changed-paths`, git's part falls to ~0.3 s for two of the four names tried
+  but stays 2–3 s for the others (Bloom false positives). Directions, for the
+  owner to choose (not done — the brief was to report, not refactor): (a) drop
+  `--follow`, name the live and `_trash/` paths explicitly (two single-path
+  logs, since git 2.43 uses Bloom filters for one pathspec only) and keep a
+  Bloom commit-graph written by `vault sync`/after commits; (b) keep a
+  per-path commit table in `cache/index.db`, filled once by one `git log
+  --name-status` walk and appended at each app commit and sync — history then
+  costs a SQL lookup plus the existing `cat-file --batch`, whatever the vault's
+  age; (c) show the newest N versions first and load older ones on demand
+  (`--max-count` is already supported by `recipeHistory`). (b) is the only one
+  that reliably meets 300 ms.
+- **Restore: 2.8 s** — `restoreVersion` calls `recipeHistory` to find the
+  version; checking that the commit touched this path and reading
+  `commit:path` directly would make it a save (~0.5 s).
+- **Undo: 620 ms** under load average 7–9 (542 ms at ~5). No `git log`: a few
+  small git reads, then `checkBatch` with the vault's entries (likely ~200 ms:
+  the same work as the form's debounced check) and the commit. Probably under target on
+  an idle machine (a price append ran 1.6× slower during these runs); not
+  confirmed.
+
+Found beside the targets: **accepting a pending tag takes 3.8 s** whatever its
+size, because `commitVocab` (`src/lib/server/tags.ts`) runs `retag` outside a
+transaction — ~10 000 autocommitted statements. The same `retag` wrapped in
+`ctx.db.transaction` took 0.5 s on the bench vault (the watcher's and the
+sync's callers already wrap it). A one-line fix, left to the owner/review.
+
+*4. Doc/code disagreements and undefined cases* (listed, not settled):
+- **`/etiquettes` signed out.** Phase 8's note says the page is open to "none"
+  signed out; the code serves it (a GET passes the guard; only `/ajouter`,
+  `/nouvelle`, `/r/<slug>/modifier` send to `/connexion`), and its actions go
+  to `/connexion`. `DATA-FLOW.md` §Authentication now lists it with the open
+  reads, as built. Proposed: either add it to `WRITE_PAGES` or change the
+  Phase 8 note — the owner's call.
+- **Tag labels on the recipe page.** `VOCAB.md`: "Display form comes from a
+  label table"; the recipe page still shows each tag as written (the filter
+  sidebar uses labels). Known leftover.
+- **Seed tag labels in code** (`fr.tags`) against decision 1 and `VOCAB.md`'s
+  label table in data; `VOCAB.md` already says so ("until they are moved to
+  that file"). Proposed: seed `vocab/tag-labels.yaml` with them at `vault init`
+  and drop `fr.tags`.
+- **`VALIDATION.md` "never a generic failure"** vs the plan and `formSave`: an
+  error the server check still finds (the browser's check missed it) is logged
+  and she reads one generic sentence ("rien n'a changé"). Both are true today
+  (the browser check blocks first; the server's is the backstop). Proposed:
+  `VALIDATION.md` names the backstop.
+- **`STORAGE.md` "Flat directory … without complaint"**: true for the
+  filesystem and for commits, not for one file's history (above). A caveat
+  was added there; the layout decision is unchanged.
+- **The plan's speed-target "Why"** assumed `git log --follow` on one path is
+  cheap at 20 000 commits; it is not.
+- Wording fixed, no behaviour chosen: `VOCAB.md` said an unknown tag is stored
+  "with `status: pending`"; there is no such field — the file keeps the tag as
+  written and the index marks it pending (as `DATA-FLOW.md` §Index schema and
+  Q11 B say).
+
+*5. On the real machine* (the owner; nothing here touched the real vault):
+- `git pull && npm ci && npm run build`, restart the service. `sharp` comes
+  prebuilt with libvips (no system package); argon2id is `node:crypto`'s (Node
+  ≥ 24.7; this machine has 24.20). No vault migration: the file format did not
+  change.
+- `npx vault user add <him> --name "…" --email … --markdown`, and
+  `npx vault user add <her> --name "…"` (password typed twice). Back up
+  `users.json` with the config.
+- Sign in once per device, on the LAN name and on the Tailscale name
+  separately (two sites to the browser, `DEPLOY.md` §4).
+
+*6. Deferred and leftovers* (to become GitHub issues; this pass filed none):
+- the history page, restore and undo speed, and the retag transaction (above);
+- the recipe page shows tags as written, not their labels;
+- seed tag labels still in `fr.tags` code;
+- on a phone, the filter sidebar hides the active tag behind "N de plus";
+- the R4 corpus test is flaky under full-suite load (5081 ms against a 5000 ms
+  timeout);
+- `tests/server/auth.test.ts` "HttpOnly, SameSite=Lax…" flaked once in this
+  pass under load (`maxAge` 999 against 1000: a millisecond passed between
+  `Date.now()` in the test and in `cookieOptions`); passed on the rerun;
+- no E2E for W608 "En faire deux versions";
+- the form's tablet screens not eyeballed;
+- "Pas encore relié" is noisy while typing (shown under every half-typed name);
+- possibly unused strings in `src/lib/i18n/fr-form.ts`, and form strings in
+  that separate file rather than in `fr.ts` sections (as the plan asked);
+- the sub-recipe picker's type-ahead is 15.5 ms (the < 10 ms target was for
+  ingredient names; noted);
+- the form's debounced server check costs ~200 ms of server CPU per pause while
+  typing (no target; fine for two people);
+- out of scope as planned: cook log, cookbook export, duplicate detection by
+  ingredient set, slug rename, `item:` in the form, several photos, offline
+  saving, internet-exposure hardening.
 
 ## Out of scope
 

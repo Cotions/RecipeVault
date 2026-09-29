@@ -63,8 +63,11 @@ npx vault user remove maman
 They go to `users.json` next to the config file (mode 0600; never in the vault,
 which is pushed to GitHub). `name` and `email` are the git author of that
 person's saves (no email: `<login>@recipevault.invalid`). `--markdown` shows
-the paste box, "Voir le fichier" and the resolve queue. Without any account the
-app still serves every page, but nobody can save (it says so at startup).
+the paste box, "Voir le fichier", the resolve queue and the pending-tags count
+("Étiquettes (N)"); rights are the same for every account. There is no command
+to flip `--markdown` later: remove and add the account, or edit the file.
+Without any account the app still serves every page, but nobody can save (it
+says so at startup).
 
 ## 2. Build and run
 

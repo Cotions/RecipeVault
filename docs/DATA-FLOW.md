@@ -49,8 +49,9 @@ judge on save. Several fences in one paste are saved in one commit; files that
 fail stay in the box. A collision (`E103`) is settled inline: "Remplacer" (an
 edit, with the hash guard below) or the suffixed slug. Two files in one paste with the same new slug: the first
 is saved, only the later one waits for that choice. A same title (`W608`)
-offers to set `family`/`variant` on the new file (the existing file is left
-untouched in P1). The fix-request block holds only `ai` codes.
+offers to set `family`/`variant` on the new file (the paste box leaves the
+existing file untouched; the form puts both in the family in one commit, below).
+The fix-request block holds only `ai` codes.
 
 **Web import.** A URL typed above the box is fetched by the server — `http`/`https`
 only, 10 s for the whole fetch (redirects and body included, not only while
@@ -74,6 +75,51 @@ matched by a 12-character hash of the slug. `vault stats` prints the code
 frequency with the fixer of each code — which prompt rules the AI breaks in
 real use. Losing the log is fine.
 
+### Her form
+
+**Decided (plan 04, Phases 2–5).** `/nouvelle` (a new recipe) and
+`/r/<slug>/modifier` (an edit; offered only for a file that passes the checker,
+Q3 A) — both sign-in pages. The form edits a form model (`src/lib/form/`,
+browser-safe) built by `toForm` from the parsed file; `fromForm` turns it back
+into a recipe object and a body, `serialize` into the canonical text, and
+`POST /api/form/save` enters the paste's own save (`formSave` → `saveLocked`).
+Opening a recipe and saving without a change writes nothing and commits nothing
+(the text is compared with the file as the app would write it); the round trip
+is byte-identical over the fixture vault and the 320-card corpus.
+
+- **Slug.** A new recipe's slug comes from its title, the first free `-N` against
+  the index, the trash and the disk, chosen under the lock: `E103` never reaches
+  her. An edit never changes the slug, whatever the title becomes.
+- **What the form does not model** (Q4 A) is carried: the preamble, sections
+  other than method / notes / variants / alternatives, `item:`, other `media`
+  keys. YAML comments and unknown keys are dropped, as by any app save. An
+  untouched method section is written back as its original text; a changed one
+  is rewritten canonically (`1.` numbering across sub-headings).
+- **Checks.** The browser runs the checker on exactly what Save would write;
+  every error blocks Save on its row and field, in French. Warnings are hints
+  (Q9 A): the name-word ones (`W302`, `W304`, `W607`) live in the browser, the
+  vault ones from `POST /api/form/check` (debounced while she types, never
+  blocking). An error the server check still returns is a bug in the form:
+  logged with its codes, and she reads one sentence ("rien n'a changé").
+- **Family** (Q10 A): a new family's French label, as she typed it, goes into
+  `vocab/families.yaml` in the recipe's commit — only when the family has no
+  label yet, so her save needs no hash of that file. `W608` "En faire deux
+  versions" puts the other recipe in the family too, in the same commit
+  (`add: <title>; edit: <other title>`), guarded by that file's hash.
+- **Tags** (Q11 B): autocomplete over the canonical tags, their labels and
+  aliases; a tag not in the vocabulary is written as typed and indexed as
+  pending (below, "Pending tags").
+- **Status** (Q14 A): see Conveniences. `extracted_by` absent → `hand`, kept on
+  an edit.
+- **Drafts** (Q17 A): the form is kept in the browser's `localStorage` (per
+  recipe, one slot for a new one) and offered back on reopening; offline, Save
+  says so and keeps it. No server-side draft, no queued save.
+- **Stale** (Q18 A): "Concurrent edit", below.
+- **Photo**: sent to `/api/photo` after the recipe's save, with the slug and
+  hash that save returned ("Dish photos", below).
+- **Annuler** in the toast after a save: `POST /api/form/undo` (`commit`,
+  `slug`) — "Undo and history", below.
+
 ### Delete
 
 Never unlink. Move the file to `_trash/<slug>.md` and its `media/<slug>/` folder alongside it, commit, remove the
@@ -93,7 +139,8 @@ rows, the push. An old text the checker now refuses is not written; she is told
 in one sentence and the owner can take it back by hand (`git show`).
 
 - **Annuler** (the toast after a save, and after a restore or an undo — undo of
-  an undo is a redo), `/r/<slug>/historique?/annuler` with the commit:
+  an undo is a redo), `POST /api/form/undo` from the form's toast or
+  `/r/<slug>/historique?/annuler` from the history page, with the commit:
   `undo: <title>`. Each recipe the commit changed goes back to its text before
   it, refused unless the file is still exactly as that commit left it. A recipe
   the commit created goes to the trash (`delete:`); a trash move is undone by
@@ -117,7 +164,8 @@ in one sentence and the owner can take it back by hand (`git show`).
 
 `POST /api/photo` (signed in; multipart `slug`, `hash`, `photo`), from the
 recipe page's "Ajouter une photo" prompt (shown when a recipe has no photo —
-`W603` stays deferred, plan 04 Q13 A) and later from the form. Same order as a
+`W603` stays deferred, plan 04 Q13 A) and from the form (after the recipe's
+own save, with the hash it returned). Same order as a
 save, around the recipe file: size (25 MB) and type by content checked, the
 image decoded into its two derived copies in memory (a file that does not
 decode is refused) — all before the lock, writing nothing. Then, under the
@@ -132,8 +180,8 @@ photo, unreadable), each with a French message. `bin/serve.js` raises
 adapter-node's body limit to 26 MB for it (`BODY_SIZE_LIMIT`, default 512 KB).
 `/media/<slug>/<file>?v=thumb|display` serves the derived copies only (made on
 demand when missing), with an ETag; the kitchen-mode service worker keeps the
-display copy, not the card thumbnails. Measured: both copies of a 12 MP JPEG in
-~0.35 s on this machine.
+display copy, not the card thumbnails. Measured: see "Final figures for P2"
+below.
 
 ### Family labels
 
@@ -274,7 +322,7 @@ Warnings — save anyway, mark the recipe `needs-review`:
 - a tag not in the vocabulary → suggest closest canonical, else store `pending`
 - a `family` close to an existing one (catches `lasagne` vs `lasagna`)
 - another recipe has a near-identical title (duplicate paste — expected at 5000)
-- no `servings`, no `times`, no photo
+- no `servings`, no `times` (no photo is `W603`, not emitted: plan 04, Q13 A)
 
 Conveniences:
 - `slug` absent → derive from `title`: lowercase, strip accents, hyphenate
@@ -293,7 +341,9 @@ Conveniences:
 
 Her form never shows a raw error. Invalid states are prevented structurally —
 required fields marked, ingredient rows added by a button, family chosen from a
-picker, tags from an autocomplete over the vocabulary.
+picker, tags from an autocomplete over the vocabulary (her own tag kept as
+pending, Q11 B) — and the checker runs behind Save in the browser, blocking on
+the field an error comes from ("Her form", above).
 
 ## Index schema (SQLite)
 
@@ -376,6 +426,38 @@ A queue action or an outside edit of one ingredient file reloads the registry
 alone (the changed files, then the names tables) and re-resolves from stored
 keys; only `vault sync` walks the recipe files.
 
+Final figures for P2 (plan 04, Phase 9; same machine, under desktop load —
+load average 7–9, which made a price append ~1.6× slower than the P1.5 figure
+above), on the same 5000-recipe vault grown to ~20 000 commits, one recipe with
+50 versions:
+
+| Operation | Measured | Target |
+|---|---|---|
+| open the edit form (server load, 74-line recipe) | ~12 ms; ~46 ms the first time after a write (vault stats recomputed) | < 100 ms |
+| suggestions for one keystroke: ingredient names + "relié" / authors / sub-recipes | ~3 ms / ~1.6 ms / ~16 ms | < 10 ms (names) |
+| name-word hint for one field (browser code, timed in Node) | ~0.03 ms | < 5 ms |
+| the form's debounced server check (whole form) | ~200 ms | — |
+| form save: edit / new recipe (check, serialize, write, commit, index) | ~450 ms / ~490 ms | < 500 ms |
+| unchanged form save | ~12 ms, no write, no commit | no commit |
+| photo upload, 12 MP JPEG (7.5 MB): store + both copies + commit | ~0.8 s | < 2 s |
+| derived copy on demand: thumbnail / display | ~70 ms / ~350 ms | < 1 s each |
+| history page, 50 versions | **~2.1 s** (`git log --follow` ~1.7 s) | < 300 ms |
+| history page, an ordinary recipe (6–10 versions) | **~4–12 s**, depending on the file name | < 300 ms |
+| undo the last save | **~620 ms** | < 500 ms |
+| "Revenir à cette version" | **~2.8 s** (it reads the history first) | < 500 ms |
+| `/etiquettes` page (22 pending tags, two on ~800 recipes) | ~37 ms | — |
+| accept a pending tag, commit included | ~3.8 s (the retag of every recipe) | — |
+| sign in (argon2id verify; unknown login the same) | ~160 ms | 100–500 ms |
+| session lookup per request | ~0.05 ms | < 0.5 ms |
+
+The history page misses its target by an order of magnitude: `git log` of one
+path walks all ~20 000 commits, each step costing more the later the file name
+sorts in the flat `recipes/` directory, and `--follow` cannot use git's
+changed-path Bloom filters. Restore reads that same history first. Undo does
+not (a few small git reads, then the save's own check with the vault and
+commit) and is just over its target under this load. Plan 04's final report
+lists these as open work; nothing here is decided yet.
+
 ## vault sync
 
 ```
@@ -452,8 +534,9 @@ just *what exists*.
 Two accounts minimum, since edits should be attributable in the git history and
 deletes should not be anonymous.
 
-The right model depends on an unresolved question — whether the app is reachable
-only on the home network or from the open internet:
+The right model depended on a question since decided (below: LAN plus
+Tailscale, plan 02; accounts, plan 04) — whether the app is reachable only on
+the home network or from the open internet:
 
 **LAN-only.** A single shared password over HTTP is defensible, with a name picker
 so commits are attributed. Note honestly that this protects against nothing but
@@ -504,8 +587,9 @@ Each request, in this order (`src/hooks.server.ts`):
    session whose account was removed, or whose password changed since sign-in,
    ends here;
 3. the guard: GET/HEAD/OPTIONS pass (browse, recipe page, kitchen mode, pantry
-   search, the family and ingredient pages, the trash list), except pages that
-   exist only to write (`/ajouter`), which send to `/connexion`. Every other
+   search, the family and ingredient pages, the trash list, a recipe's history,
+   `/etiquettes`), except pages that exist only to write (`/ajouter`,
+   `/nouvelle`, `/r/<slug>/modifier`), which send to `/connexion`. Every other
    method needs a session, with no list of write routes to keep in sync: an API
    call answers `401`; a form action goes to `/connexion?suite=<page>` (a 303,
    or SvelteKit's JSON redirect for an enhanced form). The sign-in page's own

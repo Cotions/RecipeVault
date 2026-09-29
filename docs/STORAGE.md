@@ -79,7 +79,11 @@ Details that matter at 5000 files:
 
 - **Flat directory.** ext4 and git both handle 5000 entries in one directory
   without complaint. Sharding into `recipes/l/lasagna-...` adds complexity for no
-  gain at this scale.
+  gain at this scale. One cost measured since (plan 04, Phase 9): the history
+  of *one* file (`git log -- recipes/<slug>.md`, the history page) walks every
+  commit of the vault, and in a flat 5000-entry directory each step costs more
+  the later the name sorts — 2 to 9 s at 20 000 commits. The fix under
+  discussion is on the app side (plan 04, final report), not the layout.
 - **Canonical serialization.** Every save rewrites the file in one fixed key order
   and formatting, whatever the AI pasted. Diffs then show only real changes, and
   two files with the same content are byte-identical — which makes duplicate
@@ -286,8 +290,8 @@ only, atomically (temp file + rename), mode `0600`:
 
 `login`: lowercase letters, digits, `. _ -`. `name` is the git author name;
 `email` the git author email (absent: `<login>@recipevault.invalid`).
-`markdown: true` shows the paste box, "Voir le fichier" and the resolve queue
-(plan 04, Q2 B: one level of rights, the server allows every write to every
+`markdown: true` shows the paste box, "Voir le fichier", the resolve queue and
+the pending-tags count ("Étiquettes (N)") in the nav (plan 04, Q2 B: one level of rights, the server allows every write to every
 account). `hash` is argon2id (node:crypto) as a PHC string holding its own
 parameters (64 MiB, 3 passes, 1 lane today), so they can be raised without
 invalidating older hashes. The app rereads the file when it changes.

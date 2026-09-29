@@ -69,9 +69,11 @@ Rules:
   and database values boring.
 - Display form comes from a label table per language, not from the canonical
   string. `plat-principal` renders as "Plat principal" or "Main course".
-- Unknown tag on input → suggest the closest canonical match; if accepted none,
-  store it with `status: pending` so it is filterable but visibly unreviewed.
-  Never silently discard a tag she typed.
+- Unknown tag on input → suggest the closest canonical match (W501); if she
+  accepts none, the recipe file keeps the tag as written and the index stores
+  it folded as pending (`DATA-FLOW.md`, index schema), so it is filterable but
+  visibly unreviewed. Never silently discard a tag she typed. The form offers
+  "Ajouter « … »" for it after showing the closest tag (plan 04, Q11 B).
 - **Pending tags are settled on `/etiquettes`** (plan 04, Phase 8; Q11 B), one
   commit each: "Nouvelle étiquette" adds it to `vocab/tags.yaml` as a canonical
   tag (slug: folded, ASCII, hyphenated; the written forms the slug does not
@@ -117,7 +119,15 @@ sets the French label; an empty field removes it (and the entry once it holds
 no label). The write goes through the same guarantees as a recipe save
 (`DATA-FLOW.md`, "Family labels"). The paste box's "Mettre en famille" only
 writes `family`/`variant` into the new recipe; it does not write a label —
-naming the family is a separate, later step on the family page. English
+naming the family is a separate, later step on the family page.
+
+**The form (plan 04, Q10 A).** The family picker searches the labels and slugs
+(accents and case folded) and offers "Nouvelle famille « … »" only when no
+family is within two edits (W502's distance) and none matches exactly. A new
+family's French label is her words as typed, written to `families.yaml` in the
+recipe's own commit — only when the family has no label yet, never over one.
+W608's "En faire deux versions" sets `family`/`variant` on both recipes in one
+commit. English
 labels (`en`) are kept when present but not edited by the app until there is
 an English UI.
 

@@ -154,7 +154,8 @@ registry. So at index time (on save, on sync, on an external edit):
    `œ` → `oe`), spaces around `'` and `-` removed, and `35 %` written `35%`.
 2. **`item:` override.** An entry with `item:` is taken as written. If no
    `ingredients/<item>.md` exists: W307. The app never writes `item:` (Q4): an
-   override is a hand edit (or, later, the P2 form), so no resolution or queue
+   override is a hand edit — the P2 form keeps an existing `item:` untouched and
+   offers no field for it (plan 04, out of scope) — so no resolution or queue
    action touches a recipe file.
 3. **Sub-recipe.** An entry with `recipe:` resolves to no registry item
    (`resolution = recipe`); the sub-recipe's own ingredients count instead.

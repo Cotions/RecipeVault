@@ -1,7 +1,7 @@
 # RecipeVault — Planning
 
-Status: P1 (read app) and P1.5 (ingredients) built — see Phases. Next: P2 (her
-write path). Last updated 2026-09-27.
+Status: P1 (read app), P1.5 (ingredients) and P2 (her write path) built — see
+Phases. Last updated 2026-09-28.
 
 ## Goal
 
@@ -375,10 +375,22 @@ plan were decided; each is recorded in the doc it concerns.
 Soft delete and the trash (`/corbeille`) come forward from P2 into P1: a paste
 box without delete forces hand-editing the vault for every mistake.
 
-**P2 — her write path**
+**P2 — her write path** — *built 2026-09-28 (`docs/plans/04-write-path.md`).*
 Form UI: repeatable ingredient and step rows, family picker showing existing
 families, photo upload from a phone, no markdown anywhere. Undo via git. Auth. This is a substantial chunk of work — it is deliberately after the read
 app so the data model is proven before building forms on top of it.
+Built: an account per person (`vault user add`, `users.json` beside the
+config, argon2id; sessions in `cache/sessions.db`), reading open and every
+write signed in and committed under that person's name; the form
+(`/nouvelle`, `/r/<slug>/modifier`) over a form model that round-trips every
+fixture and corpus file byte for byte, entering the paste's save path, with
+hints instead of codes, drafts in the browser and a side-by-side view when the
+recipe changed meanwhile; one dish photo per recipe (original untouched in
+`media/`, derived WebP copies in `cache/img/`, never the original served);
+"Annuler" after every save and a per-recipe history with "Revenir à cette
+version", both as new commits; pending tags settled on `/etiquettes`, with
+labels in `vocab/tag-labels.yaml`. All 18 open questions of the plan took the
+recommended option; each is recorded in the doc it concerns.
 
 **P3 — only if actually wanted**
 Ingredient scaling (the structured quantities already make this nearly free),
@@ -391,7 +403,9 @@ shopping list with whole-pack costs, meal planner, price history charts.
    `tailscale serve` (HTTPS is also what makes Wake Lock work in kitchen mode).
    No public exposure. No login in P1 — acceptable only because the network is
    the boundary; commits are attributed to `git_author` from the config.
-   Accounts come in P2. See `docs/DEPLOY.md` and `docs/DATA-FLOW.md`.
+   Accounts came in P2 (plan 04, Q1 A, Q2 B): one per person, reading open,
+   every write signed in and attributed. See `docs/DEPLOY.md` and
+   `docs/DATA-FLOW.md`.
 2. **Currency and shop** — *decided 2026-09-27 (plan 03, Q7 and decision 2):*
    one current price per ingredient, the latest row of `prices.csv` whatever the
    shop; the shop is a label shown next to it. Comparing shops is a different
@@ -407,12 +421,17 @@ shopping list with whole-pack costs, meal planner, price history charts.
    value. One row appended and one commit per price. No scraping (fragile and
    shop-dependent). Hand-editing `prices.csv` in a spreadsheet also works; a
    bulk "receipt" mode can come later if entry proves tedious.
-4. **Does she want her own tags?** A controlled vocabulary keeps filters usable
-   but means she cannot invent a tag freely. Middle ground: she proposes, it lands
-   as `pending` until mapped. **Decided (plan 04, Q11 B):** the middle ground;
-   pending tags are settled on `/etiquettes` (`VOCAB.md`, "Tags").
-5. **Photo per recipe, or several?** Schema allows several; the form is simpler
-   with one. Start with one, schema already supports more.
+4. **Does she want her own tags?** — *decided 2026-09-28 (plan 04, Q11 B):* the
+   middle ground. A controlled vocabulary keeps filters usable but means she
+   cannot invent a tag freely, so she proposes: the form writes her tag as typed,
+   the index holds it as pending, and it is settled on `/etiquettes` — a new
+   canonical tag with its label, an alias of an existing one, or removed
+   (`VOCAB.md`, "Tags").
+5. **Photo per recipe, or several?** — *decided 2026-09-28 (plan 04, Q12 A):*
+   one, `media.final`. Processed with `sharp` (thumbnail and display copy, WebP,
+   rotated, metadata stripped); HEIC is stored but shown as a placeholder. The
+   schema still allows more `media` keys, which the form keeps
+   (`STORAGE.md`, "Media").
 
 ## P0 findings — 2026-09-27
 
