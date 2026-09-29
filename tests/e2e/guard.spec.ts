@@ -25,7 +25,7 @@ const ACTIONS = [
 	'/ingredients/farine?/edit',
 	'/ingredients/farine?/merge'
 ];
-const APIS = ['/api/save', '/api/check', '/api/import', '/api/pastelog'];
+const APIS = ['/api/save', '/api/check', '/api/import', '/api/pastelog', '/api/photo'];
 
 test('signed out, every write is refused and nothing is committed', async ({ baseURL }) => {
 	const anon = await newRequest.newContext({ baseURL, storageState: { cookies: [], origins: [] } });

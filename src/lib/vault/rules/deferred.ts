@@ -4,5 +4,5 @@
 // existed.
 
 export const DEFERRED_RULES = {
-	W603: 'no dish photo — needs media/; meaningless on the paste path, where there never is one'
+	W603: 'no dish photo — kept deferred (plan 04, Q13 A): most recipes never get one, so it would sit on nearly all of them; the recipe page shows an "Ajouter une photo" prompt instead'
 } as const;

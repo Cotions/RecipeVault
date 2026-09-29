@@ -27,13 +27,15 @@
 		servings = $bindable(recipe.servings ?? 0),
 		multiplier = $bindable(1),
 		itemLinks,
-		cost
+		cost,
+		photoPrompt
 	}: {
 		recipe: Recipe;
 		body: string;
 		/** Titles of recipes this one links to (sub-recipes, wikilinks) that exist. */
 		titles?: Record<string, string>;
-		photo?: string | null;
+		/** The derived display copy; `src` null for a HEIC original (placeholder). */
+		photo?: { src: string | null } | null;
 		/** False in the paste preview: tags and family do not link away. */
 		links?: boolean;
 		/** The family's display label (vocab/families.yaml), when it has one. */
@@ -44,6 +46,8 @@
 		itemLinks?: Record<number, { item?: string; key?: string }>;
 		/** Recipe page: the cost line, given the current scaling factor. */
 		cost?: Snippet<[number]>;
+		/** Recipe page: shown where the photo goes when there is none ("Ajouter une photo", plan 04 Q13 A). */
+		photoPrompt?: Snippet;
 	} = $props();
 
 	const lang = $derived(recipe.lang);
@@ -98,8 +102,6 @@
 		const amount = formatAmount(y, { lang, factor });
 		return [amount, y.note].filter(Boolean).join(' ');
 	});
-
-	const heic = $derived(!!photo && /\.hei[cf]$/i.test(photo));
 
 	/** Only http(s) becomes a link: a `javascript:` URL in a file must never be clickable. */
 	function webUrl(url: string): boolean {
@@ -178,12 +180,14 @@
 
 	{#if photo}
 		<figure class="photo">
-			{#if heic}
-				<div class="heic">{t.recipe.heic}</div>
+			{#if photo.src}
+				<img src={photo.src} alt={t.recipe.photo} loading="lazy" decoding="async" />
 			{:else}
-				<img src={photo} alt={t.recipe.photo} loading="lazy" decoding="async" />
+				<div class="heic">{t.recipe.heic}</div>
 			{/if}
 		</figure>
+	{:else if photoPrompt}
+		<div class="photo no-print">{@render photoPrompt()}</div>
 	{/if}
 
 	<div class="columns">

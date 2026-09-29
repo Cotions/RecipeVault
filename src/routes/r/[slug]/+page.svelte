@@ -5,6 +5,7 @@
 	import { t, familyLabel } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import CostLine from '$lib/components/CostLine.svelte';
+	import PhotoUpload from '$lib/components/PhotoUpload.svelte';
 	import Marked from '$lib/components/Marked.svelte';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import { parseRecipe } from '$lib/vault/parse';
@@ -99,6 +100,9 @@
 >
 	{#snippet cost(factor: number)}
 		{#if data.cost}<CostLine cost={data.cost} {factor} money={data.money} />{/if}
+	{/snippet}
+	{#snippet photoPrompt()}
+		{#if !data.broken}<PhotoUpload slug={data.recipe.slug} hash={data.file.hash} />{/if}
 	{/snippet}
 </RecipeView>
 

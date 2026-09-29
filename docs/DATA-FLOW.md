@@ -30,7 +30,8 @@ paths at once.
    author tagged with whoever saved it. Push to its private remote in the
    background; a failed push is retried later and never blocks the save.
 4. Upsert index rows in one transaction.
-5. Generate thumbnails for any new images.
+5. Generate thumbnails for any new images (the derived copies of `STORAGE.md`
+   §Media; a failure here costs nothing, they are made again on demand).
 
 Order is not arbitrary. File write fails → nothing indexed. Index write fails →
 the file exists and `vault sync` recovers it. Never the reverse. A failed write
@@ -80,6 +81,28 @@ index rows (a file git never tracked is moved and committed all the same). A tra
 taken again. A slug in the trash counts as taken for a new paste (`E103`, offered
 only the suffixed slug), so a deleted slug is never silently reused. Combined
 with the git history this means no single click she makes is unrecoverable.
+
+### Dish photos
+
+`POST /api/photo` (signed in; multipart `slug`, `hash`, `photo`), from the
+recipe page's "Ajouter une photo" prompt (shown when a recipe has no photo —
+`W603` stays deferred, plan 04 Q13 A) and later from the form. Same order as a
+save, around the recipe file: size (25 MB) and type by content checked, the
+image decoded into its two derived copies in memory (a file that does not
+decode is refused) — all before the lock, writing nothing. Then, under the
+lock: the original is written to `media/<slug>/final-<date>-<n>.<ext>`, the
+recipe file — only if it still has the hash the page showed — gets
+`media.final`, is serialized and committed as `edit: <title>` (status kept),
+and indexed; a stale hash or a failed commit removes the new original. Then
+the copies go to `cache/img/`. `DELETE /api/photo` (`{ slug, hash }`) unsets
+`media.final` the same way and keeps the file. Refusals come back as 409
+(changed, gone, or a file that fails the checker), 413 (too big), 415 (not a
+photo, unreadable), each with a French message. `bin/serve.js` raises
+adapter-node's body limit to 26 MB for it (`BODY_SIZE_LIMIT`, default 512 KB).
+`/media/<slug>/<file>?v=thumb|display` serves the derived copies only (made on
+demand when missing), with an ETag; the kitchen-mode service worker keeps the
+display copy, not the card thumbnails. Measured: both copies of a 12 MP JPEG in
+~0.35 s on this machine.
 
 ### Family labels
 

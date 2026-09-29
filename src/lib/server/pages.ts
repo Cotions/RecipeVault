@@ -6,6 +6,8 @@ import type { Ingredient, Recipe } from '../vault/types';
 import type { App } from './app';
 import { familyDiff, getRecipe, titles as titlesOf, usedBy, type RecipeDetail } from './index/query';
 import { currentFile } from './save';
+import { MEDIA_FILE_RE } from './photos';
+import { photoSrc } from '../render/media';
 import { unresolvedDiagnostics } from './index/resolve';
 import { recipeVocabDiagnostics } from './checkopts';
 import { DEFAULT_LOCALE } from './config';
@@ -27,11 +29,18 @@ export function referencedSlugs(recipe: Recipe, body: string): string[] {
 	return [...out];
 }
 
-export function photoUrl(app: App, recipe: Recipe): string | null {
+/** A recipe's photo as the pages show it: `src` null means a HEIC original, shown as a placeholder. */
+export interface PhotoView {
+	src: string | null;
+	thumb: string | null;
+}
+
+/** The recipe's `media.final`, if its original is on disk (plan 04, Phase 6: only derived copies are linked). */
+export function photoView(app: App, recipe: Recipe): PhotoView | null {
 	const file = recipe.media?.final;
-	if (!file || !/^[\w][\w.-]*$/.test(file)) return null;
+	if (!file || !MEDIA_FILE_RE.test(file)) return null;
 	if (!existsSync(join(app.ctx.paths.media, recipe.slug, file))) return null;
-	return `/media/${recipe.slug}/${encodeURIComponent(file)}`;
+	return { src: photoSrc(recipe.slug, file, 'display'), thumb: photoSrc(recipe.slug, file, 'thumb') };
 }
 
 export interface SubRecipe {
@@ -51,7 +60,7 @@ export function loadRecipePage(app: App, slug: string) {
 		recipe,
 		body: row.body_md,
 		titles,
-		photo: photoUrl(app, recipe),
+		photo: photoView(app, recipe),
 		broken,
 		variants: (family?.variants ?? []).filter((v) => v.slug !== slug).map((v) => ({ slug: v.slug, title: v.title, variant: v.variant })),
 		usedBy: usedBy(app.ctx.db, slug),

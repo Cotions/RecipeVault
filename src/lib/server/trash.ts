@@ -1,5 +1,6 @@
 // Soft delete (docs/DATA-FLOW.md, "Delete"): never unlink. The file and its
-// media folder move to _trash/, one commit, index rows dropped. Restore
+// media folder move to _trash/, one commit, index rows and derived copies
+// (cache/img/<slug>/) dropped. Restore
 // reverses it, refused if the slug has been taken again. A failed commit
 // moves everything back, so disk, git and index never disagree.
 
@@ -11,6 +12,7 @@ import type { VaultContext } from './context';
 import { commitPaths, unstage } from './git';
 import { deleteRecipeRows, refreshFamilies, sha256 } from './index/build';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
+import { dropDerived } from './photos';
 import { MEDIA, TRASH } from './vault';
 import { loadVocab } from './vocab';
 
@@ -52,6 +54,8 @@ export function remove(ctx: VaultContext, slug: string, expectedHash?: string): 
 			await unstage(root, paths);
 			throw new TrashError(`la suppression n’a pas pu être enregistrée (git) ; rien n’a changé : ${(e as Error).message}`);
 		}
+		// The derived copies are cache: dropped with the recipe, rebuilt on demand after a restore.
+		dropDerived(ctx.paths, slug);
 		ctx.db.transaction(() => {
 			deleteRecipeRows(ctx.db, slug);
 			ctx.db.prepare('DELETE FROM problems WHERE file_path = ?').run(recipePath(slug));

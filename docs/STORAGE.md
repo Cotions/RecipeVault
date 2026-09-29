@@ -46,13 +46,13 @@ Data splits by how it changes, because each kind wants a different format:
 ├── prices.csv                       # append-only price history
 ├── media/
 │   ├── lasagna-bolognaise/
-│   │   └── final.heic               # original, exactly as uploaded
+│   │   └── final-2026-09-28-1.jpg   # original, exactly as uploaded (a new name per upload)
 │   └── ...
 ├── _trash/                          # soft-deleted recipes AND their media folder
 ├── cache/                           # DELETABLE. excluded from git and backup
 │   ├── index.db                     # SQLite search/filter index
 │   ├── sessions.db                  # sign-in sessions (hashed tokens); its own file, see Accounts
-│   └── img/                         # thumbnails + web-friendly copies
+│   └── img/<slug>/                  # derived copies: <file>.thumb.webp, <file>.display.webp
 ├── .obsidian/                       # only if opened in Obsidian; optional
 ├── .gitignore                       # written by `vault init`: media/ _trash/*/ cache/ inbox/ .obsidian/workspace*.json
 └── .git/                            # pushed to private Cotions/RecipeVault-recipes
@@ -209,7 +209,9 @@ never overwriting a file or an entry.
   EXIF kept. Every lossy re-save degrades a photo.
 - Everything displayed is derived into `cache/img/`: thumbnails, and web-friendly
   copies. This matters for iPhone photos — HEIC does not display in most browsers,
-  so the cache holds a JPEG or WebP copy while the original HEIC stays untouched.
+  so the cache would hold a WebP copy while the original HEIC stays untouched
+  (not yet: the app's image library cannot decode HEIC, see below; a browser
+  upload from an iPhone is usually JPEG already).
 - Rotation from EXIF is applied to the derived copies only.
 - Media is not in git (gigabytes, and git keeps every deleted version forever). It
   is backed up with `restic` along with the rest of the vault folder.
@@ -218,10 +220,41 @@ Frontmatter references media by filename within the recipe's own folder:
 
 ```yaml
 media:
-  final: final.heic
+  final: final-2026-09-28-1.jpg
 ```
 
 Short, and it survives a slug rename untouched because it is relative.
+
+**Decided (plan 04, Phase 6; Q12 A).** One photo per recipe, `media.final`.
+
+- **Upload** (`POST /api/photo`, signed in): 25 MB cap; the type is read from
+  the file's first bytes, never its name or the browser's MIME type — JPEG,
+  PNG, WebP, AVIF, HEIC/HEIF. Anything else is refused and nothing is written.
+- **Originals** are written as received to `media/<slug>/final-<date>-<n>.<ext>`
+  (the extension from the content; `n` the first free number). A new upload
+  never overwrites a file: replacing a photo adds a file and moves
+  `media.final`, "Retirer la photo" only unsets `media.final`. The app never
+  deletes an original (only the trash moves the folder), so an older version
+  of the recipe in git still finds its photo. Files already in the vault keep
+  their names (`final.jpg` is fine).
+- **One commit.** `media/` is git-ignored, so the commit is the recipe file's
+  `media.final` change alone (`edit: <title>`, the signed-in person as author,
+  status kept). The original is written under the save lock just before it and
+  removed again if the recipe was changed meanwhile (hash guard) or the commit
+  fails.
+- **Derived copies** in `cache/img/<slug>/<file>.thumb.webp` (longest side
+  400 px, cards) and `<file>.display.webp` (1600 px, recipe page and kitchen
+  mode): EXIF orientation applied, WebP, **no metadata** (EXIF, GPS, XMP, ICC
+  dropped), never enlarged. Made by `sharp` (libvips, prebuilt: no system
+  package) right after the commit, and again on demand when missing or older
+  than their original (a deleted `cache/`, a file replaced by hand). Deleting a
+  recipe drops its copies; they come back on demand after a restore.
+- **Serving**: `/media/<slug>/<file>?v=thumb|display` (default `display`)
+  serves derived copies only. The original — and the location a phone writes
+  into its EXIF — never leaves the server.
+- **HEIC** is stored and kept but not decoded (the prebuilt `sharp` has no HEVC
+  decoder): no derived copy, the page shows a placeholder. A HEIC-capable
+  libvips would only need the `isHeic` short-cut removed.
 
 ### SQLite is a cache, and lives in `cache/`
 

@@ -314,7 +314,7 @@
 
 	{#if step === -1}
 		<section class="ingredients">
-			{#if data.photo && !/\.hei[cf]$/i.test(data.photo)}<img class="photo" src={data.photo} alt={t.recipe.photo} />{/if}
+			{#if data.photo?.src}<img class="photo" src={data.photo.src} alt={t.recipe.photo} />{/if}
 			<h1>{t.kitchen.ingredients}</h1>
 			{#if oven}<p class="oven">{t.recipe.oven} : <strong>{oven.written}</strong> · {oven.converted}</p>{/if}
 			{#each recipe.ingredients as g, gi (gi)}

@@ -9,6 +9,9 @@ try {
 	const config = loadConfig();
 	process.env.PORT = String(config.port);
 	process.env.HOST = config.host;
+	// adapter-node refuses bodies over 512 KB by default; a phone photo is up to
+	// 25 MB (plan 04, Q12 A), plus the multipart envelope. /api/photo enforces the cap itself.
+	process.env.BODY_SIZE_LIMIT ??= '26M';
 } catch (e) {
 	console.error(`recipevault: ${e instanceof ConfigError ? e.message : e}`);
 	process.exit(1);

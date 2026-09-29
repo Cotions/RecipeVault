@@ -59,10 +59,12 @@ sw.addEventListener('activate', (event) => {
 });
 
 const KITCHEN_PAGE = /^\/r\/[a-z0-9-]+\/cuisine(?:\/__data\.json)?$/;
-const isKitchen = (url: URL) => KITCHEN_PAGE.test(url.pathname) || url.pathname.startsWith('/media/');
+/** A photo's display copy (`?v=display`, the default), the one kitchen mode shows; card thumbnails stay out of this cache. */
+const isDisplayPhoto = (url: URL) => url.pathname.startsWith('/media/') && (url.searchParams.get('v') ?? 'display') === 'display';
+const isKitchen = (url: URL) => KITCHEN_PAGE.test(url.pathname) || isDisplayPhoto(url);
 
-/** Cached under the path alone: ?portions and SvelteKit's data parameters do not make another page. */
-const kitchenKey = (url: URL) => url.origin + url.pathname;
+/** Cached under the path alone: ?portions and SvelteKit's data parameters do not make another page. A photo keeps its variant. */
+const kitchenKey = (url: URL) => url.origin + url.pathname + (isDisplayPhoto(url) ? '?v=display' : '');
 
 /** The kitchen page's data came through: fetch and keep its HTML too, for a reload offline. */
 async function cacheKitchenDocument(dataUrl: URL) {
@@ -97,7 +99,9 @@ sw.addEventListener('fetch', (event) => {
 				}
 				return res;
 			} catch (e) {
-				const hit = await caches.match(req, isKitchen(url) ? { ignoreSearch: true, ignoreVary: true } : undefined);
+				const hit = isKitchen(url)
+					? await caches.match(kitchenKey(url), { ignoreVary: true })
+					: await caches.match(req);
 				if (hit) return hit;
 				throw e;
 			}

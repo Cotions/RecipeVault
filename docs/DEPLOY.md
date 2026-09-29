@@ -76,7 +76,13 @@ npm start            # node bin/serve.js: the config's host and port
 
 At startup the app syncs the index with the files (`vault sync`), starts the
 file watcher, and retries any pending `git push`. The vault folder, its `.git`
-and `cache/` are never served; photos go through `/media/…` only.
+and `cache/` are never served; photos go through `/media/…` only, as derived
+WebP copies (never the original, whose EXIF may hold a location).
+
+Dish photos are processed with `sharp`, which `npm ci` installs with a prebuilt
+libvips for Linux x64/arm64: no system package. `bin/serve.js` sets
+`BODY_SIZE_LIMIT=26M` (adapter-node's default is 512 KB) so a 25 MB phone
+photo can be uploaded; set it in the environment to override.
 
 ## 3. As a service
 

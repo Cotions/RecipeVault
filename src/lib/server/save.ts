@@ -265,6 +265,40 @@ function fileSlugOf(text: string): string | undefined {
 	return typeof s === 'string' ? s : undefined;
 }
 
+export class EditError extends Error {
+	constructor(
+		readonly reason: 'gone' | 'stale' | 'invalid',
+		message: string
+	) {
+		super(message);
+	}
+}
+
+/**
+ * A one-recipe edit made by the app, not typed text: the file on disk, if it
+ * still has `hash`, parsed, changed by `change`, serialized, committed as
+ * `edit: <title>` and indexed. The status is kept (an app-made edit such as a
+ * photo neither verifies nor un-verifies, plan 04 Q14 A); `updated` is set.
+ * A file with errors is not edited (plan 04, Q3 A). The caller holds
+ * `ctx.lock`, so it can do its own work (a photo written into `media/`) in the
+ * same critical section, and undo it when this throws.
+ */
+export async function editRecipeLocked(
+	ctx: VaultContext,
+	slug: string,
+	hash: string,
+	change: (recipe: Recipe) => Recipe,
+	opts: SaveOptions = {}
+): Promise<{ commit?: string; indexError?: string }> {
+	const cur = currentFile(ctx, slug);
+	if (!cur) throw new EditError('gone', 'cette recette n’existe plus.');
+	if (cur.hash !== hash) throw new EditError('stale', 'le fichier a changé depuis l’ouverture de la page ; rechargez-la.');
+	const file = checkFile(cur.text);
+	if (!file.recipe || hasErrors(file.diagnostics)) throw new EditError('invalid', 'le fichier ne passe pas la validation.');
+	const final: Recipe = { ...change({ ...file.recipe }), slug, updated: opts.today ?? localDate() };
+	return writeCommitIndex(ctx, [{ slug, title: final.title, text: serialize(final, file.body!), created: false, verb: 'edit' }]);
+}
+
 export class VerifyError extends Error {}
 
 /**

@@ -417,6 +417,18 @@ export const fr = {
 		heic: 'Photo HEIC : aperçu indisponible dans le navigateur.',
 		notFound: 'Cette recette n’existe pas ou a été supprimée.'
 	},
+	/** Dish photo upload (plan 04, Phase 6; Q12 A, Q13 A). */
+	photo: {
+		add: 'Ajouter une photo',
+		addHelp: 'Une photo du plat, prise avec l’appareil ou choisie dans la galerie.',
+		replace: 'Remplacer la photo',
+		remove: 'Retirer la photo',
+		sending: 'Envoi de la photo…',
+		removed: 'Photo retirée. Le fichier reste dans le coffre.',
+		tooBig: (mb: number) => `Cette photo dépasse ${mb} Mo. Choisissez-en une plus petite.`,
+		failed: 'La photo n’a pas pu être ajoutée ; rien n’a changé.',
+		offline: 'Pas de connexion : la photo n’a pas été envoyée.'
+	},
 	/** The cost line on the recipe page (plan 03, Phase 5). */
 	cost: {
 		label: 'Coût',

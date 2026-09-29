@@ -587,6 +587,56 @@ recipe save removes the new original; deleting `cache/img/` and reloading
 regenerates; trash and restore move the folder and the copies follow. E2E
 (phone): add a photo to a recipe, see the thumbnail on the card.
 
+**Done (server and recipe page) — decisions.**
+- **Modules:** `src/lib/server/photos.ts` (sniff, check, derive, store, remove,
+  on-demand copies, `dropDerived` for the trash); `src/routes/api/photo`
+  (`POST` add, `DELETE` remove — behind the Phase 1 guard, `writeContext`);
+  `src/routes/media/[slug]/[file]` rewritten to serve derived copies only;
+  `src/lib/render/media.ts` (browser-safe `photoSrc`);
+  `src/lib/components/PhotoUpload.svelte`.
+- **"One commit" = the recipe file.** `media/` is git-ignored (`STORAGE.md`),
+  so the commit holds only the `media.final` change; the original is written
+  under the same lock just before and removed if the hash guard or the commit
+  fails. The edit goes through `editRecipeLocked` in `save.ts` (hash guard,
+  canonical serialize, `edit: <title>`, index, push), a one-field app edit like
+  `verify`: it **keeps the status** (a photo on a verified recipe leaves it
+  verified — Q14 A's spirit), sets `updated`, and refuses a file with errors
+  (Q3 A). No check run: nothing typed changed.
+- **Decode before the lock.** Both copies are made in memory before anything is
+  written; a file with image magic bytes that libvips cannot read is refused
+  (415) like a non-image. Copies go to `cache/` after the commit (SAVE step 5).
+- **Names** `final-<date>-<n>.<ext>`, extension from the content, `n` the first
+  free number for that date; existing names (`final.jpg`) keep working.
+- **Copies** `cache/img/<slug>/<file>.{thumb,display}.webp`, 400 / 1600 px
+  longest side, never enlarged, WebP q75 / q82, `rotate()` then no metadata
+  written. Regenerated when missing or older than the original (a file
+  replaced by hand); concurrent requests share one conversion; `sharp.cache(false)`;
+  `limitInputPixels` 100 MP. 12 MP JPEG: both copies in ~0.35 s here.
+- **Serving:** `?v=thumb|display`, default `display`; anything else 404; slug
+  and file name validated (one segment, image extension, no leading dot) before
+  any path is built; `Cache-Control: private, max-age=86400` + ETag/304 (a new
+  photo is a new URL). HEIC → 404, the page shows the placeholder. The service
+  worker caches display copies with kitchen pages under a `?v=display` key; card
+  thumbnails stay out of the kitchen cache.
+- **Page data:** `photoView()` replaces `photoUrl()` → `{ src, thumb }` (`src`
+  null = HEIC placeholder) for the recipe page and kitchen mode; cards build
+  `?v=thumb` from the index row.
+- **Q13 A:** W603 stays in `deferred.ts` (reason updated, `VALIDATION.md` row
+  says "not emitted"). The recipe page shows "Ajouter une photo" where the
+  photo goes when there is none — an upload on the page itself (the edit page
+  does not exist yet): a file input (`accept="image/*"`: camera or gallery on a
+  phone) posting to `/api/photo` with the page's file hash, then
+  `invalidateAll()`. Signed out, it is a link to `/connexion?suite=/r/<slug>`.
+  Not shown for a file with errors.
+- **Body size:** `bin/serve.js` sets `BODY_SIZE_LIMIT=26M` unless set;
+  `/api/photo` also refuses on `Content-Length` before reading the body.
+- **Left for the form UI (Phases 4–5):** the photo field on the form page
+  (reuse `PhotoUpload` or call `/api/photo` directly; "Remplacer la photo" /
+  "Retirer la photo" strings are in `fr.photo`, `DELETE /api/photo` is ready);
+  a new recipe's photo is sent after its first save gives it a slug (hold the
+  `File` in the form, then POST with the hash the save returned); the draft
+  (Q17) cannot hold the file. Card-level "Modifier" is Phase 4.
+
 ### Phase 7 — undo and history
 
 Depends on: Q16.

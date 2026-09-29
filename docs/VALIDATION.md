@@ -167,7 +167,7 @@ Warnings. Save, mark `needs-review`.
 | W504 | ai | a `season` value not in the fixed list of `VOCAB.md` — `printemps`, `ete`, `automne`, `hiver` or one of their aliases (`été`, `summer`, `fall`, …); the closest season is suggested |
 | W601 | app | no `servings` |
 | W602 | app | no `times` |
-| W603 | app | no dish photo |
+| W603 | app | no dish photo. **Not emitted** (plan 04, Q13 A): a photo is optional and most recipes never get one, so as a warning it would sit on nearly every recipe; the recipe page (and the form) show an "Ajouter une photo" prompt instead, which is not a diagnostic |
 | W604 | app | `source` entirely absent — provenance lost |
 | W605 | app | `[?]`, `[?: …]`, or `[illisible]` present — each location listed |
 | W606 | ai | `to_taste: true` on a line that resolves to a registry entry without `au_gout: true` (plan 03, Q21) — probably should be a plain name without amount (`AI-TEMPLATE.md` rule 13). An unresolved name is not judged, nor an `item:` override naming no registry entry (that is W307). Computed from the registry in the server check and the save result; reaches the fix-request block through the server check |

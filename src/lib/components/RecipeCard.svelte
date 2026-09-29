@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { t, familyLabel } from '$lib/i18n/fr';
 	import { formatSeconds } from '$lib/render/duration';
+	import { photoSrc } from '$lib/render/media';
 	import type { Card } from '$lib/server/index/query';
 	import Marked from './Marked.svelte';
 	import StatusBadge from './StatusBadge.svelte';
 
 	let { card }: { card: Card } = $props();
-	const photo = $derived(card.photo && !/\.hei[cf]$/i.test(card.photo) ? `/media/${card.slug}/${encodeURIComponent(card.photo)}` : null);
+	const photo = $derived(card.photo ? photoSrc(card.slug, card.photo, 'thumb') : null);
 </script>
 
 <li class="card" class:has-photo={photo}>
