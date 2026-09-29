@@ -203,6 +203,7 @@ export function removeUser(file: string, login: string): void {
 export class UserStore {
 	private seen = '';
 	private users = new Map<string, User>();
+	private unreadable = false;
 
 	constructor(readonly file: string) {}
 
@@ -217,10 +218,13 @@ export class UserStore {
 		if (key === this.seen) return;
 		try {
 			this.users = new Map(loadUsers(this.file).map((u) => [u.login, u]));
+			this.unreadable = false;
 		} catch (e) {
-			// A broken file signs nobody in rather than crashing every page.
+			// A broken file signs nobody in rather than crashing every page —
+			// for now: `broken` tells the session check not to end anything.
 			console.error(`recipevault: ${(e as Error).message}`);
 			this.users = new Map();
+			this.unreadable = true;
 		}
 		this.seen = key;
 	}
@@ -228,6 +232,12 @@ export class UserStore {
 	get(login: string): User | undefined {
 		this.refresh();
 		return this.users.get(normalizeLogin(login));
+	}
+
+	/** users.json exists but does not read (a hand edit half done): nobody is signed in, and no session is ended for it. */
+	get broken(): boolean {
+		this.refresh();
+		return this.unreadable;
 	}
 
 	get size(): number {

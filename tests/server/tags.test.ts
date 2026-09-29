@@ -1,6 +1,8 @@
 // Plan 04, Phase 8: pending tags settled on /etiquettes (Q11 B). Invented
 // recipes and tags only.
 
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parse } from 'yaml';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { withAuthor } from '../../src/lib/server/context';
@@ -19,6 +21,7 @@ import {
 	tagVocabulary,
 	withAliases
 } from '../../src/lib/server/tags';
+import { syncFile } from '../../src/lib/server/index/sync';
 import { loadVocab } from '../../src/lib/server/vocab';
 import { classifyTag } from '../../src/lib/vault/tagstatus';
 import { recipe, tempVault, type TempVault } from '../helpers/vault';
@@ -196,6 +199,29 @@ describe('settling pending tags', () => {
 		// Once settled, a second click is refused.
 		await mapTag(v.ctx, 'desert', 'dessert', version);
 		await expect(acceptTag(v.ctx, 'desert', 'Désert', tagsVersion(v.ctx))).rejects.toThrow(/plus en attente/);
+	});
+
+	it('"Retirer" on a tag held by a recipe now broken says to fix it, not to reload', async () => {
+		const seen = Object.fromEntries(pendingTags(v.ctx)[0].recipes.map((r) => [r.slug, r.hash]));
+		// Broken by hand on disk: the index keeps its last good rows (and hash).
+		writeFileSync(join(v.dir, 'recipes/tire-inventee.md'), '---\ntitle: [Tire inventée\n---\n');
+		syncFile(v.ctx.db, v.ctx.paths, 'recipes/tire-inventee.md');
+		const again = Object.fromEntries(pendingTags(v.ctx)[0].recipes.map((r) => [r.slug, r.hash]));
+		expect(again).toEqual(seen);
+		const head = v.git('rev-parse', 'HEAD');
+		await expect(dropTag(v.ctx, 'cabane-a-sucre', again)).rejects.toThrow(/« tire-inventee » ne passe pas la validation/);
+		expect(v.git('rev-parse', 'HEAD')).toBe(head);
+	});
+
+	it('after "C’est comme…", the same tag written with hyphens instead of spaces is not pending again', async () => {
+		await save(v.ctx, [{ text: recipe('Choux inventés', 'tags: [pâte à choux]\n') }]);
+		expect(pendingKeys()).toContain('pate-a-choux');
+		await mapTag(v.ctx, 'pate-a-choux', 'dessert', tagsVersion(v.ctx));
+		expect(pendingKeys()).not.toContain('pate-a-choux');
+		await save(v.ctx, [{ text: recipe('Autres choux inventés', 'tags: [pâte-à-choux]\n') }]);
+		expect(pendingKeys()).not.toContain('pate-a-choux');
+		expect(tagRows('autres-choux-inventes')).toEqual([{ tag: 'dessert', pending: 0 }]);
+		expect(classifyTag(loadVocab(v.ctx.paths.vocab).tags, new Set(), 'pâte-à-choux')).toEqual({ status: 'known', canonical: 'dessert' });
 	});
 
 	it('refuses a new tag whose slug is already in the vocabulary', async () => {

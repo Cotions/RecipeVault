@@ -2,7 +2,7 @@
 // real picture: a tiny JPEG carrying an invented EXIF block (orientation 6 and
 // a made-up GPS position), a PNG, an AVIF, a fake HEIC header, a text file.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -260,6 +260,23 @@ describe('derived copies on demand', () => {
 		expect(await derivedCopy(v.ctx.paths, 'galettes', 'final.jpg', 'display', (m) => logged.push(m))).toBeNull();
 		expect(logged).toHaveLength(1);
 		expect(existsSync(derivedPath(v.ctx.paths, 'galettes', 'final.jpg', 'display'))).toBe(false);
+	});
+
+	it('does not decode a corrupt original again on every request, until it changes', async () => {
+		const logged: string[] = [];
+		const dir = join(v.dir, 'media/galettes');
+		mkdirSync(dir, { recursive: true });
+		const abs = join(dir, 'final-2026-09-01-1.jpg');
+		writeFileSync(abs, Buffer.from([0xff, 0xd8, 0xff, 0, 1, 2]));
+		for (let i = 0; i < 3; i++) expect(await derivedCopy(v.ctx.paths, 'galettes', 'final-2026-09-01-1.jpg', 'display', (m) => logged.push(m))).toBeNull();
+		expect(logged).toHaveLength(1);
+		// Replaced by a good one: decoded again, and served.
+		writeFileSync(abs, await jpegWithGps());
+		utimesSync(abs, new Date(), new Date(Date.now() + 5000));
+		expect(await derivedCopy(v.ctx.paths, 'galettes', 'final-2026-09-01-1.jpg', 'display', (m) => logged.push(m))).toBe(
+			derivedPath(v.ctx.paths, 'galettes', 'final-2026-09-01-1.jpg', 'display')
+		);
+		expect(logged).toHaveLength(1);
 	});
 });
 

@@ -129,6 +129,9 @@ function writeCopies(paths: VaultPaths, slug: string, file: string, copies: Part
 // --- derived copies on demand ------------------------------------------------
 
 const pending = new Map<string, Promise<string | null>>();
+/** Originals sharp could not decode, by copy path → the original's stat stamp: refused at once until the original changes. */
+const undecodable = new Map<string, string>();
+const stamp = (s: { mtimeMs: number; size: number; ino: number }) => `${s.mtimeMs}:${s.size}:${s.ino}`;
 
 /**
  * The derived copy to serve, made now if missing or older than its original
@@ -148,9 +151,16 @@ export function derivedCopy(paths: VaultPaths, slug: string, file: string, v: Va
 	}
 	if (!src.isFile()) return Promise.resolve(null);
 	if (existsSync(out) && statSync(out).mtimeMs >= src.mtimeMs) return Promise.resolve(out);
+	// A corrupt original is read and decoded once, not on every request for it.
+	if (undecodable.get(out) === stamp(src)) return Promise.resolve(null);
+	undecodable.delete(out);
 	const running = pending.get(out);
 	if (running) return running;
 	const job = deriveOne(readFileSync(original), v)
+		.catch((e) => {
+			undecodable.set(out, stamp(src));
+			throw e;
+		})
 		.then((buf) => {
 			writeCopies(paths, slug, file, { [v]: buf });
 			return out;

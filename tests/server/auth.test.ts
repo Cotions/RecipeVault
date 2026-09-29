@@ -252,6 +252,21 @@ describe('sign in, the current user, sign out', () => {
 		expect(auth.sessions.lookup(token)).toBeUndefined();
 	});
 
+	it('a users.json broken for a moment signs nobody in but ends no session', () => {
+		const s = jar();
+		startSession(auth, s.cookies, http, 'camille', true);
+		const good = readFileSync(file(), 'utf8');
+		// A hand edit half written: truncated mid-file.
+		writeFileSync(file(), good.slice(0, 20));
+		const during = jar(s.values);
+		expect(currentUser(auth, during.cookies, http)).toBeNull();
+		expect(during.deleted).toEqual([]);
+		expect(auth.sessions.lookup(s.values[SESSION_COOKIE])).toBeDefined();
+		// Fixed: the same cookie works again.
+		writeFileSync(file(), good + '\n');
+		expect(currentUser(auth, jar(s.values).cookies, http)?.login).toBe('camille');
+	});
+
 	it('throttles after 5 failures for a login, whatever the address', async () => {
 		for (let i = 0; i < THROTTLE.free; i++) expect(await signIn(auth, 'camille', 'faux-mot-de-passe', `10.0.1.${i}`)).toMatchObject({ reason: 'bad' });
 		const r = await signIn(auth, 'camille', 'camille-mot-de-passe', '10.0.2.1');

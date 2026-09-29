@@ -151,13 +151,16 @@ export function startSession(auth: Auth, cookies: Cookies, headers: Headers, log
 /**
  * The person behind the request's cookie, or null. A session whose account
  * is gone or whose password changed since is ended here. A renewed session
- * gets its cookie again, with the new expiry.
+ * gets its cookie again, with the new expiry. While users.json does not read
+ * (a hand edit half written), nobody is signed in but no session or cookie is
+ * ended: they work again once the file does.
  */
 export function currentUser(auth: Auth, cookies: Cookies, headers: Headers): SignedIn | null {
 	const token = cookies.get(SESSION_COOKIE);
 	if (!token) return null;
 	const secure = overHttps(headers);
 	const s = auth.sessions.lookup(token);
+	if (s && auth.users.broken) return null;
 	const user = s ? auth.users.get(s.login) : undefined;
 	if (!s || !user || passwordStamp(user.hash) !== s.stamp) {
 		if (s) auth.sessions.revoke(token);

@@ -10,8 +10,8 @@
 // written; the owner can take it back by hand.
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { t } from '../i18n/fr';
 import { checkBatch, checkFile, hasErrors } from '../vault/check';
 import type { VaultContext } from './context';
@@ -19,11 +19,13 @@ import { checkOptions } from './checkopts';
 import { FAMILIES_FILE } from './families';
 import { FileWriteError, writeAndCommit, type FileWrite } from './files';
 import { git, GitError } from './git';
-import { refreshFamilies, sha256 } from './index/build';
+import { deleteRecipeRows, refreshFamilies, sha256 } from './index/build';
 import { indexText, recipePath } from './index/sync';
 import { currentFile, vaultEntries } from './save';
+import { dropDerived } from './photos';
 import { remove, restore, TrashError } from './trash';
 import { RECIPES, TRASH } from './vault';
+import { SLUG_RE } from '../vault/slug';
 import { loadVocab } from './vocab';
 import { describeChanges, diffVersions, parseVersion, titleOfText, type Change, type Parsed } from './history-diff';
 
@@ -164,6 +166,8 @@ const SEP_FIELD = '\x1f';
  */
 export async function recipeHistory(ctx: VaultContext, slug: string, opts: { limit?: number } = {}): Promise<RecipeHistory> {
 	const root = ctx.paths.root;
+	// A slug from the URL that is not one (`../x`) names no file in the vault.
+	if (!SLUG_RE.test(slug)) return { slug, where: 'none', versions: [] };
 	const live = currentFile(ctx, slug);
 	const inTrash = !live && existsSync(join(root, trashPath(slug)));
 	const where = live ? 'live' : inTrash ? 'trash' : 'none';
@@ -186,6 +190,12 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 			const change = parseNameStatus(rest.filter((l) => l.includes('\t')))[0] ?? { status: 'M', from: path, path };
 			return { commit, author, date, message, change };
 		});
+	// `--follow` walks on past the file's creation into an earlier file that had
+	// the same path (a slug freed by hand and taken again): that is another
+	// recipe. Stop at the creation (`A`, kept), or before a removal (`D`) — but
+	// keep the newest entry when it is the removal of this recipe itself.
+	const cut = entries.findIndex((e, i) => e.change.status === 'A' || (i > 0 && e.change.status === 'D'));
+	if (cut >= 0) entries.length = entries[cut].change.status === 'A' ? cut + 1 : cut;
 	const blobs = await readBlobs(
 		root,
 		entries.map((e) => (e.change.status === 'D' ? '' : `${e.commit}:${e.change.path}`))
@@ -255,8 +265,26 @@ interface Revert {
 	rel: string;
 	/** The text to write; null removes the file. */
 	text: string | null;
-	/** The recipe's slug, for recipe files. */
+	/** The recipe's slug, for recipe files checked and indexed (not a file going to the trash). */
 	slug?: string;
+	/** The title for the commit subject, for a recipe going to the trash. */
+	title?: string;
+}
+
+/** A recipe's move to or from the trash inside a write-back: its media folder follows, its index rows and derived copies go. */
+interface TrashMove {
+	slug: string;
+	toTrash: boolean;
+}
+
+function moveMedia(ctx: VaultContext, m: TrashMove, back = false): boolean {
+	const media = join(ctx.paths.media, m.slug);
+	const inTrash = join(ctx.paths.trash, m.slug);
+	const [from, to] = m.toTrash !== back ? [media, inTrash] : [inTrash, media];
+	if (!existsSync(from)) return false;
+	mkdirSync(dirname(to), { recursive: true });
+	renameSync(from, to);
+	return true;
 }
 
 /**
@@ -264,7 +292,7 @@ interface Revert {
  * write every file, commit once, index, push. Caller holds the lock and has
  * checked the guards.
  */
-async function writeBack(ctx: VaultContext, reverts: Revert[], message: string): Promise<string | undefined> {
+async function writeBack(ctx: VaultContext, reverts: Revert[], message: string, moves: TrashMove[] = []): Promise<string | undefined> {
 	const recipes = reverts.filter((r) => r.slug && r.text !== null);
 	const own = new Set(recipes.map((r) => r.slug!));
 	const { entries } = vaultEntries(ctx);
@@ -281,6 +309,8 @@ async function writeBack(ctx: VaultContext, reverts: Revert[], message: string):
 		if (f.recipe.slug !== recipes[i].slug) throw new HistoryError('invalid', t.history.otherSlug);
 	}
 	let commit: string | undefined;
+	if (moves.length) mkdirSync(ctx.paths.trash, { recursive: true });
+	const moved = moves.filter((m) => moveMedia(ctx, m));
 	try {
 		commit = await writeAndCommit(
 			ctx,
@@ -288,14 +318,20 @@ async function writeBack(ctx: VaultContext, reverts: Revert[], message: string):
 			message
 		);
 	} catch (e) {
+		for (const m of moved) moveMedia(ctx, m, true);
 		if (!(e instanceof FileWriteError)) throw e;
 		ctx.log(`recipevault: ${message}: ${e.stage} failed, nothing changed: ${e.message}`);
 		throw new HistoryError('failed');
 	}
+	for (const m of moves) if (m.toTrash) dropDerived(ctx.paths, m.slug);
 	try {
 		if (ctx.faults?.index) throw new Error('index write failed (injected)');
 		const vocab = loadVocab(ctx.paths.vocab);
 		ctx.db.transaction(() => {
+			for (const m of moves.filter((m) => m.toTrash)) {
+				deleteRecipeRows(ctx.db, m.slug);
+				ctx.db.prepare('DELETE FROM problems WHERE file_path = ?').run(recipePath(m.slug));
+			}
 			for (const r of recipes) indexText(ctx.db, vocab, r.rel, r.text!);
 			refreshFamilies(ctx.db, vocab);
 		})();
@@ -377,28 +413,36 @@ export async function undoCommit(ctx: VaultContext, commit: string, opts: { slug
 		else if ((c.status === 'M' || c.status === 'A') && c.path === FAMILIES_FILE) families = c;
 		else throw new HistoryError('unsupported');
 	}
-	if (!trashed.length && !untrashed.length && !added.length && !edited.length) throw new HistoryError('unsupported');
+	const recipes = trashed.length + untrashed.length + added.length + edited.length;
+	if (!recipes) throw new HistoryError('unsupported');
 
-	// A trash move is undone by the trash's own operation (it moves the media folder too).
-	if (trashed.length || untrashed.length) {
-		if (added.length || edited.length || families) throw new HistoryError('unsupported');
-		let last: string | undefined;
+	// One recipe moved to or from the trash, or one recipe created: the trash's
+	// own operation (its `delete:` / `restore:` commit, the media folder with it).
+	if (recipes === 1 && !edited.length) {
 		try {
-			for (const slug of trashed) last = (await restore(ctx, slug)).commit ?? last;
-			for (const slug of untrashed) {
-				const b = await blob(root, full, recipePath(slug));
-				last = (await remove(ctx, slug, b ? sha256(b) : '')).commit ?? last;
-			}
+			if (trashed.length) return { action: 'untrashed', commit: (await restore(ctx, trashed[0])).commit, slugs: trashed, kept: [] };
+			const slug = untrashed[0] ?? added[0];
+			const b = await blob(root, full, recipePath(slug));
+			const commit = (await remove(ctx, slug, b ? sha256(b) : '')).commit;
+			return { action: 'trashed', commit, slugs: [slug], kept: families ? [FAMILIES_FILE] : [] };
 		} catch (e) {
-			if (e instanceof TrashError) throw new HistoryError(/changé depuis/.test(e.message) ? 'stale' : 'gone', e.message);
-			throw e;
+			throw fromTrashError(ctx, e);
 		}
-		return { action: trashed.length ? 'untrashed' : 'trashed', commit: last, slugs: [...trashed, ...untrashed], kept: [] };
 	}
 
+	// Anything else — a W608 pair, a new recipe saved with an edit of another,
+	// several recipes — reverts together: one commit, all or nothing. A recipe
+	// the commit created (or brought back) goes to the trash inside that same
+	// commit; one it sent to the trash comes back.
 	const kept: string[] = [];
 	const commitNew = await ctx.lock.run(async () => {
 		const reverts: Revert[] = [];
+		const moves: TrashMove[] = [];
+		const stillAsLeft = async (rel: string) => {
+			const now = onDisk(ctx, rel);
+			if (!sameBytes(now, await blob(root, full, rel))) throw new HistoryError(now ? 'stale' : 'gone');
+			return now!;
+		};
 		for (const slug of edited) {
 			const rel = recipePath(slug);
 			const [after, before] = await readBlobs(root, [`${full}:${rel}`, `${parent}:${rel}`]);
@@ -406,33 +450,41 @@ export async function undoCommit(ctx: VaultContext, commit: string, opts: { slug
 			if (!before) throw new HistoryError('unsupported');
 			reverts.push({ rel, slug, text: before.toString('utf8') });
 		}
-		for (const slug of added) {
-			const rel = recipePath(slug);
-			if (!sameBytes(onDisk(ctx, rel), await blob(root, full, rel))) throw new HistoryError(onDisk(ctx, rel) ? 'stale' : 'gone');
+		for (const slug of [...added, ...untrashed]) {
+			const text = (await stillAsLeft(recipePath(slug))).toString('utf8');
+			if (onDisk(ctx, trashPath(slug)) || (existsSync(join(ctx.paths.trash, slug)) && existsSync(join(ctx.paths.media, slug))))
+				throw new HistoryError('unsupported');
+			reverts.push({ rel: recipePath(slug), text: null }, { rel: trashPath(slug), text, title: titleOfText(text) ?? slug });
+			moves.push({ slug, toTrash: true });
 		}
-		if (families && !edited.length) kept.push(FAMILIES_FILE); // a new recipe's label stays: harmless, and one commit fewer
+		for (const slug of trashed) {
+			const text = (await stillAsLeft(trashPath(slug))).toString('utf8');
+			if (onDisk(ctx, recipePath(slug)) || ctx.db.prepare('SELECT 1 FROM recipes WHERE slug = ?').get(slug)) throw new HistoryError('unsupported');
+			if (existsSync(join(ctx.paths.trash, slug)) && existsSync(join(ctx.paths.media, slug))) throw new HistoryError('unsupported');
+			reverts.push({ rel: trashPath(slug), text: null }, { rel: recipePath(slug), slug, text });
+			moves.push({ slug, toTrash: false });
+		}
+		if (families && !edited.length) kept.push(FAMILIES_FILE); // a new recipe's label stays: harmless
 		else if (families) {
 			const [after, before] = await readBlobs(root, [`${full}:${FAMILIES_FILE}`, parent ? `${parent}:${FAMILIES_FILE}` : '']);
 			if (sameBytes(onDisk(ctx, FAMILIES_FILE), after)) reverts.push({ rel: FAMILIES_FILE, text: before ? before.toString('utf8') : null });
 			else kept.push(FAMILIES_FILE);
 		}
-		if (!reverts.some((r) => r.slug)) return undefined;
-		const titles = reverts.filter((r) => r.slug).map((r) => titleOfText(r.text!) ?? r.slug!);
-		return writeBack(ctx, reverts, subject('undo', titles));
+		const titles = reverts.filter((r) => r.title || (r.slug && r.text !== null)).map((r) => r.title ?? titleOfText(r.text!) ?? r.slug!);
+		return writeBack(ctx, reverts, subject('undo', titles), moves);
 	});
+	const action = added.length || untrashed.length ? 'trashed' : trashed.length ? 'untrashed' : 'undone';
+	return { action, commit: commitNew, slugs: [...edited, ...added, ...untrashed, ...trashed], kept };
+}
 
-	// A recipe the commit created leaves through the trash, after the lock is released.
-	let last = commitNew;
-	for (const slug of added) {
-		try {
-			const b = await blob(root, full, recipePath(slug));
-			last = (await remove(ctx, slug, b ? sha256(b) : '')).commit ?? last;
-		} catch (e) {
-			if (e instanceof TrashError) throw new HistoryError(/changé depuis/.test(e.message) ? 'stale' : 'gone', e.message);
-			throw e;
-		}
-	}
-	return { action: added.length && !edited.length ? 'trashed' : 'undone', commit: last, slugs: [...edited, ...added], kept };
+/**
+ * A refused trash move as she reads it: the history's own French sentence for
+ * the reason, the trash's text (English, paths, git output) to the log only.
+ */
+function fromTrashError(ctx: VaultContext, e: unknown): unknown {
+	if (!(e instanceof TrashError)) return e;
+	ctx.log(`recipevault: undo through the trash refused: ${e.message}`);
+	return new HistoryError(e.reason === 'taken' ? 'unsupported' : e.reason);
 }
 
 // ---------------------------------------------------------------------------

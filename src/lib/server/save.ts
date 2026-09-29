@@ -11,6 +11,7 @@ import { checkBatch, checkFile, hasErrors } from '../vault/check';
 import { stripMarkers } from '../vault/markers';
 import { normalizeText } from '../vault/normalize';
 import { serialize } from '../vault/serialize';
+import { SLUG_RE } from '../vault/slug';
 import type { Diagnostic, Recipe } from '../vault/types';
 import type { VaultEntry } from '../vault/rules/batch';
 import type { VaultContext } from './context';
@@ -112,8 +113,13 @@ export function vaultEntries(ctx: VaultContext): { entries: VaultEntry[]; trash:
 	return { entries, trash };
 }
 
-/** The file currently in the vault for a slug: text and hash, or undefined. */
+/**
+ * The file currently in the vault for a slug: text and hash, or undefined.
+ * A slug that is not one (`../x`, from a URL) names no file: it never reaches
+ * the file system.
+ */
 export function currentFile(ctx: VaultContext, slug: string): { text: string; hash: string } | undefined {
+	if (!SLUG_RE.test(slug)) return undefined;
 	const abs = join(ctx.paths.root, recipePath(slug));
 	if (!existsSync(abs)) return undefined;
 	const buf = readFileSync(abs);

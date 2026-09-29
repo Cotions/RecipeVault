@@ -1,7 +1,7 @@
 // Plan 04, Phase 7: undo and history. Undo and restore write the old text as a
 // NEW commit by the signed-in person; nothing rewrites git history.
 
-import { writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { withAuthor } from '../../src/lib/server/context';
@@ -12,6 +12,10 @@ import { HistoryError, recipeHistory, restoreVersion, undoCommit } from '../../s
 import { appendPrice } from '../../src/lib/server/prices';
 import { currentFile, save } from '../../src/lib/server/save';
 import { remove, restore } from '../../src/lib/server/trash';
+import { openForm } from '../../src/lib/server/formsave';
+import { syncVault } from '../../src/lib/server/index/sync';
+import { t } from '../../src/lib/i18n/fr';
+import { match as isSlug } from '../../src/params/slug';
 import { AUTHOR, fixtureVault, recipe, type TempVault } from '../helpers/vault';
 
 const CAMILLE = { name: 'Camille Inventée', email: 'camille@recipevault.invalid' };
@@ -123,6 +127,65 @@ describe('undo', () => {
 		expect(file('pate-brisee').text).toBe(beforeB);
 		expect(familiesFile(v.ctx).text).toBe(beforeFamilies);
 		expect(v.git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort()).toEqual(['recipes/crepes.md', 'recipes/pate-brisee.md', FAMILIES_FILE]);
+	});
+
+	it('a new recipe saved with a W608 pair edit is undone in one commit, and Rétablir brings all of it back', async () => {
+		const a = file('crepes');
+		const fam = familiesFile(v.ctx).text;
+		const b = recipe('Crêpes épaisses inventées', 'slug: crepes-epaisses-inventees\nfamily: galettes\nvariant: épaisses\n');
+		mkdirSync(join(v.dir, 'media/crepes-epaisses-inventees'), { recursive: true });
+		writeFileSync(join(v.dir, 'media/crepes-epaisses-inventees/final-2026-09-28-1.jpg'), 'invented');
+		const commit = await v.ctx.lock.run(() =>
+			writeAndCommit(
+				withAuthor(v.ctx, CAMILLE),
+				[
+					{ rel: 'recipes/crepes-epaisses-inventees.md', text: b },
+					{ rel: 'recipes/crepes.md', text: a.text.replace('title: Crêpes minces', 'title: Crêpes minces\nfamily: galettes\nvariant: minces') },
+					{ rel: FAMILIES_FILE, text: withLabel(fam, 'galettes', 'Galettes') }
+				],
+				'add: Crêpes épaisses inventées'
+			)
+		);
+		v.ctx.db.transaction(() => syncVault(v.ctx.db, v.ctx.paths))();
+		const n = count();
+		const u = await undoCommit(withAuthor(v.ctx, CAMILLE), commit!, { slug: 'crepes-epaisses-inventees' });
+		// One commit, all or nothing: the pair edit reverted and the new recipe in the trash together.
+		expect(count()).toBe(n + 1);
+		expect(u).toMatchObject({ action: 'trashed', commit: head(), kept: [] });
+		expect(v.git('show', '--name-status', '-M', '--format=', 'HEAD').trim().split('\n').sort()).toEqual([
+			'M\trecipes/crepes.md',
+			`M\t${FAMILIES_FILE}`,
+			'R100\trecipes/crepes-epaisses-inventees.md\t_trash/crepes-epaisses-inventees.md'
+		].sort());
+		expect(file('crepes').text).toBe(a.text);
+		expect(familiesFile(v.ctx).text).toBe(fam);
+		expect(currentFile(v.ctx, 'crepes-epaisses-inventees')).toBeUndefined();
+		expect(v.read('_trash/crepes-epaisses-inventees.md')).toBe(b);
+		expect(existsSync(join(v.dir, '_trash/crepes-epaisses-inventees/final-2026-09-28-1.jpg'))).toBe(true);
+		expect(row('crepes-epaisses-inventees')).toBeUndefined();
+		expect(v.git('status', '--porcelain').trim()).toBe('');
+		// Rétablir: the whole save again, in one commit.
+		const redo = await undoCommit(v.ctx, u.commit!, { slug: 'crepes-epaisses-inventees' });
+		expect(redo.action).toBe('untrashed');
+		expect(count()).toBe(n + 2);
+		expect(file('crepes-epaisses-inventees').text).toBe(b);
+		expect(file('crepes').text).toContain('family: galettes');
+		expect(familiesFile(v.ctx).text).toContain('Galettes');
+		expect(existsSync(join(v.dir, 'media/crepes-epaisses-inventees/final-2026-09-28-1.jpg'))).toBe(true);
+		expect(row('crepes-epaisses-inventees')!.title).toBe('Crêpes épaisses inventées');
+	});
+
+	it('a refused trash move reads the history’s French sentence, not the trash’s own text', async () => {
+		await remove(v.ctx, 'crepes');
+		const back = await undoCommit(v.ctx, head(), { slug: 'crepes' });
+		expect(back.action).toBe('untrashed');
+		// Sent to the trash again from elsewhere before she taps "Annuler".
+		await remove(v.ctx, 'crepes');
+		const e = await undoCommit(v.ctx, back.commit!, { slug: 'crepes' }).catch((x) => x);
+		expect(e).toBeInstanceOf(HistoryError);
+		expect(e.reason).toBe('gone');
+		expect(e.message).toBe(t.history.errors.gone);
+		expect(e.message).not.toMatch(/no recipe|_trash|already/);
 	});
 
 	it('keeps a family label changed since, and says so', async () => {
@@ -274,6 +337,34 @@ describe('history and restore', () => {
 		const n = count();
 		expect(await restoreVersion(v.ctx, 'crepes', h.versions[0].commit, h.hash!)).toEqual({});
 		expect(count()).toBe(n);
+	});
+
+	it('does not offer the versions of an earlier recipe that had the same slug', async () => {
+		// Recipe x, trashed, then its trash file removed by hand; later a new, unrelated recipe takes slug x.
+		await save(v.ctx, [{ text: recipe('Beignes inventés') }]);
+		await edit('beignes-inventes', (t) => t.replace('qty: 1,', 'qty: 2,'));
+		await remove(v.ctx, 'beignes-inventes');
+		v.git('rm', '-q', '_trash/beignes-inventes.md');
+		v.git('-c', 'user.name=X', '-c', 'user.email=x@example.invalid', 'commit', '-qm', 'purge: beignes');
+		const old = v.git('log', '--format=%H', '--', 'recipes/beignes-inventes.md').trim().split('\n');
+		await save(v.ctx, [{ text: recipe('Beignes inventés', '', '## Préparation\n\n1. Tout autre chose.\n') }]);
+		const h = await recipeHistory(v.ctx, 'beignes-inventes');
+		expect(h.versions.map((x) => x.verb)).toEqual(['add']);
+		for (const c of old) await rejects(restoreVersion(v.ctx, 'beignes-inventes', c, h.hash!), 'unknown');
+		expect(file('beignes-inventes').text).toContain('Tout autre chose');
+	});
+
+	it('a slug from the URL that climbs out of recipes/ reads nothing', async () => {
+		writeFileSync(join(v.dir, 'notes.md'), recipe('Hors recettes'));
+		writeFileSync(join(v.dir, '..', 'dehors.md'), recipe('Hors coffre'));
+		for (const slug of ['../notes', '../../dehors', '..', 'crepes/../crepes', 'Crepes', '']) {
+			expect(currentFile(v.ctx, slug), slug).toBeUndefined();
+			expect(await recipeHistory(v.ctx, slug), slug).toEqual({ slug, where: 'none', versions: [] });
+			expect(openForm(v.ctx, slug), slug).toEqual({ refused: 'gone' });
+			await rejects(restoreVersion(v.ctx, slug, head(), 'x'), 'gone');
+			expect(isSlug(slug), slug).toBe(false);
+		}
+		expect(isSlug('crepes')).toBe(true);
 	});
 
 	it('an unknown slug has no history', async () => {

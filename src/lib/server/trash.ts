@@ -14,9 +14,20 @@ import { deleteRecipeRows, refreshFamilies, sha256 } from './index/build';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
 import { dropDerived } from './photos';
 import { MEDIA, TRASH } from './vault';
+import { SLUG_RE } from '../vault/slug';
 import { loadVocab } from './vocab';
 
-export class TrashError extends Error {}
+/** Why a trash move was refused; `message` is for the trash's own pages (and the log). */
+export type TrashErrorReason = 'gone' | 'stale' | 'taken' | 'failed';
+
+export class TrashError extends Error {
+	constructor(
+		message: string,
+		readonly reason: TrashErrorReason
+	) {
+		super(message);
+	}
+}
 
 const trashPath = (slug: string) => `${TRASH}/${slug}.md`;
 
@@ -28,14 +39,15 @@ function titleOf(text: string, slug: string): string {
 
 export function remove(ctx: VaultContext, slug: string, expectedHash?: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
+		if (!SLUG_RE.test(slug)) throw new TrashError(`no recipe ${slug}`, 'gone');
 		const { root } = ctx.paths;
 		const from = join(root, recipePath(slug));
 		const to = join(root, trashPath(slug));
-		if (!existsSync(from)) throw new TrashError(`no recipe ${slug}`);
-		if (existsSync(to)) throw new TrashError(`${trashPath(slug)} already exists`);
+		if (!existsSync(from)) throw new TrashError(`no recipe ${slug}`, 'gone');
+		if (existsSync(to)) throw new TrashError(`${trashPath(slug)} already exists`, 'taken');
 		const text = readFileSync(from, 'utf8');
 		if (expectedHash !== undefined && sha256(text) !== expectedHash)
-			throw new TrashError('le fichier a changé depuis l’ouverture de la page ; rechargez-la.');
+			throw new TrashError('le fichier a changé depuis l’ouverture de la page ; rechargez-la.', 'stale');
 		renameSync(from, to);
 		const now = new Date();
 		utimesSync(to, now, now); // the trash lists by deletion time
@@ -52,7 +64,7 @@ export function remove(ctx: VaultContext, slug: string, expectedHash?: string): 
 			renameSync(to, from);
 			if (movedMedia) renameSync(mediaTrash, media);
 			await unstage(root, paths);
-			throw new TrashError(`la suppression n’a pas pu être enregistrée (git) ; rien n’a changé : ${(e as Error).message}`);
+			throw new TrashError(`la suppression n’a pas pu être enregistrée (git) ; rien n’a changé : ${(e as Error).message}`, 'failed');
 		}
 		// The derived copies are cache: dropped with the recipe, rebuilt on demand after a restore.
 		dropDerived(ctx.paths, slug);
@@ -68,15 +80,16 @@ export function remove(ctx: VaultContext, slug: string, expectedHash?: string): 
 
 export function restore(ctx: VaultContext, slug: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
+		if (!SLUG_RE.test(slug)) throw new TrashError(`${slug} n’est pas dans la corbeille`, 'gone');
 		const { root } = ctx.paths;
 		const from = join(root, trashPath(slug));
 		const to = join(root, recipePath(slug));
-		if (!existsSync(from)) throw new TrashError(`${slug} n’est pas dans la corbeille`);
+		if (!existsSync(from)) throw new TrashError(`${slug} n’est pas dans la corbeille`, 'gone');
 		if (existsSync(to) || ctx.db.prepare('SELECT 1 FROM recipes WHERE slug = ?').get(slug))
-			throw new TrashError(`le nom ${slug} est déjà repris par une autre recette`);
+			throw new TrashError(`le nom ${slug} est déjà repris par une autre recette`, 'taken');
 		const mediaTrash = join(root, TRASH, slug);
 		const media = join(root, MEDIA, slug);
-		if (existsSync(mediaTrash) && existsSync(media)) throw new TrashError(`media/${slug} existe déjà`);
+		if (existsSync(mediaTrash) && existsSync(media)) throw new TrashError(`media/${slug} existe déjà`, 'taken');
 		renameSync(from, to);
 		const movedMedia = existsSync(mediaTrash);
 		if (movedMedia) renameSync(mediaTrash, media);
@@ -92,7 +105,7 @@ export function restore(ctx: VaultContext, slug: string): Promise<{ commit?: str
 			renameSync(to, from);
 			if (movedMedia) renameSync(media, mediaTrash);
 			await unstage(root, paths);
-			throw new TrashError(`la restauration n’a pas pu être enregistrée (git) ; rien n’a changé : ${(e as Error).message}`);
+			throw new TrashError(`la restauration n’a pas pu être enregistrée (git) ; rien n’a changé : ${(e as Error).message}`, 'failed');
 		}
 		const vocab = loadVocab(ctx.paths.vocab);
 		ctx.db.transaction(() => {

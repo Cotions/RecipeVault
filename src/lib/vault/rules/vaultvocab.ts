@@ -23,10 +23,14 @@ export interface VaultVocabOptions {
 	soleUser?: ReadonlyMap<string, string>;
 }
 
-/** A tag's canonical form, as the index stores it (`canonicalTag`), or undefined when the vocabulary lacks it. */
+/**
+ * A tag's canonical form, as the index stores it (`canonicalTag`), or
+ * undefined when the vocabulary lacks it. Spaces and hyphens are the same
+ * (as the pending key has them): `pâte-à-choux` finds the alias `pâte à choux`.
+ */
 export function tagFor(tags: ReadonlyMap<string, string>, tag: string): string | undefined {
 	const key = fold(stripMarkers(tag));
-	return tags.get(key) ?? tags.get(key.replace(/\s+/g, '-'));
+	return tags.get(key) ?? tags.get(key.replace(/\s+/g, '-')) ?? tags.get(key.replace(/[\s-]+/g, ' '));
 }
 
 /** The closest canonical tag to an unknown one, within edit distance 2. */

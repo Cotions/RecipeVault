@@ -344,9 +344,12 @@ export function dropTag(
 		const writes: { slug: string; title: string; text: string }[] = [];
 		for (const slug of slugs) {
 			const cur = currentFile(ctx, slug);
-			if (!cur || cur.hash !== seen[slug]) throw new TagError('une des recettes a changé depuis l’ouverture de la page ; rechargez-la.');
+			if (!cur) throw new TagError('une des recettes a changé depuis l’ouverture de la page ; rechargez-la.');
+			// A broken file first: the index keeps its last good hash, so the
+			// hash guard would send her to reload forever (plan 04, Q3 A).
 			const file = checkFile(cur.text);
 			if (!file.recipe || hasErrors(file.diagnostics)) throw new TagError(`la recette « ${slug} » ne passe pas la validation ; faites-la corriger d’abord.`);
+			if (cur.hash !== seen[slug]) throw new TagError('une des recettes a changé depuis l’ouverture de la page ; rechargez-la.');
 			const tags = file.recipe.tags.filter((t) => !(pendingKey(t) === key && !tagFor(vocab.tags, t)));
 			if (tags.length === file.recipe.tags.length) continue;
 			const final: Recipe = { ...file.recipe, tags, updated: opts.today ?? localDate() };
