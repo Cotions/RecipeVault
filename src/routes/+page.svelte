@@ -63,6 +63,12 @@
 		return page.url.searchParams.getAll(PARAM[facet]).includes(value);
 	}
 
+	/** The values listed before "N de plus": the first SHOWN, plus every active one further down (never hidden). */
+	function shown<V extends { value: string }>(facet: FacetName, values: V[]): V[] {
+		if (expanded[facet]) return values;
+		return values.filter((v, i) => i < SHOWN || active(facet, v.value));
+	}
+
 	const activeCount = $derived(ORDER.reduce((n, f) => n + page.url.searchParams.getAll(PARAM[f]).length, 0));
 
 	function label(facet: FacetName, value: string): string {
@@ -155,11 +161,12 @@
 		</div>
 		{#each ORDER as facet (facet)}
 			{@const values = r.facets[facet]}
+			{@const listed = shown(facet, values)}
 			{#if values.length}
 				<section>
 					<h3>{t.browse.facets[facet]}</h3>
 					<ul>
-						{#each expanded[facet] ? values : values.slice(0, SHOWN) as v (v.value)}
+						{#each listed as v (v.value)}
 							<li>
 								<a
 									href={toggle(facet, v.value)}
@@ -175,9 +182,9 @@
 							</li>
 						{/each}
 					</ul>
-					{#if values.length > SHOWN}
+					{#if expanded[facet] ? values.length > SHOWN : listed.length < values.length}
 						<button class="btn quiet more" type="button" onclick={() => (expanded[facet] = !expanded[facet])}>
-							{expanded[facet] ? t.browse.less : t.browse.more(values.length - SHOWN)}
+							{expanded[facet] ? t.browse.less : t.browse.more(values.length - listed.length)}
 						</button>
 					{/if}
 				</section>

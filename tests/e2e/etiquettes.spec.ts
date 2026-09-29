@@ -63,8 +63,14 @@ test('pending tags are settled on /etiquettes: new tag, alias, removal — one c
 	await page.goto('/?tag=soiree-cinema');
 	await expect(page.locator('.count')).toHaveText('2 recettes');
 	await page.getByRole('button', { name: /^Filtrer/ }).click();
-	await page.locator('.facets').getByRole('button', { name: /de plus/ }).first().click();
-	await expect(page.locator('.facets')).toContainText('Soirée cinéma');
+	// The active tag is listed without opening "N de plus" (issue #11), though it sorts past the first eight.
+	const current = page.locator('.facets a[aria-current="true"]');
+	await expect(current).toHaveCount(1);
+	await expect(current).toBeVisible();
+	await expect(current).toContainText('Soirée cinéma');
+	const tagFacet = page.locator('.facets section').filter({ has: page.locator('a[aria-current="true"]') });
+	expect(await tagFacet.locator('li').count()).toBe(9);
+	await expect(tagFacet.getByRole('button', { name: /de plus/ })).toBeVisible();
 });
 
 test('a tag write from a stale page is refused and changes nothing', async ({ page, baseURL }) => {
