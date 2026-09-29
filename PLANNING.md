@@ -394,7 +394,9 @@ recommended option; each is recorded in the doc it concerns.
 
 **P3 — only if actually wanted**
 Ingredient scaling (the structured quantities already make this nearly free),
-shopping list with whole-pack costs, meal planner, price history charts.
+meal planner, price history charts. Scaling is planned in
+`docs/plans/05-scaling-duplicates.md`; the shopping list was declined (see
+"Deliberately out of scope").
 
 ## Open questions
 
@@ -541,4 +543,7 @@ path only when a site lacks the markup. Goes in P1 alongside the paste box.
   every unit. Large effort, and not what this archive is for.
 - **Multi-shop price comparison.** A different app.
 - **Public sharing / social features.** Private family archive.
+- **Shopping list.** Declined by the owner (2026-09-29): no list built from
+  chosen recipes, no whole-pack shopping cost, no aggregation across recipes.
+  Consumed cost and pantry search cover what is needed.
 
