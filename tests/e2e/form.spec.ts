@@ -366,3 +366,40 @@ test('a comma in an ingredient name is named on its row and nothing is saved', a
 	await expect(page.getByTestId('save')).toBeEnabled();
 	await page.evaluate(() => localStorage.clear());
 });
+
+test('"En faire deux versions": the same title twice makes a family of both, in one commit', async ({ page }) => {
+	const t = title('Pouding jumeau');
+	const first = slugOf(t);
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill(t);
+	await row(page, 0, '2', 'cup', 'lait');
+	await saveAndLand(page, first);
+	const before = git('rev-parse', 'HEAD');
+
+	// The same title again: the live check offers W608's pair.
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill(t);
+	await row(page, 0, '1', 'cup', 'cassonade');
+	const offer = page.getByTestId('same-title');
+	await expect(offer).toBeVisible();
+	await offer.getByRole('button', { name: 'En faire deux versions d’une famille' }).click();
+	await expect(page.getByTestId('pair')).toBeVisible();
+	await expect(page.getByTestId('family-name')).toHaveText(t);
+	// Both variants are required before Save.
+	await page.locator('#variant').fill('à la cassonade');
+	await expect(page.getByTestId('save')).toBeDisabled();
+	await page.locator('#pair-variant').fill('au lait');
+	await page.getByTestId('save').click();
+	await expect(page).toHaveURL(new RegExp(`^.*/r/${first}-[a-z0-9-]+$`));
+	await expect(page.getByTestId('toast')).toContainText('Recette enregistrée.');
+	const second = new URL(page.url()).pathname.split('/').pop()!;
+
+	// One commit: the new recipe, the other one, the family's label.
+	expect(git('rev-list', '--count', `${before}..HEAD`)).toBe('1');
+	expect(git('show', '--name-only', '--format=', 'HEAD').split('\n').sort()).toEqual([`recipes/${first}.md`, `recipes/${second}.md`, 'vocab/families.yaml'].sort());
+	expect(read(first)).toMatch(new RegExp(`\\nfamily: ${first}\\nvariant: au lait\\n`));
+	expect(read(second)).toMatch(new RegExp(`\\nfamily: ${first}\\nvariant: à la cassonade\\n`));
+	await page.goto(`/famille/${first}`);
+	await expect(page.locator('main')).toContainText('au lait');
+	await expect(page.locator('main')).toContainText('à la cassonade');
+});
