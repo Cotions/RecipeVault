@@ -1023,7 +1023,7 @@ final report and in `DATA-FLOW.md` next to the plan 02 and 03 figures.
 | Operation | Target | Why | Measured (Phase 9) |
 |---|---|---|---|
 | open the edit form (server load, a 40-line recipe) | < 100 ms | she opens it from the recipe page on a tablet | **11.9 ms** (74-line recipe: `openForm` + `formPageData`); 46 ms the first time after a write (vault stats recomputed); new-recipe form 9.8 ms |
-| suggestions for one keystroke (ingredient names, ~1000 entries + names in use) | < 10 ms server | type-ahead on weak kitchen wifi | **2.8 ms** (names + the "relié" check, 18 prefixes); authors 1.6 ms; sub-recipe picker with the E213 walk 15.5 ms |
+| suggestions for one keystroke (ingredient names, ~1000 entries + names in use) | < 10 ms server | type-ahead on weak kitchen wifi | **2.8 ms** (names + the "relié" check, 18 prefixes); authors 1.6 ms; sub-recipe picker with the E213 walk 15.5 ms. **After issue #11: 0.4 ms** (its lists cached per index state; ~7–12 ms for the first keystroke after a write; the previous code 16.4 ms in the same session) |
 | hints for one field while typing (browser, name-word lists) | < 5 ms | no input lag on a mid-range tablet | **0.03 ms** (`nameHint`, timed in Node on a desktop CPU; a tablet ~10× slower is still far under) |
 | form save: check + serialize + write + commit + index | < 500 ms | git dominates (a price append is ~170 ms) | **450 ms** edit (one step), **486 ms** new recipe (medians of 5; 369 / 431 ms in a lighter-load run) |
 | unchanged form save | no commit | the round-trip promise | **no write, no commit** (HEAD unchanged; 11.5 ms) |
@@ -1043,8 +1043,17 @@ one new commit 46 ms, a read already at HEAD 0.1 ms; and it checks that the
 index lists what `git log --follow` lists for the bench recipe and three
 ordinary ones.
 
+The issue #11 figures (the sub-recipe picker, the form's server check) are
+from the same bench on 2026-09-29 (load average 6–15, test runs beside it),
+against the previous commit run right after (load 6–16).
+The check's work is shared with the save, the paste check and undo, so those
+went down in the same runs: form save 307 / 290 ms (edit / new; 446 / 515 ms
+before), undo 349 ms (458 ms before).
+
 Not in the targets, measured for the report: the form's debounced server check
-(`formCheck`, whole form) 199 ms; `/etiquettes` load (22 pending tags, two of
+(`formCheck`, whole form) 199 ms — **after issue #11: 21 ms** (226 ms for
+the previous code in the same session; ~40 ms for the first check after a
+write, which rebuilds the cached vault lists); `/etiquettes` load (22 pending tags, two of
 them on 883 and 753 recipes) 37 ms; accepting a pending tag, commit included,
 3.8 s whatever its size (the retag, below); growing the vault to 20 012
 commits (`fast-import` + sync) 61 s.
@@ -1266,9 +1275,9 @@ sync's callers already wrap it). A one-line fix, left to the owner/review.
 - possibly unused strings in `src/lib/i18n/fr-form.ts`, and form strings in
   that separate file rather than in `fr.ts` sections (as the plan asked);
 - the sub-recipe picker's type-ahead is 15.5 ms (the < 10 ms target was for
-  ingredient names; noted);
+  ingredient names; noted) — issue #11: 0.4 ms;
 - the form's debounced server check costs ~200 ms of server CPU per pause while
-  typing (no target; fine for two people);
+  typing (no target; fine for two people) — issue #11: ~21 ms;
 - out of scope as planned: cook log, cookbook export, duplicate detection by
   ingredient set, slug rename, `item:` in the form, several photos, offline
   saving, internet-exposure hardening.

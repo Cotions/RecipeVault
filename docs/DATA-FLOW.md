@@ -478,9 +478,9 @@ above), on the same 5000-recipe vault grown to ~20 000 commits, one recipe with
 | Operation | Measured | Target |
 |---|---|---|
 | open the edit form (server load, 74-line recipe) | ~12 ms; ~46 ms the first time after a write (vault stats recomputed) | < 100 ms |
-| suggestions for one keystroke: ingredient names + "relié" / authors / sub-recipes | ~3 ms / ~1.6 ms / ~16 ms | < 10 ms (names) |
+| suggestions for one keystroke: ingredient names + "relié" / authors / sub-recipes | ~3 ms / ~1.6 ms / ~0.4 ms (issue #11; ~16 ms before) | < 10 ms (names) |
 | name-word hint for one field (browser code, timed in Node) | ~0.03 ms | < 5 ms |
-| the form's debounced server check (whole form) | ~200 ms | — |
+| the form's debounced server check (whole form) | ~21 ms (issue #11; ~200 ms before); ~40 ms the first check after a write | — |
 | form save: edit / new recipe (check, serialize, write, commit, index) | ~450 ms / ~490 ms | < 500 ms |
 | unchanged form save | ~12 ms, no write, no commit | no commit |
 | photo upload, 12 MP JPEG (7.5 MB): store + both copies + commit | ~0.8 s | < 2 s |
