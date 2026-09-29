@@ -36,7 +36,7 @@
 	import StaleCompare from './StaleCompare.svelte';
 	import Suggest, { type Option } from './Suggest.svelte';
 	import { undoSave } from './undo';
-	import { blocksImplicitSubmit, draftDiffers, packDraft, unpackDraft, type DraftPair, type FormDraft } from './formui';
+	import { blockText, blocksImplicitSubmit, draftDiffers, mergeBlocks, packDraft, reasonLine, unpackDraft, type DraftPair, type FormDraft } from './formui';
 	import {
 		addGroup,
 		addItem,
@@ -110,7 +110,9 @@
 	let ovenRange = $state(false);
 	const qtyInputs: Record<string, HTMLInputElement | undefined> = $state({});
 
-	const blocks: Block[] = $derived(blocksOf(form));
+	/** What the vault check (the live check, a refused save) found that the browser cannot: E213, E103. */
+	let serverBlocks = $state<Block[]>([]);
+	const blocks: Block[] = $derived(mergeBlocks(blocksOf(form), serverBlocks));
 	const uncertain = $derived(uncertainFields(form).length);
 	const groupsShown = $derived(showGroups(form));
 	const method = $derived(form.sections.find((s) => s.kind === 'method') as MethodSection | undefined);
@@ -118,37 +120,16 @@
 	const units = untrack(() => data.units);
 	const unitName = (u: Unit) => (u === 'piece' ? f.piece : unitLabel(u, 1, 'fr'));
 	const recipeBlock = (field: string) => blockOn(blocks, 'recipe', field);
+	/** The French line under a field of the recipe itself (the first of `fields` blocked). */
+	const recipeErr = (...fields: string[]) => blockText(fields.map(recipeBlock).find(Boolean));
+	const rowErr = (id: string, field: string) => blockText(blockOn(blocks, id, field));
 	const titleHints = $derived(hints.filter((h) => h.code === 'W503'));
 	const sameOffer = $derived(same.filter((s) => s.slug !== pair?.slug)[0]);
 
 	/** What keeps Save disabled, as short French lines, once each. */
 	const reasons = $derived.by(() => {
 		const out = new Set<string>();
-		for (const b of blocks) {
-			const k =
-				b.field === 'title'
-					? 'title'
-					: b.field === 'ingredients'
-						? 'ingredients'
-						: b.field === 'variant'
-							? 'variant'
-							: b.field === 'family'
-								? 'family'
-								: b.field === 'oven.unit'
-									? 'oven'
-									: b.field === 'source.url'
-										? 'url'
-										: b.field === 'items'
-											? 'items'
-											: b.reason === 'required' && b.field === 'name'
-												? 'name'
-												: b.reason === 'fraction' || b.reason === 'zero'
-													? 'format'
-													: b.reason === 'incomplete'
-														? 'unit'
-														: b.reason;
-			out.add(f.blocks[k] ?? f.blocks.other);
-		}
+		for (const b of blocks) out.add(reasonLine(b));
 		if (pair && !pair.variant.trim()) out.add(f.blocks.variant);
 		return [...out];
 	});
@@ -205,6 +186,7 @@
 		if (!snap.title.trim()) {
 			hints = [];
 			same = [];
+			serverBlocks = [];
 			return;
 		}
 		checkTimer = setTimeout(async () => {
@@ -216,6 +198,7 @@
 				if (mine !== checkSeq) return;
 				hints = got.hints ?? [];
 				same = got.same ?? [];
+				serverBlocks = Array.isArray(got.errors) ? got.errors : [];
 			} catch {
 				/* offline: no hints, nothing blocks */
 			}
@@ -398,6 +381,11 @@
 					else message = f.staleGone;
 					window.scrollTo({ top: 0 });
 					return;
+				case 'invalid':
+					// Each field named on its row; nothing written.
+					serverBlocks = Array.isArray(r.errors) ? r.errors : [];
+					message = f.invalid;
+					return;
 				case 'refused':
 					message = r.reason === 'pair' ? f.pairChanged : r.reason === 'gone' ? f.gone : f.broken;
 					if (r.reason === 'pair') pair = null;
@@ -475,7 +463,9 @@
 				bind:value={form.title}
 				placeholder={f.titlePlaceholder}
 				data-testid="title"
+				aria-invalid={(!!recipeBlock('title') && recipeBlock('title')?.reason !== 'required') || undefined}
 			/>
+			{#if recipeBlock('title') && recipeBlock('title')?.reason !== 'required'}<p class="err" data-testid="err-title">{recipeErr('title')}</p>{/if}
 			<Marks owner={form} key="title" lang={form.lang} text={form.title} onpick={(a) => (form.title = a)} />
 		</div>
 		{#each titleHints as h (h.slug)}
@@ -523,7 +513,8 @@
 					<div class="group-head">
 						<div class="field">
 							<label for="g-{g.id}">{f.groupName}</label>
-							<input id="g-{g.id}" type="text" bind:value={g.name} placeholder={f.groupPlaceholder} data-testid="group-name" />
+							<input id="g-{g.id}" type="text" bind:value={g.name} placeholder={f.groupPlaceholder} data-testid="group-name" aria-invalid={!!blockOn(blocks, g.id, 'name') || undefined} />
+							{#if blockOn(blocks, g.id, 'name')}<p class="err">{rowErr(g.id, 'name')}</p>{/if}
 							<Marks owner={g} key="name" lang={form.lang} text={g.name} onpick={(v) => (g.name = v)} />
 						</div>
 						<label class="check"><input type="checkbox" bind:checked={g.optional} /> {f.groupOptional}</label>
@@ -583,6 +574,7 @@
 							{:else}
 								<textarea id="r-{r.id}" rows="2" bind:value={r.text} use:grow aria-label={r.type === 'step' ? f.step(stepNumber(i)) : f.text} data-testid="step"></textarea>
 							{/if}
+							{#if blockOn(blocks, r.id, 'text')}<p class="err" data-testid="err-step">{rowErr(r.id, 'text')}</p>{/if}
 							<Marks owner={r} key="text" lang={form.lang} text={r.text} onpick={(v) => (r.text = v)} />
 						</div>
 						<div class="tools">
@@ -593,6 +585,7 @@
 					</li>
 				{/each}
 			</ol>
+			{#if blockOn(blocks, method.id, 'steps')}<p class="err" data-testid="err-steps">{rowErr(method.id, 'steps')}</p>{/if}
 			<div class="acts">
 				<button
 					type="button"
@@ -626,6 +619,7 @@
 				<label for="t-{k}">{f[k]}</label>
 				{#if k === 'notes'}<small class="help">{f.notesHelp}</small>{/if}
 				<textarea id="t-{k}" rows="3" bind:value={s.text} use:grow data-testid="text-{k}"></textarea>
+				{#if blockOn(blocks, s.id, 'text')}<p class="err">{rowErr(s.id, 'text')}</p>{/if}
 				<Marks owner={s} key="text" lang={form.lang} text={s.text} onpick={(v) => (s.text = v)} />
 			</div>
 		{/each}
@@ -722,28 +716,32 @@
 			</div>
 			<div class="field">
 				<Suggest id="src-author" label={f.author} bind:value={form.source.author} load={authors} onpick={(o) => (form.source.author = o.value)} placeholder={f.authorPlaceholder} />
+				{#if recipeBlock('source.author')}<p class="err">{recipeErr('source.author')}</p>{/if}
 				<Marks owner={form} key="source.author" lang={form.lang} text={form.source.author} onpick={(v) => (form.source.author = v)} />
 			</div>
 			{#if form.source.type === 'book' || form.source.type === 'magazine' || form.source.title || form.source.page}
 				<div class="field">
 					<label for="src-title">{f.sourceTitle}</label>
-					<input id="src-title" type="text" bind:value={form.source.title} />
+					<input id="src-title" type="text" bind:value={form.source.title} aria-invalid={!!recipeBlock('source.title') || undefined} />
+					{#if recipeBlock('source.title')}<p class="err">{recipeErr('source.title')}</p>{/if}
 				</div>
 				<div class="field narrow">
 					<label for="src-page">{f.page}</label>
-					<input id="src-page" type="text" inputmode="numeric" bind:value={form.source.page} />
+					<input id="src-page" type="text" inputmode="numeric" bind:value={form.source.page} aria-invalid={!!recipeBlock('source.page') || undefined} />
+					{#if recipeBlock('source.page')}<p class="err">{recipeErr('source.page')}</p>{/if}
 				</div>
 			{/if}
 			{#if form.source.type === 'website' || form.source.type === 'tv' || form.source.url}
 				<div class="field wide">
 					<label for="src-url">{f.url}</label>
 					<input id="src-url" type="url" inputmode="url" autocapitalize="none" bind:value={form.source.url} placeholder="https://" aria-invalid={!!recipeBlock('source.url') || undefined} />
-					{#if recipeBlock('source.url')}<p class="err">{f.field.url}</p>{/if}
+					{#if recipeBlock('source.url')}<p class="err">{recipeErr('source.url')}</p>{/if}
 				</div>
 			{/if}
 			<div class="field wide">
 				<label for="src-note">{f.sourceNote}</label>
-				<input id="src-note" type="text" bind:value={form.source.note} />
+				<input id="src-note" type="text" bind:value={form.source.note} aria-invalid={!!recipeBlock('source.note') || undefined} />
+				{#if recipeBlock('source.note')}<p class="err">{recipeErr('source.note')}</p>{/if}
 			</div>
 		</div>
 	</section>
@@ -777,8 +775,7 @@
 					<button type="button" class="btn quiet" onclick={() => (ovenRange = true)}>{f.rangeAdd}</button>
 				{/if}
 			</div>
-			{#if recipeBlock('oven.unit')}<p class="err">{f.field.oven}</p>{/if}
-			{#if recipeBlock('oven.tempMax')?.reason === 'range'}<p class="err">{f.field.range}</p>{/if}
+			{#if recipeBlock('oven.temp') || recipeBlock('oven.tempMax') || recipeBlock('oven.unit')}<p class="err" data-testid="err-oven">{recipeErr('oven.unit', 'oven.temp', 'oven.tempMax')}</p>{/if}
 		</fieldset>
 
 		<div class="grid">
@@ -791,18 +788,19 @@
 					<label class="visually-hidden" for="servings-max">{f.servings} {f.range}</label>
 					<input id="servings-max" class="short" type="text" inputmode="decimal" bind:value={form.servingsMax} aria-invalid={!!recipeBlock('servingsMax') || undefined} />
 				</div>
-				{#if recipeBlock('servingsMax')?.reason === 'range'}<p class="err">{f.field.range}</p>{/if}
+				{#if recipeBlock('servings') || recipeBlock('servingsMax')}<p class="err" data-testid="err-servings">{recipeErr('servings', 'servingsMax')}</p>{/if}
 			</fieldset>
 			<div class="field">
 				<label for="servings-note">{f.servingsNote}</label>
-				<input id="servings-note" type="text" bind:value={form.servingsNote} placeholder={f.servingsNotePlaceholder} />
+				<input id="servings-note" type="text" bind:value={form.servingsNote} placeholder={f.servingsNotePlaceholder} aria-invalid={!!recipeBlock('servingsNote') || undefined} />
+				{#if recipeBlock('servingsNote')}<p class="err">{recipeErr('servingsNote')}</p>{/if}
 			</div>
 			<div class="field">
 				<label for="yield">{f.yield}</label>
 				{#if form.yield.kind === 'amount'}
 					<div class="line">
-						<input class="short" type="text" inputmode="decimal" bind:value={form.yield.qty} aria-label={f.yieldAmount} />
-						<select bind:value={form.yield.unit} aria-label={f.unit}>
+						<input class="short" type="text" inputmode="decimal" bind:value={form.yield.qty} aria-label={f.yieldAmount} aria-invalid={!!(recipeBlock('yield.qty') || recipeBlock('yield.qtyMax')) || undefined} />
+						<select bind:value={form.yield.unit} aria-label={f.unit} aria-invalid={!!recipeBlock('yield.unit') || undefined}>
 							<option value="">{f.noUnit}</option>
 							{#each units as u (u)}<option value={u}>{unitName(u)}</option>{/each}
 						</select>
@@ -820,6 +818,7 @@
 						placeholder={f.yieldPlaceholder}
 					/>
 				{/if}
+				{#if recipeErr('yield.qty', 'yield.unit', 'yield.qtyMax', 'yield.text', 'yield.note', 'yield')}<p class="err" data-testid="err-yield">{recipeErr('yield.qty', 'yield.unit', 'yield.qtyMax', 'yield.text', 'yield.note', 'yield')}</p>{/if}
 			</div>
 		</div>
 	</section>

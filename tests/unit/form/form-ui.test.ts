@@ -4,7 +4,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { emptyForm, markedText } from '../../../src/lib/form';
-import { blocksImplicitSubmit, draftDiffers, durationText, packDraft, unpackDraft, withAlternative } from '../../../src/lib/components/form/formui';
+import { blockText, blocksImplicitSubmit, draftDiffers, durationText, mergeBlocks, packDraft, reasonLine, unpackDraft, withAlternative } from '../../../src/lib/components/form/formui';
+import { explain } from '../../../src/lib/i18n/diagnostics';
 
 describe('withAlternative', () => {
 	it('replaces only the marked span, keeping the rest of the field', () => {
@@ -69,5 +70,27 @@ describe('durationText', () => {
 		expect(durationText(NaN, undefined)).toBe('');
 		expect(durationText(null, '')).toBe('');
 		expect(durationText(20, '20')).toBe('20');
+	});
+});
+
+describe('blocks from the checker, on their fields', () => {
+	it('says each reason in French, never a code', () => {
+		expect(blockText({ id: 'a', field: 'name', reason: 'nameComma', code: 'E211' })).toBe('Un ingrédient par ligne ; une précision va en note ou en préparation.');
+		expect(blockText({ id: 'recipe', field: 'servings', reason: 'integer' })).toBe('Les portions s’écrivent en nombre entier.');
+		expect(blockText({ id: 'r', field: 'text', reason: 'marker', value: '[voir note]' })).toContain('« [voir note] » est réservé aux lectures incertaines');
+		expect(blockText({ id: 'a', field: 'recipe', reason: 'checker', code: 'E213' })).toBe(explain('E213'));
+		expect(blockText(undefined)).toBeUndefined();
+		expect(reasonLine({ id: 'recipe', field: 'title', reason: 'marker', value: '[x]' })).toContain('crochets');
+		expect(reasonLine({ id: 'a', field: 'recipe', reason: 'checker', code: 'E213' })).toBe(explain('E213'));
+		expect(reasonLine({ id: 'recipe', field: 'title', reason: 'required' })).toBe('donnez un titre');
+	});
+
+	it('adds the server blocks the browser lacks, one per field', () => {
+		const mine = [{ id: 'a', field: 'name', reason: 'required' as const }];
+		const server = [
+			{ id: 'a', field: 'name', reason: 'nameComma' as const, code: 'E211' },
+			{ id: 'a', field: 'recipe', reason: 'checker' as const, code: 'E213' }
+		];
+		expect(mergeBlocks(mine, server)).toEqual([mine[0], server[1]]);
 	});
 });

@@ -8,6 +8,7 @@
 	import { form as f } from '$lib/i18n/fr-form';
 	import { familyLabel } from '$lib/i18n/fr';
 	import { formHintText } from '$lib/i18n/diagnostics';
+	import { blockText } from './formui';
 
 	let {
 		form,
@@ -91,13 +92,13 @@
 		<div class="field">
 			<label for="variant">{f.variant} <span class="req">({f.required})</span></label>
 			<input id="variant" type="text" bind:value={form.variant} placeholder={f.variantPlaceholder} aria-invalid={!!variantBlock || undefined} aria-describedby={variantBlock ? 'variant-err' : undefined} />
-			{#if variantBlock}<p class="err" id="variant-err">{f.field.variant}</p>{/if}
+			{#if variantBlock}<p class="err" id="variant-err">{blockText(variantBlock)}</p>{/if}
 		</div>
 	{:else}
 		<p class="help">{f.familyHelp}</p>
 		<Suggest id="family-search" label={f.familySearch} bind:value={query} {load} onpick={pick} testid="family-search" />
 		{#if changing}<button type="button" class="btn quiet" onclick={() => (changing = false)}>{f.familyKeep}</button>{/if}
-		{#if familyBlock}<p class="err">{f.blocks.family}</p>{/if}
+		{#if familyBlock}<p class="err">{familyBlock.reason === 'required' ? f.blocks.family : blockText(familyBlock)}</p>{/if}
 	{/if}
 </div>
 

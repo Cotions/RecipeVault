@@ -11,6 +11,7 @@
 	import { applyNameHint, blockOn, nameHint, newItem, setToTaste, type Block, type FormHint, type FormItem } from '$lib/form';
 	import { form as f } from '$lib/i18n/fr-form';
 	import { formHintText } from '$lib/i18n/diagnostics';
+	import { blockText } from './formui';
 	import { unitLabel } from '$lib/render/ingredient';
 	import type { CheckWords } from '$lib/vault/words';
 	import type { Lang, Unit } from '$lib/vault/types';
@@ -63,7 +64,10 @@
 	const b = (field: string) => blockOn(blocks, item.id, field);
 	const unitName = (u: Unit) => (u === 'piece' ? f.piece : unitLabel(u, 1, 'fr'));
 	const myHints = $derived(hints.filter((h) => h.target === item.id && (h.code === 'W303' || h.code === 'W305' || h.code === 'W306')));
-	const detailsFlagged = $derived(['prep', 'note', 'brand', 'qtyMax', 'alt'].some((k) => b(k)));
+	/** Blocks on this row with no field of their own on screen: said at the row's end. */
+	const SHOWN = ['qty', 'unit', 'name', 'prep', 'note', 'brand', 'qtyMax', 'alt', 'alt.qtyMax'];
+	const others = $derived(blocks.filter((x) => x.id === item.id && !SHOWN.includes(x.field) && (nested || x.field !== 'recipe')));
+	const detailsFlagged = $derived(['prep', 'note', 'brand', 'qtyMax', 'alt', 'alt.qtyMax', 'recipe'].some((k) => b(k)) || !!others.length);
 	$effect(() => {
 		if (detailsFlagged) open = true;
 	});
@@ -84,11 +88,7 @@
 		return data.items.map((r) => ({ value: r.slug, label: r.title }));
 	}
 
-	function err(field: string): string | undefined {
-		const x = b(field);
-		if (!x) return undefined;
-		return f.field[x.reason] ?? f.field.format;
-	}
+	const err = (field: string): string | undefined => blockText(b(field));
 </script>
 
 <div class="row" class:nested data-testid="item-row">
@@ -147,6 +147,8 @@
 	<Marks owner={item} key="qty" {lang} text={item.qty} />
 	<Marks owner={item} key="name" {lang} text={item.name} onpick={(a) => (item.name = a)} />
 
+	{#each others as x, k (k)}<p class="err">{blockText(x)}</p>{/each}
+
 	<button type="button" class="more" aria-expanded={open} aria-controls="{id}-details" onclick={() => (open = !open)}>
 		{open ? f.hideDetails : f.details}{#if !open && hasDetails(item)}<span class="dot" aria-hidden="true">•</span>{/if}
 	</button>
@@ -155,17 +157,20 @@
 		<div class="grid">
 			<div class="field">
 				<label for="{id}-prep">{f.prep}</label>
-				<input id="{id}-prep" type="text" bind:value={item.prep} placeholder={f.prepPlaceholder} />
+				<input id="{id}-prep" type="text" bind:value={item.prep} aria-invalid={!!b('prep') || undefined} placeholder={f.prepPlaceholder} />
+				{#if b('prep')}<p class="err" data-testid="err-prep">{err('prep')}</p>{/if}
 				<Marks owner={item} key="prep" {lang} text={item.prep} onpick={(a) => (item.prep = a)} />
 			</div>
 			<div class="field">
 				<label for="{id}-note">{f.note}</label>
-				<input id="{id}-note" type="text" bind:value={item.note} />
+				<input id="{id}-note" type="text" bind:value={item.note} aria-invalid={!!b('note') || undefined} />
+				{#if b('note')}<p class="err" data-testid="err-note">{err('note')}</p>{/if}
 				<Marks owner={item} key="note" {lang} text={item.note} onpick={(a) => (item.note = a)} />
 			</div>
 			<div class="field">
 				<label for="{id}-brand">{f.brand}</label>
-				<input id="{id}-brand" type="text" bind:value={item.brand} />
+				<input id="{id}-brand" type="text" bind:value={item.brand} aria-invalid={!!b('brand') || undefined} />
+				{#if b('brand')}<p class="err" data-testid="err-brand">{err('brand')}</p>{/if}
 				<Marks owner={item} key="brand" {lang} text={item.brand} onpick={(a) => (item.brand = a)} />
 			</div>
 			<div class="field">
@@ -192,7 +197,7 @@
 						</select>
 						<button type="button" class="icon" aria-label={f.altRemove} onclick={() => (item.alt = null)}>✕</button>
 					</div>
-					<small class:err={!!b('alt')}>{b('alt') ? f.field.incomplete : f.altHelp}</small>
+					<small class:err={!!(b('alt') || b('alt.qtyMax'))}>{b('alt') ? f.field.incomplete : (err('alt.qtyMax') ?? f.altHelp)}</small>
 				</fieldset>
 			{:else}
 				<button type="button" class="btn quiet" onclick={() => (item.alt = { qty: '', qtyMax: '', unit: '', written: {} })}>+ {f.altAdd}</button>
@@ -227,6 +232,7 @@
 						<button type="button" class="btn quiet" onclick={() => ((item.recipe = ''), (item.buyInstead = false), (subTitle = ''))}>{f.subRecipeRemove}</button>
 					</p>
 					<label class="check"><input type="checkbox" bind:checked={item.buyInstead} /> {f.buyInstead}</label>
+					{#if b('recipe')}<p class="err">{err('recipe')}</p>{/if}
 				{:else if picking}
 					<Suggest
 						id="{id}-sub"

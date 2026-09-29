@@ -27,6 +27,12 @@ export const form = {
 		oven: 'choisissez °F ou °C pour le four',
 		url: 'l’adresse web doit commencer par https://',
 		items: 'un groupe nommé n’a pas d’ingrédient',
+		integer: 'les portions s’écrivent en nombre entier',
+		nameQuantity: 'une quantité est écrite dans un nom',
+		nameComma: 'un nom d’ingrédient contient une virgule',
+		noteQuantity: 'une quantité est écrite dans une note',
+		marker: 'un texte contient des crochets réservés aux lectures incertaines',
+		method: 'gardez au moins une étape de préparation',
 		other: 'corrigez les champs signalés'
 	} as Record<string, string>,
 	/** Next to a field. */
@@ -43,8 +49,18 @@ export const form = {
 		url: 'L’adresse doit commencer par https://',
 		incomplete: 'Donnez la quantité et l’unité.',
 		items: 'Ce groupe n’a pas encore d’ingrédient.',
-		oven: 'Choisissez °F ou °C.'
+		oven: 'Choisissez °F ou °C.',
+		integer: 'Les portions s’écrivent en nombre entier.',
+		nameQuantity: 'La quantité va dans Quantité et Unité, pas dans le nom.',
+		nameComma: 'Un ingrédient par ligne ; une précision va en note ou en préparation.',
+		noteQuantity: 'La quantité va dans Quantité et Unité (ou dans « ou remplacer par »), pas dans la note.',
+		method: 'Gardez au moins une étape de préparation.'
 	} as Record<string, string>,
+	/** Next to a field holding text the file would read as a marker (E217, Q15 A). */
+	fieldMarker: (value: string) =>
+		`« ${value} » est réservé aux lectures incertaines d’une transcription : écrivez-le autrement (des parenthèses au lieu des crochets).`,
+	/** Save refused with fields named. */
+	invalid: 'Rien n’est enregistré : corrigez les champs signalés.',
 
 	title: 'Titre',
 	titlePlaceholder: 'Tarte au sucre',

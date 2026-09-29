@@ -347,3 +347,22 @@ test('the draft banner holds the form until she answers; the draft keeps a new f
 	expect(read(slugOf(t))).toContain('prep: 20m-30m');
 	expect(readFileSync(`${VAULT}/vocab/families.yaml`, 'utf8')).toContain(fam);
 });
+
+test('a comma in an ingredient name is named on its row and nothing is saved', async ({ page }) => {
+	const commits = git('rev-list', '--count', 'HEAD');
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill(title('Deux en un'));
+	const r = await row(page, 0, '1', 'cup', 'farine, sucre');
+	await expect(r).toContainText('Un ingrédient par ligne ; une précision va en note ou en préparation.');
+	await expect(page.getByTestId('savebar')).toContainText('un nom d’ingrédient contient une virgule');
+	await expect(page.getByTestId('save')).toBeDisabled();
+	await page.getByTestId('title').press('Enter');
+	await page.waitForTimeout(300);
+	await expect(page).toHaveURL('/nouvelle');
+	expect(git('rev-list', '--count', 'HEAD')).toBe(commits);
+	// Fixed: the block goes.
+	await r.getByTestId('name').first().fill('farine');
+	await expect(r).not.toContainText('Un ingrédient par ligne');
+	await expect(page.getByTestId('save')).toBeEnabled();
+	await page.evaluate(() => localStorage.clear());
+});
