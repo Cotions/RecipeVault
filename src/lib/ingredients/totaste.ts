@@ -2,7 +2,8 @@
 // something used "to taste" (`au_gout: true`, plan 03, Q21) — AI-TEMPLATE.md
 // rule 13 keeps `to_taste` for seasoning and cooking fat. Only a resolved line
 // is judged: an unresolved name says nothing about the product (W303 / W305
-// cover it). Browser-safe.
+// cover it), nor does an `item:` override naming no registry entry (W307).
+// Browser-safe.
 
 import type { Diagnostic, Ingredient, Recipe } from '../vault/types';
 import type { Resolver } from './resolve';
@@ -12,7 +13,8 @@ export function toTasteDiagnostics(recipe: Pick<Recipe, 'ingredients' | 'lang'>,
 	const visit = (it: Ingredient, path: string) => {
 		if (it.toTaste && !it.recipe) {
 			const r = resolver.resolve(it, recipe.lang);
-			if (r.item && !auGout.has(r.item))
+			// An `item:` naming no entry is W307's (an `app` concern), not a judgment on the product.
+			if (r.item && resolver.has(r.item) && !auGout.has(r.item))
 				out.push({
 					code: 'W606',
 					severity: 'warning',

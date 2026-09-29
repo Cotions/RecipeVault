@@ -7,6 +7,7 @@
 import { stripMarkers } from '../markers';
 import { editDistance, fold } from '../normalize';
 import type { Diagnostic } from '../types';
+import { fileSlug } from './batch';
 import { severityOf, type RuleContext } from './context';
 
 export interface VaultVocabOptions {
@@ -14,6 +15,12 @@ export interface VaultVocabOptions {
 	tags?: ReadonlyMap<string, string>;
 	/** Every existing family slug: vocab/families.yaml plus the families in use. */
 	families?: readonly string[];
+	/**
+	 * A family in use by one recipe only, and not in vocab/families.yaml: that
+	 * recipe's slug. W502 on that recipe leaves it out — a recipe is not near
+	 * its own family (VALIDATION.md, W502).
+	 */
+	soleUser?: ReadonlyMap<string, string>;
 }
 
 /** A tag's canonical form, as the index stores it (`canonicalTag`), or undefined when the vocabulary lacks it. */
@@ -39,7 +46,7 @@ export function suggestTag(tags: ReadonlyMap<string, string>, tag: string): stri
 }
 
 /** W501 / W502 for a recipe's `tags` and `family` values. */
-export function vocabDiagnostics(values: { tags?: unknown; family?: unknown }, vocab: VaultVocabOptions): Diagnostic[] {
+export function vocabDiagnostics(values: { tags?: unknown; family?: unknown; slug?: string }, vocab: VaultVocabOptions): Diagnostic[] {
 	const out: Diagnostic[] = [];
 	const push = (code: string, path: string, message: string, fix: string) => out.push({ code, severity: severityOf(code), path, message, fix });
 	if (vocab.tags && Array.isArray(values.tags)) {
@@ -58,12 +65,13 @@ export function vocabDiagnostics(values: { tags?: unknown; family?: unknown }, v
 	}
 	if (vocab.families && typeof values.family === 'string' && values.family.trim()) {
 		const family = fold(values.family);
-		const near = vocab.families
+		const families = values.slug && vocab.soleUser ? vocab.families.filter((f) => vocab.soleUser!.get(f) !== values.slug) : vocab.families;
+		const near = families
 			.map((f) => ({ f, d: editDistance(family, fold(f)) }))
 			.filter((x) => x.d > 0 && x.d <= 2)
 			.sort((a, b) => a.d - b.d || a.f.localeCompare(b.f))
 			.map((x) => x.f);
-		if (near.length && !vocab.families.some((f) => fold(f) === family))
+		if (near.length && !families.some((f) => fold(f) === family))
 			push(
 				'W502',
 				'family',
@@ -77,5 +85,5 @@ export function vocabDiagnostics(values: { tags?: unknown; family?: unknown }, v
 export function checkVaultVocab(ctx: RuleContext): void {
 	const vocab = ctx.opts.vocab;
 	if (!vocab) return;
-	for (const d of vocabDiagnostics({ tags: ctx.fm.tags, family: ctx.fm.family }, vocab)) ctx.report(d.code, d.path, d.message, d.fix);
+	for (const d of vocabDiagnostics({ tags: ctx.fm.tags, family: ctx.fm.family, slug: fileSlug(ctx.fm) }, vocab)) ctx.report(d.code, d.path, d.message, d.fix);
 }

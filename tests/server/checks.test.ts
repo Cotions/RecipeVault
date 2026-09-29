@@ -116,6 +116,19 @@ describe('W501 / W502', () => {
 		// The recipes of the family it drifted from are not flagged: theirs exists.
 		expect(loadRecipePage(app(), 'lasagna-bolognaise')!.vocab).toEqual([]);
 	});
+
+	it('W502 when the recipe is pasted again over itself, and in the save result, as on its page', async () => {
+		const f = join(v.dir, 'recipes/lasagna-courgettes.md');
+		writeFileSync(f, readFileSync(f, 'utf8').replace('family: lasagna', 'family: lasagnas'));
+		syncVault(v.ctx.db, v.ctx.paths);
+		const text = readFileSync(f, 'utf8');
+		expect(only(['W502'])(serverCheck(app(), [text])[0].diagnostics).map((d) => [d.code, d.path])).toEqual([['W502', 'family']]);
+		const hash = v.ctx.db.prepare('SELECT file_hash FROM recipes WHERE slug = ?').pluck().get('lasagna-courgettes') as string;
+		const r = await save(v.ctx, [{ text: text.replace('## Préparation', '## Préparation\n'), overwrite: hash }]);
+		expect(r.files[0].diagnostics.map((d) => d.code)).toContain('W502');
+		// Another recipe using that family is near it too: a family two recipes share is theirs.
+		expect(only(['W502'])(serverCheck(app(), [text.replace(/^slug: .*\n/m, '').replace(/^title: .*$/m, 'title: Autre lasagne')])[0].diagnostics)).toEqual([]);
+	});
 });
 
 describe('W606', () => {
@@ -125,6 +138,16 @@ describe('W606', () => {
       - { name: poudre de perlimpinpin, to_taste: true }`);
 		const ds = only(['W606'])(serverCheck(app(), [text])[0].diagnostics);
 		expect(ds.map((d) => [d.code, d.path])).toEqual([['W606', 'ingredients[0].items[1].to_taste']]);
+	});
+
+	it('not on an item: override naming no registry entry: that is W307', () => {
+		const text = recipe(`      - { name: sel de mer, item: sel-mer-invente, to_taste: true }
+      - { name: farine fine, item: farine, to_taste: true }`);
+		const ds = serverCheck(app(), [text])[0].diagnostics;
+		expect(only(['W606', 'W307'])(ds).map((d) => [d.code, d.path])).toEqual([
+			['W307', 'ingredients[0].items[0].item'],
+			['W606', 'ingredients[0].items[1].to_taste']
+		]);
 	});
 
 	it('is an `ai` code that reaches the fix-request block through the server check', async () => {

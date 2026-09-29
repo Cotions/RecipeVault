@@ -162,7 +162,7 @@ Warnings. Save, mark `needs-review`.
 | W402 | ai | a step exceeds ~400 characters — probably several steps merged |
 | W403 | ai | a method section has text but no steps — no numbered (`1.`) or `-` / `*` bullet line. Its text would not be shown one step at a time in kitchen mode, nor checked by `W402` and `W609`. Fix: write each step as a numbered or `-` line |
 | W501 | app | tag not in the vault's `vocab/tags.yaml` (canonical or alias), closest canonical suggested within two edits. The tag is kept and indexed as pending (`VOCAB.md`, "Tags"). `app`: the AI cannot see the vault's vocabulary; the fix is choosing the suggestion or adding the tag or alias to the vocabulary. Server check, save result and recipe page (plan 03, Q23), never the browser-only check |
-| W502 | app | `family` within edit distance 2 of an existing family (`vocab/families.yaml` plus the families in use, without the ones only this recipe uses) and not itself an existing family — drift suspected. `app`: family is decided in the app (`AI-TEMPLATE.md` rule 19). Server check, save result and recipe page |
+| W502 | app | `family` within edit distance 2 of an existing family (`vocab/families.yaml` plus the families in use, without the ones only this recipe uses — also when it is pasted again over itself) and not itself an existing family — drift suspected. `app`: family is decided in the app (`AI-TEMPLATE.md` rule 19). Server check, save result and recipe page |
 | W503 | app | near-identical `title` already in the vault — duplicate paste |
 | W504 | ai | a `season` value not in the fixed list of `VOCAB.md` — `printemps`, `ete`, `automne`, `hiver` or one of their aliases (`été`, `summer`, `fall`, …); the closest season is suggested |
 | W601 | app | no `servings` |
@@ -170,7 +170,7 @@ Warnings. Save, mark `needs-review`.
 | W603 | app | no dish photo |
 | W604 | app | `source` entirely absent — provenance lost |
 | W605 | app | `[?]`, `[?: …]`, or `[illisible]` present — each location listed |
-| W606 | ai | `to_taste: true` on a line that resolves to a registry entry without `au_gout: true` (plan 03, Q21) — probably should be a plain name without amount (`AI-TEMPLATE.md` rule 13). An unresolved name is not judged. Computed from the registry in the server check and the save result; reaches the fix-request block through the server check |
+| W606 | ai | `to_taste: true` on a line that resolves to a registry entry without `au_gout: true` (plan 03, Q21) — probably should be a plain name without amount (`AI-TEMPLATE.md` rule 13). An unresolved name is not judged, nor an `item:` override naming no registry entry (that is W307). Computed from the registry in the server check and the save result; reaches the fix-request block through the server check |
 | W607 | ai | `name` contains a brand of `vocab/brands.yaml` (`VOCAB.md`, "Brands"), with other words left — suggest `brand:`. The list holds only brands whose removal leaves an exact product name (rule 10 keeps *Jell-O*, *fromage Philadelphia* as names) |
 | W608 | app | same title as an existing recipe — offer to make both members of a family |
 | W609 | ai | step text mentions an oven temperature but `oven` is absent |
