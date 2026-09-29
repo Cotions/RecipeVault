@@ -59,8 +59,7 @@
 		type TextKind,
 		type TextSection
 	} from '$lib/form';
-	import { form as f } from '$lib/i18n/fr-form';
-	import { t, familyLabel } from '$lib/i18n/fr';
+	import { t, familyLabel, form as f } from '$lib/i18n/fr';
 	import { formHintText } from '$lib/i18n/diagnostics';
 	import { toast } from '$lib/toast.svelte';
 	import { unitLabel } from '$lib/render/ingredient';

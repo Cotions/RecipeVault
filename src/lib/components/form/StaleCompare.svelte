@@ -3,7 +3,7 @@
 	// Her version stays; the two are shown side by side, field by field, and
 	// she keeps one — "Garder ma version" saves hers over the other.
 	import { compareForms, type FormRecipe } from '$lib/form';
-	import { form as f } from '$lib/i18n/fr-form';
+	import { form as f } from '$lib/i18n/fr';
 
 	let { mine, theirs, onkeep, ontake }: { mine: FormRecipe; theirs: FormRecipe; onkeep: () => void; ontake: () => void } = $props();
 

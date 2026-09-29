@@ -9,7 +9,7 @@
 	import QtyInput from './QtyInput.svelte';
 	import Suggest, { type Option } from './Suggest.svelte';
 	import { applyNameHint, blockOn, nameHint, newItem, setToTaste, type Block, type FormHint, type FormItem } from '$lib/form';
-	import { form as f } from '$lib/i18n/fr-form';
+	import { form as f } from '$lib/i18n/fr';
 	import { formHintText } from '$lib/i18n/diagnostics';
 	import { blockText } from './formui';
 	import { unitLabel } from '$lib/render/ingredient';

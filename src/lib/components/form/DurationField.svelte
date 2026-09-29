@@ -3,7 +3,7 @@
 	// optional "à" for a range. Numbers only; the file's format is the app's.
 	import type { DurationField, FormDuration } from '$lib/form';
 	import { durationText } from './formui';
-	import { form as f } from '$lib/i18n/fr-form';
+	import { form as f } from '$lib/i18n/fr';
 
 	let { d, id, label, error }: { d: FormDuration; id: string; label: string; error?: string } = $props();
 

@@ -2,8 +2,7 @@
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { t, familyLabel } from '$lib/i18n/fr';
-	import { form as tf } from '$lib/i18n/fr-form';
+	import { t, familyLabel, form as tf } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import CostLine from '$lib/components/CostLine.svelte';
 	import PhotoUpload from '$lib/components/PhotoUpload.svelte';

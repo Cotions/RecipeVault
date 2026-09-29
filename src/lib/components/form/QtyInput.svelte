@@ -1,7 +1,7 @@
 <script lang="ts">
 	// A quantity field (plan 04, Q7 A): typed as she would write it (2, 1 ½,
 	// 0,5, 1/2) with the common fractions a tap away — a phone keyboard has none.
-	import { form as f } from '$lib/i18n/fr-form';
+	import { form as f } from '$lib/i18n/fr';
 
 	let {
 		value = $bindable(''),

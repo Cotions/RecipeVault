@@ -5,8 +5,7 @@
 	// pre-filled from the title's words the family's name lacks.
 	import Suggest, { type Option } from './Suggest.svelte';
 	import { blockOn, familyChoices, variantFrom, type Block, type FamilyOption, type FormHint, type FormRecipe } from '$lib/form';
-	import { form as f } from '$lib/i18n/fr-form';
-	import { familyLabel } from '$lib/i18n/fr';
+	import { familyLabel, form as f } from '$lib/i18n/fr';
 	import { formHintText } from '$lib/i18n/diagnostics';
 	import { blockText } from './formui';
 

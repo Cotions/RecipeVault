@@ -1342,6 +1342,9 @@ Items of issue #11 (the two perf items went to a separate pass).
   their slug (`Entree` instead of `Entrée`), which is what `VOCAB.md` already
   said a tag without a label shows. **The owner: run `npx vault ingredients
   seed` once on the real vault after pulling.**
+- **Form strings in `fr.ts`.** `src/lib/i18n/fr-form.ts` is merged into
+  `fr.ts` as `t.form` (also exported as `form`, the form components' `f`), as
+  the plan asked; seven strings no component used are gone.
 
 ## Out of scope
 

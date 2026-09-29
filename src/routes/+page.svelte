@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { t, tagLabel, familyLabel } from '$lib/i18n/fr';
-	import { form as tf } from '$lib/i18n/fr-form';
+	import { t, tagLabel, familyLabel, form as tf } from '$lib/i18n/fr';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import RecipeCard from '$lib/components/RecipeCard.svelte';
 	import type { FacetName } from '$lib/server/index/query';

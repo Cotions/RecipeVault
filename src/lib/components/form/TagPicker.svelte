@@ -14,8 +14,7 @@
 	import Suggest, { type Option } from './Suggest.svelte';
 	import { classifyTag, type TagStatus } from '$lib/vault/tagstatus';
 	import { fold } from '$lib/vault/normalize';
-	import { form as f } from '$lib/i18n/fr-form';
-	import { tagLabel } from '$lib/i18n/fr';
+	import { tagLabel, form as f } from '$lib/i18n/fr';
 	import { formHintText } from '$lib/i18n/diagnostics';
 
 	let { tags = $bindable(), vocab, labels = {} }: { tags: string[]; vocab: TagVocab; labels?: Record<string, string> } = $props();

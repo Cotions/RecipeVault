@@ -4,7 +4,7 @@
 	// its other reading as a button, and "C'est bien ça"; text the transcriber
 	// added in pencil. Nothing once she edits the field (editing settles them).
 	import { confirmField, fieldMarkers, type Written } from '$lib/form';
-	import { form as f } from '$lib/i18n/fr-form';
+	import { form as f } from '$lib/i18n/fr';
 	import type { Lang } from '$lib/vault/types';
 	import { withAlternative } from './formui';
 

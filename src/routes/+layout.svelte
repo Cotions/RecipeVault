@@ -2,8 +2,7 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
-	import { t } from '$lib/i18n/fr';
-	import { form as tf } from '$lib/i18n/fr-form';
+	import { t, form as tf } from '$lib/i18n/fr';
 	import Toast from '$lib/components/Toast.svelte';
 
 	let { children, data } = $props();
