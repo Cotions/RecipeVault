@@ -1,0 +1,918 @@
+# Plan 04 — P2, her write path
+
+Status: **waiting on the owner's answers to the open questions** (end of this
+doc). Written 2026-09-28 for a fresh agent session.
+Previous plans: `02-read-app.md` (done: vault, save path, index, paste box,
+browse, recipe page, kitchen mode, trash), `03-ingredients.md` (done: registry,
+resolution and queue, prices, cost, pantry search).
+
+## Context in one paragraph
+
+RecipeVault is a self-hosted archive of a family's recipe collection (500–5000
+recipes, mostly old handwritten Québec cards). Two people use it
+(`PLANNING.md`, Goal): the owner, who bulk-adds recipes by pasting Markdown from
+a chat AI, and his retired mother — "her" in every doc — a non-technical cook
+who browses, cooks from a tablet or phone, and **adds and edits her own
+recipes, never seeing Markdown**. Until now every write goes through the paste
+box, a Markdown tool. This plan builds her path (`PLANNING.md`, P2): a form with
+repeatable ingredient and step rows, a family picker showing existing families,
+photo upload from a phone, undo through the vault's git history, and accounts so
+that every commit says who made it. The form is not a second writer: it builds
+a recipe object, serializes it to the canonical Markdown, and enters the exact
+save path a paste does (`DATA-FLOW.md`, "Two inputs, one save path"), so it can
+never produce a file the parser cannot read. The app stays on the home network
+plus Tailscale; accounts are attribution and a guard against accidents, not the
+only wall between the vault and the internet (`DATA-FLOW.md`, Authentication).
+
+## Read first
+
+| Doc | Why |
+|---|---|
+| `CLAUDE.md` | privacy rule, conventions |
+| `PLANNING.md` | Goal (two users), Architecture, Kitchen mode, "What 5000 recipes changes" (images), P2, open questions 4 and 5, Gaps review Tier 2 |
+| `docs/DATA-FLOW.md` | **the spec for the save path**: "Two inputs, one save path", "SAVE, in order" (step 5 is thumbnails), Delete, Concurrent edit, Validation → Conveniences and "Her form never shows a raw error", Authentication |
+| `docs/STORAGE.md` | canonical serialization, slugs are permanent, media (originals untouched, derived copies in `cache/img/`, EXIF rotation on copies), "Accounts are not vault data" (`users.json`, sessions), Obsidian rules |
+| `docs/RECIPE-SCHEMA.md` | every field the form edits; markers ("Clearing a `[?]` in the app … removes the marker"); body sections and step rules |
+| `docs/VALIDATION.md` | "Fixed by" (`ai` / `app`), "Human-facing validation" (the form prevents states structurally) |
+| `docs/VOCAB.md` | tags (pending), families (the picker, drift warning, labels), units, seasons |
+| `docs/INGREDIENTS.md` | Resolution (names the form can suggest; `item:` "or, later, the P2 form") |
+| `docs/DEPLOY.md` | LAN + Tailscale, `hosts` allowlist, HTTP on the LAN vs HTTPS on the tailnet |
+| `docs/plans/02-read-app.md`, `03-ingredients.md` | conventions this plan follows |
+
+The docs are the source of truth. Each behaviour below names the doc line it
+comes from (→ `DOC` §section). Where the docs are silent or contradict each
+other, the behaviour is an open question (Qn) at the end. **Do not start a phase
+until the questions it depends on are answered.** Record each answer in the doc
+named in that question, in the same commit as the code.
+
+## Privacy rule — non-negotiable
+
+This repository is **public**. Never read, copy, quote or paraphrase anything
+from `/home/cotions/RecipeVault-vault/` or `~/.config/recipevault/` (the real
+config and, after this plan, the real `users.json`). This plan has no real-vault
+phase: the owner creates the real accounts himself (`vault user add`). All
+fixtures are invented: recipes (`tests/fixtures/vault`, the 320-card corpus in
+`tests/fixtures/corpus`), test accounts and passwords, test photos (generated
+in the test, never a real picture). Screenshots go to `/tmp`.
+
+## Decisions given by the owner
+
+1. **Nothing regional is hard-coded.** Regional adaptation belongs in data
+   (`vocab/`, the registry, the config) or in the AI template, never in app
+   code (→ plan 03, decision 1). For this plan: no default that is Québec
+   knowledge lives in code. The oven unit the form starts on, the unit list's
+   order, the suggested ingredient names come from the vault's data (the units
+   and oven units most used in its recipes, the registry and vocab files).
+2. **UI in Québécois French.** Every string in `src/lib/i18n/fr.ts`; French
+   texts of diagnostics in `src/lib/i18n/diagnostics.ts` (→ plan 02,
+   decision 5; plan 03, decision 4).
+3. **Review policy.** One review per piece of work, at the end; no re-review
+   after the fixes; anything left over goes to GitHub issues.
+4. **Hosting: LAN + Tailscale, no public exposure** (→ `DEPLOY.md`;
+   `PLANNING.md` open question 1). Auth is designed for that setting, not for
+   the internet-reachable case of `DATA-FLOW.md` §Authentication.
+5. **Build now, test on invented data.** The invented corpus
+   (`tests/fixtures/corpus`, 320 recipes) and the fixture vault stand in for
+   the real vault; nothing waits on real data.
+
+## What the form must guarantee (from the docs)
+
+These are not open; each is a doc line, and a test.
+
+- **One save path.** Form → recipe object → `serialize` → the same check and
+  save as a paste (→ `DATA-FLOW.md` §Two inputs; `PLANNING.md` Architecture:
+  "No second code path to keep in sync").
+- **No Markdown anywhere** (→ `PLANNING.md` Goal, P2). She never sees
+  frontmatter, fences, headings, `1.` numbering, or marker syntax typed by hand.
+- **No raw error, invalid states prevented structurally** (→ `DATA-FLOW.md`
+  §Validation: "required fields marked, ingredient rows added by a button,
+  family chosen from a picker, tags from an autocomplete over the vocabulary";
+  `VALIDATION.md` §Human-facing validation: separate `qty`, `unit`, `name`,
+  `note`, `prep` inputs, so `E210`/`E211` cannot be expressed). Concretely:
+  - a unit is chosen from the canonical list (E201 impossible); choosing a
+    quantity makes the unit required and vice versa (E202/E203); *au goût*
+    disables the amount (E206); a range's upper bound must exceed the lower
+    (E205);
+  - title required (E101); at least one ingredient row with a name before
+    Save is enabled (E200, E207);
+  - family and variant both or neither (E105): picking a family makes the
+    variant field required;
+  - numbers from number inputs (E107, E108, E111); durations from hour/minute
+    inputs (E109); the source type from a list (E106); a URL field that only
+    accepts `http(s)://` (E114);
+  - two rows with the same name in one group are merged or flagged inline before
+    save (E209); the sub-recipe picker never offers a recipe that already uses
+    this one (E213);
+  - `schema`, `slug`, `lang`, `status`, `added`, `updated`, `extracted_by` are
+    set by the app, never typed (→ `DATA-FLOW.md` §Conveniences; E102, E104,
+    E110, E112).
+  Any error the server check still returns is a bug in the form: logged with
+  its code, shown to her as one plain sentence ("La recette n'a pas pu être
+  enregistrée ; rien n'a changé.") with the owner-facing detail in the server
+  log, never the code.
+- **Slugs are permanent** (→ `STORAGE.md` §Slugs): a new recipe's slug is
+  derived from the title once; changing the title later never changes the slug.
+- **Every edit is hash-guarded** (→ `DATA-FLOW.md` §Concurrent edit): the form
+  carries the hash of the file it was opened from.
+- **Every save is one commit, attributed to the person who saved it**
+  (→ `DATA-FLOW.md` §SAVE step 3: "author tagged with whoever saved it").
+- **Photos: originals untouched, derived copies in `cache/img/`, EXIF rotation
+  on the copies, thumbnails on upload, lazy loaded** (→ `STORAGE.md` §Media;
+  `PLANNING.md` "What 5000 recipes changes"; `DATA-FLOW.md` §SAVE step 5).
+- **Accounts outside the vault** (`~/.config/recipevault/users.json`, argon2id
+  hashes), sessions in memory or in the cache (→ `STORAGE.md` §Accounts).
+- **The recipe files never hold anything about accounts** beyond the commit
+  author.
+
+## Where it fits in the existing code
+
+Read these before Phase 0.
+
+- `src/lib/server/save.ts` — `save(ctx, files)` is the one save path: check
+  with the vault's entries (E103, W306, W503, W608), refuse on errors, set
+  `status`/`added`/`updated`, serialize, write, commit, index, push. The form
+  reuses it unchanged in spirit: it serializes its recipe to text and calls
+  `save` with `overwrite: <hash>` for an edit. What it needs added:
+  - an `author` per call (today every commit uses `ctx.author`, the config's
+    `git_author`);
+  - a status option for Q14 (today `statusFor` recomputes `draft` /
+    `needs-review` on every save, so an edit of a `verified` recipe would drop
+    it to `draft`);
+  - extra files in the same commit (a family label, Q10; the other recipe of a
+    W608 pair, Q10);
+  - the commit verb (`add`, `edit`, and this plan's `undo`, `restore`).
+  The form's text never contains `status` or `added` (the app sets them), so
+  E112 never fires on the form path.
+- `src/lib/server/files.ts` — `writeAndCommit` (atomic write, rollback, own
+  writes). Gains an `author` parameter. Photos are not committed (`media/` is
+  git-ignored, → `STORAGE.md`), so a photo is written by its own helper before
+  the recipe save and removed again if that save fails.
+- `src/lib/server/git.ts` — `commitPaths` already takes an author. Add the
+  history helpers: `git log` of one recipe's path (and its `_trash/` path) and
+  `git show <commit>:<path>`.
+- `src/lib/server/context.ts` — `ctx.author` stays as the default for the CLI
+  and the watcher (`edit (external): …` commits are not made by a person using
+  the app).
+- `src/lib/vault/serialize.ts` — the format does not change. The body writer
+  gains a way to write a method section from step rows (Phase 2); untouched
+  sections keep being written as they were.
+- `src/lib/vault/body.ts` — a step's text is its lines joined with spaces, so a
+  step with a nested list (`1. Garniture :` then indented `- pommes`) comes back
+  as one line. The form needs the lines (Phase 2, Q5).
+- `src/lib/vault/` stays browser-safe; the new form model goes in
+  `src/lib/form/` (browser-safe). Accounts, sessions, photos and history are
+  Node-only, in `src/lib/server/`.
+- `src/hooks.server.ts` — host allowlist (DNS rebinding) and the Origin check
+  stay first. Add: session cookie → `event.locals.user`; the write guard of
+  Q1/Q2. `src/app.d.ts` gains `Locals.user`.
+- Every existing write passes the signed-in person as author: `api/save`
+  (paste), `r/[slug]` actions (verify, remove), `corbeille` (restore),
+  `famille/[slug]` (label), `resoudre`, `ingredients`, `ingredients/[slug]`.
+- `src/lib/server/pages.ts` `photoUrl` and `src/routes/media/[slug]/[file]` —
+  today they serve the original file (HEIC refused, → plan 02, decision 8).
+  They move to derived copies (Phase 6).
+- `src/lib/components/RecipeCard.svelte`, `RecipeView.svelte` — thumbnail on
+  cards, display copy on the page, "Modifier" and "Historique" actions.
+- `src/service-worker.ts` — kitchen pages and `/media/` are cached for offline.
+  Form pages, `/connexion` and every POST stay network-only; the kitchen cache
+  keeps working for derived images.
+- `src/lib/server/trash.ts` — moves `media/<slug>/`; the derived copies in
+  `cache/img/<slug>/` go with it (deleted: they are rebuilt on restore).
+- `src/lib/server/config.ts` — `users.json` is found next to the config file
+  (→ `STORAGE.md` layout: `~/.config/recipevault/users.json`), i.e.
+  `dirname(config.file)/users.json`.
+- `src/lib/i18n/fr.ts` gains `form`, `auth`, `photo`, `history` sections.
+  Friendly form hints for the warning codes the form can meet (Q9) go in
+  `src/lib/i18n/diagnostics.ts` as a second table beside `codeText`, with a
+  test requiring an entry for each code the form maps.
+- `tests/e2e/serve.ts`, `scripts/fixture-vault.ts` — write a `users.json` with
+  two invented accounts next to the throwaway config. Playwright gets a setup
+  project that signs in and saves `storageState`; the form specs run in the
+  `phone` and `tablet` projects too (her devices), not only `desktop`.
+
+## Module layout (target)
+
+```
+src/lib/form/                 # browser-safe
+  model.ts        # FormRecipe: the editable shape; toForm(recipe, body) / fromForm(form) → { recipe, body }
+  quantity.ts     # what she types ("1 1/2", "1½", "0,5") ↔ Quantity as the schema writes it
+  duration.ts     # hours + minutes (+ range) ↔ `1h15m`, `45m-50m`
+  steps.ts        # method section ↔ step rows (+ sub-headings); untouched sections kept verbatim
+  markers.ts      # marker state per field: uncertain / added; clear on confirm or edit (Q15)
+  hints.ts        # warning codes → a field and a one-tap fix (Q9)
+  draft.ts        # autosave in localStorage (Q17)
+src/lib/server/
+  users.ts        # users.json: load, add, passwd, remove; argon2id via node:crypto
+  sessions.ts     # cache/sessions.db: create, look up, expire, revoke
+  auth.ts         # login throttle, cookie options (Secure only over HTTPS)
+  formsave.ts     # the form's entry into save(): author, status rule, extra files, collisions
+  photos.ts       # store original, derive copies (cache/img/), serve, trash
+  history.ts      # versions of one recipe from git; undo; restore a version
+src/routes/
+  connexion/+page             # sign in; déconnexion as a form action
+  nouvelle/+page              # new recipe (the form)
+  r/[slug]/modifier/+page     # edit a recipe (the form)
+  r/[slug]/historique/+page   # versions, "Revenir à cette version"
+  api/suggest/+server         # ingredient names, families, tags, authors, recipes (sub-recipe picker)
+  api/photo/+server           # upload
+  etiquettes/+page            # pending tags (only if Q11 B)
+src/cli/vault.ts  # add: user add | passwd | remove | list
+```
+
+Adjust names if something reads better. Keep the server/browser split.
+
+## Phases
+
+Commit at the end of each phase with a conventional message. All tests and
+`npm run check` pass before each commit. Each phase lists the questions it
+depends on.
+
+### Phase 0 — author per write (no behaviour change)
+
+Depends on: nothing.
+
+1. `writeAndCommit`, `save`, `verify`, `remove`, `restore`, `setFamilyLabel`,
+   the ingredient edits, the queue actions and the price append take an
+   optional `author`; absent, `ctx.author` as today.
+2. Every route handler passes `undefined` for now (Phase 1 fills it).
+
+Tests: a save with an explicit author commits under that name and email; the
+watcher's and the CLI's commits keep the config's author.
+
+### Phase 1 — accounts and sessions
+
+Depends on: Q1, Q2.
+
+1. **`users.json`** (→ `STORAGE.md` §Accounts): next to the config file,
+   `{ "users": [{ "login", "name", "email"?, "role"?, "hash" }] }`, mode 0600,
+   written atomically. `hash` is argon2id through `node:crypto` (`argon2`,
+   Node ≥ 24.7; no new dependency), parameters in the file per hash so they can
+   be raised later. `email` absent → `<login>@recipevault.invalid` as the git
+   email.
+2. **CLI**: `vault user add <login> --name "<Nom>" [--email …] [--role …]`
+   (password read twice from the terminal, never an argument), `vault user
+   passwd <login>`, `vault user remove <login>` (also revokes its sessions),
+   `vault user list` (logins and names only).
+3. **Sessions** (→ `STORAGE.md`: "in memory or in the cache"):
+   `cache/sessions.db`, its own small SQLite file so an index rebuild
+   (`cache/index.db` dropped on a schema change) does not sign everyone out.
+   Token: 32 random bytes, stored hashed (sha256). Lifetime per Q1. Deleting
+   `cache/` signs everyone out, nothing else (→ STORAGE).
+4. **Cookie**: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` only when the
+   request came over HTTPS (check what `tailscale serve` actually forwards —
+   `X-Forwarded-Proto` or only the `*.ts.net` host — and record it in
+   `DEPLOY.md`; plain LAN HTTP must keep working, → `DEPLOY.md` §4). The `Origin` check and the host
+   allowlist stay in front of everything (→ `DATA-FLOW.md` §Authentication).
+5. **`/connexion`**: login and password, "Rester connectée sur cet appareil" is
+   the default (Q1). Throttle: after 5 failures for a login or an address, one
+   try per 30 s, told in words. A redirect back to the page asked for.
+   "Se déconnecter" in the nav menu.
+6. **Guard** in `hooks.server.ts` per Q1/Q2: which pages need a session, which
+   writes; a write without one → 303 to `/connexion` (pages) or 401 (API).
+7. Every write passes `locals.user` as author (Phase 0's parameter).
+8. Nav: the signed-in name; owner-only entries per Q2.
+
+Tests: argon2id round trip and wrong password; `users.json` written 0600 and
+never inside the vault; session create / look up / expire / revoke on `user
+remove` and `passwd`; cookie flags over HTTP and HTTPS; throttle; each existing
+write refused without a session (per Q1) and attributed with one; the host
+allowlist and the Origin check still come first (a cross-site POST with a valid
+cookie is still 403). E2E: sign in on the phone project, the name shows, sign
+out.
+
+### Phase 2 — the form model (browser-safe, no UI)
+
+Depends on: Q4, Q5, Q6, Q7, Q15.
+
+1. **`FormRecipe`** (`src/lib/form/model.ts`): the editable shape — title,
+   family/variant, source, times (hours/minutes per field, optional range),
+   oven, servings/range/note, yield, tags, season, difficulty, rating, groups of
+   rows, method (step rows and sub-headings), notes / variants / alternatives
+   text, photo, and the parts the form does not model, carried untouched (Q4).
+   Rows and steps have stable client ids for reordering.
+2. **`toForm(recipe, body)` / `fromForm(form)`**. **Round-trip property**: for
+   every valid fixture and every one of the 320 corpus recipes,
+   `serialize(fromForm(toForm(x)))` is byte-identical to `serialize(x)` (the
+   canonical file the paste path would write). This test is the promise that
+   opening a recipe in the form and saving without a change writes nothing
+   (and so commits nothing). Where Q4's answer allows a loss (comments, unknown
+   keys), the test states it by name.
+3. **Quantity input** (`quantity.ts`, Q7): what she types → the schema's
+   `qty` as written (fractions stay strings, `"1 1/2"`, → `RECIPE-SCHEMA.md`
+   "Fractions stay as written"); a decimal comma becomes a number; Unicode
+   fractions (`½`) become their string form; anything else is not accepted by
+   the input. Displayed back with the existing `render/fraction.ts`.
+4. **Durations** (`duration.ts`): hours and minutes ↔ `30m`, `1h`, `1h15m`,
+   range `45m-50m` (→ `RECIPE-SCHEMA.md` times).
+5. **Steps** (`steps.ts`, Q5): method section ↔ rows; sub-headings (`###`) ↔
+   heading rows; `body.ts` keeps each step's own lines so a nested list
+   survives. An unchanged method section is written back exactly as it was
+   read.
+6. **Markers** (`markers.ts`, Q15): per field, the markers it holds, and the
+   operations "confirm" (drop its uncertain markers) and "edit" (per Q15).
+   Number fields with a marker (`qty: "250 [?]"`) keep it until confirmed
+   (→ `RECIPE-SCHEMA.md` §Markers).
+7. **Defaults from data** (decision 1): `defaultsFor(vaultStats)` — oven unit
+   and the order of the unit picker from the vault's most used values
+   (computed from the index, Phase 3), `lang` `fr` when absent
+   (→ `RECIPE-SCHEMA.md`, `lang` default).
+
+Tests: the round-trip property over the fixture vault and the corpus (run in
+the normal suite: the corpus is public); quantity and duration parsing tables;
+steps with sub-headings, nested lists, `-` and numbered lines, a `---` break;
+markers confirm/edit on text and number fields; a recipe with an optional group,
+`or`, `alt`, a sub-recipe, `buy_instead`, a range.
+
+### Phase 3 — the form's save path
+
+Depends on: Q3, Q9, Q10, Q14, Q18.
+
+1. `formSave(ctx, { form, base?: { slug, hash } }, author)` in
+   `src/lib/server/formsave.ts`: `fromForm` → `serialize` (without `status`,
+   `added`) → `save()` with `overwrite: base.hash` for an edit. Nothing else
+   writes a recipe.
+2. **New recipe**: slug from the title (→ `DATA-FLOW.md` §Conveniences). A
+   collision (E103) never reaches her: the app takes the suffixed slug the save
+   path already proposes; a same title (W608) comes back as the family offer of
+   Q10. A slug in the trash is never reused (→ `DATA-FLOW.md` §Delete).
+3. **Edit**: the title may change, the slug never (→ `STORAGE.md` §Slugs).
+   Stale hash → Q18. A recipe the form may not open (Q3) is refused with the
+   reason.
+4. **Status** per Q14; `extracted_by` absent → `hand` (→ `DATA-FLOW.md`
+   §Conveniences), kept on an edit.
+5. **Server check** returns warnings mapped to form fields (Q9): W302 / W304 /
+   W607 name hygiene, W501 tag, W502 family, W503 / W608 title, W305 / W303
+   unresolved name, W306 sub-recipe not yet added, W605 markers left. Errors
+   are bugs (see "What the form must guarantee").
+6. **Family** per Q10: a new family's label written to `vocab/families.yaml`
+   in the same commit (with the `families.yaml` hash guard of `DATA-FLOW.md`
+   §Family labels); a W608 "mettre en famille" writing both recipes in one
+   commit.
+7. **Commit messages**: `add: <title>`, `edit: <title>` as today; the author
+   is the signed-in person.
+8. **Vault stats for defaults** (decision 1): most used oven unit and units,
+   from the index, cached until the next write.
+
+Tests: unchanged form → no commit; new recipe → `add:` commit by the signed-in
+author, `extracted_by: hand`, file byte-identical to the paste path's output for
+the same content; edit with a stale hash → refused, nothing written; title
+change keeps the slug; collision → suffixed slug; W608 → both files in one
+commit (Q10); family label written with the recipe; status rule of Q14 on new,
+edited, verified and marker-holding recipes; a server error from the check is
+logged with its code and never returned as text.
+
+### Phase 4 — the form UI, core: title, ingredients, method, notes
+
+Depends on: Q5, Q6, Q7, Q8, Q9, Q15, Q17.
+
+Routes `/nouvelle` and `/r/[slug]/modifier`, one Svelte component set. If a
+`frontend-design` skill is available, load it first. Mobile first: her devices
+are a phone and a tablet (→ `PLANNING.md` Kitchen mode); touch targets ≥ 44 px;
+no drag-only interaction (reorder with ↑ ↓ buttons; drag as a desktop extra).
+
+1. **Title** (required) and the recipe's language (a small select, default per
+   Phase 2.7, kept on edit).
+2. **Ingredients**: groups ("Ajouter un groupe", name, *facultatif*); a recipe
+   with one unnamed group shows no group UI until a second group is added.
+   Rows per Q6: quantity (Q7), unit picker (canonical units with French labels,
+   in the order of Phase 2.7), name with suggestions (Q8), a "Détails" expander
+   for the other fields. "Ajouter un ingrédient" adds a row and focuses its
+   quantity; Enter in a name adds the next row. Remove a row with an undo
+   toast (the form's own, before save).
+3. **Method**: step rows per Q5 — one text area per step, numbered by the app,
+   "Ajouter une étape", sub-heading rows ("Ajouter un titre de section"),
+   reorder and remove as for ingredients. Kitchen-mode timers keep working
+   because durations stay plain text in the step (→ plan 02, Phase 6).
+4. **Notes, Variantes, Alternatives**: plain multi-line fields, no Markdown
+   toolbar; lines are written as the section's text.
+5. **Hints** (Q9): inline, next to the field, in plain French with a one-tap
+   fix ("Mettre « émincé » dans la préparation ?"). Never a code.
+6. **Markers** (Q15): a field holding an uncertain reading shows it highlighted
+   with "C'est bien ça" (confirm) beside it; `[+]` text in its distinct style.
+7. **Autosave and offline** (Q17): the form state in `localStorage` per recipe
+   (and one slot for a new recipe); reopening offers to continue. Offline, Save
+   says so and keeps the draft.
+8. **Save**: disabled until the required fields hold; then one request, a
+   toast with "Annuler" (Phase 7) and a link to the recipe.
+9. Entry points: "Ajouter une recette" in the nav (→ the form), "Modifier" on
+   the recipe page, and on the home page for her (Q2).
+
+Tests: component tests for rows (add, remove, reorder, detail expander, the
+structural rules of "What the form must guarantee": unit required with a
+quantity, *au goût* disables the amount, range bound). E2E on `phone` and
+`tablet`: create a recipe with two groups, a fraction, a range and three steps,
+save, see it on its page and in search; edit it, reorder a step, save; the
+file on disk is canonical and the commit is hers; reload mid-typing restores the
+draft; a W302 hint moves a word to *préparation* in one tap.
+
+### Phase 5 — the form UI, the rest: family, tags, source, times, portions
+
+Depends on: Q10, Q11.
+
+1. **Family picker** (→ `VOCAB.md` §Families: "shows existing families first
+   and only offers 'create a new family' after a fuzzy search found nothing
+   close"): type-ahead over the family labels and slugs with variant counts;
+   "Nouvelle famille « … »" appears only when nothing is within the W502
+   distance; creating one shows the near family as a question, never a block
+   ("near-duplicate is a warning, not a block"). Variant: a required text field
+   once a family is chosen, pre-filled from the title's words the family label
+   does not have.
+2. **Tags** per Q11: autocomplete over `vocab/tags.yaml` canonical tags and
+   aliases, shown with their French labels (→ `VOCAB.md` §Tags).
+3. **Seasons**: four toggles (→ `VOCAB.md` §Seasons). **Difficulty**,
+   **rating**: 1–5 taps.
+4. **Source**: type (list of six, or none), author (suggested from authors
+   in the vault), book / magazine title and page, URL, note.
+5. **Times** (prep, cook, rest, total; each hours + minutes, optional "à" for
+   a range), **oven** (temperature, °F/°C toggle starting on the vault's most
+   used unit), **portions** (number, optional "à", note) or **yield**
+   ("Donne : 24 biscuits").
+6. **Sub-recipe** on an ingredient row (Q6): a recipe picker (search by
+   title), never offering this recipe or one that uses it (E213), and
+   "on peut l'acheter tout fait" (`buy_instead`).
+
+Tests: the picker never offers "Nouvelle famille" when a family is within
+distance; creating a family writes its label (Q10); tag autocomplete; W501 path
+per Q11; oven default follows the fixture vault's majority; sub-recipe picker
+excludes cycles. E2E: put a new recipe in an existing family, see it on the
+family page and in the diff table.
+
+### Phase 6 — photos
+
+Depends on: Q12, Q13.
+
+1. **Upload** (`/api/photo`, a form field on the form page): `<input
+   type="file" accept="image/*">`, which on a phone offers the camera and the
+   gallery. Size cap, type check by content (magic bytes, not the name), per
+   Q12. The original is written to `media/<slug>/` exactly as received
+   (→ `STORAGE.md` §Media: "never resized, never recompressed, EXIF kept"),
+   under a new name each time (`final-<date>-<n>.<ext>`), so replacing a photo
+   never overwrites the old file and an older version of the recipe (Phase 7)
+   still finds its photo. Then `media.final` is set through the recipe save. A
+   new recipe's photo is held until its first save gives it a slug.
+2. **Derived copies** (→ `DATA-FLOW.md` §SAVE step 5; `STORAGE.md`: copies in
+   `cache/img/`, EXIF rotation applied there only): a thumbnail (cards) and a
+   display copy (recipe page, kitchen mode), metadata stripped, generated on
+   upload and on demand when missing (a deleted `cache/`). Tooling per Q12.
+3. **Serving**: `/media/<slug>/<file>?v=thumb|display` serves derived copies
+   only; the original is never served to a browser, so the location a phone
+   writes into EXIF never leaves the server. HEIC per Q12.
+4. Cards show thumbnails (lazy, → `PLANNING.md` "What 5000 recipes changes");
+   the recipe page and kitchen mode show the display copy; the service worker
+   caches the display copy with the kitchen page.
+5. **Remove / replace**: "Retirer la photo" unsets `media.final`; the file
+   stays in `media/<slug>/` (originals are never deleted by an edit; the trash
+   moves the whole folder, → `DATA-FLOW.md` §Delete).
+6. **W603** per Q13.
+
+Tests (photos generated in the test — a tiny JPEG with an EXIF orientation tag
+and a fake GPS block, a PNG, a file named `.jpg` holding text): the original is
+byte-identical on disk; derived copies are rotated and carry no EXIF; the
+original is never served; a rejected type or size writes nothing; a failed
+recipe save removes the new original; deleting `cache/img/` and reloading
+regenerates; trash and restore move the folder and the copies follow. E2E
+(phone): add a photo to a recipe, see the thumbnail on the card.
+
+### Phase 7 — undo and history
+
+Depends on: Q16.
+
+1. **Versions** (`history.ts`): `git log --follow` over `recipes/<slug>.md`
+   (and its trash path), each with date, author name, the commit verb, and a
+   plain-French summary of what changed, computed by parsing both versions
+   (title, ingredients added / removed / changed, steps, photo, family, …) —
+   never a diff of Markdown.
+2. **Undo** and **restore** per Q16: both write the old text through the save
+   path (checker, hash guard, one new commit `undo: <title>` / `restore:
+   <title> (version du <date>)`, index). History is never rewritten: no `git
+   revert` of a pushed commit, no reset (→ `PLANNING.md` Architecture: "a real
+   undo"). A version that no longer passes today's checker is refused with a
+   plain sentence and left for the owner.
+3. **`/r/[slug]/historique`**: the list, newest first; "Revenir à cette
+   version" with a confirm showing the summary. The recipe page links to it.
+4. Deleted recipes keep going through `/corbeille` (→ `DATA-FLOW.md` §Delete).
+
+Tests: undo after a form save restores the previous file byte for byte in a new
+commit by the signed-in person; undo refused when the file changed since
+(hash); restore of a version three edits back; a version that fails today's
+checker is refused; the summary lists the fields that changed; a recipe that went
+to the trash and back keeps its history.
+
+### Phase 8 — pending tags (only if Q11 is B)
+
+Depends on: Q11.
+
+`/etiquettes`: the tags stored as pending (→ `DATA-FLOW.md` §Index schema:
+unknown tags "stored folded with `pending = 1`"), with their recipes. Two
+actions, each one commit to `vocab/tags.yaml` alone, with the file's hash guard
+and the YAML edited in place (comments kept, as `families.yaml` is): "C'est
+comme…" (add as an alias of a canonical tag) or "Nouvelle étiquette" (a new
+canonical tag with its French label). The index retags (the existing
+`tags_hash` path). No recipe file changes (→ `VOCAB.md`: "the file keeps what
+was written").
+
+Tests: each action is one commit touching only `vocab/tags.yaml`; the recipes'
+tags stop being pending; no recipe file changes.
+
+### Phase 9 — scale, docs, report
+
+1. **Bench** (`scripts/gen-vault.ts --bench`, extended): the speed targets
+   below on the generated 5000-recipe vault, with one recipe given 50 commits
+   of history and a vault history of ~20 000 commits.
+2. **Docs**, each answer in the doc its question names, plus: `DATA-FLOW.md`
+   (the form's save, undo/restore, photo upload, Authentication "decided"),
+   `STORAGE.md` (`users.json` shape, `cache/sessions.db`, media file naming,
+   `cache/img/` layout), `DEPLOY.md` (`vault user add`, cookies over LAN HTTP
+   vs Tailscale HTTPS), `VALIDATION.md` (W603 per Q13; "Human-facing
+   validation" pointing at the form hints), `PLANNING.md` (P2 status, open
+   questions 4 and 5), `README.md`.
+3. The one end-of-work review (decision 3); leftovers become GitHub issues.
+
+## Speed targets
+
+Measured on the generated 5000-recipe vault on this machine; recorded in the
+final report and in `DATA-FLOW.md` next to the plan 02 and 03 figures.
+
+| Operation | Target | Why |
+|---|---|---|
+| open the edit form (server load, a 40-line recipe) | < 100 ms | she opens it from the recipe page on a tablet |
+| suggestions for one keystroke (ingredient names, ~1000 entries + names in use) | < 10 ms server | type-ahead on weak kitchen wifi |
+| hints for one field while typing (browser, name-word lists) | < 5 ms | no input lag on a mid-range tablet |
+| form save: check + serialize + write + commit + index | < 500 ms | git dominates (a price append is ~170 ms) |
+| unchanged form save | no commit | the round-trip promise |
+| photo upload, 12 MP JPEG: store + both derived copies | < 2 s | a phone photo |
+| derived copy on demand after `cache/` deleted | < 1 s each | the first page after a cache wipe |
+| history page, 50 versions, ~20 000-commit vault | < 300 ms | `git log --follow` on one path |
+| undo / restore a version | < 500 ms | same path as a save |
+| sign in (argon2id verify) | 100–500 ms | slow on purpose, not slower |
+| session lookup per request | < 0.5 ms | every request |
+
+## Testing summary
+
+- Unit: form model round trip over the fixture vault and the 320-recipe
+  corpus; quantity, duration, steps, markers, hints; users (argon2id), sessions,
+  cookie flags, throttle.
+- Server: form save (new, edit, stale, collision, W608 pair, family label,
+  status rule, attribution); photos (original untouched, derived copies
+  rotated and stripped, never serving the original, cleanup on failure,
+  regeneration); history, undo, restore; pending tags; every existing write
+  attributed and guarded.
+- E2E (Playwright, temp fixture vault, invented accounts; `phone` and
+  `tablet` for the form, `desktop` for the owner's paths): sign in; create;
+  edit; family picker; photo; undo; history restore; draft restored after
+  reload; the paste box still works for the owner (Q2).
+- `npm run check` clean.
+
+## Done when
+
+- She can sign in once per device and stay signed in (Q1).
+- A new recipe, with groups, fractions, ranges, sub-recipes, steps, family,
+  tags, times, oven, portions, source and a photo, is created on a phone
+  without seeing Markdown, a code, or an error message.
+- Any recipe the form opens (Q3) saves back byte-identical when unchanged, and
+  with only the changed parts different otherwise (Q4).
+- Every save, undo and restore is one commit with her name as author.
+- Undo and "Revenir à cette version" work per Q16; nothing rewrites git
+  history.
+- Photos: original untouched, derived copies rotated and stripped, the original
+  never served.
+- The paste box, the resolve queue, prices and the rest keep working, and
+  every write is attributed.
+- Deleting `cache/` and restarting loses nothing but sessions.
+- Speed targets met or measured and reported.
+- Docs updated for every answered question; all tests and `svelte-check` pass.
+
+## Final report
+
+Asked for:
+
+1. What was built, per phase, with commit hashes.
+2. The round-trip result over the fixture vault and the corpus (files
+   byte-identical; any named loss per Q4).
+3. Speed numbers at 5000 recipes.
+4. Doc contradictions or undefined cases found beyond the questions below,
+   each with a proposed doc change.
+5. What the owner must do on the real machine (`vault user add` for each
+   person, any new dependency's system package), without touching the real
+   vault from the agent session.
+6. Anything deferred, and why; the review's leftovers as GitHub issue links.
+
+## Out of scope
+
+- **Cook log and dated notes** (`PLANNING.md` Tier 2, a `log` list in
+  frontmatter): a schema change (new key, checker, AI template, index), and not
+  needed to write recipes. Her own remarks go in the Notes section, which the
+  form edits. Next candidate after P2.
+- **Family cookbook export, duplicate detection by ingredient set** (Tier 2):
+  read-side features.
+- **Slug rename** (`STORAGE.md`: "an explicit, rare operation"): titles change
+  freely; the slug stays.
+- **`item:` override in the form** (`INGREDIENTS.md` Resolution 2 allows "later,
+  the P2 form"): rare by design; the resolve queue and disambiguation rules cover
+  the cases. An existing `item:` is kept untouched by the form.
+- **Ingredient registry and price editing from the form**: the resolve queue,
+  `/ingredients` and the ingredient view already do it.
+- **Several photos per recipe**, unless Q12 says otherwise (`PLANNING.md`
+  open question 5: "Start with one").
+- **Offline saving** (a queued save sent later), unless Q17 says otherwise.
+- **Internet exposure hardening** beyond what is listed (decision 4): no 2FA,
+  no password-reset e-mail, no account self-registration.
+- Shopping list, meal planner, scaling beyond the servings adjuster, price
+  charts (P3). English UI.
+
+---
+
+## Open questions
+
+The docs leave each of these open or contradict themselves. For each: the
+options, then the recommendation with a one-line reason. Q-numbers are
+referenced from the phases. **Key** marks the four answers that change the most
+code.
+
+### Accounts
+
+**Q1 — Key — Who signs in, how, and for how long?**
+`DATA-FLOW.md` §Authentication: "Two accounts minimum", and for LAN-only "a
+single shared password … with a name picker" is defensible; `STORAGE.md` already
+names `users.json` with argon2id hashes. Nothing says whether reading needs a
+session, nor how long one lasts.
+- A. One account per person (login + password, argon2id), sessions of one
+  year renewed on use, "rester connectée" by default; **reading needs no
+  session** (browse, recipe page, kitchen mode, pantry search); every write
+  needs one. Accounts made by the owner with `vault user add`.
+- B. As A, but every page needs a session, reads included.
+- C. No password: a name picker ("Qui êtes-vous ?") in a cookie, for commit
+  attribution only; the network is the only boundary.
+- D. Device pairing: `vault user pair <login>` prints a one-time code or QR
+  code; the device gets a long-lived token, no password ever typed.
+- **Recommended: A.** It is what `STORAGE.md` already describes, a cook with
+  floury hands (or a visiting sibling) is never stopped by a login to read, and
+  a password typed once per device is the smallest step that makes deletes and
+  edits non-anonymous.
+
+**Q2 — What can each account do, and does the paste box stay for the owner?**
+`PLANNING.md` gives her "Full read and write, via a form UI" and says she
+"Never sees markdown"; the paste box, "Voir le fichier", the fix-request block
+and the resolve queue are Markdown or maintenance tools.
+- A. Two roles in `users.json`: `owner` (everything) and `cook` (form,
+  photos, Vérifié, delete to trash and restore, undo and history, prices);
+  the server refuses the paste box, raw-file view, resolve queue and
+  ingredient/registry edits to `cook`.
+- B. One level of rights: every account may do everything; a per-account
+  preference `markdown: true` shows the paste box, "Voir le fichier" and the
+  resolve queue, hidden otherwise.
+- C. No distinction at all: everyone sees everything.
+- **Recommended: B.** `PLANNING.md` gives her full write access, so a
+  permission wall protects nothing; hiding the Markdown tools is what "never
+  sees markdown" asks for.
+
+### Scope of the form
+
+**Q3 — Which recipes does the form open?**
+`PLANNING.md` says she "adds and edits her own recipes"; most recipes will be
+AI-pasted by the owner.
+- A. Every recipe whose file passes the checker (AI-pasted, web-imported,
+  hand-edited alike); a file with an error (the banner case) shows "à faire
+  corriger" instead of "Modifier".
+- B. Only recipes created with the form (`extracted_by: hand` and first
+  commit by a `cook`); the others are read-only for her.
+- C. Every recipe, including files with errors, the form showing what it
+  could read.
+- **Recommended: A.** Fixing an AI's misreading of her own card is exactly
+  her job ("Readings to confirm … are for her", `PLANNING.md` P0 findings), and
+  a broken file cannot be round-tripped safely.
+
+**Q4 — Key — What happens to what the form does not model?**
+A file edited in Obsidian or pasted by the owner may hold YAML comments,
+unknown keys (W610: "its value is ignored"), `media` keys besides `final`, a
+preamble, sections beyond the four (`RECIPE-SCHEMA.md`: "allowed, ignored by
+the parser, still rendered"), non-step prose inside the method. The canonical
+serializer, used by every app save today, keeps the body sections as text but
+drops comments and unknown keys.
+- A. Canonical save, as the paste path: frontmatter rewritten canonically
+  (comments and unknown keys dropped — both still in git history); every body
+  part the form does not edit (preamble, other sections, a method section she
+  did not touch) kept verbatim; other `media` keys kept.
+- B. Surgical save: only the frontmatter keys she changed are set on the
+  parsed YAML document (comments, unknown keys, order kept, like the family
+  label edit); body as in A. The file is not canonical after a form edit.
+- C. As A, but the form refuses to open a file with comments or unknown keys
+  until the owner cleans it ("à faire corriger").
+- **Recommended: A.** `STORAGE.md` makes canonical serialization the rule for
+  every app save ("whatever the AI pasted"), the round-trip test proves nothing
+  the app reads is lost, and git keeps what was dropped.
+
+**Q5 — How is the method edited?**
+The body is prose with numbered or bullet steps, `###` sub-headings, nested
+lists joined to their step, and possibly prose lines between steps.
+- A. Step rows: one text area per step (multi-line allowed; a nested list is
+  shown as its lines), heading rows for sub-headings, reorder / add / remove;
+  written back as `1.` lines with indented `-` lines. A method section with
+  prose between steps keeps that prose as a "texte" row in place.
+- B. One plain text area for the whole method, one step per line, numbering
+  added by the app.
+- C. Step rows as A, but a method section holding anything besides steps and
+  sub-headings is shown as B.
+- **Recommended: A.** Kitchen mode is built on steps (one per screen), rows
+  make a merged step impossible to write (W402), and the "texte" row keeps
+  hand-written prose instead of dropping it.
+
+**Q6 — Which ingredient fields does a row offer?**
+`RECIPE-SCHEMA.md` has `qty`, `qty_max`, `unit`, `name`, `alt`, `brand`, `or`,
+`note`, `prep`, `to_taste`, `optional`, `recipe`, `buy_instead`, `item`.
+- A. Quantity, unit and name on the row; a "Détails" expander with note,
+  préparation, marque, *au goût*, *facultatif*, "jusqu'à" (range), "ou en
+  mesure" (`alt`), "ou remplacer par" (`or`, a list of rows), "c'est une
+  autre recette" (sub-recipe, `buy_instead`). `item` never shown, kept.
+- B. The expander offers note, préparation, *au goût*, *facultatif* only;
+  `alt`, `or`, `brand`, `recipe`, ranges shown as a read-only summary on the
+  row and kept.
+- C. Every field inline on the row.
+- **Recommended: A.** With Q3 A she edits AI files that use every field; a
+  field she cannot edit is a misreading she cannot fix, and the expander keeps
+  the row small on a phone.
+
+**Q7 — How is a quantity typed?**
+Cards are fractions (`RECIPE-SCHEMA.md`: "Fractions stay as written").
+- A. One text field accepting `2`, `1 1/2`, `1½`, `0,5`, `1.5`; stored as the
+  schema writes it (fraction string as typed, decimal number otherwise); a row
+  of fraction chips (¼ ⅓ ½ ⅔ ¾) above the phone keyboard.
+- B. Whole-number field + a fraction drop-down (none, ¼, ⅓, ½, ⅔, ¾, ⅛).
+- C. A numeric keypad field, decimals only (`1.5`).
+- **Recommended: A.** She types what the card says, the file keeps it as
+  written, and the chips spare her the `/` on a phone keyboard.
+
+**Q8 — What does the ingredient name field suggest?**
+`INGREDIENTS.md`: names resolve through registry aliases at index time;
+unresolved names never block a save.
+- A. Suggestions from the registry's names in the recipe's language plus the
+  names already written in the vault, most used first; free text always
+  accepted; a small "relié" mark when the name resolves.
+- B. Registry names only; a name outside the registry needs "Nouvel
+  ingrédient", which creates the registry entry from the form.
+- C. No suggestions.
+- **Recommended: A.** Suggestions cut drift at the source (fewer queue rows)
+  without turning the form into registry maintenance, and a new name still
+  never blocks a save.
+
+**Q9 — How do checker warnings reach her?**
+`DATA-FLOW.md`: "Her form never shows a raw error"; `VALIDATION.md`: warnings
+save anyway. The name-hygiene warnings (W302 preparation word, W304 size word,
+W607 brand) are typeable in a free name field, and the vault warnings (W501,
+W502, W503/W608, W303/W305, W306, W605) exist on any save.
+- A. Inline hints next to the field, in plain French, each with a one-tap fix
+  where one exists (move the word to préparation / note / marque, pick the
+  suggested tag or family); computed live in the browser for the name words,
+  from the save result for the vault ones; never blocking, never a code.
+- B. No hints: save silently; warnings appear only on the recipe page, as for
+  pasted recipes.
+- C. Hints as A, but Save stays disabled until each is accepted or dismissed.
+- **Recommended: A.** It is the form's version of "the fix states itself",
+  catches the pantry-splitting mistakes where she makes them, and never stops a
+  save.
+
+### Families and tags
+
+**Q10 — What does creating a family, or joining one, write?**
+`VOCAB.md`: the picker creates a family only after the fuzzy search found
+nothing close; labels are "a separate, later step on the family page" for the
+paste box. `DATA-FLOW.md` §The paste box: W608 sets `family`/`variant` "on the
+new file (the existing file is left untouched in P1)".
+- A. Creating a family in the form writes its French label (the name she
+  typed) to `vocab/families.yaml` in the same commit as the recipe; W608's
+  "mettre en famille" sets family and variant on both recipes, one commit.
+- B. The form writes only the slug (label later on the family page, as the
+  paste box does); W608 changes only the new recipe.
+- C. A's label; B's W608.
+- **Recommended: A.** She types "Tarte au sucre", not `tarte-au-sucre`, and a
+  family of one recipe (the other left out) is not a family; "untouched in P1"
+  was a P1 limit.
+
+**Q11 — Can she make her own tags? (`PLANNING.md` open question 4)**
+`VOCAB.md` §Tags: unknown tag → suggest the closest, else "store it with
+`status: pending`"; "Never silently discard a tag she typed". Nothing says who
+settles pending tags or where.
+- A. Autocomplete over the vocabulary only; no new tag from the form.
+- B. Autocomplete, plus "Ajouter « … »" for a tag not in the vocabulary
+  (after the closest canonical tag was offered): written in the file as typed,
+  indexed as pending (W501); the owner settles it on `/etiquettes` (Phase 8) —
+  alias of an existing tag or new canonical tag with its French label in
+  `vocab/tags.yaml`.
+- C. As B, without `/etiquettes`: the owner edits `vocab/tags.yaml` by hand.
+- **Recommended: B.** It is `PLANNING.md`'s own middle ground, keeps the filter
+  sidebar clean, and the retag machinery (`tags_hash`) already exists, so the
+  screen is small.
+
+### Photos
+
+**Q12 — Key — Photos: how many, and how are they processed? (`PLANNING.md`
+open question 5)**
+`STORAGE.md`: originals untouched, derived copies in `cache/img/`, HEIC kept
+with a JPEG/WebP copy, EXIF rotation on copies. The app has no image library;
+Node cannot resize or decode images alone; the prebuilt `sharp` (libvips)
+decodes JPEG, PNG, WebP, AVIF, but not HEIC. iPhones usually send JPEG through
+a browser upload; a HEIC file can still arrive.
+- A. One photo (`media.final`). `sharp` on the server: thumbnail (~400 px) and
+  display copy (~1600 px), WebP, rotated, metadata stripped, on upload and on
+  demand. JPEG, PNG, WebP, AVIF accepted, 25 MB cap. HEIC stored as the
+  original with a placeholder, like today.
+- B. As A, plus HEIC decoding (a `sharp` built against a system libvips with
+  libheif, or `heic-decode`, pure JS, slow) so HEIC shows.
+- C. Resize in the browser (canvas) and upload only the resized JPEG: no native
+  dependency, but the original is lost, against `STORAGE.md`.
+- D. As A, with several photos per recipe (a gallery, `media.photos`).
+- **Recommended: A.** It keeps every `STORAGE.md` rule with one well-supported
+  dependency, one photo is what `PLANNING.md` says to start with, and HEIC from a
+  browser upload is the rare case.
+
+**Q13 — Does W603 ("no dish photo") come alive?**
+Deferred since plan 01 as "meaningless on the paste path"; plan 03 listed it
+"until photo upload (P2)". Most recipes will never get a photo, so as a warning
+it would sit on nearly every recipe.
+- A. It stays deferred; the form and the recipe page show an "Ajouter une
+  photo" prompt instead, which is not a diagnostic.
+- B. Live, on the recipe page only (not the paste box, not the fix-request
+  block).
+- C. Removed from `VALIDATION.md`.
+- **Recommended: A.** A photo is optional (`RECIPE-SCHEMA.md`: "optional
+  photo"), and a warning on thousands of recipes is noise; the prompt does the
+  useful part.
+
+### Status and markers
+
+**Q14 — What status does a form save set?**
+`DATA-FLOW.md` §Conveniences was written for pastes: status "set by the app on
+every paste, never taken from the file … `verified` is set only by a person,
+with the 'Vérifié' button". The save path recomputes `draft` / `needs-review`
+on every save, so a form edit of a verified recipe would fall back to
+`draft`.
+- A. An edit keeps the recipe's status, unless an uncertain marker remains
+  (`needs-review`); a new form recipe is `draft`; "Vérifié" stays the only way
+  to `verified`.
+- B. As the paste path: every save recomputes `draft` / `needs-review`; she
+  presses "Vérifié" again after each edit.
+- C. A form save by a person sets `verified` when no uncertain marker remains
+  (the form is a person, not an AI).
+- **Recommended: A.** Fixing a typo in a verified recipe should not un-verify
+  it, and verifying stays a deliberate act.
+
+**Q15 — How does the form show and settle markers?**
+`RECIPE-SCHEMA.md` §Markers: `[?]`, `[?: …]`, `[illisible]` highlighted; `[+]`
+distinct; "Clearing a `[?]` in the app (confirming or correcting the reading)
+removes the marker from the file." Undefined: what editing a field holding
+`[+]` text does, and whether she can add a marker.
+- A. The marker syntax is never shown: an uncertain field is highlighted with
+  its alternative, "C'est bien ça" removes its uncertain markers, editing the
+  field also removes them; `[+]` text is shown in its style and kept as long as
+  she leaves that text alone, dropped with it if she deletes it. She cannot add
+  markers.
+- B. Markers shown as raw text in the fields; she deletes them by hand.
+- C. A plus a "Je ne suis pas sûre" toggle that adds `[?]` to a field.
+- **Recommended: A.** It is the doc's rule with no syntax to learn, and a
+  person reading her own card has no reason to mark her own uncertainty.
+
+### Safety nets
+
+**Q16 — Key — What does undo cover?**
+`PLANNING.md` Architecture: "Every save is a commit there, which gives version
+history and a real undo — 'restore what it looked like last Tuesday' becomes
+a `git show`". Nothing says what the UI offers.
+- A. Both: "Annuler" in the toast after each save (the previous file written
+  back as a new commit `undo: <title>`, hash-guarded), and a per-recipe
+  history page with plain-French summaries and "Revenir à cette version"
+  (`restore: <title> (version du …)`).
+- B. Only "Annuler" on the last save.
+- C. Only the history page.
+- D. `git revert` of the commit, shown as "Annuler".
+- **Recommended: A.** "Annuler" covers the slip she just made, the history
+  covers "last Tuesday", and writing the old text as a new commit through the
+  save path never rewrites pushed history.
+
+**Q17 — Drafts, autosave and offline editing.**
+Nothing in the docs. The tablet reloads tabs; kitchen wifi is weak
+(`PLANNING.md` Kitchen mode).
+- A. Autosave the form in the browser (`localStorage`) per recipe, offered back
+  on reopening; offline, Save says "pas de connexion, rien n'est perdu" and
+  keeps the draft for a later tap. No server-side drafts.
+- B. As A, plus a queued save sent by the service worker when the connection
+  returns.
+- C. Server-side drafts (a draft file per person in the cache).
+- D. No autosave.
+- **Recommended: A.** Nothing typed is lost and nothing half-done enters the
+  vault or git; a queued save (B) could land over someone else's edit with
+  nobody watching.
+
+**Q18 — What does she see when her save is refused as stale?**
+`DATA-FLOW.md` §Concurrent edit: the save "refuses when the file on disk no
+longer has that hash" and "should not be silent". For the paste box, the owner
+reads the message; for her, a refusal alone loses her work.
+- A. "Cette recette a été modifiée entre-temps" with the other version shown
+  beside hers (fields that differ highlighted); her form stays (autosave, Q17);
+  she keeps hers ("Garder ma version", a new save against the new hash) or
+  takes theirs.
+- B. Automatic field-level merge when the two edits touched different fields;
+  A only when they overlap.
+- C. A lock: a recipe open in the form is read-only for others for 30 minutes.
+- **Recommended: A.** Collisions are rare with two writers, A never loses
+  either edit, and B's merge code is effort spent on a case that almost never
+  happens.
