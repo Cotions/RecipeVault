@@ -2,6 +2,7 @@
 // enters the paste path's save; these tests hold it to that, and to the
 // form's own rules (slug, status Q14, stale Q18, family Q10, hints Q9).
 
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { withAuthor } from '../../src/lib/server/context';
 import {
@@ -363,6 +364,45 @@ describe('hints and pickers', () => {
 		expect(forBouillon).not.toContain('sauce-tomate-maison');
 		expect(forBouillon).not.toContain('pizza-maison');
 		expect(subRecipeCandidates(v.ctx, 'pâte', undefined).map((r) => r.slug)).toEqual(expect.arrayContaining(['pate-brisee', 'pate-a-pizza']));
+	});
+
+	it('the picker and the live check follow the index: after a save, and after a write from another connection', async () => {
+		const tart = (title: string) =>
+			newForm(title, (f) => {
+				const it = newItem();
+				Object.assign(it, { qty: '1', unit: 'piece', name: 'pâte', recipe: 'pate-brisee' });
+				f.groups[0].items.push(it);
+			});
+		// Warm every cached list first.
+		expect(subRecipeCandidates(v.ctx, '', 'pate-brisee', 100).map((r) => r.slug)).not.toContain('tarte-inventee');
+		expect(formCheck(v.ctx, newForm('Tarte inventée')).same).toEqual([]);
+		expect(formCheck(v.ctx, newForm('Tartes inventées')).hints.some((h) => h.code === 'W503')).toBe(false);
+
+		const r = await formSave(ctx(), { form: tart('Tarte inventée') });
+		expect(r).toMatchObject({ status: 'saved', slug: 'tarte-inventee' });
+		// It uses the pâte: never offered to the pâte (E213); offered to others.
+		expect(subRecipeCandidates(v.ctx, '', 'pate-brisee', 100).map((r) => r.slug)).not.toContain('tarte-inventee');
+		expect(subRecipeCandidates(v.ctx, 'tarte inv', 'bouillon-de-legumes').map((r) => r.slug)).toEqual(['tarte-inventee']);
+		expect(formCheck(v.ctx, newForm('Tarte inventée')).same.map((s) => s.slug)).toEqual(['tarte-inventee']);
+		expect(formCheck(v.ctx, newForm('Tartes inventées')).hints).toContainEqual(expect.objectContaining({ code: 'W503', slug: 'tarte-inventee' }));
+		// The pâte, edited to use the tarte, is now a cycle.
+		const o = opened('pate-brisee');
+		const it = newItem();
+		Object.assign(it, { qty: '1', unit: 'piece', name: 'tarte', recipe: 'tarte-inventee' });
+		o.form.groups[0].items.push(it);
+		expect(formCheck(v.ctx, o.form, { slug: 'pate-brisee', hash: o.hash }).errors).toContainEqual(expect.objectContaining({ id: it.id, code: 'E213' }));
+
+		// Another connection to the index (the CLI's `vault sync`, say) drops the tarte: seen here too.
+		const other = new Database(v.ctx.paths.index);
+		try {
+			other.prepare('DELETE FROM recipes WHERE slug = ?').run('tarte-inventee');
+			other.prepare('DELETE FROM ingredients WHERE slug = ?').run('tarte-inventee');
+		} finally {
+			other.close();
+		}
+		expect(subRecipeCandidates(v.ctx, 'tarte inv', 'bouillon-de-legumes')).toEqual([]);
+		expect(formCheck(v.ctx, newForm('Tarte inventée')).same).toEqual([]);
+		expect(formCheck(v.ctx, o.form, { slug: 'pate-brisee', hash: o.hash }).errors).not.toContainEqual(expect.objectContaining({ code: 'E213' }));
 	});
 
 	it('the oven default follows the vault’s majority; the unit order its usage', () => {

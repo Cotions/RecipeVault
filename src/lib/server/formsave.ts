@@ -38,6 +38,7 @@ import { checkOptions } from './checkopts';
 import type { VaultContext } from './context';
 import { cleanLabel, familiesFile, FAMILIES_FILE, LABEL_MAX, withLabel } from './families';
 import type { FileWrite } from './files';
+import { indexMemo } from './index/memo';
 import { getResolver, toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { recipePath } from './index/sync';
 import { currentFile, localDate, saveLocked, SaveError, vaultEntries, type SaveOptions } from './save';
@@ -402,9 +403,10 @@ export function subRecipeCandidates(ctx: VaultContext, q: string, own?: string, 
 	const excluded = own ? usersOf(ctx, own) : new Set<string>();
 	if (own) excluded.add(own);
 	const key = fold(q).trim();
-	const rows = ctx.db.prepare('SELECT slug, title, title_sort FROM recipes ORDER BY title_sort').all() as { slug: string; title: string; title_sort: string }[];
+	const slugKey = slugify(q);
+	const rows = indexMemo(ctx.db, 'subRecipeCandidates', () => ctx.db.prepare('SELECT slug, title, title_sort FROM recipes ORDER BY title_sort').all() as { slug: string; title: string; title_sort: string }[]);
 	return rows
-		.filter((r) => !excluded.has(r.slug) && (!key || r.title_sort.includes(key) || r.slug.includes(slugify(q))))
+		.filter((r) => !excluded.has(r.slug) && (!key || r.title_sort.includes(key) || r.slug.includes(slugKey)))
 		.sort((a, b) => Number(b.title_sort.startsWith(key)) - Number(a.title_sort.startsWith(key)))
 		.slice(0, limit)
 		.map((r) => ({ slug: r.slug, title: stripMarkers(r.title) }));
@@ -412,11 +414,19 @@ export function subRecipeCandidates(ctx: VaultContext, q: string, own?: string, 
 
 /** Every recipe that uses `slug` as a sub-recipe, directly or through others. */
 export function usersOf(ctx: VaultContext, slug: string): Set<string> {
-	const parents = new Map<string, string[]>();
-	const rows = ctx.db
-		.prepare('SELECT slug, recipe FROM ingredients WHERE recipe IS NOT NULL UNION SELECT slug, recipe FROM ingredient_or WHERE recipe IS NOT NULL')
-		.all() as { slug: string; recipe: string }[];
-	for (const r of rows) parents.set(r.recipe, [...(parents.get(r.recipe) ?? []), r.slug]);
+	// Who uses whom, from the index: built once per index state, not per keystroke.
+	const parents = indexMemo(ctx.db, 'usersOf', () => {
+		const map = new Map<string, string[]>();
+		const rows = ctx.db
+			.prepare('SELECT slug, recipe FROM ingredients WHERE recipe IS NOT NULL UNION SELECT slug, recipe FROM ingredient_or WHERE recipe IS NOT NULL')
+			.all() as { slug: string; recipe: string }[];
+		for (const r of rows) {
+			const list = map.get(r.recipe);
+			if (list) list.push(r.slug);
+			else map.set(r.recipe, [r.slug]);
+		}
+		return map;
+	});
 	const out = new Set<string>();
 	const queue = [slug];
 	while (queue.length) {
