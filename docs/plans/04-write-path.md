@@ -779,6 +779,69 @@ was written").
 Tests: each action is one commit touching only `vocab/tags.yaml`; the recipes'
 tags stop being pending; no recipe file changes.
 
+**Done — decisions.** `src/lib/server/tags.ts`, `src/lib/vault/tagstatus.ts`,
+`/etiquettes`. Tests: `tests/server/tags.test.ts`, `tests/e2e/etiquettes.spec.ts`
+(phone viewport).
+- **Three actions, one commit each**, by the signed-in person
+  (`writeContext`): "Nouvelle étiquette" (`tag: new <slug> → <label>`),
+  "C'est comme…" (`tag: <pending> → <canonical>`), "Retirer" (`tag: drop
+  <pending>`, one `edit: <title>` line per recipe in the body).
+- **⚑ Flagged — "C'est comme…" adds an alias, it does not rewrite recipes.**
+  The brief for this phase asked for mapping to rewrite the recipes using the
+  tag; this plan (above), `VOCAB.md` ("the file keeps what was written") and
+  `DATA-FLOW.md` §Index schema ("The file is never rewritten") say alias. The
+  docs win: every written form of the pending tag the canonical tag does not
+  already match is appended to its list in `vocab/tags.yaml`, and the index
+  retags. The recipes then show and filter under the canonical tag. If the
+  owner wants the files themselves rewritten, that is a doc change first.
+- **⚑ Flagged — "Retirer" (drop) is added, and rewrites recipes.** Not in this
+  plan; asked for in the brief. `VOCAB.md` "Never silently discard a tag she
+  typed" is kept: it is an explicit act by a person, behind its own disclosure
+  and a button naming the count ("Retirer des 3 recettes"). Every recipe holding
+  the tag is rewritten in **one** commit (Q10 A's several-files pattern):
+  parsed, the tag taken out of `tags`, serialized canonically (Q4 A), status
+  kept, `updated` set — like any app edit. Guarded by the file hash of each
+  recipe the page listed, and refused when the set of recipes holding the tag
+  changed since; a recipe failing the checker is not rewritten (Q3 A) and the
+  whole drop is refused. The only one of the three that touches recipes.
+- **⚑ Flagged — tag labels live in a new `vocab/tag-labels.yaml`.** The plan
+  asks for "a new canonical tag with its French label", but `tags.yaml` is
+  `canonical: [aliases]` with no room for one, and the only labels were the
+  seed's, in code (`fr.tags`). `VOCAB.md` asks for "a label table per
+  language", so: `vocab/tag-labels.yaml`, the shape of `families.yaml`
+  (`cabane-a-sucre: { fr: Cabane à sucre }`), not seeded (absent = no labels),
+  written with `withLabel` (the families writer, which now takes the file name
+  for its errors). `tagLabel(tag, label)` prefers it, then `fr.tags`, then the
+  slug. "Nouvelle étiquette" therefore commits `tags.yaml` and
+  `tag-labels.yaml` together (both hash-guarded: the page carries one version
+  string over the two); with an empty label only `tags.yaml`. The filter
+  sidebar shows the label; the recipe page still shows each tag as written
+  (`RecipeView.svelte` was being edited by the photos work; left for later).
+- **The canonical slug** of a new tag is the pending key (folded) with anything
+  outside `a-z0-9` turned into hyphens (`fête d'été` → `fete-d-ete`). The
+  written forms the slug does not match become its aliases (lowercased), so
+  the recipes resolve without a change. A slug already in the vocabulary is
+  refused ("utilisez « C'est comme… »"); a tag with no Latin letter or digit
+  cannot become one (map or drop it).
+- **`vocab/tags.yaml` edited as text, one line**: an alias is appended inside
+  the canonical tag's one-line `[…]` list, a new tag appended as a new line
+  lined up with the entries above it, so comments and the seed's alignment stay
+  and the diff is one line. Anything else (a block list, `{}`) falls back to a
+  YAML document edit (comments kept, alignment not). Each result is parsed back
+  and compared with the intended data before writing; an alias YAML would
+  misread is double-quoted.
+- **Who.** Q2 B: the nav shows "Étiquettes (N)" to a `markdown: true` account
+  once N > 0 (like "À relier"); the page and its actions are open to every
+  signed-in account (deny-by-default guard), none to a signed-out one.
+- **Helper for the form's tag field (Phase 5).** Server: `tagVocabulary(ctx)`
+  → `{ tags: [folded, canonical][], canonical: { tag, label, aliases }[],
+  pending: string[] }`, plain JSON for the page. Browser:
+  `classifyTag(new Map(tags), new Set(pending), typed)` from
+  `$lib/vault/tagstatus` → `known` (with `canonical`), `pending` or `new`
+  (with the pending key and W501's `suggestion`), or `empty`; `pendingKey(tag)`
+  is the key the index stores. Server-side lists: `pendingTags(ctx)`,
+  `pendingTagCount(db)`, `canonicalTags(ctx)`, `tagLabels(ctx)`.
+
 ### Phase 9 — scale, docs, report
 
 1. **Bench** (`scripts/gen-vault.ts --bench`, extended): the speed targets

@@ -409,7 +409,8 @@ shopping list with whole-pack costs, meal planner, price history charts.
    bulk "receipt" mode can come later if entry proves tedious.
 4. **Does she want her own tags?** A controlled vocabulary keeps filters usable
    but means she cannot invent a tag freely. Middle ground: she proposes, it lands
-   as `pending` until mapped.
+   as `pending` until mapped. **Decided (plan 04, Q11 B):** the middle ground;
+   pending tags are settled on `/etiquettes` (`VOCAB.md`, "Tags").
 5. **Photo per recipe, or several?** Schema allows several; the form is simpler
    with one. Start with one, schema already supports more.
 

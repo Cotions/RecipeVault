@@ -72,6 +72,18 @@ Rules:
 - Unknown tag on input → suggest the closest canonical match; if accepted none,
   store it with `status: pending` so it is filterable but visibly unreviewed.
   Never silently discard a tag she typed.
+- **Pending tags are settled on `/etiquettes`** (plan 04, Phase 8; Q11 B), one
+  commit each: "Nouvelle étiquette" adds it to `vocab/tags.yaml` as a canonical
+  tag (slug: folded, ASCII, hyphenated; the written forms the slug does not
+  match become its aliases) with its French label; "C'est comme…" adds its
+  written forms as aliases of an existing tag. Neither changes a recipe: the
+  index maps them. "Retirer" is the one exception, asked for by a person: it
+  takes the tag out of every recipe holding it, in one commit.
+- **Labels** live in `vocab/tag-labels.yaml`, one entry per line in flow style
+  like `families.yaml` (`cabane-a-sucre: { fr: Cabane à sucre }`); not seeded.
+  A tag without one shows its slug with hyphens as spaces and a capital (the
+  seed tags whose slug lost its accents have labels in the app until they are
+  moved to that file).
 
 ## Families
 

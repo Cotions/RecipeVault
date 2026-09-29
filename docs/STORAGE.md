@@ -41,6 +41,7 @@ Data splits by how it changes, because each kind wants a different format:
 │   ├── families.yaml                # family slug → { fr, en } labels, set on the family page
 │   ├── normalize.yaml               # plural rules for ingredient lookup
 │   ├── participles.yaml             # preparation words for W302
+│   ├── tag-labels.yaml              # tag slug → { fr, en } labels, set on /etiquettes
 │   ├── tags.yaml                    # canonical tags + aliases
 │   └── units.yaml                   # canonical units + aliases
 ├── prices.csv                       # append-only price history

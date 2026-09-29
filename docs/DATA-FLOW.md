@@ -147,6 +147,18 @@ and the push scheduled. A failed commit puts the file back. The watcher
 ignores the write by its hash, like a recipe save. A `families.yaml` that no
 longer reads as YAML is not overwritten: the page says to fix it first.
 
+### Pending tags
+
+`/etiquettes` (plan 04, Phase 8) lists the tags the index holds as pending,
+with their recipes, and settles each one in one commit by the signed-in person,
+hash-guarded on `vocab/tags.yaml` and `vocab/tag-labels.yaml` (one version
+string for both): "Nouvelle étiquette" (`tag: new <slug> → <label>`, both
+files), "C'est comme…" (`tag: <pending> → <canonical>`, `tags.yaml` alone),
+then a retag of the index. `tags.yaml` is edited as text, one line, so its
+comments and alignment stay. "Retirer" (`tag: drop <pending>`) rewrites every
+recipe holding the tag in one commit, guarded by each file's hash and by the
+set of recipes the page listed; a recipe with errors stops it.
+
 ### Ingredient edits: the resolve queue
 
 `/resoudre` (plan 03, Phase 3) lists every unresolved or ambiguous lookup key
@@ -296,7 +308,7 @@ and rebuilt (it is a cache). In outline:
 | `recipes` | recipe | the columns below, plus `data_json` (the parsed recipe, so a page renders without a disk read), `body_md`, `file_hash`, `uncertain` (count of `[?]`/`[?: …]`/`[illisible]`), `photo`, and `broken_json` while the file on disk fails the checker |
 | `problems` | file failing the checker | codes and paths; the file's last good `recipes` rows, if any, stay searchable |
 | `families` | family in use or in `vocab/families.yaml` | labels from the vocabulary; refreshed on every save, delete, restore, outside edit and sync |
-| `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten. A vocabulary change recomputes every row and the FTS `tags` column |
+| `tags` | recipe × tag | canonical via `vocab/tags.yaml` aliases at index time; unknown tags stored folded with `pending = 1`. The file is never rewritten (except by an explicit "Retirer" on `/etiquettes`). A vocabulary change recomputes every row and the FTS `tags` column |
 | `seasons` | recipe × season | canonical value (`printemps`, `ete`, `automne`, `hiver`); aliases from `VOCAB.md` mapped at index time |
 | `meta` | key | index bookkeeping: `tags_hash`, the hash of `vocab/tags.yaml` at the last retag; `registry_hash`, over every ingredient file's hash plus `vocab/normalize.yaml` and `vocab/allergens.yaml`; `prices_hash`, over `prices.csv` and the config's `currency` |
 | `ingredients` | ingredient item | `group_idx`, `group_name`, `group_optional`, `qty`, `qty_max` (numeric), `qty_s` (as written), `unit`, `name` (as written), `optional`, `to_taste`, `recipe` (sub-recipe slug), `buy_instead`, `key` (lookup key), `item` (registry slug, NULL when unresolved), `resolution` (`override`, `rule`, `alias`, `plural`, `none`, `ambiguous`, `recipe`; `INGREDIENTS.md` "Resolution") |

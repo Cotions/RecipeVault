@@ -11,7 +11,8 @@ export const fr = {
 			pantry: 'Garde-manger',
 			add: 'Ajouter',
 			trash: 'Corbeille',
-			queue: (n: number) => `À relier (${n})`
+			queue: (n: number) => `À relier (${n})`,
+			pendingTags: (n: number) => `Étiquettes (${n})`
 		},
 		skip: 'Aller au contenu'
 	},
@@ -112,6 +113,32 @@ export const fr = {
 			`Le nom montré partout pour cette famille. Les recettes gardent l’identifiant « ${slug} ». Laissez vide pour revenir au nom tiré de l’identifiant.`,
 		labelSave: 'Enregistrer le nom',
 		labelSaved: 'Nom de la famille enregistré.'
+	},
+	/** Pending tags, /etiquettes (plan 04, Phase 8; Q11 B). */
+	pendingTags: {
+		title: 'Étiquettes en attente',
+		intro: 'Des étiquettes écrites dans des recettes mais absentes du vocabulaire. Elles restent utilisables ; décidez pour chacune : en faire une étiquette, la relier à une étiquette existante, ou la retirer des recettes.',
+		empty: 'Aucune étiquette en attente : toutes les étiquettes des recettes sont dans le vocabulaire.',
+		recipes: (n: number) => (n === 1 ? '1 recette' : `${n} recettes`),
+		written: 'Écrite',
+		broken: 'fichier en erreur',
+		suggestion: (label: string) => `Proche de « ${label} »`,
+		accept: 'Nouvelle étiquette',
+		acceptHelp: (slug: string) => `Ajoutée au vocabulaire sous l’identifiant « ${slug} ». Les recettes ne changent pas.`,
+		acceptNoSlug: 'Cette étiquette n’a aucune lettre ou chiffre dont faire un identifiant : reliez-la ou retirez-la.',
+		label: 'Nom affiché',
+		acceptSave: 'Ajouter au vocabulaire',
+		map: 'C’est comme…',
+		mapHelp: 'Relier à une étiquette existante : les recettes la montreront sous ce nom. Les recettes ne changent pas.',
+		mapLabel: 'Étiquette existante',
+		mapSave: 'Relier',
+		drop: 'Retirer',
+		dropHelp: (n: number) =>
+			`Enlève cette étiquette de ${n === 1 ? 'la recette' : `ces ${n} recettes`}, en une seule modification. C’est la seule action qui change les recettes ; l’historique garde l’ancienne version.`,
+		dropSave: (n: number) => (n === 1 ? 'Retirer de la recette' : `Retirer des ${n} recettes`),
+		accepted: (label: string) => `« ${label} » est maintenant une étiquette du vocabulaire.`,
+		mapped: (tag: string, label: string) => `« ${tag} » est reliée à « ${label} ».`,
+		dropped: (tag: string, n: number) => `« ${tag} » a été retirée de ${n === 1 ? '1 recette' : `${n} recettes`}.`
 	},
 	queue: {
 		title: 'Ingrédients à relier',
@@ -638,7 +665,9 @@ export const fr = {
 export type Strings = typeof fr;
 export const t = fr;
 
-export function tagLabel(tag: string): string {
+/** A tag's display name: its label from vocab/tag-labels.yaml, else a seed label, else the slug with spaces. */
+export function tagLabel(tag: string, label?: string | null): string {
+	if (label) return label;
 	if (fr.tags[tag]) return fr.tags[tag];
 	const s = tag.replace(/-/g, ' ');
 	return s.charAt(0).toUpperCase() + s.slice(1);

@@ -33,16 +33,17 @@ export function cleanLabel(label: string): string {
  * `text` (the families file) with the French label of `slug` set, or removed
  * when `label` is empty — an entry left with no label is dropped. Comments and
  * other entries are kept; the top level is written in block style, each entry
- * in flow style (`lasagna: { fr: Lasagnes }`), like the seed.
+ * in flow style (`lasagna: { fr: Lasagnes }`), like the seed. `file` names
+ * the file in errors: tag labels (`vocab/tag-labels.yaml`) share the shape.
  */
-export function withLabel(text: string, slug: string, label: string): string {
+export function withLabel(text: string, slug: string, label: string, file = FAMILIES_FILE): string {
 	// Typed as a plain Document: nodes are added below.
 	const doc = parseDocument(text, { version: '1.2' }) as unknown as Document;
-	if (doc.errors.length) throw new FamilyLabelError(`${FAMILIES_FILE} ne se lit pas (YAML) ; corrigez-le d’abord.`);
+	if (doc.errors.length) throw new FamilyLabelError(`${file} ne se lit pas (YAML) ; corrigez-le d’abord.`);
 	if (doc.contents === null || (isScalar(doc.contents) && (doc.contents.value === null || doc.contents.value === '')))
 		doc.contents = doc.createNode({});
 	const root = doc.contents;
-	if (!isMap(root)) throw new FamilyLabelError(`${FAMILIES_FILE} n’est pas une liste de familles ; corrigez-le d’abord.`);
+	if (!isMap(root)) throw new FamilyLabelError(`${file} n’est pas une liste de noms ; corrigez-le d’abord.`);
 	root.flow = false;
 	const entry = root.get(slug, true);
 	if (isMap(entry)) {

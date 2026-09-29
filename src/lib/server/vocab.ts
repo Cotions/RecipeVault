@@ -1,5 +1,5 @@
 // The live vocabularies in the vault's vocab/ folder (docs/VOCAB.md): tag
-// aliases, family labels, the plural rules, the allergen list and the unit
+// aliases and labels, family labels, the plural rules, the allergen list and the unit
 // conversion factors. Read at index time; a missing or broken file
 // means an empty vocabulary, never a failed sync.
 
@@ -17,6 +17,8 @@ export interface VaultVocab {
 	/** Folded alias or canonical tag → canonical tag. */
 	tags: Map<string, string>;
 	families: Map<string, { fr?: string; en?: string }>;
+	/** vocab/tag-labels.yaml: canonical tag → display labels (a tag without one shows its slug). */
+	tagLabels: Map<string, { fr?: string; en?: string }>;
 	/** vocab/normalize.yaml: plural rules for ingredient lookup keys. */
 	normalize: NormalizeVocab;
 	/** vocab/allergens.yaml: allergen slug → labels. */
@@ -48,6 +50,7 @@ export function loadVocab(vocabDir: string): VaultVocab {
 	return {
 		tags,
 		families: labelMap(readYaml(join(vocabDir, 'families.yaml'))),
+		tagLabels: labelMap(readYaml(join(vocabDir, 'tag-labels.yaml'))),
 		normalize: parseNormalizeVocab(readYaml(join(vocabDir, 'normalize.yaml'))),
 		allergens: labelMap(readYaml(join(vocabDir, 'allergens.yaml'))),
 		conversions: loadConversions(vocabDir)

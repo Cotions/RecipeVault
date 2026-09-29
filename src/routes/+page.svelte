@@ -69,7 +69,7 @@
 			case 'family':
 				return familyLabel(value, data.familyLabels[value]);
 			case 'tags':
-				return tagLabel(value);
+				return tagLabel(value, data.tagLabels?.[value]);
 			case 'season':
 				return t.season[value] ?? value;
 			case 'time':
