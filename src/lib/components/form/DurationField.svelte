@@ -1,7 +1,7 @@
 <script lang="ts">
 	// One time of the recipe (plan 04, Phase 5.5): hours and minutes, and an
 	// optional "à" for a range. Numbers only; the file's format is the app's.
-	import type { FormDuration } from '$lib/form';
+	import type { DurationField, FormDuration } from '$lib/form';
 	import { durationText } from './formui';
 	import { form as f } from '$lib/i18n/fr-form';
 
@@ -10,9 +10,14 @@
 	// "à" asked for, or a maximum already there (also after the form is swapped: a draft resumed, their version taken).
 	let rangeAsked = $state(false);
 	const range = $derived(rangeAsked || d.maxHours !== null || d.maxMinutes !== null);
-	/** What she typed in each box, shown back while it is not a number. */
-	let typed = $state<Partial<Record<'hours' | 'minutes' | 'maxHours' | 'maxMinutes', string>>>({});
 	const num = (s: string): number | null => (s.trim() === '' ? null : /^\d+$/.test(s.trim()) ? Number(s) : NaN);
+	/** Set a box: a number, nothing, or (NaN) what she typed, kept in the form so a draft gives it back. */
+	function set(k: DurationField, text: string) {
+		const n = num(text);
+		d[k] = n;
+		const { [k]: _, ...rest } = d.typed ?? {};
+		d.typed = Number.isNaN(n) ? { ...rest, [k]: text } : Object.keys(rest).length ? rest : undefined;
+	}
 </script>
 
 <fieldset class="dur" aria-describedby={error ? `${id}-err` : undefined}>
@@ -27,8 +32,8 @@
 				class="btn quiet"
 				aria-label={f.rangeRemove}
 				onclick={() => {
-					d.maxHours = null;
-					d.maxMinutes = null;
+					set('maxHours', '');
+					set('maxMinutes', '');
 					rangeAsked = false;
 				}}>✕</button
 			>
@@ -47,11 +52,8 @@
 			inputmode="numeric"
 			autocomplete="off"
 			size="2"
-			value={durationText(d[h], typed[h])}
-			oninput={(e) => {
-				typed[h] = e.currentTarget.value;
-				d[h] = num(e.currentTarget.value);
-			}}
+			value={durationText(d[h], d.typed?.[h])}
+			oninput={(e) => set(h, e.currentTarget.value)}
 			aria-label="{label} {suffix ? f.range + ' ' : ''}{f.hoursLabel}"
 		/>
 		<span aria-hidden="true">{f.hours}</span>
@@ -63,11 +65,8 @@
 			inputmode="numeric"
 			autocomplete="off"
 			size="2"
-			value={durationText(d[m], typed[m])}
-			oninput={(e) => {
-				typed[m] = e.currentTarget.value;
-				d[m] = num(e.currentTarget.value);
-			}}
+			value={durationText(d[m], d.typed?.[m])}
+			oninput={(e) => set(m, e.currentTarget.value)}
 			aria-label="{label} {suffix ? f.range + ' ' : ''}{f.minutesLabel}"
 		/>
 		<span aria-hidden="true">{f.minutes}</span>

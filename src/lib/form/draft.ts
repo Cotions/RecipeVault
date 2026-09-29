@@ -3,6 +3,7 @@
 // opened again. Nothing goes to the server until she saves; a draft never
 // enters the vault or git. Browser-safe: the storage is passed in.
 
+import { reviveDuration } from './duration';
 import type { FormRecipe } from './model';
 
 export interface Draft {
@@ -34,6 +35,7 @@ export function loadDraft(storage: Storage, key: string): Draft | undefined {
 		if (!raw) return undefined;
 		const d = JSON.parse(raw) as Draft;
 		if (!d || typeof d !== 'object' || !d.form || d.form.version !== 1 || typeof d.at !== 'number') return undefined;
+		for (const t of Object.values(d.form.times ?? {})) if (t && typeof t === 'object') reviveDuration(t);
 		return d;
 	} catch {
 		return undefined;

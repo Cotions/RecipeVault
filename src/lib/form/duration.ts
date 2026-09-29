@@ -5,12 +5,27 @@ import { formatDuration } from '../vault/duration';
 import type { Duration } from '../vault/types';
 
 /** One time field of the form. `null` = left empty. */
+export type DurationField = 'hours' | 'minutes' | 'maxHours' | 'maxMinutes';
+export const DURATION_FIELDS: readonly DurationField[] = ['hours', 'minutes', 'maxHours', 'maxMinutes'];
+
 export interface FormDuration {
+	/** A box holding something that is not a number is NaN (it blocks Save); empty is null. */
 	hours: number | null;
 	minutes: number | null;
 	/** Upper bound of a range ("à"). */
 	maxHours: number | null;
 	maxMinutes: number | null;
+	/**
+	 * What she typed in a box that is not a number, shown back as typed. Kept
+	 * in the form so a draft gives it back: JSON turns the NaN into null
+	 * (`reviveDuration`). Absent when every box holds a number or nothing.
+	 */
+	typed?: Partial<Record<DurationField, string>>;
+}
+
+/** After a JSON round trip (a draft): a box with typed text and no number is NaN again, so it still blocks Save. */
+export function reviveDuration(d: FormDuration): void {
+	for (const k of DURATION_FIELDS) if (d.typed?.[k] !== undefined && d[k] === null) d[k] = NaN;
 }
 
 export const emptyDuration = (): FormDuration => ({ hours: null, minutes: null, maxHours: null, maxMinutes: null });

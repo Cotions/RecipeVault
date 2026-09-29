@@ -3,7 +3,7 @@
 // duration box that never shows "NaN". All content invented.
 
 import { describe, expect, it } from 'vitest';
-import { emptyForm, markedText } from '../../../src/lib/form';
+import { blocks as blocksOf, draftKey, emptyForm, formToDuration, loadDraft, markedText, saveDraft } from '../../../src/lib/form';
 import { blockText, blocksImplicitSubmit, draftDiffers, durationText, mergeBlocks, packDraft, reasonLine, unpackDraft, withAlternative } from '../../../src/lib/components/form/formui';
 import { explain } from '../../../src/lib/i18n/diagnostics';
 
@@ -50,6 +50,30 @@ describe('draft extras', () => {
 	it('drops a malformed pair from the device', () => {
 		const d = { ...packDraft(emptyForm(), { familyLabel: '', pair: null }, 1), pair: { slug: 3 } } as never;
 		expect(unpackDraft(d).pair).toBeNull();
+	});
+});
+
+describe('an invalid duration in a draft (issue #11)', () => {
+	const memory = (): Storage => {
+		const m = new Map<string, string>();
+		return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) } as Storage;
+	};
+
+	it('comes back as she typed it, and still blocks Save', () => {
+		const form = emptyForm();
+		form.title = 'Tarte inventée';
+		form.times.cook = { hours: 1, minutes: NaN, maxHours: null, maxMinutes: null, typed: { minutes: 'vingt' } };
+		const storage = memory();
+		saveDraft(storage, draftKey(), packDraft(form, { familyLabel: '', pair: null }, 1));
+		const back = loadDraft(storage, draftKey())!.form.times.cook;
+		expect(back.hours).toBe(1);
+		expect(Number.isNaN(back.minutes)).toBe(true);
+		expect(durationText(back.minutes, back.typed?.minutes)).toBe('vingt');
+		expect(formToDuration(back)).toEqual({ ok: false, reason: 'format' });
+		const resumed = emptyForm();
+		resumed.title = form.title;
+		resumed.times.cook = back;
+		expect(blocksOf(resumed).some((b) => b.field.startsWith('times'))).toBe(true);
 	});
 });
 

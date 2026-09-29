@@ -333,7 +333,8 @@ test('the draft banner holds the form until she answers; the draft keeps a new f
 	// Hours as "1,5": what she typed stays, never "NaN".
 	await page.locator('#time-cook-h').fill('1,5');
 	await expect(page.locator('#time-cook-h')).toHaveValue('1,5');
-	await page.locator('#time-cook-h').fill('');
+	// Kept in the draft as typed (issue #11): it comes back on resume, and still blocks Save.
+	await expect.poll(() => page.evaluate(() => localStorage.getItem('recipevault:draft::nouvelle') ?? '')).toContain('1,5');
 	await expect.poll(() => page.evaluate(() => localStorage.getItem('recipevault:draft::nouvelle') ?? '')).toContain(fam);
 
 	await page.reload();
@@ -343,6 +344,9 @@ test('the draft banner holds the form until she answers; the draft keeps a new f
 	await expect(page.getByTestId('form-body')).not.toHaveAttribute('inert');
 	await expect(page.getByTestId('family-name')).toHaveText(fam);
 	await expect(page.locator('#time-prep-max-m')).toHaveValue('30');
+	await expect(page.locator('#time-cook-h')).toHaveValue('1,5');
+	await expect(page.getByTestId('save')).toBeDisabled();
+	await page.locator('#time-cook-h').fill('');
 	await saveAndLand(page, slugOf(t));
 	expect(read(slugOf(t))).toContain('prep: 20m-30m');
 	expect(readFileSync(`${VAULT}/vocab/families.yaml`, 'utf8')).toContain(fam);
