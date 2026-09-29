@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { getApp } from '$lib/server/app';
+import { getApp, writeContext } from '$lib/server/app';
 import { loadVocab } from '$lib/server/vocab';
 import { addRule, createFromKey, linkKey, QueueError, resolveQueue, unlinkKey } from '$lib/server/queue';
 import { proposeSlug } from '$lib/ingredients/registry';
@@ -47,44 +47,44 @@ async function run(fn: () => Promise<string>) {
 }
 
 export const actions: Actions = {
-	link: async ({ request }) => {
+	link: async ({ request, locals }) => {
 		const app = getApp();
 		const f = await request.formData();
 		const key = str(f, 'key');
 		const slug = pickedSlug(str(f, 'slug'));
 		const hash = f.has('hash') ? str(f, 'hash') : undefined;
 		return run(async () => {
-			await linkKey(app.ctx, key, slug, hash);
+			await linkKey(writeContext(locals.user), key, slug, hash);
 			const name = (app.ctx.db.prepare('SELECT name FROM registry WHERE slug = ?').pluck().get(slug) as string | undefined) ?? slug;
 			return t.queue.linked(str(f, 'form'), name);
 		});
 	},
-	create: async ({ request }) => {
+	create: async ({ request, locals }) => {
 		const app = getApp();
 		const f = await request.formData();
 		return run(async () => {
-			const r = await createFromKey(app.ctx, str(f, 'key'), { slug: str(f, 'slug'), category: str(f, 'category'), staple: f.get('staple') === 'on' });
+			const r = await createFromKey(writeContext(locals.user), str(f, 'key'), { slug: str(f, 'slug'), category: str(f, 'category'), staple: f.get('staple') === 'on' });
 			return t.queue.created(r.slug);
 		});
 	},
-	unlink: async ({ request }) => {
+	unlink: async ({ request, locals }) => {
 		const app = getApp();
 		const f = await request.formData();
 		const slug = str(f, 'slug');
 		return run(async () => {
-			await unlinkKey(app.ctx, str(f, 'key'), slug, str(f, 'hash'));
+			await unlinkKey(writeContext(locals.user), str(f, 'key'), slug, str(f, 'hash'));
 			const name = (app.ctx.db.prepare('SELECT name FROM registry WHERE slug = ?').pluck().get(slug) as string | undefined) ?? slug;
 			return t.queue.removed(name);
 		});
 	},
-	rule: async ({ request }) => {
+	rule: async ({ request, locals }) => {
 		const app = getApp();
 		const f = await request.formData();
 		const slug = pickedSlug(str(f, 'slug'));
 		const unit = f.getAll('unit').map(String);
 		const words = str(f, 'words').split(',');
 		return run(async () => {
-			const r = await addRule(app.ctx, str(f, 'key'), slug, { unit, words, sameLang: f.get('lang') === 'on' }, f.has('hash') ? str(f, 'hash') : undefined);
+			const r = await addRule(writeContext(locals.user), str(f, 'key'), slug, { unit, words, sameLang: f.get('lang') === 'on' }, f.has('hash') ? str(f, 'hash') : undefined);
 			const name = (app.ctx.db.prepare('SELECT name FROM registry WHERE slug = ?').pluck().get(slug) as string | undefined) ?? slug;
 			return t.queue.ruled(str(f, 'form'), name, r.resolved);
 		});

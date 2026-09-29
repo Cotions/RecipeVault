@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { t, familyLabel } from '$lib/i18n/fr';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import CostLine from '$lib/components/CostLine.svelte';
@@ -150,12 +151,14 @@
 	</details>
 {/if}
 
-<details class="file no-print">
-	<summary>{t.recipe.file}</summary>
-	<p class="hint">{t.recipe.fileHelp}</p>
-	<button class="btn" type="button" onclick={copyFile}>{copied ? t.recipe.copied : t.recipe.copy}</button>
-	<pre><code>{data.file.text}</code></pre>
-</details>
+{#if page.data.user?.markdown}
+	<details class="file no-print">
+		<summary>{t.recipe.file}</summary>
+		<p class="hint">{t.recipe.fileHelp}</p>
+		<button class="btn" type="button" onclick={copyFile}>{copied ? t.recipe.copied : t.recipe.copy}</button>
+		<pre><code>{data.file.text}</code></pre>
+	</details>
+{/if}
 
 <style>
 	.banner {

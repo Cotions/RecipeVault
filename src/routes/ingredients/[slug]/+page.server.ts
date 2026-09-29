@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { getApp } from '$lib/server/app';
+import { getApp, writeContext } from '$lib/server/app';
 import { addAlias, editEntry, ingredientView, mergeEntry } from '$lib/server/ingredient';
 import { linkKey, QueueError } from '$lib/server/queue';
 import { ingredientPath } from '$lib/server/registry';
@@ -38,26 +38,26 @@ async function run(action: string, fn: () => Promise<string>) {
 }
 
 export const actions: Actions = {
-	alias: async ({ params, request }) => {
+	alias: async ({ params, request, locals }) => {
 		const f = await request.formData();
 		return run('alias', async () => {
-			await addAlias(getApp().ctx, params.slug, str(f, 'hash'), str(f, 'lang') as Lang, str(f, 'name'));
+			await addAlias(writeContext(locals.user), params.slug, str(f, 'hash'), str(f, 'lang') as Lang, str(f, 'name'));
 			return t.ingredient.nameAdded(str(f, 'name').replace(/\s+/g, ' '));
 		});
 	},
-	link: async ({ params, request }) => {
+	link: async ({ params, request, locals }) => {
 		const f = await request.formData();
 		return run('link', async () => {
-			await linkKey(getApp().ctx, str(f, 'key'), params.slug, str(f, 'hash'));
+			await linkKey(writeContext(locals.user), str(f, 'key'), params.slug, str(f, 'hash'));
 			return t.ingredient.linked(str(f, 'form'));
 		});
 	},
-	edit: async ({ params, request }) => {
+	edit: async ({ params, request, locals }) => {
 		const f = await request.formData();
 		const units = f.getAll('weight_unit').map(String);
 		const grams = f.getAll('weight_g').map(String);
 		return run('edit', async () => {
-			await editEntry(getApp().ctx, params.slug, str(f, 'hash'), {
+			await editEntry(writeContext(locals.user), params.slug, str(f, 'hash'), {
 				names: Object.fromEntries(NAME_LANGS.map((l) => [l, lines(str(f, `names_${l}`))])) as Record<Lang, string[]>,
 				category: str(f, 'category'),
 				defaultUnit: str(f, 'default_unit'),
@@ -71,7 +71,7 @@ export const actions: Actions = {
 			return t.ingredient.saved;
 		});
 	},
-	merge: async ({ params, request }) => {
+	merge: async ({ params, request, locals }) => {
 		const app = getApp();
 		const f = await request.formData();
 		const typed = str(f, 'into');
@@ -81,7 +81,7 @@ export const actions: Actions = {
 			typed;
 		const name = (app.ctx.db.prepare('SELECT name FROM registry WHERE slug = ?').pluck().get(params.slug) as string | undefined) ?? params.slug;
 		const r = await run('merge', async () => {
-			await mergeEntry(app.ctx, params.slug, into, str(f, 'hash'));
+			await mergeEntry(writeContext(locals.user), params.slug, into, str(f, 'hash'));
 			return t.ingredient.merged(name, into);
 		});
 		if ('ok' in r && r.ok) redirect(303, `/ingredients/${into}?fusion=${encodeURIComponent(params.slug)}`);

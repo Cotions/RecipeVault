@@ -44,7 +44,18 @@ npm run test:e2e       # Playwright, against a throwaway copy of the fixture vau
    `shops` adds shop names to the ones suggested when entering a price. See
    `docs/DEPLOY.md`.
 
-3. Run:
+3. Accounts (next to the config, in `users.json`; never in the vault). Reading
+   needs none; every change does, and is committed under that person's name:
+
+   ```sh
+   npx vault user add moi --name "Votre Nom" --email you@example.com --markdown
+   npx vault user add maman --name "Son Nom"
+   ```
+
+   `--markdown` shows that person the paste box, "Voir le fichier" and the
+   resolve queue.
+
+4. Run:
 
    ```sh
    npm run build && npm start      # production (bin/serve.js)
@@ -57,6 +68,10 @@ To try it on invented data instead of a real vault:
 npx tsx scripts/fixture-vault.ts /tmp/rv-demo 3399
 RECIPEVAULT_CONFIG=/tmp/rv-demo/config.json npm run dev
 ```
+
+It comes with two invented accounts (printed on creation): `proprio` /
+`proprio-mot-de-passe` (with the Markdown tools) and `cuisine` /
+`cuisine-mot-de-passe`.
 
 `--corpus` builds it from the invented card corpus instead (320 recipes, the
 seed ingredient registry and invented prices): realistic data for the resolve
@@ -82,6 +97,7 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 | `/garde-manger` | pantry search: what can I make with what I have — ready, with a substitution, almost, ideas |
 | `/ajouter` | the paste box: live checks, fix-request block, web import |
 | `/corbeille` | the trash, with restore |
+| `/connexion` | sign in ("Rester connectée" by default: a year, renewed on use); sign out from the header |
 
 ## The `vault` command
 
@@ -93,6 +109,10 @@ npx vault sync [--force]              # bring the index in line with the files
 npx vault reindex                     # delete the index and rebuild it
 npx vault stats                       # code frequency over the paste log
 npx vault queue [--limit N]           # ingredient names not linked to the registry, most frequent first
+npx vault user add <login> --name "<Nom>" [--email …] [--markdown]   # password asked twice, never an argument
+npx vault user passwd <login>         # new password; signs that account out everywhere
+npx vault user remove <login>         # delete the account, end its sessions
+npx vault user list                   # logins and names
 npx vault check recipe.md other.md    # check files
 npx vault check - < answer.txt        # a whole AI answer: every ```markdown fence is a file
 npx vault check --dir inbox/          # every .md in a folder, with a summary by code

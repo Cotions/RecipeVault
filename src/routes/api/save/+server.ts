@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { getApp } from '$lib/server/app';
+import { getApp, writeContext } from '$lib/server/app';
 import { savePaste, type Unsent } from '$lib/server/paste';
 import { SaveError, type SaveFile } from '$lib/server/save';
 import { SLUG_RE } from '$lib/vault/slug';
@@ -29,7 +29,7 @@ function validUnsent(u: unknown): u is Unsent {
 	);
 }
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json().catch(() => null);
 	if (!body || !Array.isArray(body.files) || !body.files.length || body.files.length > 50 || !body.files.every(valid))
 		error(400, 'files: { text, slug?, overwrite?, family? }[]');
@@ -37,7 +37,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!Array.isArray(unsent) || unsent.length > 50 || !unsent.every(validUnsent)) error(400, 'unsent: { codes: string[], slug?: string }[]');
 	const app = getApp();
 	try {
-		const result = await savePaste(app, body.files, unsent as Unsent[]);
+		const result = await savePaste(app, body.files, unsent as Unsent[], writeContext(locals.user).author);
 		return json(result);
 	} catch (e) {
 		if (e instanceof SaveError) error(500, e.message);

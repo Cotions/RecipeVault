@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { getApp } from '$lib/server/app';
+import { getApp, writeContext } from '$lib/server/app';
 import { listTrash, restore, TrashError } from '$lib/server/trash';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -9,10 +9,10 @@ export const load: PageServerLoad = ({ url }) => ({
 });
 
 export const actions: Actions = {
-	restore: async ({ request }) => {
+	restore: async ({ request, locals }) => {
 		const slug = String((await request.formData()).get('slug') ?? '');
 		try {
-			await restore(getApp().ctx, slug);
+			await restore(writeContext(locals.user), slug);
 		} catch (e) {
 			if (e instanceof TrashError) return fail(409, { ok: false, message: e.message, slug });
 			throw e;

@@ -7,13 +7,16 @@
 	let { children, data } = $props();
 
 	const kitchen = $derived(page.url.pathname.endsWith('/cuisine'));
+	const markdown = $derived(!!data?.user?.markdown);
+	const here = $derived(page.url.pathname + page.url.search);
 	const nav = $derived([
 		{ href: '/', label: t.app.nav.browse, match: (p: string) => p === '/' || p.startsWith('/r/') },
 		{ href: '/familles', label: t.app.nav.families, match: (p: string) => p.startsWith('/famille') },
 		{ href: '/ingredients', label: t.app.nav.ingredients, match: (p: string) => p.startsWith('/ingredients') },
 		{ href: '/garde-manger', label: t.app.nav.pantry, match: (p: string) => p === '/garde-manger' },
-		{ href: '/ajouter', label: t.app.nav.add, match: (p: string) => p === '/ajouter' },
-		...(data?.toResolve ? [{ href: '/resoudre', label: t.app.nav.queue(data.toResolve), match: (p: string) => p === '/resoudre' }] : []),
+		// The Markdown tools, for an account that asked for them (plan 04, Q2 B).
+		...(markdown ? [{ href: '/ajouter', label: t.app.nav.add, match: (p: string) => p === '/ajouter' }] : []),
+		...(markdown && data?.toResolve ? [{ href: '/resoudre', label: t.app.nav.queue(data.toResolve), match: (p: string) => p === '/resoudre' }] : []),
 		{ href: '/corbeille', label: t.app.nav.trash, match: (p: string) => p === '/corbeille' }
 	]);
 </script>
@@ -35,6 +38,16 @@
 					<a href={item.href} aria-current={item.match(page.url.pathname) ? 'page' : undefined}>{item.label}</a>
 				{/each}
 			</nav>
+			<div class="account">
+				{#if data?.user}
+					<span class="who" title={t.auth.signedInAs}>{data.user.name}</span>
+					<form method="POST" action="/connexion?/logout">
+						<button class="linkish" type="submit">{t.auth.signOut}</button>
+					</form>
+				{:else if page.url.pathname !== '/connexion'}
+					<a href={here === '/' ? '/connexion' : `/connexion?suite=${encodeURIComponent(here)}`}>{t.auth.signIn}</a>
+				{/if}
+			</div>
 		</div>
 	</header>
 	<main id="main">
@@ -94,6 +107,32 @@
 	nav a[aria-current='page'] {
 		color: var(--ink);
 		border-bottom-color: var(--ink);
+	}
+	.account {
+		margin-left: auto;
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+		font-size: 0.95rem;
+	}
+	.account form {
+		display: inline;
+	}
+	.who {
+		color: var(--ink);
+		font-weight: 600;
+	}
+	.account a,
+	.linkish {
+		color: var(--ink-soft);
+		font: inherit;
+		font-weight: 500;
+		background: none;
+		border: 0;
+		padding: 0.35rem 0;
+		cursor: pointer;
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
 	}
 	main {
 		max-width: 76rem;

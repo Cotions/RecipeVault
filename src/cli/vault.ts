@@ -32,6 +32,8 @@ import { loadCheckWords, loadVocab, seedCheckWords } from '../lib/server/vocab';
 import { resolveQueue } from '../lib/server/queue';
 import { priceProblems } from '../lib/server/prices';
 import { parsePrices, PRICES_FILE, type PriceProblem } from '../lib/ingredients/prices';
+import { SessionStore } from '../lib/server/sessions';
+import { addUser, assertOutsideVault, checkPassword, loadUsers, normalizeLogin, removeUser, setPassword, usersPath } from '../lib/server/users';
 
 const USAGE = `Usage:
   vault check <file...>          check files; '-' reads a paste from stdin
@@ -49,6 +51,12 @@ const USAGE = `Usage:
   vault reindex                  delete the index and rebuild it
   vault stats                    code frequency over the paste log
   vault queue [--limit N]        the resolve queue: unlinked ingredient names, most frequent first
+  vault user add <login> --name "<Nom>" [--email <e>] [--markdown]
+                                 create an account (password asked twice, never an argument);
+                                 --markdown shows the paste box, raw file and resolve queue
+  vault user passwd <login>      set a new password; signs that account out everywhere
+  vault user remove <login>      delete an account and end its sessions
+  vault user list                logins and names
         --vault <dir>            (add, sync, reindex, stats, ingredients, queue) instead of the config's vault
 
 Exit codes: 0 no errors (warnings allowed), 1 any error, 2 usage or IO failure.`;
@@ -68,6 +76,7 @@ async function main(argv: string[]): Promise<number> {
 		if (command === 'stats') return stats(rest);
 		if (command === 'ingredients') return await ingredients(rest);
 		if (command === 'queue') return queue(rest);
+		if (command === 'user') return await user(rest);
 		if (command === 'prompt') {
 			process.stdout.write(readPrompt());
 			return 0;
@@ -208,6 +217,130 @@ async function add(args: string[]): Promise<number> {
 	ctx.db.close();
 	console.log(`${plural(result.files.length, 'file')}: ${result.files.length - failed} saved, ${failed} not saved`);
 	return failed ? 1 : 0;
+}
+
+// --- vault user ---------------------------------------------------------------
+
+/**
+ * Accounts (plan 04, Phase 1): users.json next to the config file, never in the
+ * vault. Passwords are read from the terminal with echo off (from stdin, one
+ * per line, when it is not a terminal), never taken as an argument: an
+ * argument lands in the shell history and in `ps`.
+ */
+async function user(args: string[]): Promise<number> {
+	const [sub, ...rest] = args;
+	const configFile = findConfig();
+	if (!configFile) throw new Error('no config found: accounts live next to it (users.json). Create the config first (docs/DEPLOY.md).');
+	const config = loadConfig();
+	const file = usersPath(configFile);
+	assertOutsideVault(file, config.vaultDirectory);
+	const opts: Record<string, string | true> = {};
+	const pos: string[] = [];
+	for (let i = 0; i < rest.length; i++) {
+		const a = rest[i];
+		if (a === '--markdown') opts.markdown = true;
+		else if (a === '--name' || a === '--email') {
+			const v = rest[++i];
+			if (v === undefined) throw new UsageError(`${a} needs a value`);
+			opts[a.slice(2)] = v;
+		} else if (a.startsWith('--')) throw new UsageError(`unknown option ${a}`);
+		else pos.push(a);
+	}
+	/** End the account's sessions in the running app's store (cache/sessions.db), when there is one. */
+	const signOut = (login: string) => {
+		const db = join(config.vaultDirectory, 'cache', 'sessions.db');
+		if (!existsSync(db)) return 0;
+		const store = new SessionStore(db);
+		try {
+			return store.revokeLogin(login);
+		} finally {
+			store.close();
+		}
+	};
+	if (sub === 'list') {
+		if (pos.length || Object.keys(opts).length) throw new UsageError('usage: vault user list');
+		const users = loadUsers(file);
+		if (!users.length) console.log(`no accounts in ${file}`);
+		for (const u of users) console.log(`${u.login.padEnd(16)} ${u.name}${u.markdown ? dim('  (markdown)') : ''}`);
+		return 0;
+	}
+	if (pos.length !== 1) throw new UsageError(`usage: vault user ${sub ?? '<add|passwd|remove|list>'} <login>`);
+	const login = normalizeLogin(pos[0]);
+	if (sub === 'add') {
+		if (typeof opts.name !== 'string') throw new UsageError('vault user add needs --name "<Nom>" (shown in the app and in git history)');
+		if (loadUsers(file).some((u) => u.login === login)) throw new Error(`an account "${login}" already exists`);
+		const password = await newPassword();
+		const u = await addUser(file, { login, name: opts.name, email: typeof opts.email === 'string' ? opts.email : undefined, markdown: opts.markdown === true, password });
+		console.log(`account ${u.login} (${u.name}) added to ${file}`);
+		return 0;
+	}
+	if (Object.keys(opts).length) throw new UsageError(`vault user ${sub} takes no options`);
+	if (sub === 'passwd') {
+		if (!loadUsers(file).some((u) => u.login === login)) throw new Error(`no account "${login}"`);
+		await setPassword(file, login, await newPassword());
+		const n = signOut(login);
+		console.log(`password of ${login} changed${n ? `; ${plural(n, 'session')} ended` : ''}`);
+		return 0;
+	}
+	if (sub === 'remove') {
+		removeUser(file, login);
+		const n = signOut(login);
+		console.log(`account ${login} removed${n ? `; ${plural(n, 'session')} ended` : ''}`);
+		return 0;
+	}
+	throw new UsageError(`unknown: vault user ${sub ?? ''}`);
+}
+
+/** A new password, typed twice. */
+async function newPassword(): Promise<string> {
+	const read = process.stdin.isTTY ? hiddenLine : pipedLine;
+	const a = await read('Mot de passe : ');
+	checkPassword(a);
+	const b = await read('Encore une fois : ');
+	if (a !== b) throw new Error('the two passwords differ; nothing changed');
+	return a;
+}
+
+let piped: string[] | undefined;
+/** Not a terminal (a script, a test): one password per line of stdin. */
+async function pipedLine(): Promise<string> {
+	if (!piped) {
+		const chunks: Buffer[] = [];
+		for await (const c of process.stdin) chunks.push(c as Buffer);
+		piped = Buffer.concat(chunks).toString('utf8').split(/\r?\n/);
+	}
+	const line = piped.shift();
+	if (line === undefined) throw new Error('no password on stdin');
+	return line;
+}
+
+/** A line typed with echo off. */
+function hiddenLine(prompt: string): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const stdin = process.stdin;
+		process.stderr.write(prompt);
+		stdin.setRawMode(true);
+		stdin.resume();
+		stdin.setEncoding('utf8');
+		let buf = '';
+		const done = (err?: Error) => {
+			stdin.setRawMode(false);
+			stdin.pause();
+			stdin.removeListener('data', onData);
+			process.stderr.write('\n');
+			if (err) reject(err);
+			else resolve(buf);
+		};
+		const onData = (chunk: string) => {
+			for (const ch of chunk) {
+				if (ch === '\r' || ch === '\n') return done();
+				if (ch === '\u0003') return done(new Error('cancelled'));
+				if (ch === '\u007f' || ch === '\b') buf = [...buf].slice(0, -1).join('');
+				else if (ch >= ' ') buf += ch;
+			}
+		};
+		stdin.on('data', onData);
+	});
 }
 
 function queue(args: string[]): number {

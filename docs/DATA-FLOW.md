@@ -401,7 +401,7 @@ outside over a WireGuard or Tailscale tunnel. That removes the public attack
 surface entirely and makes the in-app auth a convenience rather than the only
 thing standing between the vault and the internet.
 
-**Decided (plan 02): LAN plus Tailscale, no login in P1.** The app listens on the
+**Decided (plan 02): LAN plus Tailscale, no login in P1** (accounts: plan 04, below). The app listens on the
 home network; outside access and HTTPS come from `tailscale serve`
 (`docs/DEPLOY.md`). Until accounts arrive in P2, every commit is attributed to
 `git_author` from the config. What P1 still guarantees: the vault folder, `.git`
@@ -416,3 +416,42 @@ carry a `Host` the app is served on, else `421`: `localhost`, any IP literal
 (v4 or v6 — rebinding needs a name), the machine's own name and `<name>.local`,
 any `*.ts.net` name (Tailscale's DNS, not the attacker's), and the names listed
 in the config's `hosts` (`DEPLOY.md`).
+
+**Decided (plan 04, Q1 A, Q2 B): an account per person, reading open, every
+write signed in.** Accounts are made by the owner (`vault user add`, stored in
+`users.json` beside the config, `STORAGE.md` §Accounts); passwords are argon2id.
+Each request, in this order (`src/hooks.server.ts`):
+
+1. the host allowlist (`421`), then the Origin check on anything but
+   GET/HEAD/OPTIONS (`403`) — both before the cookie is even read, so a
+   cross-site POST carrying a valid session is still refused;
+2. the session cookie → the signed-in person (`locals.user`), or nobody. A
+   session whose account was removed, or whose password changed since sign-in,
+   ends here;
+3. the guard: GET/HEAD/OPTIONS pass (browse, recipe page, kitchen mode, pantry
+   search, the family and ingredient pages, the trash list), except pages that
+   exist only to write (`/ajouter`), which send to `/connexion`. Every other
+   method needs a session, with no list of write routes to keep in sync: an API
+   call answers `401`; a form action goes to `/connexion?suite=<page>` (a 303,
+   or SvelteKit's JSON redirect for an enhanced form). The sign-in page's own
+   actions are the only exception.
+
+Every write then commits as the signed-in person (`withAuthor(ctx, user)`,
+author and committer both); the CLI and the watcher's `edit (external)`
+commits keep `git_author`. Rights are the same for every account (Q2 B); the
+per-account `markdown` preference only shows or hides the Markdown tools.
+
+Sign-in (`/connexion`): login and password; "Rester connectée sur cet appareil",
+checked by default, gives a cookie of one year renewed on use (at most once a
+day), unchecked a browser-session cookie (a day on the server, renewed on use).
+The same answer, after the same argon2id work, for an unknown login and a wrong
+password. After 5 failures for a login, or from an address, one try per 30 s per
+key, said in words; a failure is counted before the password check so parallel
+tries cannot slip through, a success clears the count, an hour of quiet forgets
+it. Behind `tailscale serve` every request comes from loopback, so the address
+is the proxy's `X-Forwarded-For` — believed only from loopback. The session
+token is 32 random bytes, stored as its sha256 (`cache/sessions.db`). The cookie
+is `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` when the request came over
+HTTPS (`DEPLOY.md` §4: `X-Forwarded-Proto` from `tailscale serve`). "Se
+déconnecter" ends the device's session; `vault user passwd` and `vault user
+remove` end all of the account's.

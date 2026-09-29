@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { STATE } from './tests/e2e/state';
 
 // End-to-end tests against the built app and a throwaway copy of the
 // invented fixture vault (tests/e2e/serve.ts). Screenshots stay in /tmp.
@@ -16,9 +17,16 @@ export default defineConfig({
 		trace: 'off'
 	},
 	projects: [
-		{ name: 'desktop', use: { ...devices['Desktop Chrome'], permissions: ['clipboard-read', 'clipboard-write'] }, testIgnore: /kitchen/ },
-		{ name: 'phone', use: { ...devices['Pixel 7'] }, testMatch: /kitchen/ },
-		{ name: 'tablet', use: { ...devices['Galaxy Tab S9'] }, testMatch: /kitchen/ }
+		// Signs the invented owner account in once; the other projects start signed in (plan 04, Phase 1).
+		{ name: 'setup', testMatch: /auth\.setup\.ts/ },
+		{
+			name: 'desktop',
+			use: { ...devices['Desktop Chrome'], permissions: ['clipboard-read', 'clipboard-write'], storageState: STATE },
+			testIgnore: /kitchen|auth\.spec/,
+			dependencies: ['setup']
+		},
+		{ name: 'phone', use: { ...devices['Pixel 7'], storageState: STATE }, testMatch: /kitchen|auth\.spec/, dependencies: ['setup'] },
+		{ name: 'tablet', use: { ...devices['Galaxy Tab S9'], storageState: STATE }, testMatch: /kitchen/, dependencies: ['setup'] }
 	],
 	webServer: {
 		command: `npm run build && npx tsx tests/e2e/serve.ts ${PORT}`,

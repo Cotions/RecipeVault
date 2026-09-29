@@ -51,6 +51,7 @@ Data splits by how it changes, because each kind wants a different format:
 ├── _trash/                          # soft-deleted recipes AND their media folder
 ├── cache/                           # DELETABLE. excluded from git and backup
 │   ├── index.db                     # SQLite search/filter index
+│   ├── sessions.db                  # sign-in sessions (hashed tokens); its own file, see Accounts
 │   └── img/                         # thumbnails + web-friendly copies
 ├── .obsidian/                       # only if opened in Obsidian; optional
 ├── .gitignore                       # written by `vault init`: media/ _trash/*/ cache/ inbox/ .obsidian/workspace*.json
@@ -62,7 +63,7 @@ Outside the vault, next to the config:
 ```
 ~/.config/recipevault/
 ├── config.json                      # vault_directory, port, git, currency, locale, shops
-└── users.json                       # accounts, argon2id hashes
+└── users.json                       # accounts, argon2id hashes (0600; `vault user …`)
 ```
 
 ## Decisions and why
@@ -225,8 +226,8 @@ Short, and it survives a slug rename untouched because it is relative.
 ### SQLite is a cache, and lives in `cache/`
 
 `cache/index.db` holds the search, filter, pantry, and cost indexes. Deleting all of
-`cache/` loses nothing: `vault sync` rebuilds it from text files, and thumbnails
-regenerate on demand. It is excluded from both git and backup — backing up a cache
+`cache/` loses nothing but sign-ins (`sessions.db`, see Accounts): `vault sync`
+rebuilds it from text files, and thumbnails regenerate on demand. It is excluded from both git and backup — backing up a cache
 wastes space and, worse, a restored stale index can disagree with restored files.
 
 ### Accounts are not vault data
@@ -236,6 +237,33 @@ config, not in the vault. The vault's git repo is pushed to GitHub; password
 hashes, even private and hashed, do not belong in a remote whose purpose is sharing
 recipe history. Sessions are in memory or in the cache: losing them costs a re-login,
 nothing else.
+
+**Decided (plan 04, Phase 1).** `users.json` is found next to whichever config
+file was read (`dirname(config)/users.json`); the app and `vault user` refuse to
+use one inside the vault folder. Written by `vault user add | passwd | remove`
+only, atomically (temp file + rename), mode `0600`:
+
+```json
+{ "users": [
+  { "login": "maman", "name": "Son Nom", "hash": "$argon2id$v=19$m=65536,t=3,p=1$…$…" },
+  { "login": "moi", "name": "Votre Nom", "email": "you@example.com", "markdown": true, "hash": "…" }
+] }
+```
+
+`login`: lowercase letters, digits, `. _ -`. `name` is the git author name;
+`email` the git author email (absent: `<login>@recipevault.invalid`).
+`markdown: true` shows the paste box, "Voir le fichier" and the resolve queue
+(plan 04, Q2 B: one level of rights, the server allows every write to every
+account). `hash` is argon2id (node:crypto) as a PHC string holding its own
+parameters (64 MiB, 3 passes, 1 lane today), so they can be raised without
+invalidating older hashes. The app rereads the file when it changes.
+
+Sessions are in `cache/sessions.db`, a SQLite file of its own so that an index
+rebuild (`index.db` dropped on a schema change) signs nobody out. A row holds the
+sha256 of the 32-byte random token (the token itself exists only in the
+browser's cookie), the login, a fingerprint of the account's password hash
+(a password change ends older sessions even if the database was not reachable),
+and the expiry. Deleting `cache/` signs everyone out, nothing else.
 
 ## Obsidian compatibility
 

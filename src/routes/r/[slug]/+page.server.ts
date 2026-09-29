@@ -1,5 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { getApp } from '$lib/server/app';
+import { getApp, writeContext } from '$lib/server/app';
 import { loadRecipePage } from '$lib/server/pages';
 import { verify, VerifyError } from '$lib/server/save';
 import { remove, TrashError } from '$lib/server/trash';
@@ -13,20 +13,20 @@ export const load: PageServerLoad = ({ params }) => {
 };
 
 export const actions: Actions = {
-	verify: async ({ params, request }) => {
+	verify: async ({ params, request, locals }) => {
 		const hash = String((await request.formData()).get('hash') ?? '');
 		try {
-			await verify(getApp().ctx, params.slug, hash);
+			await verify(writeContext(locals.user), params.slug, hash);
 		} catch (e) {
 			if (e instanceof VerifyError) return fail(409, { action: 'verify', ok: false, message: e.message });
 			throw e;
 		}
 		return { action: 'verify', ok: true, message: t.recipe.verified };
 	},
-	remove: async ({ params, request }) => {
+	remove: async ({ params, request, locals }) => {
 		const hash = String((await request.formData()).get('hash') ?? '');
 		try {
-			await remove(getApp().ctx, params.slug, hash);
+			await remove(writeContext(locals.user), params.slug, hash);
 		} catch (e) {
 			if (e instanceof TrashError) return fail(409, { action: 'remove', ok: false, message: e.message });
 			throw e;

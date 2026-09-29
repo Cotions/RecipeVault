@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { getApp } from '$lib/server/app';
+import { getApp, writeContext } from '$lib/server/app';
 import { ingredientIndex, INDEX_SORTS, type IndexSort } from '$lib/server/ingredients';
 import { appendPrice, knownShops, PriceError, priceProblems } from '$lib/server/prices';
 import { today } from '$lib/ingredients/prices';
@@ -49,12 +49,12 @@ const num = (f: FormData, k: string) => {
 };
 
 export const actions: Actions = {
-	price: async ({ request }) => {
+	price: async ({ request, locals }) => {
 		const app = getApp();
 		const f = await request.formData();
 		const slug = str(f, 'slug');
 		try {
-			const { row } = await appendPrice(app.ctx, {
+			const { row } = await appendPrice(writeContext(locals.user), {
 				ingredient: slug,
 				amount: num(f, 'amount'),
 				packQty: num(f, 'pack_qty'),

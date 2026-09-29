@@ -516,6 +516,22 @@ export const fr = {
 		vaultHint:
 			'Corrigez le fichier dans le coffre (éditeur de texte ou Obsidian), ou faites-le corriger par l’IA et collez le résultat dans Ajouter en choisissant « Remplacer ». La page suit d’elle-même.'
 	},
+	/** Sign-in and the nav's account entries (plan 04, Phase 1). */
+	auth: {
+		title: 'Connexion',
+		intro: 'Tout le monde peut lire les recettes. Pour en ajouter, en modifier ou en supprimer, connectez-vous : chaque changement est noté à votre nom.',
+		login: 'Identifiant',
+		password: 'Mot de passe',
+		stay: 'Rester connectée sur cet appareil',
+		submit: 'Se connecter',
+		signIn: 'Se connecter',
+		signOut: 'Se déconnecter',
+		bad: 'Identifiant ou mot de passe incorrect.',
+		wait: (s: number) => `Trop d’essais manqués. Attendez ${s} secondes avant de réessayer.`,
+		signedIn: (name: string) => `Session ouverte : ${name}.`,
+		signedInAs: 'Session de',
+		noAccount: 'Pas encore de compte ? Le propriétaire en crée un avec « vault user add ».'
+	},
 	trash: {
 		title: 'Corbeille',
 		intro: 'Les recettes supprimées restent ici, avec leurs photos, jusqu’à ce qu’on les restaure.',

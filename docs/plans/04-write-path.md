@@ -290,6 +290,49 @@ allowlist and the Origin check still come first (a cross-site POST with a valid
 cookie is still 403). E2E: sign in on the phone project, the name shows, sign
 out.
 
+**Done — decisions.**
+- **Q2 B in `users.json`:** `markdown: true` replaces the `role` of the sketch
+  above (no roles under Q2 B). It shows "Ajouter" (paste box), "À relier"
+  (resolve queue) in the nav and "Voir le fichier" on the recipe page; the server
+  allows every write to every account. `vault user add … --markdown`; no command
+  to flip it later (remove and add, or edit the file).
+- **Guard = deny by default.** Every method but GET/HEAD/OPTIONS needs a
+  session, `/connexion`'s actions excepted — no list of write routes, so a new
+  one is guarded without thinking about it. That includes `/api/check`,
+  `/api/import` (a server-side fetch) and `/api/pastelog`, used only by the
+  paste box, which itself needs a session (`/ajouter` GET → `/connexion`). A
+  form action goes to `/connexion?suite=<page>` (303, or SvelteKit's JSON
+  redirect for `use:enhance`, by throwing `redirect` in the hook); `api/` → 401.
+  Routes take their write context from `writeContext(locals.user)`, which
+  throws on a missing user rather than fall back to `git_author`.
+- **HTTPS detection:** adapter-node reports every request as `https:` without
+  `ORIGIN`/`PROTOCOL_HEADER`, so `url.protocol` is useless; `Secure` follows
+  `X-Forwarded-Proto: https` alone. Checked in Tailscale's source
+  (`ipn/ipnlocal/serve.go`, `addProxyForwardedHeaders`): `tailscale serve` sets
+  it only on a TLS connection, keeps the `*.ts.net` `Host`, and sets
+  `X-Forwarded-For` to the tailnet peer (its Go `ReverseProxy` with `Rewrite`
+  drops client-sent `X-Forwarded-*`). A forged header on LAN HTTP only yields a
+  cookie the forger's browser refuses. Recorded in `DEPLOY.md` §4.
+- **Throttle address:** `X-Forwarded-For` believed only from a loopback socket
+  (the `tailscale serve` case); otherwise the socket address. A failure is
+  counted before the argon2id check (a parallel burst gets 5 tries, not 50).
+  In memory: a restart resets it.
+- **Sessions:** "Rester connectée" unchecked → browser-session cookie, one day
+  on the server, renewed on use. Each session stores a fingerprint of the
+  password hash, so `vault user passwd` ends older sessions even when it could
+  not open `sessions.db`; `passwd` and `remove` also delete the rows. An
+  unknown login verifies against a decoy argon2id hash (same time, same message).
+  Password: 8 characters at least.
+- **Not done:** no `__Host-` cookie prefix (the name would differ between LAN
+  HTTP and HTTPS; the only other sites under the tailnet's `ts.net` name are
+  the owner's own machines). No in-app password change (not in the plan; `vault
+  user passwd`).
+- **E2E:** a `setup` project signs the invented owner in and saves
+  `storageState` (`/tmp/rv-e2e-auth/owner.json`); every project starts signed
+  in. `auth.spec.ts` (phone, signed out) and `guard.spec.ts` (every write
+  route refused signed out, cross-site 403 with a valid cookie, `421` host,
+  commits attributed).
+
 ### Phase 2 — the form model (browser-safe, no UI)
 
 Depends on: Q4, Q5, Q6, Q7, Q15.

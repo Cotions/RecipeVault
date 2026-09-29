@@ -3,7 +3,10 @@
 declare global {
 	namespace App {
 		// interface Error {}
-		// interface Locals {}
+		interface Locals {
+			/** The signed-in person, null when signed out (plan 04, Phase 1). */
+			user: import('$lib/server/auth').SignedIn | null;
+		}
 		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}

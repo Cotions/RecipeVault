@@ -1,5 +1,6 @@
-import type { Handle, ServerInit } from '@sveltejs/kit';
+import { json, redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { getApp, startApp } from '$lib/server/app';
+import { currentUser, guard } from '$lib/server/auth';
 import { hostAllowed } from '$lib/server/hosts';
 
 // Fail at startup, with the config's own message, rather than on the first page.
@@ -31,6 +32,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (!hostAllowed(event.request.headers.get('host'), getApp().config.hosts))
 		return new Response('Unknown host: add it to "hosts" in the RecipeVault config.', { status: 421 });
 	if (crossSite(event.request)) return new Response('Cross-site request refused', { status: 403 });
+	// Then who is asking (plan 04, Phase 1), and whether that may write (Q1 A: reads are open, every write needs a session).
+	const app = getApp();
+	event.locals.user = currentUser(app.auth, event.cookies, event.request.headers);
+	const g = guard(event.request.method, event.url, !!event.locals.user);
+	if (g === 'unauthorized') return json({ message: 'Connexion requise.' }, { status: 401 });
+	if (g !== 'pass') redirect(303, g.login);
 	const response = await resolve(event);
 	response.headers.set('X-Content-Type-Options', 'nosniff');
 	response.headers.set('Referrer-Policy', 'same-origin');
