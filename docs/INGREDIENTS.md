@@ -120,7 +120,8 @@ A new vault starts with a seed registry (plan 03, Q5): `docs/INGREDIENTS-SEED.ya
 a couple of hundred common entries with staples, categories, densities for flours
 and sugars, per-unit weights, and the Québec names as aliases. `vault init`
 writes it; `vault ingredients seed` adds the missing entries (and the
-`vocab/normalize.yaml`, `vocab/allergens.yaml` and `vocab/conversions.yaml`
+`vocab/normalize.yaml`, `vocab/allergens.yaml`, `vocab/conversions.yaml`,
+`vocab/participles.yaml`, `vocab/descriptors.yaml` and `vocab/brands.yaml`
 files an older vault lacks) to
 an existing vault without touching an entry already there. It is data, like the
 vocabulary seed: the resolve queue then starts with the long tail, not with
