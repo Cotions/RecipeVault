@@ -21,7 +21,7 @@
 
 <script lang="ts">
 	// The recipe form (plan 04, Phases 4–5): a new recipe (/nouvelle) or an
-	// edit (/r/[slug]/modifier). She never sees Markdown, YAML or marker
+	// edit (/r/<slug>/modifier). She never sees Markdown, YAML or marker
 	// syntax; invalid states are prevented field by field and Save says what
 	// is missing. One request saves; the toast offers "Annuler". The form state
 	// is kept on the device while she types (Q17 A); a stale save shows both

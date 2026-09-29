@@ -33,7 +33,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (!hostAllowed(event.request.headers.get('host'), getApp().config.hosts))
 		return new Response('Unknown host: add it to "hosts" in the RecipeVault config.', { status: 421 });
 	if (crossSite(event.request)) return new Response('Cross-site request refused', { status: 403 });
-	// A `[slug]` that is not a slug (`..%2F..%2Fx`) matches no page: nothing downstream sees it.
+	// Every slug route is `[slug=slug]`, so a param that is not a slug (`..%2F..%2Fx`) matches no page;
+	// this check stays as defense in depth, for a route added later without the matcher.
 	if (event.params.slug !== undefined && !isSlug(event.params.slug)) return new Response('Not found', { status: 404 });
 	// Then who is asking (plan 04, Phase 1), and whether that may write (Q1 A: reads are open, every write needs a session).
 	const app = getApp();

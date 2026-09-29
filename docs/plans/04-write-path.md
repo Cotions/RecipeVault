@@ -1369,6 +1369,9 @@ Items of issue #11 (the two perf items went to a separate pass).
   line; the four times went three and one held sideways — now two by two.
   Seen and left: the row tools (↑ ↓ ✕) keep 44 px targets, so a long name
   scrolls in its box in portrait.
+- **`[slug=slug]` routes.** `r/`, `famille/`, `ingredients/` and `media/`
+  take the matcher of `src/params/slug.ts`; the hook's 404 for a param that is
+  not a slug stays, for a route added later without it.
 
 ## Out of scope
 
