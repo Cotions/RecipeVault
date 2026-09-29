@@ -23,7 +23,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkBatch, checkFile, hasErrors } from '../vault/check';
 import { stripMarkers } from '../vault/markers';
-import { editDistance, fold } from '../vault/normalize';
+import { fold, withinDistance } from '../vault/normalize';
+import { normTitle } from '../vault/rules/batch';
 import { serialize } from '../vault/serialize';
 import { isSlug, slugify } from '../vault/slug';
 import type { Diagnostic, Recipe } from '../vault/types';
@@ -216,20 +217,23 @@ function pairEdit(ctx: VaultContext, pair: FormPair, family: string, today: stri
 // ---------------------------------------------------------------------------
 // Hints (Q9 A): the vault's warnings, mapped to the form's fields.
 
-/** Folded title, markers out: how W503 / W608 compare titles. */
-const normTitle = (t: string) => fold(stripMarkers(t));
-
 /** Vault recipes with the same or a near-identical title (W608 / W503), this one left out. */
 export function titleMatches(ctx: VaultContext, title: string, own?: string): { same: { slug: string; title: string; hash: string; family: string | null }[]; near: { slug: string; title: string }[] } {
 	const t = normTitle(title);
 	const same: { slug: string; title: string; hash: string; family: string | null }[] = [];
 	const near: { slug: string; title: string }[] = [];
 	if (!t) return { same, near };
-	for (const r of ctx.db.prepare('SELECT slug, title, family, file_hash FROM recipes').all() as { slug: string; title: string; family: string | null; file_hash: string }[]) {
+	const rows = indexMemo(ctx.db, 'titleMatches', () =>
+		(ctx.db.prepare('SELECT slug, title, family, file_hash FROM recipes').all() as { slug: string; title: string; family: string | null; file_hash: string }[]).map((r) => ({
+			...r,
+			norm: normTitle(r.title)
+		}))
+	);
+	for (const r of rows) {
 		if (r.slug === own) continue;
-		const u = normTitle(r.title);
+		const u = r.norm;
 		if (u === t) same.push({ slug: r.slug, title: stripMarkers(r.title), hash: r.file_hash, family: r.family });
-		else if (editDistance(t, u) <= 2) near.push({ slug: r.slug, title: stripMarkers(r.title) });
+		else if (withinDistance(t, u, 2)) near.push({ slug: r.slug, title: stripMarkers(r.title) });
 	}
 	return { same, near };
 }
@@ -247,7 +251,13 @@ function targetOf(path: string | null, ids: Record<string, string>): string {
  * warnings (W302 / W304 / W607) are computed live in the browser from the same
  * word lists and left out here; errors never become hints.
  */
-export function hintsFrom(ctx: VaultContext, diagnostics: Diagnostic[], ids: Record<string, string>, recipe: Recipe): FormHint[] {
+export function hintsFrom(
+	ctx: VaultContext,
+	diagnostics: Diagnostic[],
+	ids: Record<string, string>,
+	recipe: Recipe,
+	matches?: ReturnType<typeof titleMatches>
+): FormHint[] {
 	const out: FormHint[] = [];
 	const vocab = loadVocab(ctx.paths.vocab);
 	const seen = new Set<string>();
@@ -272,7 +282,7 @@ export function hintsFrom(ctx: VaultContext, diagnostics: Diagnostic[], ids: Rec
 			}
 			case 'W503':
 			case 'W608': {
-				const m = titleMatches(ctx, recipe.title, recipe.slug);
+				const m = (matches ??= titleMatches(ctx, recipe.title, recipe.slug));
 				const list = d.code === 'W608' ? m.same : m.near;
 				for (const r of list) out.push({ code: d.code, target: 'recipe', field: 'title', value: r.title, slug: r.slug });
 				break;
@@ -314,7 +324,9 @@ export function formCheck(
 	const f = checked.files[0];
 	const diagnostics = [...f.diagnostics];
 	if (f.recipe) diagnostics.push(...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, f.recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, f.recipe));
-	return { hints: hintsFrom(ctx, diagnostics, ids, recipe), errors: checkerBlocks(f.diagnostics.filter((d) => d.code !== 'E103'), ids), same: titleMatches(ctx, recipe.title, base?.slug).same };
+	// One title walk for the hints and `same` (the recipe's slug is base.slug on an edit; a new recipe's is in no row).
+	const matches = titleMatches(ctx, recipe.title, base?.slug);
+	return { hints: hintsFrom(ctx, diagnostics, ids, recipe, matches), errors: checkerBlocks(f.diagnostics.filter((d) => d.code !== 'E103'), ids), same: matches.same };
 }
 
 // ---------------------------------------------------------------------------

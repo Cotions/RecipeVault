@@ -27,12 +27,33 @@ export interface VaultVocab {
 	conversions: Conversions;
 }
 
+/** Parsed vocab files by path, with the text they were parsed from: a file is re-parsed only when its text changes. */
+const parsed = new Map<string, { text: string; data: unknown }>();
+
+/**
+ * A vocab file, parsed (YAML 1.2); missing or broken: undefined. Read every
+ * time (a few small files), parsed only when the text differs from the last
+ * read, as the form's live check and every save load the vocabularies
+ * several times. The parsed value is shared: callers only read it.
+ */
 function readYaml(file: string): unknown {
+	let text: string;
 	try {
-		return parse(readFileSync(file, 'utf8'), { version: '1.2' });
+		text = readFileSync(file, 'utf8');
 	} catch {
+		parsed.delete(file);
 		return undefined;
 	}
+	const hit = parsed.get(file);
+	if (hit && hit.text === text) return hit.data;
+	let data: unknown;
+	try {
+		data = parse(text, { version: '1.2' });
+	} catch {
+		data = undefined;
+	}
+	parsed.set(file, { text, data });
+	return data;
 }
 
 const isMap = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);

@@ -75,6 +75,43 @@ describe('checkBatch', () => {
 		expect(d.message).toContain('tarte-au-sucre → pate-brisee → beurre-clarifie → tarte-au-sucre');
 	});
 
+	it('E213 through a batch file that replaces a vault recipe: its vault links and its new ones both count', () => {
+		const vault = [
+			{ slug: 'pate-brisee', refs: ['beurre-clarifie'] },
+			{ slug: 'beurre-clarifie', refs: [] },
+			{ slug: 'creme-patissiere', refs: ['tarte-au-sucre'] }
+		];
+		// The batch's beurre-clarifie now uses the tarte: tarte → pâte → beurre → tarte.
+		const r = checkBatch(
+			[
+				{ name: 'a.md', text: card('Tarte au sucre', { refs: ['pate-brisee'] }) },
+				{ name: 'b.md', text: card('Beurre clarifié', { refs: ['tarte-au-sucre'] }) }
+			],
+			{ vault }
+		);
+		expect(r.files[0].diagnostics.find((d) => d.code === 'E213')?.message).toContain('tarte-au-sucre → pate-brisee → beurre-clarifie → tarte-au-sucre');
+		// A batch file's vault links stay: the vault's pâte used beurre; the batch's pâte adds the crème, which uses the tarte.
+		const r2 = checkBatch(
+			[
+				{ name: 'a.md', text: card('Tarte au sucre', { refs: ['pate-brisee'] }) },
+				{ name: 'b.md', text: card('Pâte brisée', { refs: ['creme-patissiere'] }) }
+			],
+			{ vault }
+		);
+		expect(r2.files[0].diagnostics.find((d) => d.code === 'E213')?.message).toContain('tarte-au-sucre → pate-brisee → creme-patissiere → tarte-au-sucre');
+	});
+
+	it('E103: the suggested suffix skips slugs in the vault and in the batch', () => {
+		const r = checkBatch(
+			[
+				{ name: 'a.md', text: card('Tarte au sucre') },
+				{ name: 'b.md', text: card('Tarte au sucre 3', { slug: 'tarte-au-sucre-3' }) }
+			],
+			{ vault: [{ slug: 'tarte-au-sucre', refs: [] }, { slug: 'tarte-au-sucre-2', refs: [] }] }
+		);
+		expect(r.files[0].diagnostics.find((d) => d.code === 'E103')?.fix).toContain('`tarte-au-sucre-4`');
+	});
+
 	it('E213 on a recipe using itself', () => {
 		const r = checkBatch([{ name: 'a.md', text: card('Tarte au sucre', { refs: ['tarte-au-sucre'] }) }]);
 		expect(codesOf(r)).toEqual([['E213']]);

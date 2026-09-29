@@ -20,6 +20,7 @@ import { refreshFamilies, sha256 } from './index/build';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { checkOptions } from './checkopts';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
+import { indexMemo } from './index/memo';
 import { loadVocab } from './vocab';
 
 export interface SaveFile {
@@ -95,17 +96,23 @@ export function setFrontmatter(text: string, changes: Record<string, string>): s
 /** Slugs taken in the vault, with what batch rules need: live recipes, files that fail to parse, the trash. */
 export function vaultEntries(ctx: VaultContext): { entries: VaultEntry[]; trash: Set<string> } {
 	const { db } = ctx;
-	const refs = new Map<string, string[]>();
-	for (const r of db.prepare('SELECT slug, recipe FROM ingredients WHERE recipe IS NOT NULL').all() as { slug: string; recipe: string }[])
-		refs.set(r.slug, [...(refs.get(r.slug) ?? []), r.recipe]);
-	const entries: VaultEntry[] = (db.prepare('SELECT slug, title FROM recipes').all() as { slug: string; title: string }[]).map((r) => ({
-		slug: r.slug,
-		title: r.title,
-		refs: refs.get(r.slug) ?? []
-	}));
-	const known = new Set(entries.map((e) => e.slug));
-	for (const slug of db.prepare('SELECT slug FROM problems WHERE slug IS NOT NULL').pluck().all() as string[])
-		if (!known.has(slug)) entries.push({ slug, refs: [] });
+	// From the index: built once per index state (the form's live check runs this on every pause).
+	const indexed = indexMemo(db, 'vaultEntries', () => {
+		const refs = new Map<string, string[]>();
+		for (const r of db.prepare('SELECT slug, recipe FROM ingredients WHERE recipe IS NOT NULL').all() as { slug: string; recipe: string }[])
+			refs.set(r.slug, [...(refs.get(r.slug) ?? []), r.recipe]);
+		const list: VaultEntry[] = (db.prepare('SELECT slug, title FROM recipes').all() as { slug: string; title: string }[]).map((r) => ({
+			slug: r.slug,
+			title: r.title,
+			refs: refs.get(r.slug) ?? []
+		}));
+		const known = new Set(list.map((e) => e.slug));
+		for (const slug of db.prepare('SELECT slug FROM problems WHERE slug IS NOT NULL').pluck().all() as string[])
+			if (!known.has(slug)) list.push({ slug, refs: [] });
+		return { list, known };
+	});
+	const entries = [...indexed.list];
+	const { known } = indexed;
 	const trash = new Set(
 		existsSync(ctx.paths.trash) ? readdirSync(ctx.paths.trash).filter(isRecipeFile).map((f) => f.slice(0, -3)) : []
 	);

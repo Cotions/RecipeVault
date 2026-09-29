@@ -3,7 +3,7 @@
 
 import { recipeRef } from '../build';
 import { stripMarkers } from '../markers';
-import { editDistance, fold } from '../normalize';
+import { fold, withinDistance } from '../normalize';
 import { SLUG_RE, slugify } from '../slug';
 import type { Diagnostic } from '../types';
 import { isMap, severityOf } from './context';
@@ -63,7 +63,22 @@ export function vaultEntryFor(fm: Record<string, unknown>): VaultEntry | undefin
 	return entry;
 }
 
-const normTitle = (t: string) => fold(stripMarkers(t));
+const titleCache = new Map<string, string>();
+
+/**
+ * Folded title, markers out: how W503 / W608 compare titles. Remembered, as a
+ * vault's titles are folded again on every check (the form's live check, a
+ * save); the memo is dropped whole when it outgrows a large vault.
+ */
+export function normTitle(t: string): string {
+	let u = titleCache.get(t);
+	if (u === undefined) {
+		if (titleCache.size >= 50_000) titleCache.clear();
+		u = fold(stripMarkers(t));
+		titleCache.set(t, u);
+	}
+	return u;
+}
 
 function report(item: BatchItem, code: string, path: string | null, message: string, fix?: string) {
 	const d: Diagnostic = { code, severity: severityOf(code), path, message, file: item.name };
@@ -75,12 +90,16 @@ export function checkBatchRules(items: BatchItem[], vault: VaultEntry[]): void {
 	const slugs = items.map((it) => (it.frontmatter ? fileSlug(it.frontmatter) : undefined));
 	const vaultBySlug = new Map(vault.map((v) => [v.slug, v]));
 
+	// Slugs in the batch or the vault (E103's suffix, W306). Looked up, not
+	// copied into one set: the vault side is a whole vault, the batch a file or a few.
+	const batchSlugs = new Set(slugs.filter((s): s is string => !!s));
+	const known = (slug: string) => vaultBySlug.has(slug) || batchSlugs.has(slug);
+
 	// E103 — the same slug twice in the batch, or already in the vault. Settled
 	// in the app (overwrite, or a suffixed slug), never sent back to the AI.
-	const taken = new Set([...vaultBySlug.keys(), ...slugs.filter((s): s is string => !!s)]);
 	const suffixed = (slug: string) => {
 		let n = 2;
-		while (taken.has(`${slug}-${n}`)) n++;
+		while (known(`${slug}-${n}`)) n++;
 		return `${slug}-${n}`;
 	};
 	items.forEach((item, i) => {
@@ -103,24 +122,25 @@ export function checkBatchRules(items: BatchItem[], vault: VaultEntry[]): void {
 		);
 	});
 
-	// The sub-recipe graph: vault first, batch files on top.
-	const graph = new Map<string, Set<string>>();
-	for (const v of vault) graph.set(v.slug, new Set(v.refs));
+	// The sub-recipe graph: vault first, batch files on top (a batch file's
+	// links added after its vault entry's). Only the batch side is built; a
+	// vault recipe's links are read from its entry when the walk reaches it.
 	const refsOf = items.map((it) => (it.frontmatter ? fileRefs(it.frontmatter) : []));
+	const batchLinks = new Map<string, Set<string>>();
 	items.forEach((_, i) => {
 		const slug = slugs[i];
 		if (!slug) return;
-		const set = graph.get(slug) ?? new Set<string>();
+		const set = batchLinks.get(slug) ?? new Set<string>(vaultBySlug.get(slug)?.refs ?? []);
 		for (const r of refsOf[i]) set.add(r.slug);
-		graph.set(slug, set);
+		batchLinks.set(slug, set);
 	});
-	const known = new Set([...vaultBySlug.keys(), ...slugs.filter((s): s is string => !!s)]);
+	const graph = (slug: string): Iterable<string> => batchLinks.get(slug) ?? vaultBySlug.get(slug)?.refs ?? [];
 
 	items.forEach((item, i) => {
 		const slug = slugs[i];
 		for (const ref of refsOf[i]) {
 			// W306 — pointing at a recipe not saved yet: allowed, flagged.
-			if (!known.has(ref.slug)) {
+			if (!known(ref.slug)) {
 				report(item, 'W306', ref.path, `\`recipe: ${ref.slug}\` points at a recipe not in the vault yet.`, 'Fine if that recipe will be added later; otherwise check the slug.');
 				continue;
 			}
@@ -150,13 +170,13 @@ export function checkBatchRules(items: BatchItem[], vault: VaultEntry[]): void {
 			const u = titles[j];
 			if (j === i || !u) return;
 			if (u === t) same.push(o.name);
-			else if (editDistance(t, u) <= 2) near.push(o.name);
+			else if (withinDistance(t, u, 2)) near.push(o.name);
 		});
 		for (const v of vault) {
 			if (!v.title || v.slug === slugs[i]) continue;
 			const u = normTitle(v.title);
 			if (u === t) same.push(`vault recipe ${v.slug}`);
-			else if (editDistance(t, u) <= 2) near.push(`vault recipe ${v.slug}`);
+			else if (withinDistance(t, u, 2)) near.push(`vault recipe ${v.slug}`);
 		}
 		if (same.length)
 			report(item, 'W608', 'title', `same title as ${same.join(', ')}.`, 'If these are versions of one dish, the app can make them members of one family.');
@@ -166,7 +186,7 @@ export function checkBatchRules(items: BatchItem[], vault: VaultEntry[]): void {
 }
 
 /** A path of slugs from `from` to `to` in the sub-recipe graph, or undefined. */
-function findPath(graph: Map<string, Set<string>>, from: string, to: string): string[] | undefined {
+function findPath(graph: (slug: string) => Iterable<string>, from: string, to: string): string[] | undefined {
 	const prev = new Map<string, string | null>([[from, null]]);
 	const queue = [from];
 	while (queue.length) {
@@ -176,7 +196,7 @@ function findPath(graph: Map<string, Set<string>>, from: string, to: string): st
 			for (let n: string | null = cur; n !== null; n = prev.get(n) ?? null) path.unshift(n);
 			return path;
 		}
-		for (const next of graph.get(cur) ?? []) {
+		for (const next of graph(cur)) {
 			if (!prev.has(next)) {
 				prev.set(next, cur);
 				queue.push(next);
