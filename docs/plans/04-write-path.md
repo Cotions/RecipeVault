@@ -946,7 +946,9 @@ tags stop being pending; no recipe file changes.
   misread is double-quoted.
 - **Who.** Q2 B: the nav shows "Étiquettes (N)" to a `markdown: true` account
   once N > 0 (like "À relier"); the page and its actions are open to every
-  signed-in account (deny-by-default guard), none to a signed-out one.
+  signed-in account (deny-by-default guard). Signed out, the page is readable
+  like every other read (Q1 A) and its actions go to `/connexion` — decided
+  in issue #12.
 - **Helper for the form's tag field (Phase 5).** Server: `tagVocabulary(ctx)`
   → `{ tags: [folded, canonical][], canonical: { tag, label, aliases }[],
   pending: string[] }`, plain JSON for the page. Browser:
@@ -1202,8 +1204,8 @@ sync's callers already wrap it). A one-line fix, left to the owner/review.
   signed out; the code serves it (a GET passes the guard; only `/ajouter`,
   `/nouvelle`, `/r/<slug>/modifier` send to `/connexion`), and its actions go
   to `/connexion`. `DATA-FLOW.md` §Authentication now lists it with the open
-  reads, as built. Proposed: either add it to `WRITE_PAGES` or change the
-  Phase 8 note — the owner's call.
+  reads, as built. **Decided (issue #12): readable signed out**, as built; the
+  Phase 8 note is corrected.
 - **Tag labels on the recipe page.** `VOCAB.md`: "Display form comes from a
   label table"; the recipe page still shows each tag as written (the filter
   sidebar uses labels). Known leftover.

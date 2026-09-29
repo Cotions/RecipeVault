@@ -1,10 +1,11 @@
 # Master template — the prompt given to an AI to produce a recipe file
 
-Draft 3.3. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
+Draft 3.4. Draft 2 was revised after P0 round 1 (ten real Quebec recipes, some 35+
 years old, through a free chat AI); draft 3 after round 2, the same ten re-run with
 draft 2; draft 3.1 after the checker's first run; draft 3.2 after the decisions on
-the checker's stress test; draft 3.3 after the ingredient registry (plan 03). What
-changed and why is at the end.
+the checker's stress test; draft 3.3 after the ingredient registry (plan 03);
+draft 3.4 settles "complete to" lines (issue #9). What changed and why is at the
+end.
 
 This file is the contract. The parser, the validator, cost, and pantry search all
 assume output matching it exactly.
@@ -113,6 +114,9 @@ INGREDIENTS — in frontmatter, never as prose bullets
     note: "796 ml" }. A size printed in two measures keeps both, the second
     in parentheses: note: "19 oz (540 ml)". One size only — an alternative
     amount goes in or.
+    Water or milk "to complete to" a measure ("eau pour compléter à 1/2
+    tasse"): the measure is the qty, the rest is the note — { qty: "1/2",
+    unit: cup, name: eau, note: pour compléter }. Never a quantity in note.
 12. "X ou Y" for one ingredient → { name: X, or: [Y] }. When the alternative
     has its own amount or detail, write it as an object:
       "2 ml cannelle ou 1 ml piment de la Jamaïque" →
@@ -352,6 +356,12 @@ registry and the vault's word lists turned on:
 | No sub-recipe in the corpus could be costed: its `yield` was text (`"2 abaisses"`) or absent, and the parent wrote `{ qty: 1, unit: piece, recipe: … }`, so cost had nothing to scale by. Against `servings: 8` a `1 piece` line would have cost one portion where the card meant one crust | Rule 15: a recipe used as a sub-recipe gives `yield: { qty, unit }` when the source says how much it makes, and the parent's line uses the same unit. Rule 22 points to it |
 | Re-run of sources 01, 02, 03, 08, 13 and 15 with this draft: the pâte brisée came back with `yield: { qty: 2, unit: piece, note: abaisses }` and the tarte's line in `piece`; every preparation went to `prep` (*oignon, prep: râpé*; *oignons, prep: hachés fin*). The only name warning was W607 on *graisse Crisco*, which the answer kept whole on purpose. Unsolved, and not new: two oven stages, a sub-recipe on another card, water "to complete to 1/2 cup" (written as a note, E216) | Rule 15's example said `qty: 1` for the tarte, which read wrong for a covered pie that uses both crusts: the example now uses a covered tarte, `qty: 2` |
 | W302 (preparation in `name`), W304 (size), W607 (brand) and W606 (`to_taste` on something not seasoning or fat) are now checked, from the vault's word lists and ingredient registry | No change: rules 10 and 13 already ask for it, and each warning's fix names the field to use |
+
+Draft 3.4 — issue #9:
+
+| Found | Fix |
+|---|---|
+| Water "to complete to 1/2 cup" came back with the measure in `note` (`E216`) | Rule 11: the measure is the `qty`, "pour compléter" the note. It overstates the water, which costs nothing and scales right |
 
 ## Failure modes to watch for
 
