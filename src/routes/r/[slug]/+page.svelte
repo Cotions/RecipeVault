@@ -83,6 +83,7 @@
 		<input type="hidden" name="hash" value={data.file.hash} />
 		<button class="btn danger" type="submit">{t.recipe.remove}</button>
 	</form>
+	<a class="btn" href="/r/{data.recipe.slug}/historique">{t.history.link}</a>
 </div>
 {#if uncertain && data.recipe.status !== 'verified'}
 	<p class="hint no-print">{t.recipe.verifyBlocked}</p>

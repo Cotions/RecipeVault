@@ -711,6 +711,58 @@ commit by the signed-in person; undo refused when the file changed since
 checker is refused; the summary lists the fields that changed; a recipe that went
 to the trash and back keeps its history.
 
+**Done — decisions.**
+- **Modules.** `src/lib/server/history.ts` (`recipeHistory`, `undoCommit`,
+  `restoreVersion`, `HistoryError` with a `reason` and a French message) and
+  `history-diff.ts` (the field-level summary; no Node import). Git reads stay
+  there (`git log --follow`, `diff-tree`, one `git cat-file --batch` for every
+  version's text) rather than in `git.ts`. `save.ts` is not changed: the
+  write-back runs the save's own steps (`checkBatch` with `vaultEntries`,
+  `writeAndCommit`, `indexText`, `refreshFamilies`, push).
+- **Byte for byte, not re-serialized.** Undo and restore write the old text
+  exactly, `status` and `updated` included, not through `save()` (which would
+  recompute both and rewrite the file canonically). Undoing a "Vérifié" makes
+  the recipe unverified again: that is what it did.
+- **Guards.** Undo compares the file on disk with the text the commit left
+  (bytes, per file): no hash needs to travel with the toast, and a later save
+  makes it `stale`. Restore takes the hash of the file the page showed. Both
+  refuse a commit that did not touch this recipe (`unknown`), and the route
+  passes its slug.
+- **Undo, per kind of change.** Changed recipe → its text before. Created
+  recipe → the trash (`delete:` commit through `trash.remove`, after the lock;
+  she gets it back from `/corbeille` or by undoing that). Trash move → the
+  trash's own restore / delete (media folder follows). `vocab/families.yaml` in
+  the same commit → reverted if unchanged since, else left and reported in
+  `kept`; with a created recipe it is left (a label nobody uses is harmless, and
+  one commit fewer). W608 pairs and any multi-recipe commit revert together in
+  one commit, all or nothing. Prices, registry, merges → `unsupported`. Undo of
+  an undo (or of a restore) is the same operation: a redo.
+- **Photos.** `media/` is not in git, and originals are never deleted by an
+  edit (Phase 6), so an older version's `media.final` still names a file on
+  disk; nothing to restore beside the recipe.
+- **Today's checker.** A version that fails it is listed ("Version que
+  l’application ne sait plus lire"), not offered, and refused if posted
+  (`invalid`, codes to the server log only). A version whose `slug:` differs
+  from the file name (a slug renamed by hand) is not offered either.
+- **Summary** from `toForm` on both versions: title, fields by name, tags,
+  ingredients by name (added / removed / changed), steps (added / removed /
+  changed / reordered), notes / variants / alternatives / other text, photo,
+  "Vérifié", uncertain readings settled. A change she cannot see (a first app
+  save's canonical rewrite, `updated`) reads "Mise en forme du fichier
+  seulement". The restore confirm shows the same summary from the current
+  version to the chosen one.
+- **Page.** Versions carry no text to the browser. The confirm is a
+  `<details>` under each version (no `confirm()` dialog on a phone). After a
+  restore the flash offers "Annuler ce retour"; after an undo, "Rétablir".
+  A recipe in the trash shows its history without the button.
+- **API for the form's toast.** `undoCommit(writeContext(user), commit, {
+  slug })` → `{ action: 'undone' | 'trashed' | 'untrashed', commit, slugs, kept
+  }`; or POST `/r/<slug>/historique?/annuler` with `commit` → `{ ok, message,
+  commit, result }` (the new commit, to offer "Rétablir"); 409 with `message`
+  on refusal.
+- Tests: `tests/server/history.test.ts` (17), `tests/unit/history-diff.test.ts`
+  (5), `tests/e2e/history.spec.ts` (3, Pixel 7 viewport in the desktop project).
+
 ### Phase 8 — pending tags (only if Q11 is B)
 
 Depends on: Q11.

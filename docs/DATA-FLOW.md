@@ -82,6 +82,37 @@ taken again. A slug in the trash counts as taken for a new paste (`E103`, offere
 only the suffixed slug), so a deleted slug is never silently reused. Combined
 with the git history this means no single click she makes is unrecoverable.
 
+### Undo and history
+
+Plan 04, Q16 A. Every save is a commit, so undo is a `git show`, never a
+rewrite: no `git revert`, no reset, no amend. Both actions write an old text
+back as a **new** commit by the signed-in person, byte for byte (its `status`
+and `updated` included: undo means "as it was"), through the save's steps:
+today's checker with the vault's entries, the hash guard, one commit, the index
+rows, the push. An old text the checker now refuses is not written; she is told
+in one sentence and the owner can take it back by hand (`git show`).
+
+- **Annuler** (the toast after a save, and after a restore or an undo — undo of
+  an undo is a redo), `/r/<slug>/historique?/annuler` with the commit:
+  `undo: <title>`. Each recipe the commit changed goes back to its text before
+  it, refused unless the file is still exactly as that commit left it. A recipe
+  the commit created goes to the trash (`delete:`); a trash move is undone by
+  the trash's own restore or delete, media folder included. A
+  `vocab/families.yaml` change in the same commit (a label written with the
+  recipe) is undone with it when unchanged since, else kept; a new recipe's
+  label is kept. A commit touching anything else (prices, the registry) is not
+  undone from here.
+- **Historique** (`/r/<slug>/historique`): `git log --follow` of the recipe's
+  file (through `_trash/` and back, and a slug renamed by hand), newest first:
+  date, author, and what changed in plain French, computed by parsing both
+  versions into the form model (title, ingredients added / removed / changed,
+  steps, tags, photo, fields, "Vérifié", readings settled) — never a diff of
+  Markdown. **Revenir à cette version** shows what going back would change,
+  then writes `restore: <title> (version du <date>)`, guarded by the hash of
+  the file the page showed. A version under another slug, or that fails
+  today's checker, is shown but not offered. A recipe in the trash shows its
+  history without the button: it comes back through `/corbeille` first.
+
 ### Dish photos
 
 `POST /api/photo` (signed in; multipart `slug`, `hash`, `photo`), from the
