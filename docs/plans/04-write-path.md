@@ -1289,7 +1289,7 @@ Decisions:
   shows the path as it would alone (a file renamed away reads as deleted), a
   path created by a rename goes on under the old name. The page's cut from
   `5cf0a93` is unchanged (stop at the creation; an older removal ends it).
-- **One deliberate difference — raised for the owner.** `git log --follow`
+- **One deliberate difference — decided by the owner (2026-09-28): a copy is a creation.** `git log --follow`
   turns on `--find-copies-harder`: a recipe *created* with a text close enough
   to one already in the vault (a W608 variant made from another recipe, a slug
   renamed by hand and taken again) is shown as a copy (`C`), and the walk goes
