@@ -14,7 +14,7 @@ import { serialize } from '../vault/serialize';
 import type { Diagnostic, Recipe } from '../vault/types';
 import type { VaultEntry } from '../vault/rules/batch';
 import type { VaultContext } from './context';
-import { FileWriteError, writeAndCommit } from './files';
+import { FileWriteError, writeAndCommit, type FileWrite } from './files';
 import { refreshFamilies, sha256 } from './index/build';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { checkOptions } from './checkopts';
@@ -30,6 +30,8 @@ export interface SaveFile {
 	overwrite?: string;
 	/** W608: make this recipe a member of a family (the existing one is untouched in P1). */
 	family?: { family: string; variant: string };
+	/** An edit keeps the recipe's status (plan 04, Q14 A: the form): see `statusFor`. */
+	keepStatus?: boolean;
 }
 
 export type FileResult =
@@ -59,6 +61,12 @@ export class SaveError extends Error {}
 export interface SaveOptions {
 	/** For tests: the date written into `added` / `updated`. */
 	today?: string;
+	/**
+	 * Written in the same commit as the saved files, only when at least one is
+	 * saved (plan 04, Q10 A): a family label (`vocab/families.yaml`), the other
+	 * recipe of a W608 pair (an edit, indexed with the rest).
+	 */
+	extra?: { files?: FileWrite[]; recipes?: { slug: string; title: string; text: string }[] };
 }
 
 /** Local date as YYYY-MM-DD. */
@@ -112,9 +120,16 @@ export function currentFile(ctx: VaultContext, slug: string): { text: string; ha
 	return { text: buf.toString('utf8'), hash: sha256(buf) };
 }
 
-/** `needs-review` while an uncertain marker remains (W605), else `draft`. Never `verified` on its own. */
-export function statusFor(recipe: Recipe): 'needs-review' | 'draft' {
-	return recipe.markers.some((m) => m.kind !== 'added') ? 'needs-review' : 'draft';
+/**
+ * `needs-review` while an uncertain marker remains (W605), else `draft`. Never
+ * `verified` on its own: only `kept`, the status of the recipe an edit
+ * replaces, carries it over (plan 04, Q14 A — a form edit keeps the status,
+ * except that a remaining marker means `needs-review`, and `needs-review`
+ * with no marker left is `draft`). A paste passes no `kept`.
+ */
+export function statusFor(recipe: Recipe, kept?: string): 'needs-review' | 'draft' | 'verified' {
+	if (recipe.markers.some((m) => m.kind !== 'added')) return 'needs-review';
+	return kept === 'verified' ? 'verified' : 'draft';
 }
 
 interface Ready {
@@ -140,13 +155,18 @@ function commitMessage(ready: Ready[]): string {
  * was (removed if new) and throws: a file the app wrote but git never
  * recorded would be ignored by the watcher and never committed.
  */
-async function writeCommitIndex(ctx: VaultContext, ready: Ready[], message = commitMessage(ready)): Promise<{ commit?: string; indexError?: string }> {
-	const plural = ready.length > 1;
+async function writeCommitIndex(
+	ctx: VaultContext,
+	ready: Ready[],
+	message = commitMessage(ready),
+	extraFiles: FileWrite[] = []
+): Promise<{ commit?: string; indexError?: string }> {
+	const plural = ready.length + extraFiles.length > 1;
 	let commit: string | undefined;
 	try {
 		commit = await writeAndCommit(
 			ctx,
-			ready.map((r) => ({ rel: recipePath(r.slug), text: r.text })),
+			[...ready.map((r) => ({ rel: recipePath(r.slug), text: r.text })), ...extraFiles],
 			message
 		);
 	} catch (e) {
@@ -189,7 +209,8 @@ export function save(ctx: VaultContext, files: SaveFile[], opts: SaveOptions = {
 	return ctx.lock.run(() => saveLocked(ctx, files, opts));
 }
 
-async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOptions): Promise<SaveResult> {
+/** `save` for a caller that already holds `ctx.lock` (the form's save reads the vault and saves in one critical section). */
+export async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOptions = {}): Promise<SaveResult> {
 	const today = opts.today ?? localDate();
 	const texts = files.map((f) => {
 		const changes: Record<string, string> = {};
@@ -244,7 +265,7 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 		const final: Recipe = {
 			...recipe,
 			slug,
-			status: statusFor(recipe),
+			status: statusFor(recipe, files[i].keepStatus ? previous?.status : undefined),
 			added: previous?.added ?? today,
 			updated: today,
 			extractedBy: recipe.extractedBy ?? 'hand'
@@ -254,7 +275,8 @@ async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: SaveOption
 		results.push({ status: 'saved', slug, title: recipe.title, recipeStatus: final.status!, created: !cur, diagnostics: [...diagnostics, ...unresolved] });
 	});
 	if (!ready.length) return { files: results };
-	const { commit, indexError } = await writeCommitIndex(ctx, ready);
+	for (const r of opts.extra?.recipes ?? []) ready.push({ ...r, created: false, verb: 'edit' });
+	const { commit, indexError } = await writeCommitIndex(ctx, ready, undefined, opts.extra?.files);
 	return { files: results, commit, indexError };
 }
 

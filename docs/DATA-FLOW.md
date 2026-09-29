@@ -208,6 +208,12 @@ on disk no longer has that hash. (A hash rather than `updated`: `updated` is a
 date, too coarse to see two edits on the same day.) Two users at this scale will
 rarely collide, but the one time they do it should not be silent.
 
+The form (plan 04, Q18 A) carries the hash too. Refused as stale, it shows
+"Cette recette a été modifiée entre-temps" with the other version beside hers,
+the fields that differ highlighted; her form stays (and its draft, Q17).
+"Garder ma version" saves her form again against the new hash; "Prendre
+l'autre version" loads the other one into the form.
+
 ## Validation
 
 The full list, with codes, is `VALIDATION.md`; this is the summary.
@@ -236,7 +242,10 @@ Conveniences:
   `[illisible]` remains (W605), otherwise `draft`. `verified` is set only by a
   person, with the "Vérifié" button on the recipe page — a one-field edit
   through the normal save path, committed as `verify: <title>`, refused while an
-  uncertain marker remains.
+  uncertain marker remains. A **form edit** (plan 04, Q14 A) keeps the
+  recipe's status instead — `verified` stays `verified` — except that a
+  remaining uncertain marker means `needs-review`, and a `needs-review` with
+  none left becomes `draft`. A new recipe from the form is `draft`.
 - `extracted_by` absent → `hand`
 
 Her form never shows a raw error. Invalid states are prevented structurally —

@@ -97,6 +97,30 @@ export function explain(code: string): string {
 	return codeText[code] ?? 'Problème sans description : voyez le détail technique.';
 }
 
+/**
+ * The form's hints (plan 04, Q9 A): the warnings the form can meet, said next
+ * to their field, in plain words, never with the code. `word` is the word to
+ * move, `value` what the field holds, `suggestion` the fix (a tag, a family's
+ * name, another recipe's title). A test requires an entry for each code the
+ * form maps (`FORM_HINT_CODES`).
+ */
+export const formHintText: Readonly<Record<string, (p: { word?: string; value?: string; suggestion?: string }) => string>> = {
+	W302: (p) => `« ${p.word} » dit comment le préparer. Le mettre dans la préparation ?`,
+	W304: (p) => `« ${p.word} » est une taille. Le mettre dans la note ?`,
+	W607: (p) => `« ${p.word} » est une marque. La mettre à part, dans la marque ?`,
+	W501: (p) =>
+		p.suggestion
+			? `L’étiquette « ${p.value} » n’est pas dans la liste. Vouliez-vous dire « ${p.suggestion} » ?`
+			: `L’étiquette « ${p.value} » est nouvelle : elle est gardée, et le propriétaire la rangera dans la liste.`,
+	W502: (p) => `Ce nom de famille ressemble beaucoup à « ${p.suggestion} ». Est-ce la même ?`,
+	W503: (p) => `Une recette au titre presque pareil existe déjà : « ${p.value} ». Ce n’est pas la même ?`,
+	W608: (p) => `Une recette porte déjà ce titre : « ${p.value} ». En faire deux versions d’une même famille ?`,
+	W303: () => 'Pas encore relié à un ingrédient connu ; la recette s’enregistre quand même.',
+	W305: () => 'Pas encore relié à un ingrédient connu ; la recette s’enregistre quand même.',
+	W306: () => 'Cette recette n’est pas encore dans le coffre.',
+	W605: () => 'Des lectures incertaines restent à confirmer (surlignées).'
+};
+
 /** Who settles a code, said to the person in the paste box. */
 export const fixerText: Record<Fixer, string> = {
 	app: 'Se règle ici, dans l’application — pas par l’IA.',

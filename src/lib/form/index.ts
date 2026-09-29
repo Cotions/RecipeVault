@@ -6,3 +6,6 @@ export * from './duration';
 export * from './steps';
 export * from './markers';
 export * from './defaults';
+export * from './hints';
+export * from './rows';
+export * from './draft';

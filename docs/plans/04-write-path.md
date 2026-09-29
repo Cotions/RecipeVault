@@ -475,6 +475,55 @@ commit (Q10); family label written with the recipe; status rule of Q14 on new,
 edited, verified and marker-holding recipes; a server error from the check is
 logged with its code and never returned as text.
 
+**Done — decisions.**
+- **`formsave.ts`**: `formSave(ctx, { form, base?, familyLabel?, pair? })`
+  holds the lock, builds the text (`fromForm` → `serialize`, without
+  `status`/`added`/`updated`) and calls `saveLocked` — the paste path's own
+  save, exported for a caller already under the lock. Results: `saved` (with
+  the new hash and the hints), `unchanged`, `stale` (with the other version as
+  a form and its hash), `refused` (`gone`, `broken` — Q3 A, `pair`),
+  `invalid` (the `fromForm` errors), `failed` (the checker refused: logged
+  with the codes, nothing else returned). `openForm(ctx, slug)` opens only a
+  file that passes the checker.
+- **Unchanged = no write.** An edit is compared as `serialize(fromForm(form))`
+  against `serialize(file)` before anything else; equal → `unchanged`, no
+  `updated` bump, no commit. A file on disk that is not canonical (edited in
+  Obsidian) but reads the same is left as it is.
+- **New slug** from the title (`recette` if the title slugifies to nothing),
+  first free `-N` against the index, the trash and the disk, chosen under the
+  lock: E103 never reaches her; the stored slug is never recomputed.
+- **Status (Q14 A)** in `statusFor(recipe, kept?)`: an uncertain marker →
+  `needs-review`; else `verified` stays `verified`; anything else is `draft`
+  (a `needs-review` whose markers she settled becomes `draft`). `SaveFile`
+  gains `keepStatus`, set by the form on an edit only: the paste path still
+  recomputes. Recorded in `DATA-FLOW.md` §Conveniences.
+- **Extra files in the commit** (`SaveOptions.extra`): written only when the
+  recipe itself is saved. **Family label (Q10 A)**: a new family's French label
+  is added to `vocab/families.yaml` only when the family has no label yet —
+  never overwriting one, so her save needs no hash of that file (a guard would
+  refuse her recipe for someone else's label edit). **W608 pair**: the other
+  recipe's `family`/`variant` set, its status kept, hash-guarded (`pair.hash`
+  from the live check); a changed pair refuses the whole save (`refused:
+  pair`), nothing written. Commit `add: <title>; edit: <other title>`.
+- **Hints (Q9 A)**: `hintsFrom` maps W501 (tag + closest tag), W502 (near
+  family), W503/W608 (the other recipes, computed from the index, not parsed
+  from the message), W303/W305/W306 (their row, through `fromForm`'s new
+  `ids`: path → row id, empty rows skipped), W605. W302/W304/W607 are computed
+  live in the browser (`form/hints.ts`, same word lists) and not repeated.
+  `formCheck` runs the same check without saving (`POST /api/form/check`,
+  debounced while she types) — it is what makes the W608 offer possible
+  *before* the save, so both recipes go in one commit.
+- **Routes**: `POST /api/form/save`, `POST /api/form/check` (shape checked in
+  `api/form/valid.ts` before `fromForm` walks it), `GET /api/suggest?kind=name|author|recipe`.
+- **Stats (decision 1)**: `vaultStats` from the index (units of ingredient
+  lines — `or` and `alt` units are not in the index, a small undercount —,
+  oven units from `data_json`, languages), cached on `total_changes()` of the
+  index connection.
+- **Sub-recipes (E213)**: `subRecipeCandidates` leaves out the recipe and every
+  recipe that uses it, transitively, through `ingredients.recipe` and
+  `ingredient_or.recipe`.
+- Tests: `tests/server/formsave.test.ts` (20), `tests/unit/form/rows.test.ts`.
+
 ### Phase 4 — the form UI, core: title, ingredients, method, notes
 
 Depends on: Q5, Q6, Q7, Q8, Q9, Q15, Q17.

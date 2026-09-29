@@ -505,6 +505,12 @@ export interface FromForm {
 	body: Body;
 	/** Fields that could not be written; each left out of `recipe`. */
 	errors: FormError[];
+	/**
+	 * The form id behind each group, item and `or` path of `recipe`
+	 * (`ingredients[0]`, `ingredients[0].items[2]`, `….or[1]`): empty rows are
+	 * left out, so a diagnostic's path is mapped back to its row through this.
+	 */
+	ids: Record<string, string>;
 }
 
 const blank = (s: string) => !s.trim();
@@ -527,7 +533,7 @@ function isEmptyItem(it: FormItem): boolean {
 	);
 }
 
-function itemFromForm(it: FormItem, lang: Lang, errors: FormError[]): Ingredient | undefined {
+function itemFromForm(it: FormItem, lang: Lang, errors: FormError[], path = '', ids: Record<string, string> = {}): Ingredient | undefined {
 	const err = (field: string) => (reason: string) => errors.push({ id: it.id, field, reason });
 	const w = it.written;
 	const q = qtyCodec(lang);
@@ -554,7 +560,11 @@ function itemFromForm(it: FormItem, lang: Lang, errors: FormError[]): Ingredient
 	}
 	const brand = read(w, 'brand', it.brand, TEXT, err('brand'));
 	if (brand !== undefined) out.brand = String(brand);
-	const or = it.or.map((o) => itemFromForm(o, lang, errors)).filter((o): o is Ingredient => !!o);
+	const or: Ingredient[] = [];
+	for (const o of it.or) {
+		const entry = itemFromForm(o, lang, errors, `${path}.or[${or.length}]`, ids);
+		if (entry) or.push(entry);
+	}
 	if (or.length) out.or = or;
 	const note = read(w, 'note', it.note, TEXT, err('note'));
 	if (note !== undefined) out.note = String(note);
@@ -565,6 +575,7 @@ function itemFromForm(it: FormItem, lang: Lang, errors: FormError[]): Ingredient
 	if (it.recipe.trim()) out.recipe = it.recipe.trim();
 	if (it.buyInstead) out.buyInstead = true;
 	if (it.item) out.item = it.item;
+	ids[path] = it.id;
 	return out;
 }
 
@@ -692,8 +703,14 @@ export function fromForm(form: FormRecipe): FromForm {
 	if (form.difficulty !== null) recipe.difficulty = form.difficulty;
 	if (form.rating !== null) recipe.rating = form.rating;
 
+	const ids: Record<string, string> = {};
 	for (const g of form.groups) {
-		const items = g.items.map((it) => itemFromForm(it, lang, errors)).filter((it): it is Ingredient => !!it);
+		const gp = `ingredients[${recipe.ingredients.length}]`;
+		const items: Ingredient[] = [];
+		for (const it of g.items) {
+			const entry = itemFromForm(it, lang, errors, `${gp}.items[${items.length}]`, ids);
+			if (entry) items.push(entry);
+		}
 		const name = read(g.written, 'name', g.name, TEXT, (reason) => errors.push({ id: g.id, field: 'name', reason }));
 		if (!items.length) {
 			if (name !== undefined) errors.push({ id: g.id, field: 'items', reason: 'required' });
@@ -702,6 +719,7 @@ export function fromForm(form: FormRecipe): FromForm {
 		const group: IngredientGroup = { items };
 		if (name !== undefined) group.group = String(name);
 		if (g.optional) group.optional = true;
+		ids[gp] = g.id;
 		recipe.ingredients.push(group);
 	}
 	if (!recipe.ingredients.length) errors.push({ id: 'recipe', field: 'ingredients', reason: 'required' });
@@ -712,7 +730,7 @@ export function fromForm(form: FormRecipe): FromForm {
 	const sections = form.sections.map((s) => sectionFromForm(s, errors)).filter((s): s is Section => !!s);
 	const body: Body = { preamble: form.preamble, sections, steps: [] };
 	body.steps = parseBody(serializeBody(body, lang)).body.steps;
-	return { recipe, body, errors };
+	return { recipe, body, errors, ids };
 }
 
 /** The canonical file text of a form: what saving it writes, before the app sets its fields. */
