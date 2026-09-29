@@ -167,14 +167,17 @@ function insertTags(db: DB, vocab: VaultVocab, r: Recipe): Map<string, boolean> 
  * so startup sync can tell whether the vocabulary changed while the app was down.
  */
 export function retag(db: DB, vocab: VaultVocab, hash?: string): void {
-	db.prepare('DELETE FROM tags').run();
-	const fts = db.prepare('UPDATE recipes_fts SET tags = ? WHERE rowid = ?');
-	for (const { id, data_json } of db.prepare('SELECT id, data_json FROM recipes').all() as { id: number; data_json: string }[]) {
-		const r = JSON.parse(data_json) as Recipe;
-		const tagRows = insertTags(db, vocab, r);
-		fts.run(ftsTags(r, tagRows), id);
-	}
-	if (hash !== undefined) setMeta(db, 'tags_hash', hash);
+	// One transaction: row-by-row autocommit made this ~7× slower on a 5000-recipe vault.
+	db.transaction(() => {
+		db.prepare('DELETE FROM tags').run();
+		const fts = db.prepare('UPDATE recipes_fts SET tags = ? WHERE rowid = ?');
+		for (const { id, data_json } of db.prepare('SELECT id, data_json FROM recipes').all() as { id: number; data_json: string }[]) {
+			const r = JSON.parse(data_json) as Recipe;
+			const tagRows = insertTags(db, vocab, r);
+			fts.run(ftsTags(r, tagRows), id);
+		}
+		if (hash !== undefined) setMeta(db, 'tags_hash', hash);
+	})();
 }
 
 const ftsTags = (r: Recipe, tagRows: Map<string, boolean>) => searchText([...r.tags, ...tagRows.keys()].join(' '));
