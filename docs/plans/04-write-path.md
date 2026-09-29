@@ -624,6 +624,12 @@ Asked for:
 
 ## Open questions
 
+**Decided 2026-09-28: the owner took the recommended option on every question,
+Q1–Q18** (Q1 A, Q2 B, Q3 A, Q4 A, Q5 A, Q6 A, Q7 A, Q8 A, Q9 A, Q10 A, Q11 B,
+Q12 A, Q13 A, Q14 A, Q15 A, Q16 A, Q17 A, Q18 A). Where a phase says "depends on
+Qn", that dependency is settled. Doc changes that follow from a decision are part
+of the phase that implements it.
+
 The docs leave each of these open or contradict themselves. For each: the
 options, then the recommendation with a one-line reason. Q-numbers are
 referenced from the phases. **Key** marks the four answers that change the most
