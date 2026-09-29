@@ -199,8 +199,8 @@ export function diffVersions(before: Parsed | null, after: Parsed | null, textCh
 
 const list = (xs: string[]) => xs.map((x) => `« ${x} »`).join(', ');
 
-/** One plain French line per change. */
-export function describeChange(c: Change): string {
+/** One plain French line per change. `tagName` names a tag as written (its label, `tagNamer`); else the tag itself. */
+export function describeChange(c: Change, tagName: (tag: string) => string = (x) => tagLabel(x)): string {
 	const h = t.history.change;
 	switch (c.kind) {
 		case 'created':
@@ -222,7 +222,7 @@ export function describeChange(c: Change): string {
 		case 'fields':
 			return h.fields(c.fields.map((f) => h.field[f]));
 		case 'tags':
-			return [c.added.length ? h.tagsAdded(c.added.map((x) => tagLabel(x)).join(', ')) : '', c.removed.length ? h.tagsRemoved(c.removed.map((x) => tagLabel(x)).join(', ')) : '']
+			return [c.added.length ? h.tagsAdded(c.added.map(tagName).join(', ')) : '', c.removed.length ? h.tagsRemoved(c.removed.map(tagName).join(', ')) : '']
 				.filter(Boolean)
 				.join(' ; ');
 		case 'ingredients':
@@ -247,4 +247,4 @@ export function describeChange(c: Change): string {
 	}
 }
 
-export const describeChanges = (changes: Change[]): string[] => changes.map(describeChange);
+export const describeChanges = (changes: Change[], tagName?: (tag: string) => string): string[] => changes.map((c) => describeChange(c, tagName));

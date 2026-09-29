@@ -97,6 +97,7 @@
 	titles={data.titles}
 	photo={data.photo}
 	familyName={data.familyName}
+	tagViews={data.tags}
 	itemLinks={data.links}
 	bind:servings
 	bind:multiplier

@@ -82,10 +82,39 @@ Rules:
   index maps them. "Retirer" is the one exception, asked for by a person: it
   takes the tag out of every recipe holding it, in one commit.
 - **Labels** live in `vocab/tag-labels.yaml`, one entry per line in flow style
-  like `families.yaml` (`cabane-a-sucre: { fr: Cabane à sucre }`); not seeded.
-  A tag without one shows its slug with hyphens as spaces and a capital (the
-  seed tags whose slug lost its accents have labels in the app until they are
-  moved to that file).
+  like `families.yaml` (`cabane-a-sucre: { fr: Cabane à sucre }`), seeded by
+  `vault init` from "Tag labels" below. Every page that shows a tag shows its
+  label: the recipe page maps the tag as written to its canonical tag first
+  (aliases included), the filter sidebar and `/etiquettes` show canonical tags.
+  A tag without a label shows its slug with hyphens as spaces and a capital;
+  on the recipe page, a tag outside the vocabulary (pending) shows as written.
+  The app holds no label of its own (plan 04, decision 1).
+
+## Tag labels
+
+The seed of `vocab/tag-labels.yaml`: labels for the seed tags whose slug lost
+its accents or reads badly with a capital alone. A vault created before this
+seed existed (no file, or a file holding only labels set on `/etiquettes`) gets
+the missing ones from `vault ingredients seed`, which adds a label only to a tag
+that has none and never rewrites one already there (issue #11). Until then such
+a vault shows those tags by their slug.
+
+```yaml
+plat-principal: { fr: Plat principal }
+entree: { fr: Entrée }
+petit-dejeuner: { fr: Petit-déjeuner }
+gouter: { fr: Goûter }
+poele: { fr: Poêle }
+mijote: { fr: Mijoté }
+grille: { fr: Grillé }
+vegetarien: { fr: Végétarien }
+sans-gluten: { fr: Sans gluten }
+pasta: { fr: Pâtes }
+boeuf: { fr: Bœuf }
+legumes: { fr: Légumes }
+francais: { fr: Français }
+quebecois: { fr: Québécois }
+```
 
 ## Families
 

@@ -24,6 +24,7 @@
 		photo = null,
 		links = true,
 		familyName = null,
+		tagViews,
 		servings = $bindable(recipe.servings ?? 0),
 		multiplier = $bindable(1),
 		itemLinks,
@@ -40,6 +41,8 @@
 		links?: boolean;
 		/** The family's display label (vocab/families.yaml), when it has one. */
 		familyName?: string | null;
+		/** Recipe page: per tag of `recipe.tags`, its filter key and label (vocab/tag-labels.yaml). Without it (the paste preview) a tag shows as written. */
+		tagViews?: { key: string; label: string }[];
 		servings?: number;
 		multiplier?: number;
 		/** Recipe page: how each line resolved, by position across groups. */
@@ -169,8 +172,9 @@
 
 	{#if recipe.tags.length || recipe.season.length}
 		<ul class="tags" aria-label="Étiquettes">
-			{#each recipe.tags as tag (tag)}
-				<li>{#if links}<a href="/?tag={encodeURIComponent(tag)}">{tagLabel(tag)}</a>{:else}{tagLabel(tag)}{/if}</li>
+			{#each recipe.tags as tag, i (tag)}
+				{@const view = tagViews?.[i] ?? { key: tag, label: tagLabel(tag) }}
+				<li>{#if links}<a href="/?tag={encodeURIComponent(view.key)}">{view.label}</a>{:else}{view.label}{/if}</li>
 			{/each}
 			{#each recipe.season as s (s)}
 				<li class="season">{t.season[s] ?? s}</li>

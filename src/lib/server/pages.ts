@@ -13,6 +13,7 @@ import { recipeVocabDiagnostics } from './checkopts';
 import { DEFAULT_LOCALE } from './config';
 import { costOfRecipe } from './cost';
 import { loadConversions } from './vocab';
+import { tagNamer } from './tags';
 import type { CostLineView, CostView } from '../ingredients/cost';
 
 const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]/g;
@@ -64,6 +65,8 @@ export function loadRecipePage(app: App, slug: string) {
 		broken,
 		variants: (family?.variants ?? []).filter((v) => v.slug !== slug).map((v) => ({ slug: v.slug, title: v.title, variant: v.variant })),
 		usedBy: usedBy(app.ctx.db, slug),
+		/** Per tag of `recipe.tags`: its filter key and label (vocab/tag-labels.yaml, via aliases). */
+		tags: recipe.tags.map(tagNamer(app.ctx)),
 		/** The family's display label from vocab/families.yaml, if set. */
 		familyName: family?.label ?? null,
 		/** W303 / W305 / W307: ingredients not linked to the registry (plan 03, Phase 2). */

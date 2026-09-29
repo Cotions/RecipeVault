@@ -2,9 +2,9 @@
 // new vault by `vault init`, added to an existing one by `vault ingredients
 // seed` without touching an entry already there.
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parse, stringify } from 'yaml';
+import { isMap, isScalar, parse, parseDocument, stringify, type Document } from 'yaml';
 import { parseIngredient, REGISTRY_KEYS, serializeIngredient } from '../ingredients/registry';
 import type { RegistryEntry } from '../ingredients/types';
 import { committed, type VaultContext } from './context';
@@ -68,12 +68,54 @@ export function writeMissingVocab(root: string, vocabDoc: string): string[] {
 }
 
 /**
+ * The seed tag labels (docs/VOCAB.md, "Tag labels") an older vault lacks: the
+ * whole seed file when `vocab/tag-labels.yaml` is absent, else a label added
+ * only to a tag that has none — a label already there is never rewritten, and
+ * a file that does not read as YAML is left alone. Returns the path when written.
+ */
+export function writeMissingTagLabels(root: string, vocabDoc: string): string[] {
+	const rel = `${VOCAB}/tag-labels.yaml`;
+	const abs = join(root, rel);
+	const seed = seedVocab(vocabDoc)['tag-labels.yaml'];
+	if (!existsSync(abs)) {
+		mkdirSync(join(root, VOCAB), { recursive: true });
+		writeFileSync(abs, seed);
+		return [rel];
+	}
+	const text = readFileSync(abs, 'utf8');
+	// Typed as a plain Document: nodes are added below (the shape `withLabel` in families.ts writes).
+	const doc = parseDocument(text, { version: '1.2' }) as unknown as Document;
+	if (doc.errors.length) return [];
+	if (doc.contents === null || (isScalar(doc.contents) && (doc.contents.value === null || doc.contents.value === ''))) doc.contents = doc.createNode({});
+	const map = doc.contents;
+	if (!isMap(map)) return [];
+	let added = 0;
+	for (const [tag, labels] of Object.entries((parse(seed, { version: '1.2' }) ?? {}) as Record<string, { fr?: string }>)) {
+		const had = map.get(tag, true);
+		if (!labels?.fr || (isMap(had) && had.get('fr'))) continue;
+		if (isMap(had)) had.set('fr', labels.fr);
+		else {
+			const node = doc.createNode({ fr: labels.fr });
+			node.flow = true;
+			map.set(tag, node);
+		}
+		added++;
+	}
+	if (!added) return [];
+	map.flow = false;
+	const next = doc.toString({ lineWidth: 0 });
+	if (next === text) return [];
+	writeFileSync(abs, next);
+	return [rel];
+}
+
+/**
  * `vault ingredients seed`: add the missing seed entries and vocab files to a
  * vault, in one commit `ingredients: seed (N entries)`. Holds the lock.
  */
 export function seedVault(ctx: VaultContext, seedText: string, vocabDoc: string): Promise<{ added: string[]; commit?: string }> {
 	return ctx.lock.run(async () => {
-		const vocab = writeMissingVocab(ctx.paths.root, vocabDoc);
+		const vocab = [...writeMissingVocab(ctx.paths.root, vocabDoc), ...writeMissingTagLabels(ctx.paths.root, vocabDoc)];
 		const allergens = new Set(Object.keys(parse(seedVocab(vocabDoc)['allergens.yaml'], { version: '1.2' }) ?? {}));
 		const added = writeSeed(ctx.paths.root, seedEntries(seedText, allergens));
 		const paths = [...vocab, ...added];

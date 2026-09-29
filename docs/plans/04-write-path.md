@@ -1320,6 +1320,29 @@ Decisions:
   pages. `tests/server/history.test.ts` and `tests/e2e/history.spec.ts`
   unchanged and green.
 
+## Follow-up: issue #11, small leftovers
+
+Items of issue #11 (the two perf items went to a separate pass).
+
+- **Tag labels on every page.** The recipe page maps each tag as written to
+  its canonical tag (aliases included) and shows that tag's label from
+  `vocab/tag-labels.yaml`; its link filters on the canonical tag (it used the
+  written form, which found nothing for an alias). A tag outside the
+  vocabulary shows as written. The history page's tag lines use the same
+  names. The paste preview still shows tags as written (the owner's Markdown
+  tool; it has no vocabulary on the page). Cards and kitchen mode show no tags.
+- **Seed labels are data.** `fr.tags` is gone; the seed labels are a YAML
+  block in `docs/VOCAB.md` ("Tag labels"), written to `vocab/tag-labels.yaml`
+  by `vault init` like the other seeds. **Flagged decision — a vault made
+  before this change:** no migration commit at startup. The app never writes
+  the vault on its own at start (a commit nobody asked for, racing the
+  watcher and a sync); until the owner runs `vault ingredients seed` — the
+  existing command that adds the seed files an older vault lacks, now also the
+  missing seed tag labels, never over a label already set — those tags show
+  their slug (`Entree` instead of `Entrée`), which is what `VOCAB.md` already
+  said a tag without a label shows. **The owner: run `npx vault ingredients
+  seed` once on the real vault after pulling.**
+
 ## Out of scope
 
 - **Cook log and dated notes** (`PLANNING.md` Tier 2, a `log` list in

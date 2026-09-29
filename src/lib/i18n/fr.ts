@@ -30,23 +30,6 @@ export const fr = {
 		invented: 'Inventée'
 	} as Record<string, string>,
 	season: { printemps: 'Printemps', ete: 'Été', automne: 'Automne', hiver: 'Hiver' } as Record<string, string>,
-	/** Display labels for seed tags whose slug lost its accents. */
-	tags: {
-		'plat-principal': 'Plat principal',
-		entree: 'Entrée',
-		'petit-dejeuner': 'Petit-déjeuner',
-		gouter: 'Goûter',
-		poele: 'Poêle',
-		mijote: 'Mijoté',
-		grille: 'Grillé',
-		vegetarien: 'Végétarien',
-		'sans-gluten': 'Sans gluten',
-		pasta: 'Pâtes',
-		boeuf: 'Bœuf',
-		legumes: 'Légumes',
-		francais: 'Français',
-		quebecois: 'Québécois'
-	} as Record<string, string>,
 	time: { '30': '30 min ou moins', '60': '1 h ou moins', '120': '2 h ou moins', plus: 'Plus de 2 h' } as Record<string, string>,
 	servings: { '1-2': '1 ou 2', '3-4': '3 ou 4', '5-6': '5 ou 6', '7+': '7 et plus' } as Record<string, string>,
 	browse: {
@@ -665,10 +648,13 @@ export const fr = {
 export type Strings = typeof fr;
 export const t = fr;
 
-/** A tag's display name: its label from vocab/tag-labels.yaml, else a seed label, else the slug with spaces. */
+/**
+ * A tag's display name: its label from vocab/tag-labels.yaml, else the tag
+ * with hyphens as spaces and a capital. The labels are vault data (seeded by
+ * `vault init`, docs/VOCAB.md "Tag labels"); the app holds none of its own.
+ */
 export function tagLabel(tag: string, label?: string | null): string {
 	if (label) return label;
-	if (fr.tags[tag]) return fr.tags[tag];
 	const s = tag.replace(/-/g, ' ');
 	return s.charAt(0).toUpperCase() + s.slice(1);
 }

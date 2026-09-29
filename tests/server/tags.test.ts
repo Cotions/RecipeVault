@@ -16,6 +16,7 @@ import {
 	pendingTags,
 	TagError,
 	tagLabels,
+	tagNamer,
 	tagSlug,
 	tagsVersion,
 	tagVocabulary,
@@ -24,7 +25,11 @@ import {
 import { syncFile } from '../../src/lib/server/index/sync';
 import { loadVocab } from '../../src/lib/server/vocab';
 import { classifyTag } from '../../src/lib/vault/tagstatus';
-import { recipe, tempVault, type TempVault } from '../helpers/vault';
+import type { App } from '../../src/lib/server/app';
+import { loadRecipePage } from '../../src/lib/server/pages';
+import { seedVault, writeMissingTagLabels } from '../../src/lib/server/seed';
+import { tagLabel } from '../../src/lib/i18n/fr';
+import { recipe, tempVault, VOCAB_DOC, type TempVault } from '../helpers/vault';
 
 const CAMILLE = { name: 'Camille Inventée', email: 'camille@recipevault.invalid' };
 
@@ -126,7 +131,7 @@ describe('settling pending tags', () => {
 		expect(recipeFiles()).toEqual(before);
 		// The slug matches both written forms: no alias needed.
 		expect(v.read('vocab/tags.yaml')).toMatch(/\ncabane-a-sucre: +\[\]\n$/);
-		expect(v.read('vocab/tag-labels.yaml')).toBe('cabane-a-sucre: { fr: Cabane à sucre }\n');
+		expect(v.read('vocab/tag-labels.yaml')).toMatch(/\nquebecois: \{ fr: Québécois \}\ncabane-a-sucre: \{ fr: Cabane à sucre \}\n$/);
 		expect(tagRows('tire-inventee')).toEqual([
 			{ tag: 'cabane-a-sucre', pending: 0 },
 			{ tag: 'dessert', pending: 0 }
@@ -228,5 +233,52 @@ describe('settling pending tags', () => {
 		await save(v.ctx, [{ text: recipe('Pain inventé', 'tags: [Four!]\n') }]);
 		expect(pendingKeys()).toContain('four!');
 		await expect(acceptTag(v.ctx, 'four!', 'Four', tagsVersion(v.ctx))).rejects.toThrow(/déjà dans le vocabulaire/);
+	});
+});
+
+describe('tag labels are vault data (issue #11)', () => {
+	let v: TempVault;
+	beforeEach(async () => {
+		v = await tempVault();
+	});
+	afterEach(() => v.cleanup());
+
+	it('vault init seeds vocab/tag-labels.yaml; the app holds no label of its own', () => {
+		expect(tagLabels(v.ctx)).toMatchObject({ entree: 'Entrée', pasta: 'Pâtes', 'plat-principal': 'Plat principal' });
+		expect(tagLabel('entree')).toBe('Entree');
+		expect(tagLabel('plat-principal')).toBe('Plat principal');
+	});
+
+	it('names a tag as written: alias → canonical label, no label → slug, outside the vocabulary → as written', () => {
+		writeFileSync(join(v.dir, 'vocab/tag-labels.yaml'), 'pasta: { fr: Nouilles }\n');
+		const name = tagNamer(v.ctx);
+		expect(name('pâtes')).toEqual({ key: 'pasta', label: 'Nouilles' });
+		expect(name('Pasta')).toEqual({ key: 'pasta', label: 'Nouilles' });
+		expect(name('starter')).toEqual({ key: 'entree', label: 'Entree' });
+		expect(name('cabane à sucre')).toEqual({ key: 'cabane-a-sucre', label: 'Cabane à sucre' });
+	});
+
+	it('the recipe page carries each tag’s filter key and label', async () => {
+		await save(v.ctx, [{ text: recipe('Nouilles inventées', 'tags: [pâtes, Cabane à sucre, dessert]\n') }]);
+		const page = loadRecipePage({ ctx: v.ctx } as App, 'nouilles-inventees')!;
+		expect(page.tags).toEqual([
+			{ key: 'pasta', label: 'Pâtes' },
+			{ key: 'cabane-a-sucre', label: 'Cabane à sucre' },
+			{ key: 'dessert', label: 'Dessert' }
+		]);
+	});
+
+	it('an older vault gains the missing seed labels from `vault ingredients seed`, never over one it has', async () => {
+		writeFileSync(join(v.dir, 'vocab/tag-labels.yaml'), '# à moi\nentree: { fr: Hors-d’œuvre }\ncabane-a-sucre: { fr: Cabane à sucre }\n');
+		v.git('commit', '-qam', 'older vault');
+		const r = await seedVault(v.ctx, '{}\n', VOCAB_DOC);
+		expect(v.git('show', '--name-only', '--format=', r.commit!).trim().split('\n')).toEqual(['vocab/tag-labels.yaml']);
+		const labels = tagLabels(v.ctx);
+		expect(labels).toMatchObject({ entree: 'Hors-d’œuvre', 'cabane-a-sucre': 'Cabane à sucre', pasta: 'Pâtes' });
+		expect(v.read('vocab/tag-labels.yaml').startsWith('# à moi\nentree: { fr: Hors-d’œuvre }\ncabane-a-sucre: { fr: Cabane à sucre }\nplat-principal: { fr: Plat principal }\n')).toBe(true);
+		expect(writeMissingTagLabels(v.dir, VOCAB_DOC)).toEqual([]);
+		// A file that does not read is left alone.
+		writeFileSync(join(v.dir, 'vocab/tag-labels.yaml'), 'entree: { fr: \n');
+		expect(writeMissingTagLabels(v.dir, VOCAB_DOC)).toEqual([]);
 	});
 });

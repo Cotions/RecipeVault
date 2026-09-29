@@ -138,6 +138,30 @@ export function tagLabels(ctx: VaultContext): Record<string, string> {
 	return out;
 }
 
+/** How a page shows a tag a recipe holds: the key the filter uses and the label. */
+export interface TagView {
+	/** The canonical tag, or the pending key of a tag outside the vocabulary: what `/?tag=` filters on. */
+	key: string;
+	label: string;
+}
+
+/**
+ * Names the tags of recipes as written (docs/VOCAB.md, "Labels"): a tag in the
+ * vocabulary, or an alias of one, shows its canonical tag's label from
+ * vocab/tag-labels.yaml (else that slug with spaces); a tag outside it shows
+ * as written. Reads the vocabulary once; call the result per tag.
+ */
+export function tagNamer(ctx: VaultContext): (written: string) => TagView {
+	const vocab = loadVocab(ctx.paths.vocab);
+	const labels = tagLabels(ctx);
+	return (written) => {
+		const canonical = tagFor(vocab.tags, written);
+		if (canonical) return { key: canonical, label: tagLabel(canonical, labels[canonical]) };
+		const plain = stripMarkers(written).replace(/\s+/g, ' ').trim();
+		return { key: pendingKey(written), label: tagLabel(plain) };
+	};
+}
+
 /**
  * Everything the form's tag field needs, as plain JSON for the browser:
  * `tags` (folded alias or canonical → canonical; `new Map(tags)` feeds

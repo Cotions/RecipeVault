@@ -28,6 +28,7 @@ import { remove, restore, TrashError } from './trash';
 import { RECIPES, TRASH } from './vault';
 import { SLUG_RE } from '../vault/slug';
 import { loadVocab } from './vocab';
+import { tagNamer } from './tags';
 import { describeChanges, diffVersions, parseVersion, titleOfText, type Change, type Parsed } from './history-diff';
 
 export type HistoryErrorReason = 'unknown' | 'stale' | 'invalid' | 'unsupported' | 'gone' | 'failed';
@@ -218,6 +219,8 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 	};
 	const onDisk = live?.text ?? (inTrash ? readFileSync(join(root, path), 'utf8') : null);
 	const nowParsed = live ? parse(live.text) : null;
+	const namer = tagNamer(ctx);
+	const tagName = (tag: string) => namer(tag).label;
 
 	const versions: Version[] = entries.map((e, i) => {
 		const text = texts[i];
@@ -243,7 +246,7 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 			path: status === 'D' ? null : to,
 			text,
 			changes,
-			summary: describeChanges(changes),
+			summary: describeChanges(changes, tagName),
 			current: text !== null && text === onDisk,
 			restorable: false,
 			toCurrent: []
@@ -259,7 +262,7 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 			else if (f.recipe.slug !== slug) v.blocked = 'other-slug';
 			else {
 				v.restorable = true;
-				v.toCurrent = describeChanges(diffVersions(nowParsed, parse(text)));
+				v.toCurrent = describeChanges(diffVersions(nowParsed, parse(text)), tagName);
 			}
 		}
 		return v;

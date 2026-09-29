@@ -77,6 +77,7 @@ export interface SeedVocab {
 	'participles.yaml': string;
 	'descriptors.yaml': string;
 	'brands.yaml': string;
+	'tag-labels.yaml': string;
 }
 
 /** The seed vocabularies, copied from docs/VOCAB.md (the doc is the seed). */
@@ -89,6 +90,7 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 	const participles = yamlBlocksUnder(vocabDoc, 'Preparation words');
 	const descriptors = yamlBlocksUnder(vocabDoc, 'Size words');
 	const brands = yamlBlocksUnder(vocabDoc, 'Brands');
+	const tagLabels = yamlBlocksUnder(vocabDoc, 'Tag labels');
 	// Validate before writing: a broken seed would break every later read.
 	for (const [name, text] of [
 		['tags', tags],
@@ -98,7 +100,8 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 		['conversions', conversions],
 		['participles', participles],
 		['descriptors', descriptors],
-		['brands', brands]
+		['brands', brands],
+		['tag labels', tagLabels]
 	]) {
 		const data = parse(text, { version: '1.2' });
 		if (!data || typeof data !== 'object') throw new Error(`docs/VOCAB.md: the ${name} block is not a YAML mapping`);
@@ -112,7 +115,8 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 		'conversions.yaml': `# Unit factors for cost: mass in grams, volume in millilitres, for one of the\n# unit. Regional data, seeded from docs/VOCAB.md ("Conversions"); edit freely.\n${conversions}`,
 		'participles.yaml': `# Preparation words that belong in \`prep\`, not in an ingredient's name (W302).\n# Seeded from docs/VOCAB.md ("Preparation words"); edit freely.\n${participles}`,
 		'descriptors.yaml': `# Size words that belong in \`note\`, not in an ingredient's name (W304).\n# Seeded from docs/VOCAB.md ("Size words"); edit freely.\n${descriptors}`,
-		'brands.yaml': `# Brands that belong in \`brand\`, not in an ingredient's name (W607).\n# Seeded from docs/VOCAB.md ("Brands"); edit freely.\n${brands}`
+		'brands.yaml': `# Brands that belong in \`brand\`, not in an ingredient's name (W607).\n# Seeded from docs/VOCAB.md ("Brands"); edit freely.\n${brands}`,
+		'tag-labels.yaml': `# Canonical tag: { fr: label, en: label }. Seeded from docs/VOCAB.md ("Tag labels");\n# grows on /etiquettes. A tag without a label shows its slug.\n${tagLabels}`
 	};
 }
 
