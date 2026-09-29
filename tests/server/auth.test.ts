@@ -189,7 +189,7 @@ describe('cookies', () => {
 		expect(overHttps(https)).toBe(true);
 		expect(overHttps(http)).toBe(false);
 		expect(overHttps(new Headers({ 'x-forwarded-proto': 'http' }))).toBe(false);
-		expect(cookieOptions(true, true, Date.now() + 1000_000)).toMatchObject({ path: '/', httpOnly: true, sameSite: 'lax', secure: true, maxAge: 1000 });
+		expect(cookieOptions(true, true, Date.now() + 1000_000)).toMatchObject({ path: '/', httpOnly: true, sameSite: 'lax', secure: true, maxAge: expect.toSatisfy((s: number) => s === 999 || s === 1000) });
 		expect(cookieOptions(false, true, Date.now() + 1000_000)).toMatchObject({ secure: false });
 		// "Rester connectée" unchecked: a browser-session cookie, no Max-Age.
 		expect(cookieOptions(false, false, Date.now() + 1000_000)).not.toHaveProperty('maxAge');

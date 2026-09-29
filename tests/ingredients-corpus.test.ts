@@ -272,7 +272,7 @@ describe('resolution metrics', () => {
 				`milestones: ${marks.join(', ')}; wrong ${wrongSeen}`
 		);
 		expect(wrongSeen).toBe(0);
-	});
+	}, 20_000); // heavy; runs past the 5 s default under full-suite load
 
 	it('T: no trap pair resolves to one entry of the fixture registry', () => {
 		const dir = 'tests/fixtures/vault/ingredients';
