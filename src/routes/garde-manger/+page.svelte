@@ -16,12 +16,17 @@
 		{ key: 'avoid', label: t.pantry.avoid }
 	] as const;
 
-	/** This pantry without one slug in one list. */
+	/**
+	 * This pantry without one slug in one list. Removing the last ingredient
+	 * she has or must use empties the pantry: `vide=1` then forgets the saved
+	 * one too, or the next visit would bring the removed chip back.
+	 */
 	function without(list: string, slug: string): string {
 		const q = new URLSearchParams(data.qs);
 		const rest = (q.get(list) ?? '').split(',').filter((s) => s && s !== slug);
 		if (rest.length) q.set(list, rest.join(','));
 		else q.delete(list);
+		if (!q.get('have') && !q.get('must')) q.set('vide', '1');
 		const s = q.toString().replace(/%2C/g, ',');
 		return `/garde-manger${s ? `?${s}` : ''}`;
 	}

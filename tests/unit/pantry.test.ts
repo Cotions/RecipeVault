@@ -59,6 +59,15 @@ describe('pantrySearch', () => {
 		expect(c.swaps).toEqual([]);
 	});
 
+	it('never swaps in an ingredient she avoids, by name or by allergen', () => {
+		const r = recipe('gateau', [item('oeuf'), item('margarine')]);
+		const w = world({ margarine: ['beurre'] }, { lait: ['beurre'] });
+		for (const q of [{ avoid: ['beurre'] }, { allergens: ['lait'] }]) {
+			const [a] = pantrySearch([r], { have: ['oeuf'], ...q }, w);
+			expect(a).toMatchObject({ tier: 'presque', swaps: [], missing: [['margarine']] });
+		}
+	});
+
 	it('presque at two missing, idées beyond', () => {
 		const r = recipe('ragout', [item('boeuf'), item('carotte'), item('oignon'), item('patate')]);
 		expect(pantrySearch([r], { have: ['boeuf', 'carotte'] }, world())[0].tier).toBe('presque');

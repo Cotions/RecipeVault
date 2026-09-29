@@ -47,6 +47,17 @@ test('an unknown name is said so; a chip removes its ingredient; the last pantry
 	await expect(page).toHaveURL('/garde-manger');
 });
 
+test('removing the last chip forgets the saved pantry', async ({ page }) => {
+	await page.goto('/garde-manger?have=oeuf,lait');
+	await page.getByRole('link', { name: 'Retirer lait' }).click();
+	await expect(page).toHaveURL('/garde-manger?have=oeuf');
+	await page.getByRole('link', { name: 'Retirer œuf' }).click();
+	await expect(page.getByText('Ajoutez au moins un ingrédient que vous avez.')).toBeVisible();
+	await page.goto('/garde-manger');
+	await expect(page).toHaveURL('/garde-manger');
+	await expect(page.locator('.chips')).toHaveCount(0);
+});
+
 test('an allergen to avoid leaves out the recipes using it', async ({ page }) => {
 	await page.goto('/garde-manger?have=farine');
 	await expect(page.locator('li', { hasText: 'Crêpes minces' })).toHaveCount(1);

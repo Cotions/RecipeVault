@@ -345,7 +345,9 @@ it meets.
 `substitutes` in the registry means a missing ingredient can sometimes be covered
 by something she has. A recipe missing `crème fraîche` where she has `yaourt grec`
 is cookable *with a substitution* — shown as its own tier, between "cookable now"
-and "almost there", labelled so she knows it is not the original.
+and "almost there", labelled so she knows it is not the original. A substitute
+she avoids (by name or through an allergen she ticked) is never offered, even
+when she has it or it is an assumed staple.
 
 ### Negative and required filters
 

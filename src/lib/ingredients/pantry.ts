@@ -162,7 +162,8 @@ export function pantrySearch(recipes: Iterable<PantryRecipe>, q: PantryQuery, w:
 		if (!used) continue;
 		const swaps: Swap[] = [];
 		for (const m of t.missing) {
-			const sw = m.flatMap((s) => (w.substitutes.get(s) ?? []).filter((x) => have.has(x)).map((x) => ({ missing: s, with: x })))[0];
+			// Never a swap for something she avoids, by name or by allergen.
+			const sw = m.flatMap((s) => (w.substitutes.get(s) ?? []).filter((x) => have.has(x) && !avoid.has(x)).map((x) => ({ missing: s, with: x })))[0];
 			if (sw) swaps.push(sw);
 		}
 		const tier: Tier = !t.missing.length ? 'pret' : swaps.length === t.missing.length ? 'substitution' : t.missing.length <= ALMOST ? 'presque' : 'idees';
