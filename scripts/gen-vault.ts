@@ -1,12 +1,18 @@
 // Scale fixture: write N invented recipes (some using an earlier one as a
 // sub-recipe), ~1000 registry entries and ~3000 price rows into a new
-// temporary vault, then (with --bench) time the index against the plan's targets.
+// temporary vault, then (with --bench) time the index against the plans'
+// targets: plan 02's index, plan 03's ingredient paths, plan 04's write path
+// (form, save, undo, photo, history over a ~20 000-commit vault, pending tags,
+// sign-in, sessions).
 //
 //   npx tsx scripts/gen-vault.ts [N=5000] [--dir /tmp/x] [--bench]
 //
 // Everything is random combinations of invented words — no real recipe.
 
-import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import sharp from 'sharp';
+import type { Cookies } from '@sveltejs/kit';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -28,7 +34,21 @@ import { appendPrice } from '../src/lib/server/prices';
 import { PRICE_HEADER } from '../src/lib/ingredients/prices';
 import { loadConversions } from '../src/lib/server/vocab';
 import { initVault } from '../src/lib/server/vault';
-import { commitPaths } from '../src/lib/server/git';
+import { commitPaths, git } from '../src/lib/server/git';
+import { withAuthor } from '../src/lib/server/context';
+import type { App } from '../src/lib/server/app';
+import { formCheck, formSave, nameResolves, openForm, subRecipeCandidates, suggestAuthors, suggestNames } from '../src/lib/server/formsave';
+import { formPageData } from '../src/lib/server/formpage';
+import { recipeHistory, restoreVersion, undoCommit } from '../src/lib/server/history';
+import { addPhoto, derivedCopy } from '../src/lib/server/photos';
+import { currentFile } from '../src/lib/server/save';
+import { acceptTag, canonicalTags, pendingTags, tagsVersion } from '../src/lib/server/tags';
+import { addUser, decoyHash, UserStore } from '../src/lib/server/users';
+import { SessionStore } from '../src/lib/server/sessions';
+import { currentUser, signIn, startSession, Throttle, type Auth } from '../src/lib/server/auth';
+import { loadCheckWords } from '../src/lib/server/vocab';
+import { checkFile, hasErrors } from '../src/lib/vault/check';
+import { emptyForm, ensureSection, nameHint, newItem, type FormRecipe, type MethodSection, type StepRow } from '../src/lib/form';
 
 const args = process.argv.slice(2);
 const n = Number(args.find((a) => /^\d+$/.test(a)) ?? 5000);
@@ -99,7 +119,9 @@ function recipe(i: number, earlier: readonly string[]): { slug: string; text: st
 		`  prep: ${5 + Math.floor(rand() * 40)}m`,
 		`  cook: ${Math.floor(rand() * 3)}h${10 + Math.floor(rand() * 40)}m`,
 		...((n) => [`servings: ${n}`, `yield: { qty: ${n}, unit: piece }`])(2 + Math.floor(rand() * 10)),
-		`tags: [${some(TAGS, 2 + Math.floor(rand() * 3)).join(', ')}]`,
+		// Every 50th recipe also carries one of 20 invented tags no vocabulary has
+		// (pending, for /etiquettes); by index, so the random draws stay as they were.
+		`tags: [${[...some(TAGS, 2 + Math.floor(rand() * 3)), ...(i % 50 === 0 ? [`essai-${(i / 50) % 20}`] : [])].join(', ')}]`,
 		`season: [${some(SEASONS, 1).join(', ')}]`,
 		`rating: ${1 + Math.floor(rand() * 5)}`,
 		'ingredients:',
@@ -285,5 +307,352 @@ if (bench) {
 	}
 	const sorted = [...appends].sort((a, b) => a - b);
 	console.log(`${'append one price and commit'.padEnd(34)} ${sorted[2].toFixed(1)} ms (median of 5; ${appends.map((a) => a.toFixed(0)).join(', ')})`);
+	await benchWritePath(ctx);
 	ctx.db.close();
+}
+
+// ---------------------------------------------------------------------------
+// Plan 04: the write path.
+
+function median(xs: number[]): number {
+	return [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+}
+function show(label: string, xs: number[], extra = ''): void {
+	console.log(`${label.padEnd(34)} ${median(xs).toFixed(1)} ms (median of ${xs.length}; ${xs.map((a) => a.toFixed(0)).join(', ')})${extra ? ` ${extra}` : ''}`);
+}
+async function timeAsync(label: string, fn: (k: number) => Promise<unknown>, runs: number, extra = ''): Promise<number[]> {
+	const xs: number[] = [];
+	for (let k = 0; k < runs; k++) {
+		const t = performance.now();
+		await fn(k);
+		xs.push(performance.now() - t);
+	}
+	show(label, xs, extra);
+	return xs;
+}
+
+/** The recipe the form, history and photo benches use: 50-odd lines, groups, sub-headings, a marker. Invented. */
+// Functions, not consts: the bench runs from top-level code above them.
+function benchSlug(): string {
+	return 'banc-d-essai-tourte';
+}
+function benchRecipe(): string {
+	return `---
+schema: 3
+title: Tourte de la cabane d'essai
+slug: ${benchSlug()}
+lang: fr
+family: tourte
+variant: de la cabane
+source:
+  type: family
+  author: Tante Inventée
+times:
+  prep: 45m
+  cook: 1h15m
+  rest: 20m
+oven: { temp: 375, unit: F }
+servings: 8
+tags: [plat-principal, four, fetes]
+season: [hiver]
+rating: 4
+ingredients:
+  - group: Pâte
+    items:
+      - { qty: "2 1/2", unit: cup, name: farine }
+      - { qty: 1, unit: tsp, name: sel }
+      - { qty: 1, unit: cup, name: beurre, prep: froid }
+      - { qty: "1/2", unit: cup, name: eau, note: glacée }
+  - group: Garniture
+    items:
+      - { qty: 1, unit: lb, name: bœuf haché }
+      - { qty: 1, unit: lb, name: poulet, prep: en dés }
+      - { qty: 1, unit: piece, name: oignon, prep: haché }
+      - { qty: 2, unit: piece, name: patates, note: "moyennes [?]" }
+      - { qty: "1/2", unit: tsp, name: cannelle }
+      - { qty: "1/4", unit: tsp, name: moutarde }
+      - { name: poivre, to_taste: true }
+status: draft
+added: 2026-01-10
+extracted_by: ai
+---
+
+## Préparation
+
+### Pâte
+
+1. Mélanger la farine et le sel.
+2. Couper le beurre dans la farine.
+3. Ajouter l'eau et former une boule.
+
+### Garniture
+
+4. Faire revenir le bœuf, le poulet et l'oignon pendant 15 min.
+5. Ajouter les patates et les épices.
+6. Cuire 30 min à feu doux.
+
+### Montage
+
+7. Foncer une assiette à tarte avec la moitié de la pâte.
+8. Verser la garniture et couvrir.
+9. Cuire au four 45 min.
+
+## Notes
+
+Se congèle bien.
+`;
+}
+
+/** One of the bench recipe's 49 edits, by kind in turn: rating, an ingredient, a step, the title, the notes. */
+function benchEdit(text: string, k: number): string {
+	switch (k % 5) {
+		case 0:
+			return text.replace(/^rating: \d$/m, (m) => `rating: ${(Number(m.slice(-1)) % 5) + 1}`);
+		case 1:
+			return text.replace(/^status:/m, `      - { qty: 1, unit: tsp, name: épice ${k} }\nstatus:`);
+		case 2:
+			return text.replace(/^9\. .*$/m, `9. Cuire au four ${40 + k} min.`);
+		case 3:
+			return text.replace(/^title: .*$/m, `title: Tourte de la cabane d'essai ${k}`);
+		default:
+			return text.replace(/(## Notes\n\n).*/, `$1Se congèle bien (essai ${k}).`);
+	}
+}
+
+/**
+ * Grow the vault's history to ~`total` commits with `git fast-import`: every
+ * commit changes one recipe's rating, except `versions - 1` commits spread
+ * evenly through them that edit the bench recipe (added in the first one).
+ */
+function growHistory(dir: string, slugs: string[], total: number, versions: number): void {
+	const branch = execFileSync('git', ['symbolic-ref', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+	const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+	const texts = new Map<string, string>();
+	const textOf = (slug: string) => texts.get(slug) ?? readFileSync(join(dir, 'recipes', `${slug}.md`), 'utf8');
+	const people = [
+		['Cuisinière Test', 'cuisiniere@recipevault.invalid'],
+		['Propriétaire Test', 'proprio@recipevault.invalid']
+	];
+	const every = Math.floor(total / versions);
+	const chunks: Buffer[] = [];
+	const data = (s: string) => {
+		const b = Buffer.from(s);
+		chunks.push(Buffer.from(`data ${b.length}\n`), b, Buffer.from('\n'));
+	};
+	let ts = Date.UTC(2020, 0, 1) / 1000;
+	let benchEdits = 0;
+	for (let c = 0; c < total; c++) {
+		let slug: string;
+		let text: string;
+		let verb = 'edit';
+		if (c === 0) {
+			slug = benchSlug();
+			text = benchRecipe();
+			verb = 'add';
+		} else if (c % every === 0 && benchEdits < versions - 1) {
+			slug = benchSlug();
+			text = benchEdit(textOf(slug), benchEdits++);
+		} else {
+			slug = slugs[Math.floor(rand() * slugs.length)];
+			text = textOf(slug).replace(/^rating: \d$/m, (m) => `rating: ${(Number(m.slice(-1)) % 5) + 1}`);
+		}
+		texts.set(slug, text);
+		const [name, email] = people[c % 2];
+		ts += 3600 + Math.floor(rand() * 7200);
+		const title = /^title: (.*)$/m.exec(text)![1];
+		chunks.push(Buffer.from(`commit ${branch}\nauthor ${name} <${email}> ${ts} -0400\ncommitter ${name} <${email}> ${ts} -0400\n`));
+		data(`${verb}: ${title}`);
+		if (c === 0) chunks.push(Buffer.from(`from ${head}\n`));
+		chunks.push(Buffer.from(`M 100644 inline recipes/${slug}.md\n`));
+		data(text);
+		chunks.push(Buffer.from('\n'));
+	}
+	if (benchEdits !== versions - 1) throw new Error(`bench recipe got ${benchEdits + 1} versions, not ${versions}`);
+	execFileSync('git', ['fast-import', '--quiet'], { cwd: dir, input: Buffer.concat(chunks), maxBuffer: 1 << 30 });
+	execFileSync('git', ['reset', '--hard', '--quiet'], { cwd: dir });
+}
+
+async function benchWritePath(ctx: ReturnType<typeof openVault>): Promise<void> {
+	console.log('\n— plan 04: the write path —');
+	const person = { name: 'Cuisinière Test', email: 'cuisiniere@recipevault.invalid' };
+	const her = withAuthor(ctx, person);
+	const app = { ctx } as App;
+	const time = (label: string, fn: () => unknown, runs = 1) => {
+		fn(); // warm
+		const t0 = performance.now();
+		for (let i = 0; i < runs; i++) fn();
+		const ms = (performance.now() - t0) / runs;
+		console.log(`${label.padEnd(34)} ${ms < 1 ? ms.toFixed(3) : ms.toFixed(1)} ms`);
+		return ms;
+	};
+	const BENCH_SLUG = benchSlug();
+	const headOf = () => execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+
+	// History first: the form, the save and the photo are timed in a vault with ~20 000 commits.
+	const HISTORY = 20_000;
+	const tg = performance.now();
+	growHistory(dir, written, HISTORY, 50);
+	syncVault(ctx.db, ctx.paths);
+	const commits = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+	console.log(`${'history grown (fast-import + sync)'.padEnd(34)} ${((performance.now() - tg) / 1000).toFixed(1)} s (${commits} commits)`);
+	const bench = checkFile(readFileSync(join(dir, 'recipes', `${BENCH_SLUG}.md`), 'utf8'));
+	if (!bench.recipe || hasErrors(bench.diagnostics)) throw new Error(`bench recipe does not pass the checker: ${bench.diagnostics.map((d) => d.code).join(', ')}`);
+	const lines = readFileSync(join(dir, 'recipes', `${BENCH_SLUG}.md`), 'utf8').split('\n').length;
+
+	// The history page (its load: log --follow, every version's text, summaries, today's checker).
+	const versions = (await recipeHistory(ctx, BENCH_SLUG)).versions.length;
+	await timeAsync('history page, bench recipe', () => recipeHistory(ctx, BENCH_SLUG), 5, `(${versions} versions, ${commits} commits)`);
+	const gitLog = async (label: string, args: string[], slug: string) => {
+		const t = performance.now();
+		// One path: git 2.43 uses Bloom filters for a single pathspec only.
+		await git(dir, ['log', ...args, '--format=%H', '--', `recipes/${slug}.md`]);
+		console.log(`${label.padEnd(34)} ${(performance.now() - t).toFixed(1)} ms`);
+	};
+	await gitLog('  of which git log --follow', ['--follow', '-M'], BENCH_SLUG);
+	// A few ordinary recipes (a handful of versions each): --follow's cost varies with the path.
+	const others = written.slice(1, 4);
+	for (const s of others) {
+		const n = (await recipeHistory(ctx, s)).versions.length;
+		await timeAsync(`history page, ${n}-version recipe`, () => recipeHistory(ctx, s), 3);
+	}
+
+	// Open the edit form: the page's server load.
+	openForm(ctx, BENCH_SLUG);
+	const cold = performance.now();
+	formPageData(app, openForm(ctx, BENCH_SLUG) as never, { slug: BENCH_SLUG, hash: '' });
+	console.log(`${'open edit form, stats not cached'.padEnd(34)} ${(performance.now() - cold).toFixed(1)} ms`);
+	time(`open edit form (${lines}-line recipe)`, () => {
+		const o = openForm(ctx, BENCH_SLUG);
+		if (!('form' in o)) throw new Error('bench recipe did not open');
+		return formPageData(app, o.form, { slug: BENCH_SLUG, hash: o.hash });
+	}, 20);
+	time('open new-recipe form', () => formPageData(app, null), 20);
+
+	// Suggestions for one keystroke: what GET /api/suggest?kind=name runs.
+	const typed = ['f', 'fa', 'far', 'fari', 'farin', 'farine', 'b', 'be', 'beu', 'beur', 'c', 'ca', 'cas', 'po', 'pom', 'ba', 'bal', 'zu'];
+	let q = 0;
+	time('suggest names, one keystroke', () => {
+		const s = typed[q++ % typed.length];
+		return [suggestNames(ctx, s, 'fr'), nameResolves(ctx, s, 'fr')];
+	}, 200);
+	time('suggest authors, one keystroke', () => suggestAuthors(ctx, typed[q++ % typed.length]), 200);
+	time('suggest sub-recipes (E213 walk)', () => subRecipeCandidates(ctx, 'tar', BENCH_SLUG), 50);
+
+	// Hints while typing: the browser's name-word check (same code, run here).
+	const words = loadCheckWords(ctx.paths.vocab);
+	const names = ['oignons hachés', 'gros œufs', 'farine tout usage', 'beurre doux fondu', 'carottes râpées finement', 'sucre', 'petites patates', 'crème 35 %'];
+	let h = 0;
+	time('name hint, one field (browser)', () => nameHint(names[h++ % names.length], words), 2000);
+	const opened = openForm(ctx, BENCH_SLUG) as { form: FormRecipe; hash: string };
+	time('form check, whole form (debounced)', () => formCheck(ctx, opened.form, { slug: BENCH_SLUG, hash: opened.hash }), 10);
+
+	// Saves. Unchanged first: no write, no commit.
+	const before = headOf();
+	const t0 = performance.now();
+	const same = await formSave(her, { form: opened.form, base: { slug: BENCH_SLUG, hash: opened.hash } });
+	const tu = performance.now() - t0;
+	console.log(`${'unchanged form save'.padEnd(34)} ${tu.toFixed(1)} ms (${same.status}; ${headOf() === before ? 'no commit' : 'COMMITTED'})`);
+	if (same.status !== 'unchanged' || headOf() !== before) throw new Error('an unchanged form save wrote something');
+	const saved: string[] = [];
+	await timeAsync('form save, edit (one step)', async (k) => {
+		const o = openForm(ctx, BENCH_SLUG) as { form: FormRecipe; hash: string };
+		const m = o.form.sections.find((s) => s.kind === 'method') as MethodSection;
+		const step = m.rows.filter((r) => r.type === 'step')[1];
+		step.text = `${step.text.replace(/ \(banc \d+\)$/, '')} (banc ${k})`;
+		const r = await formSave(her, { form: o.form, base: { slug: BENCH_SLUG, hash: o.hash } });
+		if (r.status !== 'saved') throw new Error(`form save: ${r.status}`);
+		saved.push(r.commit!);
+	}, 5);
+	await timeAsync('form save, new recipe', async (k) => {
+		const f = emptyForm({ lang: 'fr', ovenUnit: 'F' });
+		f.title = `Galettes du banc d'essai ${k}`;
+		Object.assign(f.groups[0].items[0], { qty: '1 1/2', unit: 'cup', name: 'farine' });
+		f.groups[0].items.push({ ...newItem(), qty: '1/2', unit: 'cup', name: 'sucre' });
+		(ensureSection(f, 'method').rows[0] as StepRow).text = 'Mélanger et cuire 12 min.';
+		const r = await formSave(her, { form: f });
+		if (r.status !== 'saved' || !r.created) throw new Error(`new recipe: ${r.status}`);
+	}, 5);
+
+	// Undo (the toast) and restore (the history page), same path as a save.
+	let last = saved[saved.length - 1];
+	await timeAsync('undo the last save', async () => {
+		const r = await undoCommit(her, last, { slug: BENCH_SLUG });
+		last = r.commit!; // the next undo undoes this one (a redo)
+	}, 5);
+	// "Revenir à cette version" as the route runs it (restoreVersion reads the history itself).
+	const restores: number[] = [];
+	for (let k = 0; k < 3; k++) {
+		const hist = await recipeHistory(ctx, BENCH_SLUG);
+		const v = hist.versions.filter((x) => x.restorable)[2];
+		const t = performance.now();
+		await restoreVersion(her, BENCH_SLUG, v.commit, hist.hash!);
+		restores.push(performance.now() - t);
+	}
+	show('restore a version 3 back', restores);
+
+	// Photo: a 12 MP JPEG (noise, so it is as heavy as a phone's).
+	const jpeg = await sharp({ create: { width: 4000, height: 3000, channels: 3, background: { r: 180, g: 120, b: 60 }, noise: { type: 'gaussian', mean: 128, sigma: 40 } } })
+		.jpeg({ quality: 90 })
+		.toBuffer();
+	const mb = (jpeg.length / 1024 / 1024).toFixed(1);
+	let file = '';
+	await timeAsync('photo upload: store + both copies', async () => {
+		const cur = currentFile(ctx, BENCH_SLUG)!;
+		file = (await addPhoto(her, BENCH_SLUG, cur.hash, jpeg)).file;
+	}, 3, `(12 MP JPEG, ${mb} MB)`);
+	const tt: number[] = [];
+	const td: number[] = [];
+	for (let k = 0; k < 3; k++) {
+		rmSync(join(ctx.paths.cache, 'img', BENCH_SLUG), { recursive: true, force: true });
+		let t = performance.now();
+		await derivedCopy(ctx.paths, BENCH_SLUG, file, 'thumb');
+		tt.push(performance.now() - t);
+		t = performance.now();
+		await derivedCopy(ctx.paths, BENCH_SLUG, file, 'display');
+		td.push(performance.now() - t);
+	}
+	show('derived thumb on demand', tt);
+	show('derived display on demand', td);
+
+	// /etiquettes: the page's load, then one "Nouvelle étiquette" (one commit, the index retags).
+	const pend = pendingTags(ctx);
+	time('/etiquettes page', () => [pendingTags(ctx), canonicalTags(ctx), tagsVersion(ctx)], 20);
+	console.log(`${'  pending tags'.padEnd(34)} ${pend.length} (${pend.map((p) => `${p.tag} ${p.recipes.length}`).join(', ')})`);
+	await timeAsync('accept one pending tag + commit', async (k) => {
+		const p = pendingTags(her).find((x) => x.tag.startsWith('essai-'))!;
+		await acceptTag(her, p.tag, `Essai ${k}`, tagsVersion(her));
+	}, 3);
+	const big = pendingTags(her).sort((a, b) => b.recipes.length - a.recipes.length)[0];
+	if (big) await timeAsync(`accept the biggest (${big.tag}, ${big.recipes.length})`, () => acceptTag(her, big.tag, big.label, tagsVersion(her)), 1);
+
+	// For the report: the same log without --follow, before and after a commit-graph with changed-path Bloom filters,
+	// which --follow cannot use. Last, as it changes the bench vault.
+	for (const s of [BENCH_SLUG, ...others]) await gitLog(`  git log, no --follow (${s.slice(0, 12)}…)`, [], s);
+	execFileSync('git', ['commit-graph', 'write', '--reachable', '--changed-paths'], { cwd: dir, stdio: 'ignore' });
+	for (const s of [BENCH_SLUG, ...others]) {
+		await gitLog(`  + Bloom, --follow (${s.slice(0, 12)}…)`, ['--follow', '-M'], s);
+		await gitLog(`  + Bloom, no --follow (${s.slice(0, 12)}…)`, [], s);
+	}
+
+	// Sign in and the session lookup every request makes.
+	const home = mkdtempSync(join(tmpdir(), 'rv-auth-'));
+	const usersFile = join(home, 'users.json');
+	await addUser(usersFile, { login: 'cuisiniere', name: 'Cuisinière Test', password: 'mot-de-passe-inventé' });
+	const auth: Auth = { users: new UserStore(usersFile), sessions: new SessionStore(join(home, 'sessions.db')), throttle: new Throttle() };
+	await decoyHash();
+	await timeAsync('sign in (argon2id verify)', async () => {
+		const r = await signIn(auth, 'cuisiniere', 'mot-de-passe-inventé', '10.0.0.1');
+		if (!r.ok) throw new Error('sign in failed');
+	}, 5);
+	await timeAsync('sign in, unknown login (decoy)', () => signIn(auth, `inconnu${Math.random()}`, 'mot-de-passe-inventé', '10.0.0.2'), 5);
+	let token = '';
+	const jar = { get: () => token, set: (_n: string, v: string) => (token = v), delete: () => (token = '') } as unknown as Cookies;
+	const headers = new Headers();
+	startSession(auth, jar, headers, 'cuisiniere', true);
+	for (let k = 0; k < 20; k++) auth.sessions.create('cuisiniere', 'x', true); // a few other devices
+	time('session lookup per request', () => {
+		if (!currentUser(auth, jar, headers)) throw new Error('no session');
+	}, 5000);
+	auth.sessions.close();
+	rmSync(home, { recursive: true, force: true });
 }
