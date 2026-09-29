@@ -199,7 +199,8 @@ describe('the commit index lists what git log --follow lists', () => {
 		expect([...statuses].sort()).toEqual(['A', 'D', 'M', 'R']);
 		expect(copied.size).toBeGreaterThan(0);
 		expect(copied.size).toBeLessThan(paths.length / 2);
-	});
+		// ~150 commits and a git log per path: 2–3 s alone, over 5 s under full-suite load.
+	}, 30_000);
 
 	it('for the history page: same versions as the page built on git log --follow', async () => {
 		await generate(60);
