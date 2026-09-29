@@ -109,12 +109,13 @@ describe('families', () => {
 		w.start();
 		try {
 			writeFileSync(join(v.dir, 'recipes/pain-invente.md'), recipe('Pain inventé', 'slug: pain-invente\nfamily: pain-invente\nvariant: blanc\n'));
-			await new Promise((r) => setTimeout(r, 10));
-			await w.idle();
+			// The file event can come late under load: wait for it, not a fixed 10 ms.
+			await expect
+				.poll(async () => (await w.idle(), families(v.ctx.db).map((f) => f.slug)), { timeout: 5000, interval: 50 })
+				.toEqual(['gateau-invente', 'pain-invente']);
 		} finally {
 			w.stop();
 		}
-		expect(families(v.ctx.db).map((f) => f.slug)).toEqual(['gateau-invente', 'pain-invente']);
 	});
 });
 
