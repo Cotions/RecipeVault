@@ -36,7 +36,7 @@
 	import StaleCompare from './StaleCompare.svelte';
 	import Suggest, { type Option } from './Suggest.svelte';
 	import { undoSave } from './undo';
-	import { blockText, blocksImplicitSubmit, draftDiffers, mergeBlocks, packDraft, reasonLine, unpackDraft, type DraftPair, type FormDraft } from './formui';
+	import { blockText, blocksImplicitSubmit, draftDiffers, invalidMessage, mergeBlocks, packDraft, reasonLine, unpackDraft, type DraftPair, type FormDraft } from './formui';
 	import {
 		addGroup,
 		addItem,
@@ -383,7 +383,7 @@
 				case 'invalid':
 					// Each field named on its row; nothing written.
 					serverBlocks = Array.isArray(r.errors) ? r.errors : [];
-					message = f.invalid;
+					message = invalidMessage(serverBlocks);
 					return;
 				case 'refused':
 					message = r.reason === 'pair' ? f.pairChanged : r.reason === 'gone' ? f.gone : f.broken;

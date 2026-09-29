@@ -430,3 +430,20 @@ test('"Pas encore relié" waits until she leaves the name, and never blocks Save
 	await expect(r.getByTestId('row-hint')).toHaveCount(0);
 	await page.evaluate(() => localStorage.clear());
 });
+
+test('an error only the server check finds is named above Save, never the generic sentence', async ({ page }) => {
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill(title('Recette refusée par le serveur'));
+	await row(page, 0, '1', 'cup', 'farine');
+	// What the server answers for a gap in the browser's check (E213: a sub-recipe that uses this one).
+	await page.route('**/api/form/save', (route) =>
+		route.fulfill({ json: { status: 'invalid', errors: [{ id: 'recipe', field: 'recipe', reason: 'checker', code: 'E213' }] } })
+	);
+	await page.getByTestId('save').click();
+	const msg = page.getByTestId('form-message');
+	await expect(msg).toContainText('Rien n’est enregistré.');
+	await expect(msg).toContainText('sous-recette');
+	await expect(msg).not.toContainText('corrigez les champs signalés');
+	await expect(msg).not.toContainText('E213');
+	await page.evaluate(() => localStorage.clear());
+});

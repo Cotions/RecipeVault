@@ -6,8 +6,10 @@ import { validForm } from '../valid';
 import type { RequestHandler } from './$types';
 
 // The form's save (plan 04, Phase 3): one request, the whole form as JSON.
-// An error the checker still finds is a bug in the form: formSave logs it and
-// answers `failed`, which the page says as one plain sentence.
+// An error the checker still finds is a gap in the form: formSave logs it with
+// its code and answers `invalid` with the error on its field, which the page
+// names (VALIDATION.md, "never a generic failure"). Only a failure that is not
+// the checker's (disk, git) is `failed`: "rien n'a changé".
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json().catch(() => null);
 	if (!body || !validForm(body.form)) error(400, 'form');

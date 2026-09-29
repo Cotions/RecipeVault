@@ -702,6 +702,8 @@ export const fr = {
 			`« ${value} » est réservé aux lectures incertaines d’une transcription : écrivez-le autrement (des parenthèses au lieu des crochets).`,
 		/** Save refused with fields named. */
 		invalid: 'Rien n’est enregistré : corrigez les champs signalés.',
+		/** Save refused by the server's check (an error the browser's missed): what is wrong, named. */
+		invalidNamed: (problems: string[]) => `Rien n’est enregistré. ${problems.join(' ')}`,
 
 		title: 'Titre',
 		titlePlaceholder: 'Tarte au sucre',

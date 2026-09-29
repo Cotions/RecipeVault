@@ -1345,6 +1345,12 @@ Items of issue #11 (the two perf items went to a separate pass).
 - **Form strings in `fr.ts`.** `src/lib/i18n/fr-form.ts` is merged into
   `fr.ts` as `t.form` (also exported as `form`, the form components' `f`), as
   the plan asked; seven strings no component used are gone.
+- **The server backstop names the problem** (`VALIDATION.md`, "Human-facing
+  validation"): a save the server's check refuses already came back as blocks
+  on their fields (`checkerBlocks`); the message above Save now names each
+  problem (the field's line, else `explain(code)`) instead of "corrigez les
+  champs signalés", and a save-bar line with no text of its own uses the code's
+  sentence. "Rien n'a changé" is left for failures that are not the checker's.
 
 ## Out of scope
 

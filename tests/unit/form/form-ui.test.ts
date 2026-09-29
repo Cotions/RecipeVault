@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { blocks as blocksOf, draftKey, emptyForm, formToDuration, loadDraft, markedText, saveDraft } from '../../../src/lib/form';
-import { blockText, blocksImplicitSubmit, draftDiffers, durationText, mergeBlocks, packDraft, reasonLine, unpackDraft, withAlternative } from '../../../src/lib/components/form/formui';
+import { blockText, blocksImplicitSubmit, draftDiffers, durationText, invalidMessage, mergeBlocks, packDraft, reasonLine, unpackDraft, withAlternative } from '../../../src/lib/components/form/formui';
 import { explain } from '../../../src/lib/i18n/diagnostics';
 
 describe('withAlternative', () => {
@@ -77,6 +77,20 @@ describe('an invalid duration in a draft (issue #11)', () => {
 	});
 });
 
+describe('a save the server check refused (issue #11)', () => {
+	it('names each problem once, never the generic sentence when it knows the problem', () => {
+		const m = invalidMessage([
+			{ id: 'a', field: 'name', reason: 'nameComma', code: 'E211' },
+			{ id: 'b', field: 'name', reason: 'nameComma', code: 'E211' },
+			{ id: 'recipe', field: 'recipe', reason: 'checker', code: 'E213' },
+			{ id: 'recipe', field: 'title', reason: 'required', code: 'E101' }
+		]);
+		expect(m).toBe(`Rien n’est enregistré. Un nom d’ingrédient contient une virgule. ${explain('E213')} Donnez un titre.`);
+		expect(m).not.toContain('corrigez les champs signalés');
+		expect(m).not.toMatch(/E\d{3}/);
+	});
+});
+
 describe('blocksImplicitSubmit', () => {
 	it('stops Enter in one-line inputs only', () => {
 		expect(blocksImplicitSubmit('Enter', { tagName: 'INPUT', type: 'text' })).toBe(true);
@@ -107,6 +121,8 @@ describe('blocks from the checker, on their fields', () => {
 		expect(reasonLine({ id: 'recipe', field: 'title', reason: 'marker', value: '[x]' })).toContain('crochets');
 		expect(reasonLine({ id: 'a', field: 'recipe', reason: 'checker', code: 'E213' })).toBe(explain('E213'));
 		expect(reasonLine({ id: 'recipe', field: 'title', reason: 'required' })).toBe('donnez un titre');
+		// A mapped reason with no save-bar line of its own says the code's sentence, not "corrigez les champs signalés".
+		expect(reasonLine({ id: 'recipe', field: 'source', reason: 'required', code: 'E106' })).toBe(explain('E106'));
 	});
 
 	it('adds the server blocks the browser lacks, one per field', () => {

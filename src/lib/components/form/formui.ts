@@ -111,5 +111,22 @@ export function reasonLine(b: Block): string {
 							: b.reason === 'incomplete'
 								? 'unit'
 								: b.reason;
-	return f.blocks[k] ?? f.blocks.other;
+	return f.blocks[k] ?? (b.code ? explain(b.code) : f.blocks.other);
+}
+
+/** A line as a sentence: capital first, a final period. */
+const sentence = (s: string) => {
+	const t = s.trim();
+	return t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?…]$/.test(t) ? '' : '.');
+};
+
+/**
+ * The message above Save when the server's check refused the save (an error
+ * the browser's check missed, VALIDATION.md "never a generic failure"): each
+ * problem named, once — the field's own line where the form has one, else the
+ * code's French sentence (`explain`). The fields are marked on their rows too.
+ */
+export function invalidMessage(errors: Block[]): string {
+	const lines = [...new Set(errors.map((b) => sentence(reasonLine(b))))];
+	return lines.length ? f.invalidNamed(lines) : f.invalid;
 }

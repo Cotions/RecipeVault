@@ -259,7 +259,12 @@ paste path. Separate `qty`, `unit`, `name`, `note`, `prep` inputs prevent most
 of these states, but not all (a comma or "796 ml" can still be typed in a name).
 So the form runs the checker on exactly what Save would write, and every error
 comes back as a French hint on its row and field that blocks Save — never a
-code, never a generic failure.
+code, never a generic failure. The server checks again at Save (the backstop):
+an error it finds that the browser's check missed is a gap in the form, logged
+with its code for the owner, and comes back the same way — on its field, and
+named in the message above Save (the field's own line, else the code's French
+sentence). Only a failure that is not the checker's (the disk, git) is the one
+plain sentence "La recette n'a pas pu être enregistrée ; rien n'a changé."
 
 Warnings reach the form as hints, never blocking (plan 04, Q9 A): `W302`,
 `W304` and `W607` live in the browser on the name field, each with its one-tap
