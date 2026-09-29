@@ -255,6 +255,8 @@ passing, the home page list of files that fail — each one shows:
   corrected entry).
 
 Her form UI never shows any of this. Codes and fix-request blocks exist for the
-paste path. The form prevents these states structurally —
-ingredient rows have separate `qty`, `unit`, `name`, `note`, `prep` inputs, so
-`E210` and `E211` cannot be expressed in the first place.
+paste path. Separate `qty`, `unit`, `name`, `note`, `prep` inputs prevent most
+of these states, but not all (a comma or "796 ml" can still be typed in a name).
+So the form runs the checker on exactly what Save would write, and every error
+comes back as a French hint on its row and field that blocks Save — never a
+code, never a generic failure.
