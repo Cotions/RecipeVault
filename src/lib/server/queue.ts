@@ -12,7 +12,7 @@ import { CATEGORIES, UNIT_CLASSES, type Category, type NameRule, type RegistryEn
 import { stripMarkers } from '../vault/markers';
 import { SLUG_RE } from '../vault/slug';
 import { UNITS, type Lang } from '../vault/types';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
 import type { DB } from './index/db';
 import { getResolver, reresolve, ruleClash } from './index/resolve';
@@ -165,7 +165,7 @@ export async function commitEntries(ctx: VaultContext, vocab: VaultVocab, writes
 	} catch (e) {
 		ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
 	}
-	ctx.pusher.schedule();
+	committed(ctx);
 	return commit;
 }
 

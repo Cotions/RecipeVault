@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync, renameSync, statSync, utimesSync
 import { join } from 'node:path';
 import { checkFile } from '../vault/check';
 import { stripMarkers } from '../vault/markers';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { commitPaths, unstage } from './git';
 import { deleteRecipeRows, refreshFamilies, sha256 } from './index/build';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
@@ -73,7 +73,7 @@ export function remove(ctx: VaultContext, slug: string, expectedHash?: string): 
 			ctx.db.prepare('DELETE FROM problems WHERE file_path = ?').run(recipePath(slug));
 			refreshFamilies(ctx.db, loadVocab(ctx.paths.vocab));
 		})();
-		ctx.pusher.schedule();
+		committed(ctx);
 		return { commit };
 	});
 }
@@ -112,7 +112,7 @@ export function restore(ctx: VaultContext, slug: string): Promise<{ commit?: str
 			indexText(ctx.db, vocab, rel, text);
 			refreshFamilies(ctx.db, vocab);
 		})();
-		ctx.pusher.schedule();
+		committed(ctx);
 		return { commit };
 	});
 }

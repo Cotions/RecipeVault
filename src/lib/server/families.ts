@@ -7,7 +7,7 @@
 
 import { isMap, isScalar, parseDocument, type Document } from 'yaml';
 import { normalizeText } from '../vault/normalize';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit } from './files';
 import { refreshFamilies } from './index/build';
 import { VOCAB } from './vault';
@@ -92,7 +92,7 @@ export function setFamilyLabel(ctx: VaultContext, slug: string, label: string, e
 		} catch (e) {
 			ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
 		}
-		ctx.pusher.schedule();
+		committed(ctx);
 		return { commit };
 	});
 }

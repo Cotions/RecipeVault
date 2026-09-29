@@ -40,6 +40,7 @@ import type { App } from '../src/lib/server/app';
 import { formCheck, formSave, nameResolves, openForm, subRecipeCandidates, suggestAuthors, suggestNames } from '../src/lib/server/formsave';
 import { formPageData } from '../src/lib/server/formpage';
 import { recipeHistory, restoreVersion, undoCommit } from '../src/lib/server/history';
+import { catchUpCommits, followPath } from '../src/lib/server/index/commits';
 import { addPhoto, derivedCopy } from '../src/lib/server/photos';
 import { currentFile } from '../src/lib/server/save';
 import { acceptTag, canonicalTags, pendingTags, tagsVersion } from '../src/lib/server/tags';
@@ -499,18 +500,32 @@ async function benchWritePath(ctx: ReturnType<typeof openVault>): Promise<void> 
 	if (!bench.recipe || hasErrors(bench.diagnostics)) throw new Error(`bench recipe does not pass the checker: ${bench.diagnostics.map((d) => d.code).join(', ')}`);
 	const lines = readFileSync(join(dir, 'recipes', `${BENCH_SLUG}.md`), 'utf8').split('\n').length;
 
-	// The history page (its load: log --follow, every version's text, summaries, today's checker).
-	const versions = (await recipeHistory(ctx, BENCH_SLUG)).versions.length;
-	await timeAsync('history page, bench recipe', () => recipeHistory(ctx, BENCH_SLUG), 5, `(${versions} versions, ${commits} commits)`);
+	// The commit index (cache/index.db): read once from git (the first start after an upgrade, or
+	// after cache/ is deleted), then only the new commits.
+	await catchUpCommits(ctx.db, dir);
+	ctx.db.prepare("DELETE FROM meta WHERE key = 'commits_head'").run(); // as after cache/ is deleted
+	const tc = performance.now();
+	const full = await catchUpCommits(ctx.db, dir);
+	console.log(`${'commit index: full read'.padEnd(34)} ${((performance.now() - tc) / 1000).toFixed(1)} s (${full.mode}, ${full.commits} commits)`);
+	await timeAsync('commit index: caught up (no-op)', () => catchUpCommits(ctx.db, dir), 5);
 	const gitLog = async (label: string, args: string[], slug: string) => {
 		const t = performance.now();
 		// One path: git 2.43 uses Bloom filters for a single pathspec only.
-		await git(dir, ['log', ...args, '--format=%H', '--', `recipes/${slug}.md`]);
+		const out = await git(dir, ['log', ...args, '--format=%H', '--', `recipes/${slug}.md`]);
 		console.log(`${label.padEnd(34)} ${(performance.now() - t).toFixed(1)} ms`);
+		return out.trim().split('\n');
 	};
-	await gitLog('  of which git log --follow', ['--follow', '-M'], BENCH_SLUG);
-	// A few ordinary recipes (a handful of versions each): --follow's cost varies with the path.
+	// A few ordinary recipes (a handful of versions each): --follow's cost varied with the path.
 	const others = written.slice(1, 4);
+	// The index lists what `git log --follow` lists (the page's own cut aside: none of these was copied or re-created).
+	for (const s of [BENCH_SLUG, ...others]) {
+		const byGit = await gitLog(`  git log --follow (${s.slice(0, 12)}…)`, ['--follow', '-M'], s);
+		const byIndex = followPath(ctx.db, `recipes/${s}.md`).map((e) => e.commit);
+		if (byIndex.join() !== byGit.join()) throw new Error(`commit index and git log --follow differ for ${s}`);
+	}
+	// The history page (its load: the commit index, every version's text, summaries, today's checker).
+	const versions = (await recipeHistory(ctx, BENCH_SLUG)).versions.length;
+	await timeAsync('history page, bench recipe', () => recipeHistory(ctx, BENCH_SLUG), 5, `(${versions} versions, ${commits} commits)`);
 	for (const s of others) {
 		const n = (await recipeHistory(ctx, s)).versions.length;
 		await timeAsync(`history page, ${n}-version recipe`, () => recipeHistory(ctx, s), 3);
@@ -579,7 +594,20 @@ async function benchWritePath(ctx: ReturnType<typeof openVault>): Promise<void> 
 		const r = await undoCommit(her, last, { slug: BENCH_SLUG });
 		last = r.commit!; // the next undo undoes this one (a redo)
 	}, 5);
-	// "Revenir à cette version" as the route runs it (restoreVersion reads the history itself).
+	// The commit index after a commit (in the background after an app commit; the next read otherwise).
+	const appended: number[] = [];
+	for (let k = 0; k < 3; k++) {
+		const rel = `recipes/${written[10 + k]}.md`;
+		writeFileSync(join(dir, rel), readFileSync(join(dir, rel), 'utf8').replace(/^rating: \d$/m, (m) => `rating: ${(Number(m.slice(-1)) % 5) + 1}`));
+		await commitPaths(dir, [rel], `edit: banc ${k}`, person);
+		const t = performance.now();
+		const r = await catchUpCommits(ctx.db, dir);
+		appended.push(performance.now() - t);
+		if (r.mode !== 'append' || r.commits !== 1) throw new Error(`commit index: ${r.mode} ${r.commits}`);
+	}
+	syncVault(ctx.db, ctx.paths);
+	show('commit index: catch up one commit', appended);
+	// "Revenir à cette version" as the route runs it (restoreVersion finds the version in the commit index).
 	const restores: number[] = [];
 	for (let k = 0; k < 3; k++) {
 		const hist = await recipeHistory(ctx, BENCH_SLUG);

@@ -82,8 +82,9 @@ Details that matter at 5000 files:
   gain at this scale. One cost measured since (plan 04, Phase 9): the history
   of *one* file (`git log -- recipes/<slug>.md`, the history page) walks every
   commit of the vault, and in a flat 5000-entry directory each step costs more
-  the later the name sorts — 2 to 9 s at 20 000 commits. The fix under
-  discussion is on the app side (plan 04, final report), not the layout.
+  the later the name sorts — 2 to 9 s at 20 000 commits. Fixed on the app
+  side, not the layout (issue #10): the history page reads a commit index in
+  `cache/index.db`, caught up from git (`DATA-FLOW.md`, "Commit index").
 - **Canonical serialization.** Every save rewrites the file in one fixed key order
   and formatting, whatever the AI pasted. Diffs then show only real changes, and
   two files with the same content are byte-identical — which makes duplicate
@@ -265,7 +266,8 @@ Short, and it survives a slug rename untouched because it is relative.
 
 `cache/index.db` holds the search, filter, pantry, and cost indexes. Deleting all of
 `cache/` loses nothing but sign-ins (`sessions.db`, see Accounts): `vault sync`
-rebuilds it from text files, and thumbnails regenerate on demand. It is excluded from both git and backup — backing up a cache
+rebuilds it from text files (and its commit index, used by the history page,
+from the vault's git history), and thumbnails regenerate on demand. It is excluded from both git and backup — backing up a cache
 wastes space and, worse, a restored stale index can disagree with restored files.
 
 ### Accounts are not vault data

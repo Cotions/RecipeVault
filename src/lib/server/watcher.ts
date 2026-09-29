@@ -9,7 +9,7 @@ import { existsSync, readFileSync, watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { stripMarkers } from '../vault/markers';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { commitPaths, git, isDirty } from './git';
 import { refreshFamilies, retag, sha256 } from './index/build';
 import { isRecipeFile, syncFile, tagsHash, type FileOutcome } from './index/sync';
@@ -157,7 +157,7 @@ export class Watcher {
 		const { ctx } = this;
 		if (!(await isDirty(ctx.paths.root, rel))) return false;
 		const commit = await commitPaths(ctx.paths.root, [rel], message, ctx.author);
-		if (commit) ctx.pusher.schedule();
+		if (commit) committed(ctx);
 		return !!commit;
 	}
 }
@@ -192,7 +192,7 @@ export async function commitExternalEdits(ctx: VaultContext): Promise<string | u
 	if (!paths.length) return undefined;
 	const message = titles.length === 1 ? titles[0] : `edit (external): ${titles.length} recipes\n\n${titles.join('\n')}`;
 	const commit = await commitPaths(root, paths, message, ctx.author);
-	if (commit) ctx.pusher.schedule();
+	if (commit) committed(ctx);
 	return commit;
 }
 

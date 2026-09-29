@@ -25,7 +25,7 @@ import { serialize } from '../vault/serialize';
 import { pendingKey } from '../vault/tagstatus';
 import type { Recipe } from '../vault/types';
 import { tagLabel } from '../i18n/fr';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { cleanLabel, FamilyLabelError, LABEL_MAX, withLabel } from './families';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
 import { refreshFamilies, retag } from './index/build';
@@ -267,7 +267,7 @@ async function commitVocab(ctx: VaultContext, writes: FileWrite[], message: stri
 	} catch (e) {
 		ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
 	}
-	ctx.pusher.schedule();
+	committed(ctx);
 	return commit;
 }
 
@@ -376,7 +376,7 @@ export function dropTag(
 		} catch (e) {
 			ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
 		}
-		ctx.pusher.schedule();
+		committed(ctx);
 		return { commit, recipes: writes.length };
 	});
 }

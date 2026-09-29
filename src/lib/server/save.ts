@@ -14,7 +14,7 @@ import { serialize } from '../vault/serialize';
 import { SLUG_RE } from '../vault/slug';
 import type { Diagnostic, Recipe } from '../vault/types';
 import type { VaultEntry } from '../vault/rules/batch';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { FileWriteError, writeAndCommit, type FileWrite } from './files';
 import { refreshFamilies, sha256 } from './index/build';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
@@ -195,7 +195,7 @@ async function writeCommitIndex(
 		indexError = (e as Error).message;
 		ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${indexError}`);
 	}
-	ctx.pusher.schedule();
+	committed(ctx);
 	return { commit, indexError };
 }
 

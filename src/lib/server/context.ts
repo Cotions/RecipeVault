@@ -2,6 +2,7 @@
 
 import { DEFAULT_CURRENCY, type GitAuthor } from './config';
 import { Pusher } from './git';
+import { scheduleCatchUp } from './index/commits';
 import { openIndex, type DB } from './index/db';
 import { Mutex } from './lock';
 import { vaultPaths, type VaultPaths } from './vault';
@@ -56,4 +57,14 @@ export function openVault({ root, author, push = false, currency = DEFAULT_CURRE
 		log,
 		fresh
 	};
+}
+
+/**
+ * After a commit the app made: push it in the background, and read it into
+ * the commit index (`index/commits.ts`) in the background too — a history
+ * read catches up anyway, so neither delays the write.
+ */
+export function committed(ctx: VaultContext): void {
+	ctx.pusher.schedule();
+	scheduleCatchUp(ctx);
 }

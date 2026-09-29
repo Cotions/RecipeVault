@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { Throttle, type Auth, type SignedIn } from './auth';
 import { loadConfig, type Config } from './config';
 import { openVault, withAuthor, type VaultContext } from './context';
+import { scheduleCatchUp } from './index/commits';
 import { syncVault, type SyncReport } from './index/sync';
 import { PasteLog } from './pastelog';
 import { SessionStore } from './sessions';
@@ -39,6 +40,8 @@ export function startApp(): App {
 		.run(() => commitExternalEdits(ctx))
 		.catch((e) => console.warn(`recipevault: could not commit edits made while the app was stopped: ${(e as Error).message}`));
 	ctx.pusher.schedule();
+	// Commits made while the app was down (a pull, a commit by hand): read into the commit index.
+	scheduleCatchUp(ctx);
 	const auth: Auth = { users: new UserStore(users), sessions: new SessionStore(join(ctx.paths.cache, 'sessions.db')), throttle: new Throttle() };
 	void decoyHash(); // ready before the first sign-in, so an unknown login costs the same as a known one from the start
 	if (!auth.users.size) console.warn(`recipevault: no accounts in ${users}: nobody can save. Create one with \`vault user add <login> --name "<Nom>"\`.`);

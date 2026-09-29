@@ -13,12 +13,13 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { t } from '../i18n/fr';
-import { checkBatch, checkFile, hasErrors } from '../vault/check';
-import type { VaultContext } from './context';
+import { checkBatch } from '../vault/check';
+import { committed, type VaultContext } from './context';
 import { checkOptions } from './checkopts';
 import { FAMILIES_FILE } from './families';
 import { FileWriteError, writeAndCommit, type FileWrite } from './files';
 import { git, GitError } from './git';
+import { catchUpCommits, commitChanges, followPath, indexedCommit } from './index/commits';
 import { deleteRecipeRows, refreshFamilies, sha256 } from './index/build';
 import { indexText, recipePath } from './index/sync';
 import { currentFile, vaultEntries } from './save';
@@ -98,6 +99,18 @@ async function resolveCommit(cwd: string, commit: string): Promise<string | null
 	}
 }
 
+/** A commit of the commit index (caught up first), by full hash or unique prefix. */
+async function indexed(ctx: VaultContext, commit: string): Promise<{ seq: number; hash: string } | undefined> {
+	if (!COMMIT_RE.test(commit)) return undefined;
+	try {
+		await catchUpCommits(ctx.db, ctx.paths.root);
+	} catch (e) {
+		ctx.log(`recipevault: commit index not caught up: ${(e as Error).message}`);
+		return undefined;
+	}
+	return indexedCommit(ctx.db, commit);
+}
+
 interface PathChange {
 	status: string;
 	/** Path before (renames), else the path. */
@@ -155,8 +168,32 @@ export interface RecipeHistory {
 	versions: Version[];
 }
 
-const SEP_RECORD = '\x1e';
-const SEP_FIELD = '\x1f';
+/**
+ * The commits of a recipe's file, newest first, from the commit index
+ * (`index/commits.ts`, caught up to HEAD first): what `git log --follow -M
+ * -- <path>` lists for its live or `_trash/` path, cut where the recipe began.
+ */
+async function recipeCommits(ctx: VaultContext, slug: string, limit?: number) {
+	const root = ctx.paths.root;
+	const live = currentFile(ctx, slug);
+	const inTrash = !live && existsSync(join(root, trashPath(slug)));
+	const where: RecipeHistory['where'] = live ? 'live' : inTrash ? 'trash' : 'none';
+	const path = where === 'trash' ? trashPath(slug) : recipePath(slug);
+	try {
+		await catchUpCommits(ctx.db, root);
+	} catch (e) {
+		ctx.log(`recipevault: commit index not caught up, history may miss the latest commits: ${(e as Error).message}`);
+	}
+	// `--follow` walks on past the file's creation into an earlier file that had
+	// the same path (a slug freed by hand and taken again): that is another
+	// recipe. Stop at the creation (`A`, kept), or before a removal (`D`) — but
+	// keep the newest entry when it is the removal of this recipe itself.
+	const entries = followPath(ctx.db, path, {
+		limit,
+		stop: (e, i) => (e.change.status === 'A' ? 'keep' : i > 0 && e.change.status === 'D' ? 'drop' : undefined)
+	});
+	return { live, inTrash, where, path, entries };
+}
 
 /**
  * Every commit that touched the recipe's file, newest first, following
@@ -168,34 +205,7 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 	const root = ctx.paths.root;
 	// A slug from the URL that is not one (`../x`) names no file in the vault.
 	if (!SLUG_RE.test(slug)) return { slug, where: 'none', versions: [] };
-	const live = currentFile(ctx, slug);
-	const inTrash = !live && existsSync(join(root, trashPath(slug)));
-	const where = live ? 'live' : inTrash ? 'trash' : 'none';
-	const path = where === 'trash' ? trashPath(slug) : recipePath(slug);
-	const args = ['log', '--follow', '-M', `--format=${SEP_RECORD}%H${SEP_FIELD}%an${SEP_FIELD}%aI${SEP_FIELD}%s`, '--name-status'];
-	if (opts.limit) args.push(`--max-count=${opts.limit}`);
-	let out = '';
-	try {
-		out = await git(root, [...args, '--', path]);
-	} catch {
-		out = ''; // no commit yet
-	}
-	const entries = out
-		.split(SEP_RECORD)
-		.filter((r) => r.trim())
-		.map((rec) => {
-			const [head, ...rest] = rec.split('\n');
-			const [commit, author, date, message] = head.split(SEP_FIELD);
-			// With --follow, the name-status lines are the followed file's alone.
-			const change = parseNameStatus(rest.filter((l) => l.includes('\t')))[0] ?? { status: 'M', from: path, path };
-			return { commit, author, date, message, change };
-		});
-	// `--follow` walks on past the file's creation into an earlier file that had
-	// the same path (a slug freed by hand and taken again): that is another
-	// recipe. Stop at the creation (`A`, kept), or before a removal (`D`) — but
-	// keep the newest entry when it is the removal of this recipe itself.
-	const cut = entries.findIndex((e, i) => e.change.status === 'A' || (i > 0 && e.change.status === 'D'));
-	if (cut >= 0) entries.length = entries[cut].change.status === 'A' ? cut + 1 : cut;
+	const { live, inTrash, where, path, entries } = await recipeCommits(ctx, slug, opts.limit);
 	const blobs = await readBlobs(
 		root,
 		entries.map((e) => (e.change.status === 'D' ? '' : `${e.commit}:${e.change.path}`))
@@ -208,7 +218,6 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 	};
 	const onDisk = live?.text ?? (inTrash ? readFileSync(join(root, path), 'utf8') : null);
 	const nowParsed = live ? parse(live.text) : null;
-	const opts2 = live ? checkOptions(ctx) : {};
 
 	const versions: Version[] = entries.map((e, i) => {
 		const text = texts[i];
@@ -243,8 +252,10 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 		else if (text === null) v.blocked = 'missing';
 		else if (v.current) v.blocked = 'current';
 		else {
-			const f = checkFile(text, opts2);
-			if (!f.recipe || hasErrors(f.diagnostics)) v.blocked = 'invalid';
+			// Today's checker, once per text: the vault's word lists and vocabulary
+			// only add warnings, so the check without them decides the same.
+			const f = parse(text);
+			if (!f) v.blocked = 'invalid';
 			else if (f.recipe.slug !== slug) v.blocked = 'other-slug';
 			else {
 				v.restorable = true;
@@ -338,7 +349,7 @@ async function writeBack(ctx: VaultContext, reverts: Revert[], message: string, 
 	} catch (e) {
 		ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
 	}
-	ctx.pusher.schedule();
+	committed(ctx);
 	return commit;
 }
 
@@ -389,14 +400,20 @@ export interface UndoResult {
  */
 export async function undoCommit(ctx: VaultContext, commit: string, opts: { slug?: string } = {}): Promise<UndoResult> {
 	const root = ctx.paths.root;
-	const full = await resolveCommit(root, commit);
+	// The commit and what it changed: from the commit index when it holds it
+	// (every non-merge commit on HEAD's line), else from git.
+	const known = await indexed(ctx, commit);
+	const full = known?.hash ?? (await resolveCommit(root, commit));
 	if (!full) throw new HistoryError('unknown');
-	const parents = (await git(root, ['rev-list', '--parents', '-n', '1', full])).trim().split(' ').slice(1);
-	if (parents.length > 1) throw new HistoryError('unsupported');
-	const parent = parents[0];
-	const changes = parseNameStatus(
-		(await git(root, ['diff-tree', '-r', '-M', '--no-commit-id', '--name-status', '--root', full])).split('\n')
-	);
+	let changes: PathChange[];
+	if (known) changes = commitChanges(ctx.db, known.seq);
+	else {
+		const parents = (await git(root, ['rev-list', '--parents', '-n', '1', full])).trim().split(' ').slice(1);
+		if (parents.length > 1) throw new HistoryError('unsupported');
+		changes = parseNameStatus((await git(root, ['diff-tree', '-r', '-M', '--no-commit-id', '--name-status', '--root', full])).split('\n'));
+	}
+	// Its parent's version of a file (none for the first commit: a missing blob).
+	const parent = `${full}^`;
 	const slugOf = (p: string) => RECIPE_RE.exec(p)?.[1] ?? TRASH_RE.exec(p)?.[1];
 	if (opts.slug && !changes.some((c) => slugOf(c.from) === opts.slug || slugOf(c.path) === opts.slug)) throw new HistoryError('unknown');
 
@@ -466,7 +483,7 @@ export async function undoCommit(ctx: VaultContext, commit: string, opts: { slug
 		}
 		if (families && !edited.length) kept.push(FAMILIES_FILE); // a new recipe's label stays: harmless
 		else if (families) {
-			const [after, before] = await readBlobs(root, [`${full}:${FAMILIES_FILE}`, parent ? `${parent}:${FAMILIES_FILE}` : '']);
+			const [after, before] = await readBlobs(root, [`${full}:${FAMILIES_FILE}`, `${parent}:${FAMILIES_FILE}`]);
 			if (sameBytes(onDisk(ctx, FAMILIES_FILE), after)) reverts.push({ rel: FAMILIES_FILE, text: before ? before.toString('utf8') : null });
 			else kept.push(FAMILIES_FILE);
 		}
@@ -500,14 +517,17 @@ const dateOf = (iso: string) => iso.slice(0, 10);
  * this recipe's versions. Writing the text already on disk commits nothing.
  */
 export async function restoreVersion(ctx: VaultContext, slug: string, commit: string, hash: string): Promise<{ commit?: string }> {
-	const full = await resolveCommit(ctx.paths.root, commit);
+	const full = (await indexed(ctx, commit))?.hash ?? (await resolveCommit(ctx.paths.root, commit));
 	if (!full) throw new HistoryError('unknown');
-	const history = await recipeHistory(ctx, slug);
-	if (history.where !== 'live') throw new HistoryError('gone');
-	const version = history.versions.find((v) => v.commit === full);
+	if (!SLUG_RE.test(slug)) throw new HistoryError('gone');
+	// The one version: its commit from the index, its text from git (not the whole history).
+	const { where, entries } = await recipeCommits(ctx, slug);
+	if (where !== 'live') throw new HistoryError('gone');
+	const version = entries.find((e) => e.commit === full);
 	if (!version) throw new HistoryError('unknown');
-	if (version.text === null) throw new HistoryError('unsupported');
-	const text = version.text;
+	const b = version.change.status === 'D' ? null : await blob(ctx.paths.root, full, version.change.path);
+	if (!b) throw new HistoryError('unsupported');
+	const text = b.toString('utf8');
 	return ctx.lock.run(async () => {
 		const cur = currentFile(ctx, slug);
 		if (!cur) throw new HistoryError('gone');

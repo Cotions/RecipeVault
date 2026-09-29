@@ -830,7 +830,9 @@ to the trash and back keeps its history.
   `restoreVersion`, `HistoryError` with a `reason` and a French message) and
   `history-diff.ts` (the field-level summary; no Node import). Git reads stay
   there (`git log --follow`, `diff-tree`, one `git cat-file --batch` for every
-  version's text) rather than in `git.ts`. `save.ts` is not changed: the
+  version's text) rather than in `git.ts`. *Since issue #10:* the versions come from the
+  commit index in `cache/index.db` (`src/lib/server/index/commits.ts`,
+  `DATA-FLOW.md` "Commit index"), not from `git log --follow`. `save.ts` is not changed: the
   write-back runs the save's own steps (`checkBatch` with `vaultEntries`,
   `writeAndCommit`, `indexText`, `refreshFamilies`, push).
 - **Byte for byte, not re-serialized.** Undo and restore write the old text
@@ -1027,10 +1029,19 @@ final report and in `DATA-FLOW.md` next to the plan 02 and 03 figures.
 | unchanged form save | no commit | the round-trip promise | **no write, no commit** (HEAD unchanged; 11.5 ms) |
 | photo upload, 12 MP JPEG: store + both derived copies | < 2 s | a phone photo | **817 ms** (7.5 MB, commit included) |
 | derived copy on demand after `cache/` deleted | < 1 s each | the first page after a cache wipe | **71 ms** thumbnail, **348 ms** display |
-| history page, 50 versions, ~20 000-commit vault | < 300 ms | `git log --follow` on one path | **2.1 s — not met** (`git log --follow` alone 1.7 s); ordinary recipes (6–10 versions) **4.2–11.8 s** |
-| undo / restore a version | < 500 ms | same path as a save | undo **620 ms — not met** under this load (542 ms lighter); restore **2.8 s — not met** (it reads the whole history first) |
+| history page, 50 versions, ~20 000-commit vault | < 300 ms | `git log --follow` on one path | **2.1 s — not met** (`git log --follow` alone 1.7 s); ordinary recipes (6–10 versions) **4.2–11.8 s**. **After issue #10 (commit index): 261 ms — met**; ordinary recipes 81–90 ms (same run's baseline before the change: 1.87 s, 3.4–6.5 s) |
+| undo / restore a version | < 500 ms | same path as a save | undo **620 ms — not met** under this load (542 ms lighter); restore **2.8 s — not met** (it reads the whole history first). **After issue #10: undo 421 ms, restore 408 ms — met** (baseline before the change, same session: 508 ms, 2.32 s) |
 | sign in (argon2id verify) | 100–500 ms | slow on purpose, not slower | **160 ms**; unknown login (decoy hash) 160 ms |
 | session lookup per request | < 0.5 ms | every request | **0.05 ms** (`currentUser`: cookie → `sessions.db` → `users.json` stat) |
+
+The issue #10 figures are medians from `npx tsx scripts/gen-vault.ts --bench`
+on 2026-09-28 (load average ~4; the same run's form saves were 379 / 477 ms),
+against a baseline run of the previous code in the same session (load ~3–4).
+The bench also times the commit index: reading all 20 012 commits 5.1 s (once,
+after `cache/` is deleted or on the first start after the upgrade), catching up
+one new commit 46 ms, a read already at HEAD 0.1 ms; and it checks that the
+index lists what `git log --follow` lists for the bench recipe and three
+ordinary ones.
 
 Not in the targets, measured for the report: the form's debounced server check
 (`formCheck`, whole form) 199 ms; `/etiquettes` load (22 pending tags, two of
@@ -1102,11 +1113,11 @@ the review was running it in parallel; the E2E files are cited as written):
 | A new recipe with everything, on a phone, without Markdown, a code or an error | met, with the leftovers below | `tests/e2e/form.spec.ts` (phone and tablet projects: groups, fraction, range, steps, family, own tag, photo, hints, drafts, a comma named on its row); sub-recipe, oven, portions and source through the model (`tests/unit/form/*.test.ts`); tablet screens not eyeballed |
 | Unchanged → byte-identical, changed → only the changed parts (Q4) | met | `tests/unit/form/roundtrip.test.ts` (fixture vault 22/22, `check/valid` 11/11, corpus 320/320); `tests/server/formsave.test.ts` "unchanged form → no commit"; bench: HEAD unchanged after an unchanged save |
 | Every save, undo and restore one commit by her | met | `tests/server/author.test.ts`, `formsave.test.ts`, `history.test.ts`, `photos.test.ts`; `tests/e2e/guard.spec.ts` (every write attributed) |
-| Undo and "Revenir à cette version" per Q16, no history rewritten | met; **slow** (speed table) | `tests/server/history.test.ts`, `tests/e2e/history.spec.ts` |
+| Undo and "Revenir à cette version" per Q16, no history rewritten | met; slow at first, **fixed by issue #10** (speed table) | `tests/server/history.test.ts`, `tests/e2e/history.spec.ts` |
 | Photos: original untouched, copies rotated and stripped, original never served | met | `tests/server/photos.test.ts`, `tests/e2e/photo.spec.ts` |
 | Paste box, queue, prices and the rest still work, every write attributed | met | the plan 02/03 suites, all green; `tests/e2e/guard.spec.ts` |
 | Deleting `cache/` loses nothing but sessions | met | sessions are `cache/sessions.db` alone; `tests/server/photos.test.ts` (copies regenerate); `tests/server/ingredients-invariants.test.ts`, `index.test.ts` (index rebuilt equal) |
-| Speed targets met or measured and reported | measured; **3 not met** | "Speed targets" above: history page, undo (under load), restore |
+| Speed targets met or measured and reported | measured; 3 not met, **met since issue #10** (commit index) | "Speed targets" above: history page, undo (under load), restore |
 | Docs; tests; `svelte-check` | met | Phase 9 notes; `npm test` 1480 passed, 1 skipped (the private corpus); `npm run check` 0 errors, 0 warnings |
 
 ## Final report
@@ -1261,6 +1272,53 @@ sync's callers already wrap it). A one-line fix, left to the owner/review.
 - out of scope as planned: cook log, cookbook export, duplicate detection by
   ingredient set, slug rename, `item:` in the form, several photos, offline
   saving, internet-exposure hardening.
+
+## Follow-up: issue #10, the commit index
+
+Option A of issue #10, chosen by the owner: a per-file commit index in
+`cache/index.db` (`commits`, `commit_files`; `SCHEMA_VERSION` 7), so the
+history page, restore and undo meet their targets (speed table above).
+Decisions:
+
+- **What is stored**: every non-merge commit reachable from HEAD, in `git log`
+  order, with every path it changed from `git log -M --name-status -z` (renames
+  over the whole tree, as `--follow` finds them). All paths, not only recipes:
+  undo reads a commit's changes from it (prices, the registry and families
+  included) instead of `rev-list` + `diff-tree`.
+- **The walk** (`followPath`) does what `git log --follow -M` does: a commit
+  shows the path as it would alone (a file renamed away reads as deleted), a
+  path created by a rename goes on under the old name. The page's cut from
+  `5cf0a93` is unchanged (stop at the creation; an older removal ends it).
+- **One deliberate difference — raised for the owner.** `git log --follow`
+  turns on `--find-copies-harder`: a recipe *created* with a text close enough
+  to one already in the vault (a W608 variant made from another recipe, a slug
+  renamed by hand and taken again) is shown as a copy (`C`), and the walk goes
+  on in the *other* recipe's history. The old page did that too (a `C` was not
+  a creation for its cut, so the other recipe's versions were listed, blocked
+  as `other-slug`). The index counts a copy as a creation: the history starts
+  where the recipe began. To keep git's behaviour instead, the index would need
+  copy detection against the whole tree at each commit that adds a file.
+- **Kept current**: in the background after each app commit (`committed(ctx)`
+  beside the push), at startup and in `vault sync`, and before every read
+  (history, restore, undo). Only `<last>..HEAD` is read when the new commits
+  descend from the last one read in a line; otherwise (amend, reset, rebase,
+  branch switch, a merge in the new commits, an unknown last commit) the whole
+  history is read again. HEAD is read from `.git` without spawning git (a spawn
+  from the server process costs tens of ms); reftable or a worktree's `.git`
+  file fall back to `git rev-parse`.
+- **The page's own work**: the vault's word lists and vocabulary only add
+  warnings, so "does this version pass today's checker" reuses the parse of the
+  summary instead of a second check per version (behaviour unchanged, about a
+  third of the CPU of a 50-version page).
+- **Restore** finds its commit among the recipe's versions in the index and
+  reads that one text (`cat-file` of `<commit>:<path>`).
+- Tests: `tests/server/commit-index.test.ts` — equality with `git log --follow`
+  for every path of a generated vault (renames, trash and back, slugs freed and
+  taken again, deletions, a merge; copies ending the list), undo's changes equal
+  to `git diff-tree`, incremental catch-up equal to a full read, rewrites, packed
+  refs and detached HEAD, deleting `cache/` giving back the same index and
+  pages. `tests/server/history.test.ts` and `tests/e2e/history.spec.ts`
+  unchanged and green.
 
 ## Out of scope
 

@@ -19,7 +19,7 @@ import {
 } from '../ingredients/prices';
 import { SLUG_RE } from '../vault/slug';
 import { UNITS, type Unit } from '../vault/types';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit } from './files';
 import { getMeta, setMeta, sha256 } from './index/build';
 import type { DB } from './index/db';
@@ -190,7 +190,7 @@ export function appendPrice(ctx: VaultContext, input: NewPrice): Promise<{ commi
 		} catch (e) {
 			ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
 		}
-		ctx.pusher.schedule();
+		committed(ctx);
 		const line = text.replace(/\n$/, '').split('\n').length;
 		return { commit, row: { ...row, line } };
 	});

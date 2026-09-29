@@ -4,7 +4,7 @@
 // (Vite) load it the same way.
 
 /** Bump on any change below: the index is then rebuilt from scratch. */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const SCHEMA_SQL = `
 CREATE TABLE recipes (
@@ -191,6 +191,29 @@ CREATE VIRTUAL TABLE recipes_fts USING fts5(
   title, body, ingredients, author, tags,
   tokenize = 'unicode61 remove_diacritics 2'
 );
+
+-- The vault's git history (index/commits.ts): every non-merge commit reachable
+-- from HEAD, and the paths it changed, renames detected over the whole tree.
+-- meta commits_head = the HEAD they were read up to. Rebuilt from git when missing.
+CREATE TABLE commits (
+  seq     INTEGER PRIMARY KEY,         -- git log order (default, by date): higher = newer
+  hash    TEXT NOT NULL UNIQUE,
+  author  TEXT NOT NULL,               -- %an
+  date    TEXT NOT NULL,               -- %aI, the author's offset
+  subject TEXT NOT NULL
+);
+
+CREATE TABLE commit_files (
+  seq       INTEGER NOT NULL,          -- commits.seq
+  pos       INTEGER NOT NULL,          -- order in git's name-status output
+  status    TEXT NOT NULL,             -- A M D T R (name-status, score dropped)
+  path      TEXT NOT NULL,             -- the path after (the removed path for D)
+  from_path TEXT,                      -- R: the path before
+  PRIMARY KEY (seq, path)
+) WITHOUT ROWID;
+
+CREATE INDEX idx_commit_files_path ON commit_files(path, seq);
+CREATE INDEX idx_commit_files_from ON commit_files(from_path, seq) WHERE from_path IS NOT NULL;
 
 CREATE INDEX idx_recipes_family  ON recipes(family);
 CREATE INDEX idx_recipes_total   ON recipes(total_s);

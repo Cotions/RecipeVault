@@ -149,16 +149,58 @@ in one sentence and the owner can take it back by hand (`git show`).
   recipe) is undone with it when unchanged since, else kept; a new recipe's
   label is kept. A commit touching anything else (prices, the registry) is not
   undone from here.
-- **Historique** (`/r/<slug>/historique`): `git log --follow` of the recipe's
-  file (through `_trash/` and back, and a slug renamed by hand), newest first:
+- **Historique** (`/r/<slug>/historique`): the commits of the recipe's file
+  as `git log --follow -M` lists them (through `_trash/` and back, and a slug
+  renamed by hand), read from the commit index (below, "Commit index") rather
+  than from git on each visit; it stops where this recipe began — its creation,
+  or before the removal of an earlier file under the same slug. Newest first:
   date, author, and what changed in plain French, computed by parsing both
   versions into the form model (title, ingredients added / removed / changed,
   steps, tags, photo, fields, "Vérifié", readings settled) — never a diff of
   Markdown. **Revenir à cette version** shows what going back would change,
   then writes `restore: <title> (version du <date>)`, guarded by the hash of
-  the file the page showed. A version under another slug, or that fails
+  the file the page showed. The restore finds the commit among the recipe's
+  versions in the commit index and reads that one text (`<commit>:<path>`),
+  not the whole history. A version under another slug, or that fails
   today's checker, is shown but not offered. A recipe in the trash shows its
   history without the button: it comes back through `/corbeille` first.
+
+### Commit index
+
+Issue #10 (option A). `git log --follow -- recipes/<slug>.md` walks every
+commit of the vault — ~2–7 s at 20 000 commits in the flat `recipes/`
+directory — so the history page reads the index instead: `commits` and
+`commit_files` in `cache/index.db` (below, "Index schema") hold every
+non-merge commit reachable from HEAD, in `git log` order, with the paths it
+changed (`git log -M --name-status`, renames detected over the whole tree).
+A recipe's history is a walk over those rows that does what `--follow` does:
+a commit shows the path as it would alone (a file renamed away reads as
+deleted), and a path created by a rename goes on under its old name.
+
+- **Caught up**, never trusted blindly: `meta.commits_head` is the HEAD it was
+  read up to. Every history read, restore and undo first compares it with HEAD
+  (read from `.git` without running git; `git rev-parse` for an unusual
+  layout) and reads only `<last>..HEAD` — the app's own
+  commits (also read in the background right after each one), a pull, a
+  commit made by hand. When HEAD no longer descends from the last commit read
+  (an amend, a reset, a rebase, another branch), or the new commits hold a
+  merge (git's date order could then interleave them with older ones), the
+  whole history is read again. App startup and `vault sync` catch up too.
+- **Undo and restore** use it too: a restore finds its commit among the
+  recipe's versions there and reads the one text; an undo reads what the
+  commit changed from `commit_files` (what `git diff-tree -M` gives), falling
+  back to git for a commit the index does not hold (a merge — refused anyway —
+  or one not on HEAD's line).
+- **Rebuildable**: deleting `cache/` loses nothing — the next read (or the
+  startup) reads the whole history again, ~5 s at 20 000 commits, once.
+- **One difference from `git log --follow`, on purpose**: when a path is
+  created, `--follow` also looks for a file it could have been *copied* from
+  (git turns on `--find-copies-harder` to follow) and, if one is similar
+  enough, goes on in that other recipe's history — a variant made from
+  another recipe (the W608 "En faire deux versions" pair) would list the other
+  recipe's versions as its own. The index counts a copy as a creation: the
+  history of a recipe starts where that recipe began. Renames (the source
+  removed in the same commit) are followed as before.
 
 ### Dish photos
 
@@ -372,6 +414,8 @@ and rebuilt (it is a cache). In outline:
 | `current_price` (view) | ingredient with a usable row | its latest usable row, a same-day tie going to the later line |
 | `registry_problems` | ingredient file with diagnostics | codes `E801`–`W811`; `broken = 1` when it has an error |
 | `recipes_fts` | recipe | FTS5 over title, body, ingredient names, author, tags |
+| `commits` | non-merge commit reachable from HEAD | `seq` (`git log` order, higher is newer), `hash`, `author` (`%an`), `date` (`%aI`), `subject`; read from git, not from the files ("Commit index" above); `meta.commits_head` is the HEAD it was read up to |
+| `commit_files` | commit × path it changed | `status` (`A`, `M`, `D`, `T`, `R`), `path` (after), `from_path` (before, for a rename); indexed by `path` and `from_path` for the history walk |
 
 Durations are stored in seconds, the upper bound of a range; `total_s` is
 `times.total` if given, else prep + cook + rest.
@@ -441,22 +485,28 @@ above), on the same 5000-recipe vault grown to ~20 000 commits, one recipe with
 | unchanged form save | ~12 ms, no write, no commit | no commit |
 | photo upload, 12 MP JPEG (7.5 MB): store + both copies + commit | ~0.8 s | < 2 s |
 | derived copy on demand: thumbnail / display | ~70 ms / ~350 ms | < 1 s each |
-| history page, 50 versions | **~2.1 s** (`git log --follow` ~1.7 s) | < 300 ms |
-| history page, an ordinary recipe (6–10 versions) | **~4–12 s**, depending on the file name | < 300 ms |
-| undo the last save | **~620 ms** | < 500 ms |
-| "Revenir à cette version" | **~2.8 s** (it reads the history first) | < 500 ms |
+| history page, 50 versions | ~260 ms with the commit index (issue #10; ~2.1 s before, `git log --follow` ~1.7 s) | < 300 ms |
+| history page, an ordinary recipe (6–10 versions) | ~80–90 ms (~4–12 s before, depending on the file name) | < 300 ms |
+| undo the last save | ~420 ms (~620 ms before) | < 500 ms |
+| "Revenir à cette version" | ~410 ms (~2.8 s before: it read the whole history first) | < 500 ms |
+| commit index: catch up one new commit / already at HEAD / read all ~20 000 commits | ~46 ms / ~0.1 ms / ~5 s (once, after `cache/` is deleted or an upgrade) | — |
 | `/etiquettes` page (22 pending tags, two on ~800 recipes) | ~37 ms | — |
 | accept a pending tag, commit included | ~3.8 s (the retag of every recipe) | — |
 | sign in (argon2id verify; unknown login the same) | ~160 ms | 100–500 ms |
 | session lookup per request | ~0.05 ms | < 0.5 ms |
 
-The history page misses its target by an order of magnitude: `git log` of one
-path walks all ~20 000 commits, each step costing more the later the file name
-sorts in the flat `recipes/` directory, and `--follow` cannot use git's
-changed-path Bloom filters. Restore reads that same history first. Undo does
-not (a few small git reads, then the save's own check with the vault and
-commit) and is just over its target under this load. Plan 04's final report
-lists these as open work; nothing here is decided yet.
+The history page first missed its target by an order of magnitude: `git log`
+of one path walks all ~20 000 commits, each step costing more the later the
+file name sorts in the flat `recipes/` directory, and `--follow` cannot use
+git's changed-path Bloom filters. Issue #10 (option A) replaced that walk by the
+commit index ("Commit index", above); the history figures, undo and restore
+above are after it (re-measured 2026-09-28, load average ~4; the same run gave
+form saves of ~380 / ~480 ms). What is left of a history page is one `git
+cat-file --batch` for every version's text and parsing each version (~3 ms
+each): a 50-version page is mostly parsing. Undo and restore are now a save
+plus a couple of git reads; a git spawn from the server process costs tens of
+ms, so HEAD is read from `.git` directly and a commit's changes come from the
+index.
 
 ## vault sync
 
@@ -483,7 +533,9 @@ a retag. Rows whose key a disambiguation rule names (`INGREDIENTS.md`,
 re-resolved one by one from the recipe's stored parse (`data_json`), still
 without reading a recipe file. `prices.csv` is reloaded whole when it or the
 config's `currency` changed (`meta.prices_hash`); lines that do not read are
-listed. `vault reindex` deletes the index and rebuilds it.
+listed. Last, the commit index reads the commits made since the last one it
+read (all of them after a history rewrite; "Commit index"). `vault reindex`
+deletes the index and rebuilds it, the commit index included.
 
 With hashing, a no-op sync over 5000 files is a couple of seconds. Run it on app
 startup so hand-edits in a text editor are always picked up.

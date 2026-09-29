@@ -22,6 +22,7 @@ import {
 import { extractPrompt } from '../lib/vault/prompt';
 import { DEFAULT_CURRENCY, findConfig, loadConfig, type GitAuthor } from '../lib/server/config';
 import { openVault } from '../lib/server/context';
+import { catchUpCommits } from '../lib/server/index/commits';
 import { syncVault } from '../lib/server/index/sync';
 import { PasteLog, pasteStats, readPasteLog } from '../lib/server/pastelog';
 import { save } from '../lib/server/save';
@@ -47,7 +48,7 @@ const USAGE = `Usage:
   vault init <dir>               create a new vault (layout, vocab and ingredient seed, git)
   vault ingredients seed         add the seed ingredients missing from the vault
   vault add <file...>            save files through the app's save path
-  vault sync [--force]           bring the index in line with the files
+  vault sync [--force]           bring the index in line with the files (and the git history)
   vault reindex                  delete the index and rebuild it
   vault stats                    code frequency over the paste log
   vault queue [--limit N]        the resolve queue: unlinked ingredient names, most frequent first
@@ -71,8 +72,8 @@ async function main(argv: string[]): Promise<number> {
 		if (command === 'check') return check(rest);
 		if (command === 'init') return await init(rest);
 		if (command === 'add') return await add(rest);
-		if (command === 'sync') return sync(rest, false);
-		if (command === 'reindex') return sync(rest, true);
+		if (command === 'sync') return await sync(rest, false);
+		if (command === 'reindex') return await sync(rest, true);
 		if (command === 'stats') return stats(rest);
 		if (command === 'ingredients') return await ingredients(rest);
 		if (command === 'queue') return queue(rest);
@@ -375,7 +376,7 @@ function queue(args: string[]): number {
 	return 0;
 }
 
-function sync(args: string[], rebuild: boolean): number {
+async function sync(args: string[], rebuild: boolean): Promise<number> {
 	const { dir, set } = vaultArgs(args, ['--force']);
 	let ctx = openFromArgs(dir);
 	if (rebuild) {
@@ -385,8 +386,12 @@ function sync(args: string[], rebuild: boolean): number {
 	}
 	const r = syncVault(ctx.db, ctx.paths, { force: set.has('--force') || rebuild, currency: ctx.currency });
 	const priceIssues = priceProblems(ctx.db, ctx.currency);
+	// The commit index: the commits since the last read (a pull, a commit by hand), or all of them after a reindex.
+	const commits = await catchUpCommits(ctx.db, ctx.paths.root).catch((e: Error) => (console.error(`vault: git history not read: ${e.message}`), null));
 	ctx.db.close();
 	console.log(`${r.scanned} files: ${r.indexed} indexed, ${r.unchanged} unchanged, ${r.removed} removed, ${r.problems.length} with errors (${r.ms} ms)`);
+	if (commits?.mode === 'rebuild') console.log(`git history: ${plural(commits.commits, 'commit')} read`);
+	else if (commits?.mode === 'append') console.log(`git history: ${plural(commits.commits, 'new commit')} read`);
 	for (const p of r.problems) console.log(`  ${red('✗')} ${p.file}  ${p.codes.join(', ')}`);
 	const broken = r.registry.problems.filter((p) => p.broken);
 	console.log(`${plural(r.registry.files, 'ingredient')}: ${r.registry.loaded} read, ${broken.length} with errors, ${r.registry.problems.length - broken.length} with warnings`);

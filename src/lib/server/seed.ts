@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { parseIngredient, REGISTRY_KEYS, serializeIngredient } from '../ingredients/registry';
 import type { RegistryEntry } from '../ingredients/types';
-import type { VaultContext } from './context';
+import { committed, type VaultContext } from './context';
 import { commitPaths } from './git';
 import { ingredientPath } from './registry';
 import { seedVocab, VOCAB, type SeedVocab } from './vault';
@@ -79,7 +79,7 @@ export function seedVault(ctx: VaultContext, seedText: string, vocabDoc: string)
 		const paths = [...vocab, ...added];
 		if (!paths.length) return { added };
 		const commit = await commitPaths(ctx.paths.root, paths, `ingredients: seed (${added.length} entries)`, ctx.author);
-		ctx.pusher.schedule();
+		committed(ctx);
 		return { added, commit };
 	});
 }
