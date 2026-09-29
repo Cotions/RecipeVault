@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { t, tagLabel, familyLabel } from '$lib/i18n/fr';
+	import { form as tf } from '$lib/i18n/fr-form';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import RecipeCard from '$lib/components/RecipeCard.svelte';
 	import type { FacetName } from '$lib/server/index/query';
@@ -188,6 +189,7 @@
 	<section class="results" aria-live="polite">
 		<div class="toolbar">
 			<p class="count">{t.browse.count(r.total)}</p>
+			{#if data.user}<a class="btn primary new" href="/nouvelle" data-testid="new-recipe">{tf.nav}</a>{/if}
 			<button class="btn filters-btn" type="button" onclick={() => (sheetOpen = true)}>
 				{t.browse.showFilters}{#if activeCount}&nbsp;({activeCount}){/if}
 			</button>
@@ -217,7 +219,7 @@
 				</nav>
 			{/if}
 		{:else if data.vaultEmpty}
-			<p class="empty">{t.browse.emptyVault} <a href="/ajouter">{t.app.nav.add}</a></p>
+			<p class="empty">{t.browse.emptyVault} <a href="/nouvelle">{tf.nav}</a></p>
 		{:else}
 			<p class="empty">{t.browse.empty}</p>
 		{/if}

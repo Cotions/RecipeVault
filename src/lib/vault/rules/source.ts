@@ -40,6 +40,6 @@ export function checkSource(ctx: RuleContext): void {
 	}
 }
 
-const WEB_URL_RE = /^https?:\/\/[^\s/]/i;
+export const WEB_URL_RE = /^https?:\/\/[^\s/]/i;
 // `example.com`, `www.example.com/recette` — a domain written without its scheme.
 const BARE_DOMAIN_RE = /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$/i;

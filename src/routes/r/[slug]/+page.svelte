@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { t, familyLabel } from '$lib/i18n/fr';
+	import { form as tf } from '$lib/i18n/fr-form';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import CostLine from '$lib/components/CostLine.svelte';
 	import PhotoUpload from '$lib/components/PhotoUpload.svelte';
@@ -66,6 +67,7 @@
 
 <div class="actions no-print">
 	<a class="btn primary" href={kitchenHref}>{t.recipe.cookMode}</a>
+	{#if !data.broken}<a class="btn" href="/r/{data.recipe.slug}/modifier" data-testid="edit">{tf.edit}</a>{/if}
 	<button class="btn" type="button" onclick={() => window.print()}>{t.recipe.print}</button>
 	{#if data.recipe.status !== 'verified'}
 		<form method="POST" action="?/verify" use:enhance>

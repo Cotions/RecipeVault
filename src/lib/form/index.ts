@@ -9,3 +9,5 @@ export * from './defaults';
 export * from './hints';
 export * from './rows';
 export * from './draft';
+export * from './family';
+export * from './compare';

@@ -25,8 +25,8 @@ export default defineConfig({
 			testIgnore: /kitchen|auth\.spec/,
 			dependencies: ['setup']
 		},
-		{ name: 'phone', use: { ...devices['Pixel 7'], storageState: STATE }, testMatch: /kitchen|auth\.spec/, dependencies: ['setup'] },
-		{ name: 'tablet', use: { ...devices['Galaxy Tab S9'], storageState: STATE }, testMatch: /kitchen/, dependencies: ['setup'] }
+		{ name: 'phone', use: { ...devices['Pixel 7'], storageState: STATE }, testMatch: /kitchen|auth\.spec|form\.spec/, dependencies: ['setup'] },
+		{ name: 'tablet', use: { ...devices['Galaxy Tab S9'], storageState: STATE }, testMatch: /kitchen|form\.spec/, dependencies: ['setup'] }
 	],
 	webServer: {
 		command: `npm run build && npx tsx tests/e2e/serve.ts ${PORT}`,

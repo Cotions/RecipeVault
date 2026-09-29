@@ -4,6 +4,7 @@
 // tested without a browser. Browser-safe.
 
 import { fold } from '../vault/normalize';
+import { WEB_URL_RE } from '../vault/rules/source';
 import { fromForm, newGroup, newItem, newRow, type FormGroup, type FormItem, type FormRecipe, type StepRow } from './model';
 import { parseNumberInput, parseQuantityInput } from './quantity';
 import type { RowType } from './steps';
@@ -74,7 +75,8 @@ export type BlockReason =
 	| 'variant'
 	| 'fraction'
 	| 'zero'
-	| 'incomplete';
+	| 'incomplete'
+	| 'url';
 
 export interface Block {
 	/** Row id, group id, or `recipe`. */
@@ -137,6 +139,8 @@ export function blocks(form: FormRecipe): Block[] {
 	const sm = parseNumberInput(form.servingsMax);
 	if (form.servingsMax.trim() && !form.servings.trim()) out.push({ id: 'recipe', field: 'servingsMax', reason: 'qty' });
 	else if (s.ok && sm.ok && sm.value <= s.value) out.push({ id: 'recipe', field: 'servingsMax', reason: 'range' });
+	// E114: a web address the file format accepts (the checker's own test).
+	if (form.source.url.trim() && !WEB_URL_RE.test(form.source.url.trim())) out.push({ id: 'recipe', field: 'source.url', reason: 'url' });
 	const t = parseNumberInput(form.oven.temp);
 	const tm = parseNumberInput(form.oven.tempMax);
 	if (t.ok && tm.ok && tm.value <= t.value) out.push({ id: 'recipe', field: 'oven.tempMax', reason: 'range' });

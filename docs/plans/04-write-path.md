@@ -568,6 +568,52 @@ save, see it on its page and in search; edit it, reorder a step, save; the
 file on disk is canonical and the commit is hers; reload mid-typing restores the
 draft; a W302 hint moves a word to *préparation* in one tap.
 
+**Done — decisions.** Components in `src/lib/components/form/` (`RecipeForm`,
+`ItemRow`, `QtyInput`, `Suggest`, `Marks`, `DurationField`, `FamilyPicker`,
+`TagPicker`, `StaleCompare`); routes `/nouvelle` and `/r/[slug]/modifier`,
+both in the guard's `WRITE_PAGES`; loads in `src/lib/server/formpage.ts`.
+- **Strings** in `src/lib/i18n/fr-form.ts` (imported as `form`), a sibling of
+  `fr.ts` rather than a section of it: the form has as many strings as the
+  rest of the app, and `fr.ts` was being edited by two other phases at once.
+- **Nav label "Nouvelle recette"**, not "Ajouter une recette": the paste page
+  is already "Ajouter" for a Markdown account, and two "Ajouter" side by side
+  read as one. Shown to anyone signed in; also a button on the home page and
+  "Modifier" on the recipe page (not on a broken one).
+- **Look:** each part of the recipe on its own index card (red rule on top,
+  blue lines between rows), a sticky save bar at the bottom listing in plain
+  words what keeps Save disabled, and the uncertain-reading count (not a block).
+- **Rows:** ↑ ↓ ✕ buttons (44 px); removing a row, step or group shows the
+  app's toast with "Annuler" (restores it in place). Enter in a name adds the
+  next row, its quantity focused. Fraction chips ¼ ⅓ ½ ⅔ ¾ under a focused
+  quantity (phone keyboards have none). One unnamed group shows no group UI.
+- **Markers (Q15):** under the field, the text with the uncertain part
+  highlighted (as on the recipe page), the other reading as a button, and
+  "C'est bien ça"; `[+]` text in pencil. Nothing once the field is edited.
+- **Hints (Q9):** name words live in the browser from the vault's word lists;
+  vault hints from `/api/form/check`, debounced 700 ms, never blocking.
+  "Pas encore relié" shows under a name the registry does not know.
+- **Autosave (Q17):** the form in `localStorage` 400 ms after the last change;
+  a draft equal to the opened form is removed. Reopening offers "Reprendre le
+  brouillon" / "Repartir de…"; nothing is overwritten before she chooses. An
+  edit's draft keeps the hash it was typed over, so resuming it later still
+  hits the stale guard. Cleared on save.
+- **Save:** offline (or a network error) says so and keeps the draft; a lost
+  session says to sign in again. Success goes to the recipe page with the
+  toast "Recette enregistrée." and "Annuler" (`/api/form/undo` →
+  `undoCommit`, the photo's commit first when there is one); after an undo
+  the toast offers "Rétablir". Undoing a new recipe lands on the trash.
+- **Stale (Q18):** the other version beside hers, field by field, only the
+  fields that differ (`src/lib/form/compare.ts`); "Garder ma version" saves
+  hers over the new hash; "Prendre l'autre version" loads it into the form.
+- **Photo:** held in the form, previewed, sent to `/api/photo` after the save
+  with the returned slug and hash (a new recipe has neither before). "Retirer"
+  uses `DELETE /api/photo` after the save. The draft cannot hold the file; the
+  form says so while a photo is waiting. A photo refused after a saved recipe
+  says the recipe is saved and the photo is not.
+- **Component tests** are the pure logic (`rows.ts`, `family.ts`,
+  `compare.ts`) under vitest, no component harness; the UI is covered by
+  `tests/e2e/form.spec.ts` on desktop, phone and tablet.
+
 ### Phase 5 — the form UI, the rest: family, tags, source, times, portions
 
 Depends on: Q10, Q11.
@@ -599,6 +645,29 @@ distance; creating a family writes its label (Q10); tag autocomplete; W501 path
 per Q11; oven default follows the fixture vault's majority; sub-recipe picker
 excludes cycles. E2E: put a new recipe in an existing family, see it on the
 family page and in the diff table.
+
+**Done — decisions.**
+- **Family picker:** `familyChoices` (`src/lib/form/family.ts`) measures a
+  query against each family's slug and label (accents and case folded) and
+  offers "Nouvelle famille « … »" only when none is within two edits (W502's
+  distance) and none is an exact match. A new family's label is her words as
+  typed (`familyLabel`, Q10 A). The server's W502 still shows under the family
+  as a question with "Utiliser « … »". Variant pre-filled by `variantFrom`.
+- **W608 "En faire deux versions":** when the other recipe already has a
+  family, hers joins it; otherwise a new family named from the title, and a
+  required field for the other recipe's variant; both in one commit (`pair`).
+- **Tags (Q11 B):** suggestions over the canonical tags, their labels and
+  aliases; a typed alias becomes its canonical tag; her own tag is written as
+  typed, shown dashed "nouvelle, en attente", with W501's closest tag offered.
+- **Times:** hours and minutes as plain numeric text fields (no spinner),
+  "Ajouter « à »" for a range. **Oven:** °F/°C segmented toggle starting on
+  the vault's majority. **Yield:** one "Donne" text field; a file's `yield`
+  object (amount + unit) shows as amount, unit, note.
+- **Source:** title and page shown for a book or magazine (or when filled),
+  URL for a website or TV (or when filled); a URL that is not `http(s)://`
+  blocks Save (E114, `WEB_URL_RE` now exported from the checker's rule).
+- **Sub-recipe:** in "Détails", a recipe search excluding this recipe and its
+  users (E213); picking one fills an empty name with its title.
 
 ### Phase 6 — photos
 

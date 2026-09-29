@@ -194,3 +194,12 @@ describe('autosave slot (Q17 A)', () => {
 		expect(sameForm(a, b)).toBe(false);
 	});
 });
+
+describe('the web address (E114)', () => {
+	it('blocks until it starts with http(s)://', () => {
+		const f = form((f) => (f.source.url = 'www.exemple.invalid'));
+		expect(blockOn(blocks(f), 'recipe', 'source.url')?.reason).toBe('url');
+		f.source.url = 'https://www.exemple.invalid/tarte';
+		expect(blocks(f)).toEqual([]);
+	});
+});

@@ -3,6 +3,8 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
 	import { t } from '$lib/i18n/fr';
+	import { form as tf } from '$lib/i18n/fr-form';
+	import Toast from '$lib/components/Toast.svelte';
 
 	let { children, data } = $props();
 
@@ -14,6 +16,8 @@
 		{ href: '/familles', label: t.app.nav.families, match: (p: string) => p.startsWith('/famille') },
 		{ href: '/ingredients', label: t.app.nav.ingredients, match: (p: string) => p.startsWith('/ingredients') },
 		{ href: '/garde-manger', label: t.app.nav.pantry, match: (p: string) => p === '/garde-manger' },
+		// The recipe form (plan 04, Phase 4), for anyone signed in.
+		...(data?.user ? [{ href: '/nouvelle', label: tf.nav, match: (p: string) => p === '/nouvelle' }] : []),
 		// The Markdown tools, for an account that asked for them (plan 04, Q2 B).
 		...(markdown ? [{ href: '/ajouter', label: t.app.nav.add, match: (p: string) => p === '/ajouter' }] : []),
 		...(markdown && data?.toResolve ? [{ href: '/resoudre', label: t.app.nav.queue(data.toResolve), match: (p: string) => p === '/resoudre' }] : []),
@@ -55,6 +59,7 @@
 		{@render children()}
 	</main>
 {/if}
+<Toast />
 
 <style>
 	.skip:focus {

@@ -178,7 +178,7 @@ export function endSession(auth: Auth, cookies: Cookies, headers: Headers): void
 const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** Pages that exist only to write: signed out, they send to /connexion instead of showing a form that cannot save. */
-const WRITE_PAGES = [/^\/ajouter\/?$/];
+const WRITE_PAGES = [/^\/ajouter\/?$/, /^\/nouvelle\/?$/, /^\/r\/[^/]+\/modifier\/?$/];
 
 export type Guard = 'pass' | { login: string } | 'unauthorized';
 
