@@ -28,6 +28,61 @@ const STEP_RE = /^(\s{0,3})(?:(\d+)[.)]|[-*])\s+(.*)$/;
 const BREAK_RE = /^\s{0,3}([-*])(?:[ \t]*\1){2,}[ \t]*$/;
 const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})/;
 
+/** One piece of a method section, in source order. */
+export type MethodBlock =
+	| { type: 'heading'; text: string; level: number; line: string }
+	/** `lines`: the step's own lines as written (nested list and continuation lines included, blank lines not). */
+	| { type: 'step'; number?: number; text: string; subheading?: string; lines: string[] }
+	/** Lines that are neither steps nor sub-headings (prose, `---`), blank lines between them kept. */
+	| { type: 'text'; lines: string[] };
+
+/**
+ * A method section's lines as steps, sub-headings and other text. The one
+ * place that decides what a step is: the checker and the form both read it.
+ */
+export function methodBlocks(lines: string[]): MethodBlock[] {
+	const blocks: MethodBlock[] = [];
+	let current: (MethodBlock & { type: 'step' }) | null = null;
+	// Column where the current step's text starts: a list line indented
+	// that far is nested in it (Markdown), not a new step.
+	let column = 0;
+	let subheading: string | undefined;
+	let blank = false;
+	for (const line of lines) {
+		const h = line.match(HEADING_RE);
+		const s = BREAK_RE.test(line) ? null : line.match(STEP_RE);
+		const last = blocks[blocks.length - 1];
+		if (h) {
+			subheading = h[2];
+			current = null;
+			blocks.push({ type: 'heading', text: h[2], level: h[1].length, line });
+		} else if (s && !(current && s[1].length >= column)) {
+			current = { type: 'step', text: s[3].trim(), lines: [line] };
+			if (s[2] !== undefined) current.number = Number(s[2]);
+			if (subheading) current.subheading = subheading;
+			column = line.length - s[3].length;
+			blocks.push(current);
+		} else if (line.trim() === '') {
+			if (last?.type === 'text') last.lines.push(line);
+			blank = true;
+			continue;
+		} else if (current && (!blank || /^\s/.test(line))) {
+			current.text += ' ' + line.trim();
+			current.lines.push(line);
+		} else {
+			current = null;
+			if (last?.type === 'text') last.lines.push(line);
+			else blocks.push({ type: 'text', lines: [line] });
+		}
+		blank = false;
+	}
+	for (const b of blocks) {
+		if (b.type !== 'text') continue;
+		while (b.lines.length && b.lines[b.lines.length - 1].trim() === '') b.lines.pop();
+	}
+	return blocks;
+}
+
 export function parseBody(text: string): ParsedBody {
 	const lines = text.split('\n');
 	const preamble: string[] = [];
@@ -58,35 +113,14 @@ export function parseBody(text: string): ParsedBody {
 		section.text = section.lines.join('\n').trim();
 		const rest: string[] = [];
 		if (section.kind === 'method') {
-			let current: Step | null = null;
-			// Column where the current step's text starts: a list line indented
-			// that far is nested in it (Markdown), not a new step.
-			let column = 0;
-			let subheading: string | undefined;
-			let blank = false;
-			for (const line of section.lines) {
-				const h = line.match(HEADING_RE);
-				const s = BREAK_RE.test(line) ? null : line.match(STEP_RE);
-				if (h) {
-					subheading = h[2];
-					current = null;
-					rest.push(line);
-				} else if (s && !(current && s[1].length >= column)) {
-					current = { text: s[3].trim(), section: si };
-					if (s[2] !== undefined) current.number = Number(s[2]);
-					if (subheading) current.subheading = subheading;
-					column = line.length - s[3].length;
-					steps.push(current);
-				} else if (line.trim() === '') {
-					blank = true;
-					continue;
-				} else if (current && (!blank || /^\s/.test(line))) {
-					current.text += ' ' + line.trim();
-				} else {
-					current = null;
-					rest.push(line);
-				}
-				blank = false;
+			for (const b of methodBlocks(section.lines)) {
+				if (b.type === 'step') {
+					const step: Step = { text: b.text, section: si };
+					if (b.number !== undefined) step.number = b.number;
+					if (b.subheading) step.subheading = b.subheading;
+					steps.push(step);
+				} else if (b.type === 'heading') rest.push(b.line);
+				else rest.push(...b.lines.filter((l) => l.trim() !== ''));
 			}
 		} else {
 			rest.push(...section.lines);

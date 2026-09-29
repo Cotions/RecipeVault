@@ -333,6 +333,67 @@ steps with sub-headings, nested lists, `-` and numbered lines, a `---` break;
 markers confirm/edit on text and number fields; a recipe with an optional group,
 `or`, `alt`, a sub-recipe, `buy_instead`, a range.
 
+**Done — decisions.**
+- **Nothing moved.** `serialize` and the checker already live in
+  `src/lib/vault/` and are browser-safe; `src/lib/form/` imports only from
+  there (a test greps it for Node and server imports). `body.ts` now exports
+  `methodBlocks` (steps, sub-headings and other text of a method section, in
+  order, each step with its own lines): the one split the checker and the form
+  both read, so a row is always a step the checker counts. `Step` is unchanged.
+- **`written`, per field.** Every field holds what she sees (text without
+  marker syntax, `1 ½`, `0,5`, hours + minutes). Where that would not write the
+  file's value back identically — a marker, `qty: "2"` quoted, `prep: 90m`,
+  `page: "12"` — the value as written is kept beside the field in `written`. A
+  field whose shown value is unchanged writes its `written` value; an edited
+  field writes what she typed. That is what makes the round trip exact, and it
+  is plain JSON (drafts, the request body).
+- **Round trip** (`tests/unit/form/roundtrip.test.ts`): fixture vault 22/22,
+  `tests/fixtures/check/valid` 11/11, corpus 320/320 byte-identical to
+  `serialize(x)`, directly and after a JSON round trip of the form; no file
+  fails. (74 of the 320 corpus files are already canonical on disk; the others
+  differ from `serialize(x)` in formatting only, which a first app save of any
+  kind rewrites.) The Q4 loss is tested by name: a YAML comment and an unknown
+  key are gone after the form, as after `serialize`.
+- **Method (Q5 A).** An unchanged section (its rows equal to the rows read from
+  it) is written back as its original text. Any change rewrites the section
+  canonically: `1.` numbering running across sub-headings, a step's further
+  lines indented to its text (nested list items one line each; plain
+  continuation lines join with a space, as the checker reads them), blank lines
+  around sub-headings and prose rows, a prose line that would read as a step or
+  a heading escaped with `\`. Empty rows are dropped.
+- **Sections.** The form edits method, notes, variants, alternatives;
+  `ensureSection` adds one in that order. The preamble and other sections are
+  carried verbatim. A section she empties is not written; one already empty in
+  the file stays.
+- **Quantities (Q7 A).** Accepted: `2`, `1.5`, `0,5`, `,5`, `1/2`, `1 1/2`, the
+  Unicode fractions alone or after a whole number (`½`, `1½`, `1 ½`), the
+  fraction slash. Refused with a reason (`empty`, `format`, `zero`,
+  `fraction` for `1 3/2`). Shown: a fraction string as written with its
+  fraction as a glyph (`"1 1/2"` → `1 ½`), a number as its exact decimal with a
+  decimal comma in French — not through `formatNumber`, which rounds (`0.33`
+  would show as `⅓`).
+- **Markers (Q15 A).** `[?]` and `[illisible]` apply to the word before them;
+  `[+]` to the text back to the previous marker, line start or sentence end.
+  `confirmField` drops `[?]`, `[?: …]` and `[illisible]` and keeps `[+]`; on a
+  number field it leaves the plain number (`"375 [?]"` → `375`). An edit drops
+  the uncertain markers; each `[+]` stays after its text when that text is
+  still there unchanged, else it goes with it. `[+]` on a number field goes on
+  any edit. `fieldMarkers` gives the UI the highlight, the alternatives and the
+  spans; `uncertainFields` lists what is left to confirm. Tags and seasons are
+  vocabulary slugs and carried as written.
+- **Errors.** `fromForm` never throws: a value the file format cannot hold is
+  reported (`{ id, field, reason }`: title and ingredients required, a row with
+  content but no name, a bad quantity or range, an oven temperature without a
+  unit) and left out. A row with nothing in it is dropped silently.
+  `recipe.markers` is left empty: the save path checks the serialized text.
+- **Defaults (decision 1).** `statsFromRecipes` counts units (items, `or`,
+  `alt`), oven units and languages; `defaultsFor` gives the most used oven unit
+  (`null` on an empty vault: she picks), all 26 units most used first, and the
+  most used language, else `fr`. Phase 3 computes the same counts from the
+  index.
+- **Ids** are a counter with a random prefix, not `crypto.randomUUID`, which a
+  browser only offers in a secure context (plain LAN HTTP is not one).
+
 ### Phase 3 — the form's save path
 
 Depends on: Q3, Q9, Q10, Q14, Q18.

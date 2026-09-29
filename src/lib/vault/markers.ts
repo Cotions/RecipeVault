@@ -2,7 +2,7 @@
 
 import type { Marker, MarkerKind } from './types';
 
-const MARKER_RE = /\[(?:(\?)|\?:\s*([^\]\s][^\]]*?)\s*|(illisible)|(\+))\]/g;
+export const MARKER_RE = /\[(?:(\?)|\?:\s*([^\]\s][^\]]*?)\s*|(illisible)|(\+))\]/g;
 
 /** Every valid marker in a string, tagged with the given path. */
 export function findMarkers(s: string, path: string): Marker[] {
