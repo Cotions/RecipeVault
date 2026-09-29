@@ -189,7 +189,7 @@
 			</div>
 			<div class="field">
 				<label for="{id}-max">{f.upTo}</label>
-				<QtyInput id="{id}-max" label={f.upTo} bind:value={item.qtyMax} disabled={item.toTaste} invalid={!!b('qtyMax')} describedby="{id}-max-help" testid="qty-max" />
+				<QtyInput id="{id}-max" label={f.upTo} bind:value={item.qtyMax} placeholder="" disabled={item.toTaste} invalid={!!b('qtyMax')} describedby="{id}-max-help" testid="qty-max" />
 				<small id="{id}-max-help" class:err={!!b('qtyMax')}>{err('qtyMax') ?? f.upToHelp}</small>
 			</div>
 		</div>

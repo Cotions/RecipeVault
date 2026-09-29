@@ -1351,6 +1351,15 @@ Items of issue #11 (the two perf items went to a separate pass).
   problem (the field's line, else `explain(code)`) instead of "corrigez les
   champs signalés", and a save-bar line with no text of its own uses the code's
   sentence. "Rien n'a changé" is left for failures that are not the checker's.
+- **Tablet screens checked by eye** (Galaxy Tab S9, portrait and landscape,
+  `/nouvelle` and `/r/<slug>/modifier` on the fixture vault; screenshots in
+  `/tmp`). Fixed: a "Titre de section" row squeezed its name into the step
+  number's gutter, broken mid-word — the name now sits above the field; the
+  example "1 ½" showed in a disabled quantity (*au goût*) and in "Jusqu'à",
+  where it read as a value — gone there; the save bar's « ; » could start a
+  line; the four times went three and one held sideways — now two by two.
+  Seen and left: the row tools (↑ ↓ ✕) keep 44 px targets, so a long name
+  scrolls in its box in portrait.
 
 ## Out of scope
 

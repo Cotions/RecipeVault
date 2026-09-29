@@ -11,6 +11,7 @@
 		disabled = false,
 		describedby,
 		testid,
+		placeholder = '1 ½',
 		input = $bindable()
 	}: {
 		value?: string;
@@ -20,6 +21,8 @@
 		disabled?: boolean;
 		describedby?: string;
 		testid?: string;
+		/** An example quantity; none where it would read as a value (the "Jusqu'à" box, a disabled box: « au goût »). */
+		placeholder?: string;
 		input?: HTMLInputElement;
 	} = $props();
 
@@ -41,7 +44,7 @@
 		type="text"
 		inputmode="decimal"
 		autocomplete="off"
-		placeholder="1 ½"
+		placeholder={disabled ? '' : placeholder}
 		{disabled}
 		aria-invalid={invalid || undefined}
 		aria-describedby={describedby}

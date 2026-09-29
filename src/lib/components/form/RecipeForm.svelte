@@ -565,7 +565,7 @@
 			<p class="help">{f.stepHelp}</p>
 			<ol class="steps">
 				{#each method.rows as r, i (r.id)}
-					<li class="step" class:heading={r.type === 'heading'} data-testid="step-row">
+					<li class="step" class:heading={r.type === 'heading'} class:worded={r.type !== 'step'} data-testid="step-row">
 						<label for="r-{r.id}" class="num">{r.type === 'heading' ? f.heading : r.type === 'text' ? f.text : stepNumber(i)}</label>
 						<div class="step-body">
 							{#if r.type === 'heading'}
@@ -748,7 +748,7 @@
 	<!-- Times, oven, servings, yield -->
 	<section class="card" aria-labelledby="s-times">
 		<h2 id="s-times">{f.times}</h2>
-		<div class="grid">
+		<div class="grid times">
 			{#each TIMES as [k, name] (k)}
 				{@const b = recipeBlock(`times.${k}`)}
 				<DurationField d={form.times[k]} id="time-{k}" label={name} error={b ? (b.reason === 'range' ? f.field.range : f.field.format) : undefined} />
@@ -1055,17 +1055,37 @@
 	.step:not(.heading) .num:not(:empty) {
 		font-size: var(--step-0);
 	}
-	.step.heading .num {
-		grid-column: 1 / 2;
-		font-size: var(--step--1);
-		color: var(--ink-soft);
-		writing-mode: horizontal-tb;
-		text-align: left;
-		word-break: break-word;
-	}
 	.step.heading input {
 		font-family: var(--serif);
 		font-weight: 700;
+	}
+	/* A row named in words ("Titre de section", "Texte"): the name above the field, never squeezed into the number's gutter. */
+	.step.worded .num {
+		grid-column: 2 / 4;
+		grid-row: 1;
+		padding-top: 0;
+		font-family: inherit;
+		font-weight: 600;
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+		text-align: left;
+	}
+	.step.worded .step-body {
+		grid-column: 2;
+		grid-row: 2;
+	}
+	.step.worded .tools {
+		grid-column: 3;
+		grid-row: 2;
+	}
+	@media (max-width: 34rem) {
+		.step.worded .num {
+			grid-column: 1 / 3;
+		}
+		.step.worded .tools {
+			grid-column: 2;
+			grid-row: 3;
+		}
 	}
 	@media (max-width: 34rem) {
 		.step {
@@ -1074,9 +1094,6 @@
 		.step .tools {
 			grid-column: 2;
 			justify-content: flex-end;
-		}
-		.step.heading .num {
-			grid-column: 1 / 3;
 		}
 	}
 	.photo {
@@ -1181,6 +1198,10 @@
 		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 		gap: 0.25rem 1rem;
 	}
+	/* Four times: two by two, never three and one left alone on a tablet held sideways. */
+	.grid.times {
+		grid-template-columns: repeat(auto-fit, minmax(max(13rem, calc(50% - 0.5rem)), 1fr));
+	}
 	.field.wide {
 		grid-column: 1 / -1;
 	}
@@ -1246,8 +1267,9 @@
 	.why li {
 		display: inline;
 	}
-	.why li + li::before {
-		content: ' ; ';
+	/* The « ; » stays at the end of its line (a no-break space before it), never at the start of the next. */
+	.why li:not(:last-child)::after {
+		content: '\00a0; ';
 	}
 	.why span {
 		font-weight: 600;
