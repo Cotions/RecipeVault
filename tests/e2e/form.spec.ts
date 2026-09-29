@@ -403,3 +403,26 @@ test('"En faire deux versions": the same title twice makes a family of both, in 
 	await expect(page.locator('main')).toContainText('au lait');
 	await expect(page.locator('main')).toContainText('à la cassonade');
 });
+
+test('"Pas encore relié" waits until she leaves the name, and never blocks Save', async ({ page }) => {
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill(title('Recette au nom inconnu'));
+	const r = page.getByTestId('item-row').first();
+	await r.getByTestId('qty').fill('1');
+	await r.getByTestId('unit').selectOption('cup');
+	const checked = page.waitForResponse((res) => res.url().endsWith('/api/form/check') && res.request().postData()!.includes('grumpfine'));
+	await r.getByTestId('name').pressSequentially('grumpfine inventée');
+	await checked;
+	// The check answered, but she is still in the field: nothing under it.
+	await expect(r.getByTestId('name')).toBeFocused();
+	await expect(r.getByTestId('row-hint')).toHaveCount(0);
+	await r.getByTestId('name').blur();
+	await expect(r.getByTestId('row-hint')).toHaveText(/Pas encore relié/);
+	await expect(page.getByTestId('save')).toBeEnabled();
+	// Typing again hides it until she leaves the field again.
+	await r.getByTestId('name').focus();
+	await r.getByTestId('name').press('End');
+	await r.getByTestId('name').pressSequentially('s');
+	await expect(r.getByTestId('row-hint')).toHaveCount(0);
+	await page.evaluate(() => localStorage.clear());
+});

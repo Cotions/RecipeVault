@@ -63,7 +63,16 @@
 	const hint = $derived(nameHint(item.name, words));
 	const b = (field: string) => blockOn(blocks, item.id, field);
 	const unitName = (u: Unit) => (u === 'piece' ? f.piece : unitLabel(u, 1, 'fr'));
-	const myHints = $derived(hints.filter((h) => h.target === item.id && (h.code === 'W303' || h.code === 'W305' || h.code === 'W306')));
+	/**
+	 * The name as it stood when she last left the field (or picked a suggestion).
+	 * "Pas encore relié" (W303 / W305) waits for it: not under every half-typed
+	 * name while she types (issue #11). Still only a soft line, never a block.
+	 */
+	let settledName = $state(untrack(() => item.name));
+	const settled = $derived(item.name.trim() === settledName.trim());
+	const myHints = $derived(
+		hints.filter((h) => h.target === item.id && (h.code === 'W306' || ((h.code === 'W303' || h.code === 'W305') && settled)))
+	);
 	/** Blocks on this row with no field of their own on screen: said at the row's end. */
 	const SHOWN = ['qty', 'unit', 'name', 'prep', 'note', 'brand', 'qtyMax', 'alt', 'alt.qtyMax'];
 	const others = $derived(blocks.filter((x) => x.id === item.id && !SHOWN.includes(x.field) && (nested || x.field !== 'recipe')));
@@ -114,9 +123,11 @@
 			load={names}
 			onpick={(o) => {
 				item.name = o.value;
+				settledName = o.value;
 				linked = o.meta === f.linked;
 			}}
 			oninput={() => (linked = null)}
+			onblur={() => (settledName = item.name)}
 			{onenter}
 			placeholder={f.namePlaceholder}
 			invalid={!!b('name')}
@@ -138,14 +149,17 @@
 	{#if hint}
 		<p class="hint" data-testid="name-hint">
 			{formHintText[hint.code]({ word: hint.word })}
-			<button type="button" class="btn" onclick={() => applyNameHint(item, hint)}>{f.useSuggestion(hint.word)}</button>
+			<button type="button" class="btn" onclick={() => {
+					applyNameHint(item, hint);
+					settledName = item.name;
+				}}>{f.useSuggestion(hint.word)}</button>
 		</p>
 	{/if}
 	{#each myHints as h (h.code)}
-		<p class="soft">{formHintText[h.code]({})}</p>
+		<p class="soft" data-testid="row-hint">{formHintText[h.code]({})}</p>
 	{/each}
 	<Marks owner={item} key="qty" {lang} text={item.qty} />
-	<Marks owner={item} key="name" {lang} text={item.name} onpick={(a) => (item.name = a)} />
+	<Marks owner={item} key="name" {lang} text={item.name} onpick={(a) => (item.name = settledName = a)} />
 
 	{#each others as x, k (k)}<p class="err">{blockText(x)}</p>{/each}
 
