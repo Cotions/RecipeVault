@@ -239,6 +239,16 @@ Depends on: nothing.
 Tests: a save with an explicit author commits under that name and email; the
 watcher's and the CLI's commits keep the config's author.
 
+**Done — decision.** The author travels in the context, not as a parameter on
+each function: `withAuthor(ctx, author?)` (`context.ts`) returns the same vault
+(shared lock, index, push queue, own-write map) with `author` set, and every
+write function already commits as `ctx.author`. A route passes
+`withAuthor(ctx, user)` once and the author reaches every commit however deep
+(`linkKey` → `commitEntries` → `writeAndCommit`), with nothing to forget on a
+new write function; no signature changed. `savePaste` takes an optional
+`author`. Absent, `ctx` itself: the CLI and the watcher keep `git_author`.
+Author and committer are both the person. Tests: `tests/server/author.test.ts`.
+
 ### Phase 1 — accounts and sessions
 
 Depends on: Q1, Q2.

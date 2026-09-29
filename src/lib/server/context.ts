@@ -9,6 +9,7 @@ import { vaultPaths, type VaultPaths } from './vault';
 export interface VaultContext {
 	paths: VaultPaths;
 	db: DB;
+	/** Who commits: the config's `git_author`, or the signed-in person through `withAuthor`. */
 	author: GitAuthor;
 	/** The config's currency: prices in another one are shown, never costed. */
 	currency: string;
@@ -27,6 +28,18 @@ export interface OpenOptions {
 	push?: boolean;
 	currency?: string;
 	log?: (msg: string) => void;
+}
+
+/**
+ * The same vault, committing as `author` — the person signed in to the app
+ * (plan 04, Phase 0). Every write function commits as its context's author,
+ * so a route passes `withAuthor(ctx, user)` and the author reaches every
+ * commit the call makes, however deep. Lock, index, push queue and own-write
+ * map are shared with `ctx`. Absent author: `ctx` itself, whose author is the
+ * config's `git_author` (the CLI and the watcher's `edit (external)` commits).
+ */
+export function withAuthor(ctx: VaultContext, author?: GitAuthor): VaultContext {
+	return author ? { ...ctx, author } : ctx;
 }
 
 export function openVault({ root, author, push = false, currency = DEFAULT_CURRENCY, log = (m) => console.warn(m) }: OpenOptions): VaultContext & { fresh: boolean } {

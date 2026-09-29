@@ -4,6 +4,8 @@ import { checkBatch, checkFile } from '../vault/check';
 import { fileSlug } from '../vault/rules/batch';
 import type { Diagnostic } from '../vault/types';
 import type { App } from './app';
+import type { GitAuthor } from './config';
+import { withAuthor } from './context';
 import { titles } from './index/query';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { checkOptions } from './checkopts';
@@ -67,9 +69,10 @@ export interface Unsent {
 /**
  * Save, then append one paste-log line for the attempt (docs/DATA-FLOW.md):
  * the saved files, plus the ones that stayed in the box as 'rejected'.
+ * The commit is `author`'s (the signed-in person), else the config's.
  */
-export async function savePaste(app: App, files: SaveFile[], unsent: Unsent[] = []): Promise<SaveResult> {
-	const result = await save(app.ctx, files);
+export async function savePaste(app: App, files: SaveFile[], unsent: Unsent[] = [], author?: GitAuthor): Promise<SaveResult> {
+	const result = await save(withAuthor(app.ctx, author), files);
 	app.pasteLog.append('save', [
 		...result.files.map((r, i) => ({
 			codes: r.diagnostics.map((d) => d.code),
