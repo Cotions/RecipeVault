@@ -36,6 +36,7 @@
 	import StaleCompare from './StaleCompare.svelte';
 	import Suggest, { type Option } from './Suggest.svelte';
 	import { undoSave } from './undo';
+	import { blocksImplicitSubmit, draftDiffers, packDraft, unpackDraft, type DraftPair, type FormDraft } from './formui';
 	import {
 		addGroup,
 		addItem,
@@ -49,12 +50,10 @@
 		move,
 		removeAt,
 		restoreAt,
-		sameForm,
 		saveDraft,
 		showGroups,
 		uncertainFields,
 		type Block,
-		type Draft,
 		type FormHint,
 		type MethodSection,
 		type TextKind,
@@ -97,13 +96,13 @@
 	let initial = untrack(() => $state.snapshot(form)) as FormRecipe;
 
 	let newFamilyLabel = $state('');
-	let pair = $state<{ slug: string; hash: string; title: string; variant: string } | null>(null);
+	let pair = $state<DraftPair | null>(null);
 	let hints = $state<FormHint[]>([]);
 	let same = $state<{ slug: string; title: string; hash: string; family: string | null }[]>([]);
 	let saving = $state(false);
 	let message = $state<string | null>(null);
 	let stale = $state<{ theirs: { form: FormRecipe; hash: string } } | null>(null);
-	let foundDraft = $state<Draft | null>(null);
+	let foundDraft = $state<FormDraft | null>(null);
 	let decided = $state(false);
 	let photoFile = $state<File | null>(null);
 	let photoPreview = $state<string | null>(null);
@@ -157,14 +156,16 @@
 	// ---------------------------------------------------------------- draft (Q17 A)
 
 	onMount(() => {
-		const d = loadDraft(localStorage, key);
-		if (d && !sameForm(d.form, initial)) foundDraft = d;
+		const d = loadDraft(localStorage, key) as FormDraft | undefined;
+		if (d && draftDiffers(d, initial)) foundDraft = d;
 		else decided = true;
 	});
 
 	function resumeDraft() {
 		if (!foundDraft) return;
 		form = prepare(foundDraft.form);
+		// What she chose beside the form: a new family's label, the W608 pair.
+		({ familyLabel: newFamilyLabel, pair } = unpackDraft(foundDraft));
 		// The draft was typed over the version it was opened from: the stale guard compares with that one.
 		if (base && foundDraft.hash) base.hash = foundDraft.hash;
 		foundDraft = null;
@@ -177,15 +178,20 @@
 		decided = true;
 	}
 
+	// Until she answers "brouillon trouvé" the form is inert (nothing typed, nothing lost),
+	// and the old draft is not overwritten. After a save, nothing is written again.
 	let draftTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
 		const snap = $state.snapshot(form) as FormRecipe;
+		const extras = { hash: base?.hash, familyLabel: newFamilyLabel, pair: pair ? ($state.snapshot(pair) as DraftPair) : null };
 		if (!decided) return;
-		clearTimeout(draftTimer);
 		draftTimer = setTimeout(() => {
-			if (sameForm(snap, initial)) clearDraft(localStorage, key);
-			else saveDraft(localStorage, key, { form: snap, ...(base ? { hash: base.hash } : {}), at: Date.now() });
+			if (!decided) return;
+			const d = packDraft(snap, extras, Date.now());
+			if (!draftDiffers(d, initial)) clearDraft(localStorage, key);
+			else saveDraft(localStorage, key, d);
 		}, 400);
+		return () => clearTimeout(draftTimer);
 	});
 
 	// ---------------------------------------------------------------- live check (Q9 A)
@@ -373,9 +379,11 @@
 					const commits: string[] = r.status === 'saved' && r.commit ? [r.commit] : [];
 					const photo = await photoStep(r.slug, r.hash);
 					if (photo.commit) commits.unshift(photo.commit);
+					// Saved: no pending autosave may write the form back as a draft.
+					decided = false;
+					clearTimeout(draftTimer);
 					clearDraft(localStorage, key);
 					dropPhoto();
-					decided = false;
 					await goto(`/r/${r.slug}`, { invalidateAll: true });
 					if (photo.error) toast.show({ text: f.photoFailed(photo.error), error: true });
 					else
@@ -416,6 +424,8 @@
 		base.hash = stale.theirs.hash;
 		form = prepare(stale.theirs.form);
 		initial = $state.snapshot(form) as FormRecipe;
+		newFamilyLabel = '';
+		pair = null;
 		clearDraft(localStorage, key);
 		stale = null;
 	}
@@ -423,7 +433,17 @@
 	const when = (ms: number) => new Date(ms).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' });
 </script>
 
-<form class="recipe-form" novalidate onsubmit={(e) => (e.preventDefault(), save())}>
+<!-- The keydown only stops implicit submission; it adds no interaction. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<form
+	class="recipe-form"
+	novalidate
+	onsubmit={(e) => (e.preventDefault(), save())}
+	onkeydown={(e) => {
+		// Enter in a one-line field saves nothing: only Enregistrer saves.
+		if (blocksImplicitSubmit(e.key, e.target as HTMLElement & { type?: string })) e.preventDefault();
+	}}
+>
 	<h1>{slug ? f.editTitle : f.newTitle}</h1>
 
 	{#if foundDraft}
@@ -436,6 +456,7 @@
 		</div>
 	{/if}
 
+	<div class="body" inert={!!foundDraft} data-testid="form-body">
 	{#if stale}
 		<StaleCompare mine={form} theirs={stale.theirs.form} onkeep={keepMine} ontake={takeTheirs} />
 	{/if}
@@ -503,7 +524,7 @@
 						<div class="field">
 							<label for="g-{g.id}">{f.groupName}</label>
 							<input id="g-{g.id}" type="text" bind:value={g.name} placeholder={f.groupPlaceholder} data-testid="group-name" />
-							<Marks owner={g} key="name" lang={form.lang} text={g.name} />
+							<Marks owner={g} key="name" lang={form.lang} text={g.name} onpick={(v) => (g.name = v)} />
 						</div>
 						<label class="check"><input type="checkbox" bind:checked={g.optional} /> {f.groupOptional}</label>
 						<div class="tools">
@@ -562,7 +583,7 @@
 							{:else}
 								<textarea id="r-{r.id}" rows="2" bind:value={r.text} use:grow aria-label={r.type === 'step' ? f.step(stepNumber(i)) : f.text} data-testid="step"></textarea>
 							{/if}
-							<Marks owner={r} key="text" lang={form.lang} text={r.text} />
+							<Marks owner={r} key="text" lang={form.lang} text={r.text} onpick={(v) => (r.text = v)} />
 						</div>
 						<div class="tools">
 							<button type="button" class="icon" aria-label="{f.moveUp} — {f.step(i + 1)}" disabled={i === 0} onclick={() => move(method!.rows, i, -1)}>↑</button>
@@ -605,7 +626,7 @@
 				<label for="t-{k}">{f[k]}</label>
 				{#if k === 'notes'}<small class="help">{f.notesHelp}</small>{/if}
 				<textarea id="t-{k}" rows="3" bind:value={s.text} use:grow data-testid="text-{k}"></textarea>
-				<Marks owner={s} key="text" lang={form.lang} text={s.text} />
+				<Marks owner={s} key="text" lang={form.lang} text={s.text} onpick={(v) => (s.text = v)} />
 			</div>
 		{/each}
 	</section>
@@ -701,7 +722,7 @@
 			</div>
 			<div class="field">
 				<Suggest id="src-author" label={f.author} bind:value={form.source.author} load={authors} onpick={(o) => (form.source.author = o.value)} placeholder={f.authorPlaceholder} />
-				<Marks owner={form} key="source.author" lang={form.lang} text={form.source.author} />
+				<Marks owner={form} key="source.author" lang={form.lang} text={form.source.author} onpick={(v) => (form.source.author = v)} />
 			</div>
 			{#if form.source.type === 'book' || form.source.type === 'magazine' || form.source.title || form.source.page}
 				<div class="field">
@@ -820,6 +841,7 @@
 			<button type="submit" class="btn primary" disabled={!!reasons.length || saving} aria-busy={saving} data-testid="save">{saving ? f.saving : f.save}</button>
 		</div>
 	</div>
+	</div>
 </form>
 
 <style>
@@ -931,6 +953,9 @@
 		background: #fffbe0;
 		border: 1px solid var(--highlight);
 		border-radius: var(--radius);
+	}
+	.body[inert] {
+		opacity: 0.55;
 	}
 	.banner p {
 		margin: 0 0 0.5rem;

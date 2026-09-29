@@ -1,13 +1,17 @@
 <script lang="ts">
 	// One time of the recipe (plan 04, Phase 5.5): hours and minutes, and an
 	// optional "à" for a range. Numbers only; the file's format is the app's.
-	import { untrack } from 'svelte';
 	import type { FormDuration } from '$lib/form';
+	import { durationText } from './formui';
 	import { form as f } from '$lib/i18n/fr-form';
 
 	let { d, id, label, error }: { d: FormDuration; id: string; label: string; error?: string } = $props();
 
-	let range = $state(untrack(() => d.maxHours !== null || d.maxMinutes !== null));
+	// "à" asked for, or a maximum already there (also after the form is swapped: a draft resumed, their version taken).
+	let rangeAsked = $state(false);
+	const range = $derived(rangeAsked || d.maxHours !== null || d.maxMinutes !== null);
+	/** What she typed in each box, shown back while it is not a number. */
+	let typed = $state<Partial<Record<'hours' | 'minutes' | 'maxHours' | 'maxMinutes', string>>>({});
 	const num = (s: string): number | null => (s.trim() === '' ? null : /^\d+$/.test(s.trim()) ? Number(s) : NaN);
 </script>
 
@@ -25,11 +29,11 @@
 				onclick={() => {
 					d.maxHours = null;
 					d.maxMinutes = null;
-					range = false;
+					rangeAsked = false;
 				}}>✕</button
 			>
 		{:else}
-			<button type="button" class="btn quiet" onclick={() => (range = true)}>{f.rangeAdd}</button>
+			<button type="button" class="btn quiet" onclick={() => (rangeAsked = true)}>{f.rangeAdd}</button>
 		{/if}
 	</div>
 	{#if error}<p class="err" id="{id}-err">{error}</p>{/if}
@@ -43,8 +47,11 @@
 			inputmode="numeric"
 			autocomplete="off"
 			size="2"
-			value={d[h] ?? ''}
-			oninput={(e) => (d[h] = num(e.currentTarget.value))}
+			value={durationText(d[h], typed[h])}
+			oninput={(e) => {
+				typed[h] = e.currentTarget.value;
+				d[h] = num(e.currentTarget.value);
+			}}
 			aria-label="{label} {suffix ? f.range + ' ' : ''}{f.hoursLabel}"
 		/>
 		<span aria-hidden="true">{f.hours}</span>
@@ -56,8 +63,11 @@
 			inputmode="numeric"
 			autocomplete="off"
 			size="2"
-			value={d[m] ?? ''}
-			oninput={(e) => (d[m] = num(e.currentTarget.value))}
+			value={durationText(d[m], typed[m])}
+			oninput={(e) => {
+				typed[m] = e.currentTarget.value;
+				d[m] = num(e.currentTarget.value);
+			}}
 			aria-label="{label} {suffix ? f.range + ' ' : ''}{f.minutesLabel}"
 		/>
 		<span aria-hidden="true">{f.minutes}</span>

@@ -51,7 +51,7 @@
 
 <div class="tags" data-testid="tags">
 	<ul class="chips" aria-label={f.tags}>
-		{#each tags as t, i (t)}
+		{#each tags as t, i (i)}
 			{@const s = status(t)}
 			<li class:pending={s.status !== 'known'}>
 				<span>{label(t)}</span>

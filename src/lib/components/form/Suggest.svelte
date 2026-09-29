@@ -55,6 +55,8 @@
 	let open = $state(false);
 	let active = $state(-1);
 	let seq = 0;
+	/** A finger or button is down on the list (a tap or a scroll in progress). */
+	let pressing = false;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const listId = $derived(`${id}-list`);
 
@@ -132,22 +134,34 @@
 		onfocus={() => refresh(value, true)}
 		onblur={() => {
 			// Let a tap on a suggestion land first.
-			setTimeout(() => (open = false), 150);
+			setTimeout(() => {
+				if (!pressing) open = false;
+			}, 150);
 			onblur?.();
 		}}
 		onkeydown={keydown}
 	/>
 	<ul id={listId} role="listbox" hidden={!open}>
 		{#each options as o, i (o.value + i)}
+			<!-- The keyboard stays in the combobox field (arrows, Enter): the option only takes the pointer. -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<li
 				id="{id}-o{i}"
 				role="option"
 				aria-selected={i === active}
 				class:special={o.special}
 				onpointerdown={(e) => {
+					// Keep the focus in the field; the pick waits for the click, so a
+					// finger that lands on an option to scroll the list picks nothing.
 					e.preventDefault();
-					pick(o);
+					pressing = true;
 				}}
+				onpointerup={() => (pressing = false)}
+				onpointercancel={() => {
+					pressing = false;
+					if (document.activeElement !== input) open = false;
+				}}
+				onclick={() => pick(o)}
 			>
 				<span>{o.label}</span>
 				{#if o.meta}<small>{o.meta}</small>{/if}

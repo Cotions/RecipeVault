@@ -249,3 +249,101 @@ test('a new recipe with a photo and a tag of her own: the photo is sent after th
 	// Two commits: the recipe, then its photo; both hers.
 	expect(git('log', '-2', '--format=%an')).toBe('Proprio Inventé\nProprio Inventé');
 });
+
+// ---------------------------------------------------------------- P2 review fixes
+
+/** A recipe written straight to the vault (as a paste would), for the form to open. */
+async function putRecipe(page: Page, t: string, extra: string, steps: string[]) {
+	const text = `---\nschema: 3\ntitle: "${t}"\n${extra}source: { type: invented }\nservings: 4\ningredients:\n  - items:\n      - { qty: 1, unit: cup, name: farine }\nextracted_by: ai\n---\n\n## Préparation\n\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n`;
+	const res = await page.request.post('/api/save', { headers: ORIGIN, data: { files: [{ text }] } });
+	expect(res.ok()).toBe(true);
+}
+
+test('"Autre lecture" replaces only the uncertain word; same readings and a repeated tag do not break the form', async ({ page }) => {
+	const t = title('Tarte au sucre à relire');
+	await putRecipe(page, t.replace('sucre', 'sucre [?: sirop]'), `slug: ${slugOf(t)}\ntags: [dessert, dessert]\n`, ['Ajouter 1 [?: 2] tasse de lait et 1 [?: 2] c. à thé de sel.', 'Cuire.']);
+	const slug = slugOf(t);
+	await page.goto(`/r/${slug}/modifier`);
+	await expect(page.getByTestId('title')).toHaveValue(t);
+	// The tag given twice shows twice, and the form renders.
+	await expect(page.getByTestId('tags').locator('.chips > li:not(.hint)')).toHaveCount(2);
+
+	const step = page.getByTestId('step').first();
+	const stepMarks = page.getByTestId('step-row').first().getByTestId('marks-text');
+	await expect(stepMarks.getByRole('button', { name: /2/ })).toHaveCount(2);
+	await stepMarks.getByRole('button', { name: /2/ }).nth(1).click();
+	await expect(step).toHaveValue('Ajouter 1 tasse de lait et 2 c. à thé de sel.');
+
+	await page.getByTestId('marks-title').getByRole('button', { name: /sirop/ }).click();
+	await expect(page.getByTestId('title')).toHaveValue(t.replace(/sucre/, 'sirop'));
+	await page.evaluate(() => localStorage.clear());
+});
+
+test('Enter in a one-line field does not save the recipe', async ({ page }) => {
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill(title('Pas encore finie'));
+	await row(page, 0, '1', 'cup', 'farine');
+	await expect(page.getByTestId('save')).toBeEnabled();
+	await page.getByTestId('title').press('Enter');
+	await page.getByTestId('family-search').fill('Famille pas encore');
+	await page.getByTestId('family-search').press('Escape');
+	await page.getByTestId('family-search').press('Enter');
+	await page.waitForTimeout(500);
+	await expect(page).toHaveURL('/nouvelle');
+	await page.evaluate(() => localStorage.clear());
+});
+
+test('a save right after typing leaves no draft behind', async ({ page }) => {
+	const t = title('Sauvée sans brouillon');
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill('x');
+	await row(page, 0, '1', 'cup', 'riz');
+	await page.getByTestId('title').fill(t);
+	await saveAndLand(page, slugOf(t));
+	await page.waitForTimeout(800);
+	expect(await page.evaluate(() => localStorage.getItem('recipevault:draft::nouvelle'))).toBeNull();
+});
+
+test('a suggestion is taken on the tap, not when a finger lands to scroll', async ({ page }) => {
+	await page.goto('/nouvelle');
+	await page.getByTestId('tag-search').fill('dess');
+	const opt = page.locator('#tag-search-list').getByRole('option').first();
+	await expect(opt).toBeVisible();
+	await opt.dispatchEvent('pointerdown', { pointerType: 'touch', isPrimary: true });
+	await opt.dispatchEvent('pointercancel', { pointerType: 'touch', isPrimary: true });
+	await expect(page.getByTestId('tags').locator('.chips > li')).toHaveCount(0);
+	await page.getByTestId('tag-search').fill('desse');
+	await page.locator('#tag-search-list').getByRole('option').first().click();
+	await expect(page.getByTestId('tags').locator('.chips > li')).toHaveCount(1);
+	await page.evaluate(() => localStorage.clear());
+});
+
+test('the draft banner holds the form until she answers; the draft keeps a new family and a time range', async ({ page }) => {
+	const t = title('Pâté du brouillon');
+	await page.goto('/nouvelle');
+	await page.getByTestId('title').fill(t);
+	await row(page, 0, '1', 'lb', 'bœuf haché');
+	const fam = `Pâté inventé ${test.info().project.name}`;
+	await page.getByTestId('family-search').fill(fam);
+	await page.getByRole('option', { name: `Nouvelle famille « ${fam} »` }).click();
+	await page.locator('#variant').fill('du brouillon');
+	await page.locator('#time-prep-m').fill('20');
+	await page.getByRole('button', { name: 'Ajouter « à »' }).first().click();
+	await page.locator('#time-prep-max-m').fill('30');
+	// Hours as "1,5": what she typed stays, never "NaN".
+	await page.locator('#time-cook-h').fill('1,5');
+	await expect(page.locator('#time-cook-h')).toHaveValue('1,5');
+	await page.locator('#time-cook-h').fill('');
+	await expect.poll(() => page.evaluate(() => localStorage.getItem('recipevault:draft::nouvelle') ?? '')).toContain(fam);
+
+	await page.reload();
+	await expect(page.getByTestId('draft-banner')).toBeVisible();
+	await expect(page.getByTestId('form-body')).toHaveAttribute('inert', '');
+	await page.getByRole('button', { name: 'Reprendre le brouillon' }).click();
+	await expect(page.getByTestId('form-body')).not.toHaveAttribute('inert');
+	await expect(page.getByTestId('family-name')).toHaveText(fam);
+	await expect(page.locator('#time-prep-max-m')).toHaveValue('30');
+	await saveAndLand(page, slugOf(t));
+	expect(read(slugOf(t))).toContain('prep: 20m-30m');
+	expect(readFileSync(`${VAULT}/vocab/families.yaml`, 'utf8')).toContain(fam);
+});
