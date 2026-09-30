@@ -36,7 +36,7 @@ test('the top row of the queue becomes a new ingredient; the recipes using it lo
 });
 
 test('an ambiguous name gets a rule on one entry; lines the rule misses stay in the queue', async ({ page }) => {
-	await page.goto('/resoudre');
+	await page.goto('/resoudre?cle=huile'); // the queue shows 30 rows; earlier specs add names
 	const row = page.locator('li.row', { has: page.locator('h2', { hasText: /^huile$/ }) });
 	await row.getByText('Selon l’unité ou la préparation').click();
 	await row.getByLabel('Ingrédient').last().fill('huile-vegetale');
@@ -49,7 +49,7 @@ test('an ambiguous name gets a rule on one entry; lines the rule misses stay in 
 });
 
 test('an ambiguous name is settled by taking it off one entry', async ({ page }) => {
-	await page.goto('/resoudre');
+	await page.goto('/resoudre?cle=huile'); // the queue shows 30 rows; earlier specs add names
 	const row = page.locator('li.row', { has: page.locator('h2', { hasText: /^huile$/ }) });
 	await expect(row.getByText('plusieurs ingrédients')).toBeVisible();
 	await row.getByRole('button', { name: "Retirer de « huile d'olive »" }).click();
@@ -59,7 +59,7 @@ test('an ambiguous name is settled by taking it off one entry', async ({ page })
 });
 
 test('the browse filter finds recipes with unlinked ingredients', async ({ page }) => {
-	await page.goto('/?relies=non');
+	await page.goto('/?relies=non&q=soupe'); // one page of results; earlier specs add recipes
 	await expect(page.locator('.facets')).toContainText('Non reliés au registre');
 	await expect(page.getByRole('link', { name: /Soupe aux pois/ }).first()).toBeVisible();
 });
