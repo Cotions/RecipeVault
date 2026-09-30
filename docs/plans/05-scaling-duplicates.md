@@ -650,7 +650,7 @@ these decisions:
   after the original as `<span class="step-scaled"> → 2 tasses</span>`; in
   kitchen mode inside the text between the timer buttons (the timers still
   read the original). Emphasis or a marker splitting an amount's text leaves
-  that amount unmarked (best effort). ⚑ A size in a step (« la boîte (796 ml) »,
+  that amount unmarked (best effort; issue #13: now marked, below). ⚑ A size in a step (« la boîte (796 ml) »,
   « un bol de 2 L ») is found and scaled beside the original, as Q6 B accepts.
 - **Notice** « Recette × f : les temps, la température du four et la taille du
   moule restent ceux de la recette de base. », plus « Dans les étapes, la
@@ -688,6 +688,25 @@ about a pan, a bowl or the oven, none a temperature, duration or pan size
 E2E: steps scaled beside the original with the notice (desktop), the
 sub-recipe link's factor (desktop), the kitchen expansion at ½ / 0,56 / whole /
 text yield and kitchen step amounts (phone, tablet).
+
+**Issue #13 (scaling leftovers).**
+
+- *Step or item numbers.* « Étape 1 - 2 tasses » read as the range « 1 à 2 ».
+  A number after a label word (*étape*, *step*, *n°*, *no.*, *numéro*, `#`)
+  is never the low end of a range: the amount is `2 tasses`. Without such a
+  word a spaced dash still reads as a range (« 2 - 3 tasses »): nothing else
+  tells the two apart, and the range is what cards write.
+- *Amounts split by emphasis or a marker.* The step's inline tokens are read
+  in runs — text, emphasis (`**`, `*`, `~~`) and the markers that qualify a
+  word (`[?]`, `[?: …]`, `[+]`) — as the text they show, so « 1 **tasse** »,
+  « **1** tasse », « 1 [?] tasse » and « **2** à 3 *tasses* » are marked. The
+  scaled value goes after the amount's last character, past the closing tags
+  of emphasis opened inside the amount (`1 <strong>tasse</strong> → 2
+  tasses`). Safe for the markup: only text tokens are split and only the
+  escaped `stepAmountHtml` is added; raw HTML stays off (`html: false`).
+  `[illisible]` (it may hide part of the number), code, links and line breaks
+  end a run: an amount across them stays unmarked. The « → » notice now reads
+  the rendered steps, so it follows the same rule.
 
 ### Phase 5 — the duplicate model
 
@@ -1130,7 +1149,8 @@ own report):
 - `UNIT_ALIASES` stays in code: `STORAGE.md` keeps the canonical unit list in
   code and moving it would make the checker vault-dependent (Phase 4 notes).
 - Kitchen mode expands one sub-recipe level (no recursion).
-- An amount in a step split by emphasis or a marker is not marked (best effort).
+- ~~An amount in a step split by emphasis or a marker is not marked~~ — marked
+  since issue #13 (Phase 4 notes), except across `[illisible]`, code or a link.
 - ~~The owner has not read `tests/fixtures/scaling.yaml` yet~~ — reviewed
   2026-09-30 (Phase 0 notes: two cases changed, the rest approved).
 - Two copies pasted in the same batch are not compared with each other (W505

@@ -7,7 +7,6 @@
 	import { formatAmount, type ScaleBase } from '$lib/render/ingredient';
 	import { renderMarkdown } from '$lib/render/markdown';
 	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, readAmount, servingsStep, scaleTextYield, servingsRange, subRecipeHref, type ScalingRules, type SubScaleRecipe } from '$lib/render/scale';
-	import { stepAmounts } from '$lib/render/stepamounts';
 	import type { Conversions } from '$lib/ingredients/units';
 	import { formatOven } from '$lib/render/temperature';
 	import { formatNumber } from '$lib/render/fraction';
@@ -122,7 +121,8 @@
 	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s], numbered: stepStyle.numbered, scale: stepScale }));
 	const steps = $derived(parseBody(body).body.steps);
 	const hasSteps = $derived(steps.length > 0);
-	const stepHasAmount = $derived(!!stepScale && steps.some((s) => stepAmounts(s.text, stepScale).length > 0));
+	// Read from the rendered method: an amount split by emphasis or a marker is marked there, not in the raw text.
+	const stepHasAmount = $derived(!!stepScale && html.includes('class="step-scaled"'));
 	const subHref = $derived(subScale ? (line: Ingredient) => subRecipeHref(line, subScale.recipes[line.recipe!], subScale.conversions, factor, scaling) : undefined);
 	onMount(loadStepStyle);
 	const oven = $derived(recipe.oven ? formatOven(recipe.oven) : null);

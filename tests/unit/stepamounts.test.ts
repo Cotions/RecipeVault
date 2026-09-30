@@ -121,6 +121,34 @@ describe('step amounts (Q6 B)', () => {
 		expect(html).toContain('<p>1 tasse suffit.</p>');
 	});
 
+	it('marks an amount split by emphasis or a qualifying marker; the markup stays as parsed (#13)', () => {
+		const o = { scale: { factor: 2, lang: 'fr' as const, rules: RULES, title: 'x' } };
+		const v = (s: string) => `<span class="step-scaled" title="x"> → ${s}</span>`;
+		expect(renderInline('Ajouter **1 tasse** de lait.', o)).toBe(`Ajouter <strong>1 tasse${v('2 tasses')}</strong> de lait.`);
+		expect(renderInline('Ajouter 1 **tasse** de lait.', o)).toBe(`Ajouter 1 <strong>tasse</strong>${v('2 tasses')} de lait.`);
+		expect(renderInline('Ajouter **1** tasse de lait.', o)).toBe(`Ajouter <strong>1</strong> tasse${v('2 tasses')} de lait.`);
+		expect(renderInline('Ajouter 1 ***tasse***.', o)).toBe(`Ajouter 1 <em><strong>tasse</strong></em>${v('2 tasses')}.`);
+		expect(renderInline('Ajouter 1 **tasse de lait** chaud.', o)).toBe(`Ajouter 1 <strong>tasse${v('2 tasses')} de lait</strong> chaud.`);
+		expect(renderInline('Ajouter **2** à 3 _tasses_.', o)).toBe(`Ajouter <strong>2</strong> à 3 <em>tasses</em>${v('4 à 6 tasses')}.`);
+		expect(renderInline('Ajouter 1 **tasse** et 2 *c. à table*.', o)).toBe(`Ajouter 1 <strong>tasse</strong>${v('2 tasses')} et 2 <em>c. à table</em>${v('¼ tasse')}.`);
+		expect(renderInline('Ajouter 1 [?] tasse de lait.', o)).toBe(`Ajouter 1 <mark class="mk mk-uncertain" title="Lecture incertaine">[?]</mark> tasse${v('2 tasses')} de lait.`);
+		expect(renderInline('Ajouter 1 [?: 2] tasse.', o)).toContain(`[?: 2]</mark> tasse${v('2 tasses')}.`);
+		expect(renderInline('Ajouter 1 [+] tasse.', o)).toContain(`[+]</mark> tasse${v('2 tasses')}.`);
+		expect(renderInline('**Étape 1** - 2 tasses.', o)).toBe(`<strong>Étape 1</strong> - 2 tasses${v('4 tasses')}.`);
+		// `[illisible]` may hide part of the number; code, a link or a line break end the amount: unmarked.
+		expect(renderInline('Ajouter 1 [illisible] tasse.', o)).not.toContain('step-scaled');
+		expect(renderInline('Ajouter `1` tasse.', o)).not.toContain('step-scaled');
+		expect(renderInline('Ajouter [1](/x) tasse.', o)).not.toContain('step-scaled');
+		expect(renderMarkdown('## Préparation\n\n1. Ajouter 1\n   tasse.\n', o)).not.toContain('step-scaled');
+		// Raw HTML stays text, split or not.
+		expect(renderInline('Ajouter 1 **<b>tasse</b>** <img src=x onerror=alert(1)> 1 **tasse**', o)).toBe(
+			`Ajouter 1 <strong>&lt;b&gt;tasse&lt;/b&gt;</strong> &lt;img src=x onerror=alert(1)&gt; 1 <strong>tasse</strong>${v('2 tasses')}`
+		);
+		// Factor 1: as before, whatever the split.
+		const md = '## Préparation\n\n1. Ajouter 1 **tasse** [?] et **2** [?] c. à table.\n';
+		expect(renderMarkdown(md, { scale: { ...o.scale, factor: 1 } })).toBe(renderMarkdown(md));
+	});
+
 	it('escapes what it adds', () => {
 		expect(renderInline('Ajouter 1 tasse.', { scale: { factor: 2, lang: 'fr', rules: RULES, title: '<b>"' } })).toContain('title="&lt;b&gt;&quot;"');
 	});

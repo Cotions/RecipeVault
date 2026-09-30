@@ -15,7 +15,6 @@
 	import { formatAmount, ingredientText } from '$lib/render/ingredient';
 	import { renderInline } from '$lib/render/markdown';
 	import { amountQuery, capFactor, MULTIPLIERS, paramFactor, servingsStep, subRecipeScale } from '$lib/render/scale';
-	import { stepAmounts } from '$lib/render/stepamounts';
 	import type { Ingredient, Recipe } from '$lib/vault/types';
 	import { stepIngredients } from '$lib/render/steps';
 	import { plainText } from '$lib/render/markers';
@@ -394,7 +393,7 @@
 				<p class="count">
 					{t.kitchen.step(step + 1, steps.length)}{#if current?.subheading}{` · ${current.subheading}`}{/if}
 				</p>
-				{#if factor !== 1}<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, 'fr'))}{#if stepAmounts(current!.text, { factor, lang, rules: data.scaling }).length}{' '}{t.scaling.arrowNotice}{/if}</p>{/if}
+				{#if factor !== 1}<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, 'fr'))}{#if pieces(current!.text).some((p) => 'html' in p && p.html.includes('class="step-scaled"'))}{' '}{t.scaling.arrowNotice}{/if}</p>{/if}
 				{#if step > 0}<p class="ghost prev">{plainText(steps[step - 1].text, (s) => data.titles[s])}</p>{/if}
 				<p class="now">
 					{#each pieces(current!.text) as p, i (i)}

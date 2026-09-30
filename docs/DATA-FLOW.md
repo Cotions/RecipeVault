@@ -412,7 +412,9 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
   tasses`, `2 - 3 tasses`) scales as one amount, except when its first number
   follows a word that labels it (*étape*, *step*, *n°*, *no.*, *numéro*, `#`):
   « Étape 1 - 2 tasses » is the amount `2 tasses` of step 1, not « 1 à 2 ».
-  The timers read the original text.
+  An amount is read as the step shows it, across emphasis and the `[?]`,
+  `[?: …]` and `[+]` markers (« 1 **tasse** », « 1 [?] tasse »), never across
+  `[illisible]`, code or a link. The timers read the original text.
   When the factor is not 1, one notice above the method (and on the kitchen
   step) says that times, the oven and the pan are the base recipe's.
 
