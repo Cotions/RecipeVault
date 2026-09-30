@@ -2,6 +2,7 @@ import { json, redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { getApp, startApp } from '$lib/server/app';
 import { currentUser, guard } from '$lib/server/auth';
 import { hostAllowed } from '$lib/server/hosts';
+import { installUnitWords } from '$lib/server/vocab';
 import { match as isSlug } from './params/slug';
 
 // Fail at startup, with the config's own message, rather than on the first page.
@@ -42,6 +43,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const g = guard(event.request.method, event.url, !!event.locals.user);
 	if (g === 'unauthorized') return json({ message: 'Connexion requise.' }, { status: 401 });
 	if (g !== 'pass') redirect(303, g.login);
+	// The unit words (vocab/unit-labels.yaml) for loads and actions that format
+	// units: the root layout sets them only when it renders.
+	installUnitWords(app.ctx.paths.vocab);
 	const response = await resolve(event);
 	response.headers.set('X-Content-Type-Options', 'nosniff');
 	response.headers.set('Referrer-Policy', 'same-origin');

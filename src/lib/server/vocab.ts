@@ -13,7 +13,7 @@ import { seedVocab } from './vault';
 import { parseNormalizeVocab, type NormalizeVocab } from '../ingredients/normalize';
 import { parseConversions, type Conversions } from '../ingredients/units';
 import { parseScaling, type ScalingRules } from '../render/scale';
-import { parseUnitWords, type UnitWords } from '../render/unitwords';
+import { parseUnitWords, setUnitWords, type UnitWords } from '../render/unitwords';
 
 export interface VaultVocab {
 	/** Folded alias or canonical tag → canonical tag. */
@@ -98,6 +98,17 @@ export function loadScaling(vocabDir: string): ScalingRules | null {
 /** vocab/unit-labels.yaml (plan 05): the unit words; missing or broken: none, and units show their code. */
 export function loadUnitWords(vocabDir: string): UnitWords {
 	return parseUnitWords(readYaml(join(vocabDir, 'unit-labels.yaml')));
+}
+
+/**
+ * Install the vault's unit words for server code (every request, from the
+ * hook): loads and actions format units too (the comparison, a price's pack
+ * size), and a data request or a form action renders no layout to set them.
+ */
+export function installUnitWords(vocabDir: string): UnitWords {
+	const words = loadUnitWords(vocabDir);
+	setUnitWords(words);
+	return words;
 }
 
 /**

@@ -8,6 +8,10 @@ import { parseUnitWords, setUnitWords, unitLabel, unitWord, unitWords } from '..
 import { formatPack } from '../../src/lib/render/money';
 import { ingredientText } from '../../src/lib/render/ingredient';
 import { seedVocab } from '../../src/lib/server/vault';
+import { installUnitWords } from '../../src/lib/server/vocab';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const seed = seedVocab(readFileSync('docs/VOCAB.md', 'utf8'));
 const read = (text: string) => parse(text, { version: '1.2' });
@@ -102,6 +106,24 @@ describe('unit words as data', () => {
 		expect(w.tbsp).toEqual({ fr: ['c. à table', 'c. à table'], en: ['tbsp', 'tbsp'] });
 		expect(w.piece).toEqual({ fr: ['pièce', 'pièces'], en: ['piece', 'pieces'] });
 		expect(Object.keys(w)).toHaveLength(26);
+	});
+
+	it('server code gets the vault’s words from the request hook, not only from a layout render (review)', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'rv-unitwords-'));
+		try {
+			setUnitWords({});
+			expect(formatPack(6, 'piece')).toBe('6 piece');
+			writeFileSync(join(dir, 'unit-labels.yaml'), 'piece:\n  fr: [morceau, morceaux]\n');
+			installUnitWords(dir);
+			expect(formatPack(6, 'piece')).toBe('6 morceaux');
+			// An edit is read on the next request.
+			writeFileSync(join(dir, 'unit-labels.yaml'), 'piece:\n  fr: [bout, bouts]\n');
+			installUnitWords(dir);
+			expect(formatPack(6, 'piece')).toBe('6 bouts');
+			expect(readFileSync('src/hooks.server.ts', 'utf8')).toMatch(/installUnitWords\(app\.ctx\.paths\.vocab\)/);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it('a vault without the file shows the unit code; a line in piece never has a word', () => {
