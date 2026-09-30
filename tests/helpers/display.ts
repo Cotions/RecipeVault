@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { checkFile } from '../../src/lib/vault/check';
 import { bodyText } from '../../src/lib/vault/parse';
 import { ingredientParts, formatAmount, unitLabel, type AmountOptions } from '../../src/lib/render/ingredient';
-import { formatNumber } from '../../src/lib/render/fraction';
+import { scaleTextYield, servingsRange } from '../../src/lib/render/scale';
 import { renderMarkdown } from '../../src/lib/render/markdown';
 import { UNITS, type Ingredient, type Recipe } from '../../src/lib/vault/types';
 
@@ -64,14 +64,16 @@ export function displayLines(l: Loaded, opts: Omit<AmountOptions, 'lang'> = {}):
 	return out;
 }
 
-/** The servings as the recipe page shows them at factor 1 (RecipeView, before plan 05). */
-function servingsText(recipe: Recipe, _opts: Omit<AmountOptions, 'lang'>): string {
-	return `${formatNumber(recipe.servings!, recipe.lang)}${recipe.servingsMax ? ` à ${recipe.servingsMax}` : ''}`;
+/** The servings as the recipe page shows them (RecipeView: « lo à hi »). */
+function servingsText(recipe: Recipe, opts: Omit<AmountOptions, 'lang'>): string {
+	const r = servingsRange(recipe, opts.factor ?? 1, recipe.lang);
+	return r.hi ? `${r.lo} à ${r.hi}` : r.lo;
 }
 
-/** A text yield as the recipe page shows it at factor 1: as written. */
-function yieldTextOf(recipe: Recipe, _opts: Omit<AmountOptions, 'lang'>): string {
-	return String(recipe.yield);
+/** A text yield as the recipe page shows it. */
+function yieldTextOf(recipe: Recipe, opts: Omit<AmountOptions, 'lang'>): string {
+	const y = scaleTextYield(String(recipe.yield), opts.factor ?? 1, opts.rules, recipe.lang);
+	return `${y.approx ? '≈ ' : ''}${y.text}${y.scaled ? '' : ` ×${opts.factor}`}`;
 }
 
 /** Every unit word, both languages, singular and plural. */

@@ -6,7 +6,7 @@
 	import { formatDurationValue, formatSeconds } from '$lib/render/duration';
 	import { formatAmount } from '$lib/render/ingredient';
 	import { renderMarkdown } from '$lib/render/markdown';
-	import { MULTIPLIERS } from '$lib/render/scale';
+	import { MULTIPLIERS, scaleTextYield, servingsRange, type ScalingRules } from '$lib/render/scale';
 	import { formatOven } from '$lib/render/temperature';
 	import { formatNumber } from '$lib/render/fraction';
 	import { parseBody } from '$lib/vault/body';
@@ -29,7 +29,8 @@
 		multiplier = $bindable(1),
 		itemLinks,
 		cost,
-		photoPrompt
+		photoPrompt,
+		scaling = null
 	}: {
 		recipe: Recipe;
 		body: string;
@@ -51,6 +52,8 @@
 		cost?: Snippet<[number]>;
 		/** Recipe page: shown where the photo goes when there is none ("Ajouter une photo", plan 04 Q13 A). */
 		photoPrompt?: Snippet;
+		/** vocab/scaling.yaml (plan 05): how amounts show at another factor; null shows the exact values. */
+		scaling?: ScalingRules | null;
 	} = $props();
 
 	const lang = $derived(recipe.lang);
@@ -98,13 +101,19 @@
 		return parts.reduce((n, d) => n + (d.maxSeconds ?? d.seconds), 0);
 	});
 
+	/** The yield at the factor (Q7 A): an object scaled like a line, a text's leading number scaled, else the text with the factor beside it. */
 	const yieldText = $derived.by(() => {
 		const y = recipe.yield;
 		if (!y) return null;
-		if (typeof y === 'string') return y;
-		const amount = formatAmount(y, { lang, factor });
+		if (typeof y === 'string') {
+			const s = scaleTextYield(y, factor, scaling, lang);
+			return `${s.approx ? '≈ ' : ''}${s.text}${s.scaled ? '' : ` ${t.scaling.yieldTimes(formatNumber(factor, lang))}`}`;
+		}
+		const amount = formatAmount(y, { lang, factor, rules: scaling });
 		return [amount, y.note].filter(Boolean).join(' ');
 	});
+	/** The servings at the factor, a range scaled at both ends (Q7 A). */
+	const shownServings = $derived(servingsRange(recipe, factor, lang));
 
 	/** Only http(s) becomes a link: a `javascript:` URL in a file must never be clickable. */
 	function webUrl(url: string): boolean {
@@ -159,7 +168,7 @@
 			<div>
 				<dt>{t.recipe.servings}</dt>
 				<dd>
-					{formatNumber(servings, lang)}{#if recipe.servingsMax && servings === recipe.servings}&nbsp;à&nbsp;{recipe.servingsMax}{/if}{#if servingsMarkers && servings === recipe.servings}&nbsp;<Marked text={servingsMarkers} />{/if}
+					{shownServings.lo}{#if shownServings.hi}&nbsp;à&nbsp;{shownServings.hi}{/if}{#if servingsMarkers}&nbsp;<Marked text={servingsMarkers} />{/if}
 					{#if recipe.servingsNote}<span class="conv"><Marked text={recipe.servingsNote} /></span>{/if}
 				</dd>
 			</div>
@@ -231,7 +240,7 @@
 					{/if}
 					<ul>
 						{#each g.items as item, ii (ii)}
-							<li><IngredientLine {item} {factor} {lang} {titles} link={itemLinks?.[offsets[gi] + ii]} /></li>
+							<li><IngredientLine {item} {factor} {lang} {titles} rules={scaling} link={itemLinks?.[offsets[gi] + ii]} /></li>
 						{/each}
 					</ul>
 				</div>

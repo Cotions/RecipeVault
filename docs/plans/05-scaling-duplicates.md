@@ -484,6 +484,38 @@ decimal on a cup or spoon line, no fraction outside the unit's list. Counts of
 
 Done when: the table passes, the corpus sweep holds, factor 1 is byte-identical.
 
+Built (`scaleValues` in `render/scale.ts`, `amountView` / `formatAmount` /
+`ingredientParts` in `render/ingredient.ts`), with these decisions:
+
+- **Choosing the unit.** Q3 B read literally ("step up when the amount reaches
+  the next unit's smallest fraction") turns `6 c. à table` into `0,38 tasse`,
+  which breaks the "no decimal on a cup line" gate. So each eligible unit is
+  tried and ranked: exact (≤ 2 %) before rounded within the tolerance before
+  snapped beyond it (`always` units) before a decimal; among exact results the
+  largest unit, otherwise the closest. Up: from the rung's `from` (new, data:
+  `tsp → tbsp` from 1, so `1 ½ c. à thé` stays), else the larger unit's
+  smallest value. Down: below the written unit's smallest value, or when
+  nothing is within the tolerance; never to as many of the smaller unit as make
+  one of the next (`18 c. à table` → `≈ 1 tasse`, `8 c. à thé` →
+  `≈ 2 ½ c. à table`). A range is ranked on its worse end, one unit for both.
+- **Seed additions** from the sweep: `oz → lb` (16) on the ladder and
+  `oz: [1/2]`, so `¼ lb × ⅔` shows `≈ 2 ½ oz` rather than `0,17 lb`. Imperial
+  never reaches grams.
+- **`≈`** is its own part (`kind: 'approx'`), rendered as an `<abbr>` titled
+  « Arrondi … »; inside `alt` and `or` it is part of the text. Plain-text
+  outputs (`formatAmount`, `ingredientText`) write `≈ ` before the amount.
+- **Q7.** Servings: both ends × factor (`formatNumber`), shown with markers at
+  every factor (they were hidden once scaled). Text yield: a leading plain
+  number or fraction scaled as a count (halves, `≈`), the rest kept; a range
+  (`2 à 3 douzaines`) or no leading number shows as written with `(× f)`.
+  Known limit: the word after the number keeps its written number
+  (`1 moule` × 2 → `2 moule`).
+- **Sweep** (seed rules, 2807 amounts × 6 factors, ~0.1 s): counts ≈ 903 of
+  3192, containers ≈ 324 of 972, mass ≈ 166 / ladder 157 / decimal 10 (`lb`,
+  `oz` beyond the tolerance), volume ≈ 1735 / ladder 1117 / decimal 14
+  (`qt`, `pint`, `cl`; none on a cup or spoon). 20 125 lines render in
+  ~130 ms (≈ 6 µs a line: a 60-line recipe well under 1 ms).
+
 ### Phase 3 — setting the amount
 
 Depends on: Q1, Q8.

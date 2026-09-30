@@ -4,6 +4,7 @@
 
 import type { Alt, Ingredient, Lang, Unit } from '../vault/types';
 import { formatNumber } from './fraction';
+import { formatScaledNumber, scaleValues, type ScalingRules } from './scale';
 import { unitLabel } from './unitwords';
 
 // The unit words are the vault's (vocab/unit-labels.yaml, ./unitwords.ts).
@@ -24,23 +25,35 @@ export function de(name: string): string {
 export interface AmountOptions {
 	factor?: number;
 	lang: Lang;
+	/** vocab/scaling.yaml (plan 05): how amounts show at a factor other than 1. Without it, the exact value, as before. */
+	rules?: ScalingRules | null;
 }
 
-/** "2 à 3 c. à table", "1 ½ tasse", "3" (pieces) — empty when there is no qty. */
-export function formatAmount(
-	q: { qty?: { value: number }; qtyMax?: { value: number }; unit?: Unit },
-	{ factor = 1, lang }: AmountOptions
-): string {
-	if (!q.qty) return '';
-	const a = q.qty.value * factor;
-	const b = q.qtyMax ? q.qtyMax.value * factor : undefined;
-	const nums = b ? `${formatNumber(a, lang)}${lang === 'fr' ? ' à ' : '–'}${formatNumber(b, lang)}` : formatNumber(a, lang);
-	const unit = q.unit ? unitLabel(q.unit, b ?? a, lang) : '';
-	return unit ? `${nums} ${unit}` : nums;
+type Amounted = { qty?: { value: number }; qtyMax?: { value: number }; unit?: Unit };
+
+/** An amount as shown: its text and whether it is rounded (`≈`, shown apart). */
+export function amountView(q: Amounted, { factor = 1, lang, rules }: AmountOptions): { text: string; approx: boolean } {
+	if (!q.qty) return { text: '', approx: false };
+	const s = scaleValues(q.qtyMax ? [q.qty.value, q.qtyMax.value] : [q.qty.value], q.unit, factor, rules);
+	const fmt = (v: number) => (s.plain ? formatNumber(v, lang) : formatScaledNumber(v, s.decimal, lang));
+	const nums = s.values.map(fmt).join(lang === 'fr' ? ' à ' : '–');
+	const unit = s.unit ? unitLabel(s.unit, s.values.at(-1)!, lang) : '';
+	return { text: unit ? `${nums} ${unit}` : nums, approx: s.approx };
 }
+
+/** "2 à 3 c. à table", "1 ½ tasse", "3" (pieces), "≈ 1 ½" — empty when there is no qty. */
+export function formatAmount(q: Amounted, opts: AmountOptions): string {
+	const v = amountView(q, opts);
+	return v.approx ? `${APPROX} ${v.text}` : v.text;
+}
+
+/** The mark of a rounded amount (plan 05, Q2 A). */
+export const APPROX = '≈';
 
 export type Part =
 	| { kind: 'amount'; text: string }
+	/** A scaled amount rounded more than 2 % (plan 05, Q2 A): `≈ `, before the amount. */
+	| { kind: 'approx'; text: string }
 	| { kind: 'text'; text: string }
 	| { kind: 'name'; text: string; recipe?: string }
 	| { kind: 'muted'; text: string };
@@ -50,26 +63,29 @@ const WORDS = {
 	en: { or: 'or', toTaste: 'to taste', optional: 'optional', buy: 'or buy:', ready: 'store-bought' }
 };
 
-function altText(alt: Alt, factor: number, lang: Lang): string {
-	return formatAmount(alt, { factor, lang });
+function altText(alt: Alt, opts: AmountOptions): string {
+	return formatAmount(alt, opts);
 }
 
 /**
  * The parts of one ingredient line. `factor` rescales every quantity,
- * alternatives and `or` entries included.
+ * alternatives and `or` entries included, each rounded in its own unit by
+ * `rules`; `note` (a can's size), `prep`, markers and `to_taste` never change.
  */
-export function ingredientParts(it: Ingredient, { factor = 1, lang }: AmountOptions): Part[] {
+export function ingredientParts(it: Ingredient, opts: AmountOptions): Part[] {
+	const { lang } = opts;
 	const w = WORDS[lang];
 	const parts: Part[] = [];
-	const amount = formatAmount(it, { factor, lang });
-	if (amount) {
-		parts.push({ kind: 'amount', text: amount });
+	const amount = amountView(it, opts);
+	if (amount.text) {
+		if (amount.approx) parts.push({ kind: 'approx', text: `${APPROX} ` });
+		parts.push({ kind: 'amount', text: amount.text });
 		// A marker on the quantity itself ("250 [?]") must stay visible.
 		const qtyMarkers = [it.qty?.raw, it.qtyMax?.raw]
 			.filter((r): r is string => typeof r === 'string')
 			.flatMap((r) => r.match(/\[[^\]]*\]/g) ?? []);
 		if (qtyMarkers.length) parts.push({ kind: 'text', text: ` ${qtyMarkers.join(' ')}` });
-		if (it.alt) parts.push({ kind: 'muted', text: ` (${altText(it.alt, factor, lang)})` });
+		if (it.alt) parts.push({ kind: 'muted', text: ` (${altText(it.alt, opts)})` });
 		// French measures take "de": 500 g de farine, 2 gousses d’ail; pieces do not: 3 oignons.
 		const joiner = lang === 'fr' && it.unit && it.unit !== 'piece' ? ` ${de(it.name)}` : ' ';
 		parts.push({ kind: 'text', text: joiner });
@@ -81,7 +97,7 @@ export function ingredientParts(it: Ingredient, { factor = 1, lang }: AmountOpti
 	if (it.toTaste) parts.push({ kind: 'muted', text: `, ${w.toTaste}` });
 	for (const o of it.or ?? []) {
 		parts.push({ kind: 'text', text: `, ${w.or} ` });
-		const sub = ingredientParts(o, { factor, lang });
+		const sub = ingredientParts(o, opts);
 		parts.push(...sub);
 	}
 	if (it.recipe && it.buyInstead) parts.push({ kind: 'muted', text: ` — ${w.buy} ${it.name} ${w.ready}` });

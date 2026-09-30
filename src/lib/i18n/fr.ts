@@ -490,6 +490,12 @@ export const fr = {
 		offline: 'Hors ligne — recette gardée sur l’appareil.',
 		restart: 'Recommencer'
 	},
+	/** Plan 05: a recipe read at another amount. Nothing scaled is ever written (Q9 A). */
+	scaling: {
+		approxTitle: 'Arrondi : la quantité exacte ne se mesure pas avec les tasses et les cuillères',
+		times: (f: string) => `× ${f}`,
+		yieldTimes: (f: string) => `(× ${f})`
+	},
 	add: {
 		title: 'Ajouter des recettes',
 		intro: 'Collez la réponse de l’IA : chaque bloc ```markdown est une recette.',

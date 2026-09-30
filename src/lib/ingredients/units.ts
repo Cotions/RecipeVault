@@ -105,8 +105,8 @@ export function packsOf(need: Measures, pack: Measures): number | undefined {
 	return best?.packs;
 }
 
-/** `1-1/2` and `1½` as cards write them, a decimal comma: a number. */
-function sizeNumber(q: string): number | undefined {
+/** `1-1/2` and `1½` as cards write them, a decimal comma: a number (also read by step amounts, plan 05). */
+export function sizeNumber(q: string): number | undefined {
 	const VULGAR: Record<string, string> = { '½': '1/2', '¼': '1/4', '¾': '3/4', '⅓': '1/3', '⅔': '2/3', '⅛': '1/8' };
 	const s = q
 		.trim()

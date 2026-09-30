@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n/fr';
 	import { ingredientParts } from '$lib/render/ingredient';
+	import type { ScalingRules } from '$lib/render/scale';
 	import { ingredientHref, queueHref } from '$lib/render/links';
 	import type { Ingredient, Lang } from '$lib/vault/types';
 	import Marked from './Marked.svelte';
@@ -10,20 +11,23 @@
 		factor = 1,
 		lang,
 		titles = {},
-		link
+		link,
+		rules = null
 	}: {
 		item: Ingredient;
 		factor?: number;
+		/** vocab/scaling.yaml: how amounts show at a factor other than 1 (plan 05). */
+		rules?: ScalingRules | null;
 		lang: Lang;
 		titles?: Record<string, string>;
 		/** How the line resolved (recipe page only): the name links to its entry, or is marked not linked. */
 		link?: { item?: string; key?: string };
 	} = $props();
 
-	const parts = $derived(ingredientParts(item, { factor, lang }));
+	const parts = $derived(ingredientParts(item, { factor, lang, rules }));
 </script>
 
-{#each parts as p, i (i)}{#if p.kind === 'amount'}<span class="amount">{p.text}</span>{:else if p.kind === 'name'}{#if p.recipe && titles[p.recipe]}<a
+{#each parts as p, i (i)}{#if p.kind === 'approx'}<abbr class="approx" title={t.scaling.approxTitle}>{p.text.trim()}</abbr>{' '}{:else if p.kind === 'amount'}<span class="amount">{p.text}</span>{:else if p.kind === 'name'}{#if p.recipe && titles[p.recipe]}<a
 				class="name"
 				href="/r/{p.recipe}"><Marked text={p.text} /></a
 			>{:else if link?.item}<a class="name item" href={ingredientHref(link.item)} title={t.cost.linkTitle(link.item)}><Marked text={p.text} /></a
@@ -34,6 +38,12 @@
 		>{:else}<Marked text={p.text} />{/if}{/each}
 
 <style>
+	.approx {
+		text-decoration: none;
+		font-weight: 700;
+		color: var(--rule-red);
+		cursor: help;
+	}
 	.amount {
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;

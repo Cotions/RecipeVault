@@ -447,6 +447,7 @@ fractions:
   tbsp: [1/2]
   tsp: [1/8, 1/4, 1/2, 3/4]
   lb: [1/4, 1/2, 3/4]
+  oz: [1/2]
   kg: []
   l: []
   pinch: []
@@ -456,8 +457,9 @@ fractions:
   default: [1/4, 1/3, 1/2, 2/3, 3/4]
 always: [cup, tbsp, tsp, pinch, drop, count, container]
 ladder:
-  - { unit: tsp, into: tbsp, per: 3 }
+  - { unit: tsp, into: tbsp, per: 3, from: 1 }
   - { unit: tbsp, into: cup, per: 16 }
+  - { unit: oz, into: lb, per: 16 }
   - { unit: g, into: kg, per: 1000 }
   - { unit: ml, into: l, per: 1000 }
 metric:
@@ -489,13 +491,16 @@ yield) when the factor is not 1:
   1000), and never to 0.
 - **The ladder** (Q3 B). Kitchen equivalences, not the cost factors (a cup is
   250 ml for cost, 16 tablespoons here). Within the written unit's ladder only
-  (never mass to volume, never `lb` to `g`): a larger unit is taken when the
-  amount reaches its smallest value and shows there within 2 % (`6 c. à thé` →
-  `2 c. à table`, `20 c. à table` → `1 ¼ tasse`, `1000 g` → `1 kg`); a smaller
-  one when the amount falls below the written unit's smallest value (`⅛ tasse`
-  → `2 c. à table`), or when nothing in the written unit is within the
-  tolerance (`0,89 tasse` → `14 c. à table`). Among exact results the largest
-  unit wins; otherwise the closest.
+  (never mass to volume, never `lb` to `g`). A larger unit is taken when the
+  amount reaches the rung's `from` (else the larger unit's smallest value) and
+  shows there within 2 % (`6 c. à thé` → `2 c. à table`, `20 c. à table` →
+  `1 ¼ tasse`, `1000 g` → `1 kg`; `from: 1` keeps `1 ½ c. à thé` rather than
+  `½ c. à table`). A smaller one when the amount falls below the written unit's
+  smallest value (`⅛ tasse` → `2 c. à table`), or when nothing in the written
+  unit is within the tolerance (`0,89 tasse` → `14 c. à table`) — but never as
+  many of it as make one of the next (`18 c. à table` is more than a cup: the
+  cup shows, marked). Among exact results the largest unit wins; otherwise the
+  closest.
 - **Ranges** scale both ends in one unit; two ends that show the same value
   show once.
 - **`factor`** caps what a link or a typed amount may ask for (×0.1 to ×20); a

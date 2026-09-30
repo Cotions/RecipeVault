@@ -98,6 +98,7 @@
 	familyName={data.familyName}
 	tagViews={data.tags}
 	itemLinks={data.links}
+	scaling={data.scaling}
 	bind:servings
 	bind:multiplier
 >

@@ -23,8 +23,9 @@ describe('parseScaling', () => {
 		expect(r.fractions.count).toEqual([1 / 2]);
 		expect(r.always).toEqual(['cup', 'tbsp', 'tsp', 'pinch', 'drop', 'count', 'container']);
 		expect(r.ladder).toEqual([
-			{ unit: 'tsp', into: 'tbsp', per: 3 },
+			{ unit: 'tsp', into: 'tbsp', per: 3, from: 1 },
 			{ unit: 'tbsp', into: 'cup', per: 16 },
+			{ unit: 'oz', into: 'lb', per: 16 },
 			{ unit: 'g', into: 'kg', per: 1000 },
 			{ unit: 'ml', into: 'l', per: 1000 }
 		]);
@@ -58,7 +59,7 @@ fractions:
   mass: [3/8]
 always: [cup, nope, default]
 ladder:
-  - { unit: tsp, into: tbsp, per: 3 }
+  - { unit: tsp, into: tbsp, per: 3, from: 1/2 }
   - { unit: tsp, into: cup, per: 48 }
   - { unit: g, into: cup, per: 250 }
   - { unit: cup, into: cup, per: 1 }
@@ -73,7 +74,7 @@ metric:
 		expect(r.factor).toEqual(DEFAULT_FACTOR_CAP);
 		expect(r.fractions).toEqual({ cup: [1 / 4, 1 / 2, 2 / 3], count: [], mass: [3 / 8] });
 		expect(r.always).toEqual(['cup']);
-		expect(r.ladder).toEqual([{ unit: 'tsp', into: 'tbsp', per: 3 }]);
+		expect(r.ladder).toEqual([{ unit: 'tsp', into: 'tbsp', per: 3, from: 0.5 }]);
 		expect(r.metric).toEqual({ units: ['g'], steps: [{ from: 0, step: 1 }] });
 	});
 

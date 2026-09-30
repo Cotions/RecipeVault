@@ -325,7 +325,7 @@
 						<li class:ticked={ticks.has(k)}>
 							<label>
 								<input type="checkbox" checked={ticks.has(k)} onchange={() => toggleTick(k)} />
-								<span><IngredientLine {item} {factor} {lang} titles={{}} /></span>
+								<span><IngredientLine {item} {factor} {lang} titles={{}} rules={data.scaling} /></span>
 							</label>
 							{#if item.recipe && subs[item.recipe]}
 								{@const sub = subs[item.recipe]}
@@ -378,7 +378,7 @@
 				{#if stepLines.length}
 					<ul class="step-ings">
 						{#each stepLines as s (`${s.group}:${s.item}`)}
-							<li>{ingredientText(s.ingredient, { factor, lang })}</li>
+							<li>{ingredientText(s.ingredient, { factor, lang, rules: data.scaling })}</li>
 						{/each}
 					</ul>
 				{/if}

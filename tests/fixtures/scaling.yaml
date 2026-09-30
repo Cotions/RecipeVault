@@ -6,11 +6,12 @@
 # fraction; `lang` defaults to fr.
 #
 # Reading the rules (seed):
-#   cup ¼ ⅓ ½ ⅔ ¾ · tbsp ½ · tsp ⅛ ¼ ½ ¾ · lb ¼ ½ ¾ · kg, L whole · counts and
+#   cup ¼ ⅓ ½ ⅔ ¾ · tbsp ½ · tsp ⅛ ¼ ½ ¾ · lb ¼ ½ ¾ · oz ½ · kg, L whole · counts and
 #   containers ½; cups, spoons, counts, containers, pinches and drops always
 #   snap (≈ beyond 2 %); other units snap within 10 %, else a short decimal;
 #   g and ml round to 1, then 5 from 100, then 25 from 1000;
-#   ladder 3 tsp = 1 tbsp, 16 tbsp = 1 cup, 1000 g = 1 kg, 1000 ml = 1 L.
+#   ladder 3 tsp = 1 tbsp (from 1 tbsp), 16 tbsp = 1 cup, 16 oz = 1 lb,
+#   1000 g = 1 kg, 1000 ml = 1 L; never down to as many as make one up.
 
 cases:
   # Factor 1: the card as written, never snapped, never moved up or down.
@@ -18,7 +19,7 @@ cases:
   - { qty: 2/3, unit: cup, factor: 1, text: ⅔ tasse }
   - { qty: 1/8, unit: cup, factor: 1, text: ⅛ tasse }
   - { qty: 6, unit: tsp, factor: 1, text: 6 c. à thé }
-  - { qty: 22.5, unit: g, factor: 1, text: 22,5 g }
+  - { qty: 22.5, unit: g, factor: 1, text: "22,5 g" }
   - { qty: 1 1/2, unit: piece, factor: 1, text: 1 ½ }
 
   # Volume, cups: the unit's own fractions.
@@ -45,6 +46,12 @@ cases:
   - { qty: 1, unit: tbsp, factor: 0.5, text: ½ c. à table }
   - { qty: 1, unit: tbsp, factor: 1/3, text: 1 c. à thé }
   - { qty: 1, unit: tbsp, factor: 1.5, text: 1 ½ c. à table }
+  # From 1 tbsp only: 1 ½ tsp stays in teaspoons.
+  - { qty: 1, unit: tsp, factor: 1.5, text: 1 ½ c. à thé }
+  # ¾ cup × 1.5: 18 tbsp is more than a cup; the cup shows, marked.
+  - { qty: 3/4, unit: cup, factor: 1.5, text: ≈ 1 tasse }
+  # ¼ cup × ⅔: 8 tsp is more than a tablespoon; tablespoons, marked.
+  - { qty: 1/4, unit: cup, factor: 2/3, text: ≈ 2 ½ c. à table }
 
   # Teaspoons: the smallest spoon; below it, the nearest one, marked.
   - { qty: 1/4, unit: tsp, factor: 0.5, text: ⅛ c. à thé }
@@ -64,10 +71,15 @@ cases:
   - { qty: 1, unit: l, factor: 0.75, text: 750 ml }
   - { qty: 5, unit: g, factor: 2/3, text: ≈ 3 g }
 
-  # Mass, imperial: never into grams (Q3 B); beyond the tolerance, a decimal.
+  # Mass, imperial: never into grams (Q3 B); lb and oz on their own ladder.
+  # Beyond the tolerance, with no ladder: a decimal.
   - { qty: 2, unit: lb, factor: 1.5, text: 3 lb }
   - { qty: 1 1/2, unit: lb, factor: 0.5, text: ¾ lb }
-  - { qty: 1, unit: lb, factor: 2/3, text: 0,67 lb }
+  # ⅔ lb is no lb measure: ounces, on the imperial ladder.
+  - { qty: 1, unit: lb, factor: 2/3, text: 10 ½ oz }
+  - { qty: 1/4, unit: lb, factor: 1.5, text: 6 oz }
+  - { qty: 10, unit: oz, factor: 2, text: 1 ¼ lb }
+  - { qty: 1, unit: qt, factor: 7/8, text: "0,88 pinte" }
 
   # Counts and containers (Q4 A): halves, marked when rounded; never 0.
   - { qty: 2, unit: piece, factor: 1.5, text: "3" }
