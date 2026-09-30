@@ -50,6 +50,44 @@ describe('step amounts (Q6 B)', () => {
 		expect(html).toBe('Mélanger dans un bol de 2 L<span class="step-scaled" title="x"> → 4 L</span>.');
 	});
 
+	it('never reads a spoon abbreviation, « à la fois » or an elision as cups or litres (review)', () => {
+		expect(found('Ajouter 1 c. à t. de sel.', 2)).toEqual([]);
+		expect(found('Ajouter 1 c. thé de sel.', 2)).toEqual([]);
+		expect(found('Ajouter 1 c. table de beurre.', 2)).toEqual([]);
+		expect(found('Ajouter 1 c. soupe de beurre.', 2)).toEqual([]);
+		expect(found('Ajouter 1 c. à s. de beurre.', 2)).toEqual(['1 c. à s. → 2 c. à table']);
+		expect(found('Ajouter 1 c.à t. de sel.', 2)).toEqual([]);
+		expect(found('Ajouter 1 t. à thé de sel.', 2)).toEqual([]);
+		expect(found('Cuire 2 c. à la fois.', 2)).toEqual([]);
+		expect(found("Diviser en 2 l'une sur l'autre.", 2)).toEqual([]);
+		expect(found('Diviser en 2 l’une sur l’autre.', 2)).toEqual([]);
+		// The cup and the listed spoons still read.
+		expect(found('Ajouter 2 c. de farine et 1 c. à thé de sel.', 2)).toEqual(['2 c. → 4 tasses', '1 c. à thé → 2 c. à thé']);
+		expect(found('Verser 1 l de lait.', 2)).toEqual(['1 l → 2 L']);
+		expect(found('Add 1 t salt.', 2, 'en')).toEqual(['1 t → 2 tsp']);
+	});
+
+	it('never reads a temperature in C. as cups (review)', () => {
+		expect(found('Cuire au four à 180 C.', 2)).toEqual([]);
+		expect(found('Bake at 200 C. for 20 min.', 2, 'en')).toEqual([]);
+		expect(found('Cuire au four à 350 F.', 2)).toEqual([]);
+	});
+
+	it('reads a trailing fraction with its whole number (review)', () => {
+		expect(found('Ajouter 1 tasse 1/2 de lait.', 2)).toEqual(['1 tasse 1/2 → 3 tasses']);
+		expect(found('Ajouter 1 c. à thé 1/2 de sel.', 2)).toEqual(['1 c. à thé 1/2 → 1 c. à table']);
+		expect(found('Ajouter 1 tasse ½ de lait.', 2)).toEqual(['1 tasse ½ → 3 tasses']);
+		// A fraction that starts its own amount stays its own.
+		expect(found('Ajouter 1 tasse 1/2 c. à thé de sel.', 2)).toEqual(['1 tasse → 2 tasses', '1/2 c. à thé → 1 c. à thé']);
+		const html = renderInline('Ajouter 1 tasse 1/2 de lait.', { scale: { factor: 2, lang: 'fr', rules: RULES, title: 'x' } });
+		expect(html).toBe('Ajouter 1 tasse 1/2<span class="step-scaled" title="x"> → 3 tasses</span> de lait.');
+	});
+
+	it('reads 1-1/2 as a mixed number, not the low end of a range (review)', () => {
+		expect(found('Ajouter 1-1/2 à 2 tasses de lait.', 2)).toEqual(['1-1/2 à 2 tasses → 3 à 4 tasses']);
+		expect(found('Ajouter 1-1/2 tasse de lait.', 2)).toEqual(['1-1/2 tasse → 3 tasses']);
+	});
+
 	it('shows nothing at factor 1', () => {
 		expect(found('Ajouter 1 tasse de lait.', 1)).toEqual([]);
 		const md = '## Préparation\n\n1. Ajouter 1 tasse de lait **chaud** [?].\n';
