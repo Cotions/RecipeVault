@@ -42,8 +42,8 @@ OUTPUT
 REGION
 Most recipes are handwritten cards and clippings from Quebec, in Quebec French,
 some decades old. Read them with Quebec conventions:
-- "t." / "tasse" = cup · "c. à thé" / "c.t." = teaspoon ·
-  "c. à table" / "c. à soupe" / "c.s." = tablespoon ·
+- "t." / "tasse" = cup · "c. à thé" / "c. à t." / "c. thé" / "c.t." = teaspoon ·
+  "c. à table" / "c. table" / "c. à soupe" / "c. soupe" / "c.s." = tablespoon ·
   "lb" / "livre" = pound · "oz" / "once" = ounce
 - An oven temperature with no unit ("350", "350°") is Fahrenheit.
 - A ditto mark (") under a word repeats that word.

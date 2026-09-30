@@ -20,6 +20,8 @@ export const UNIT_ALIASES: Record<Unit, string[]> = {
 		'c. à soupe',
 		'c.s.',
 		'c. à s.',
+		'c. table',
+		'c. soupe',
 		'cuillère à soupe',
 		'cuil. à soupe',
 		'tablespoon',
@@ -29,6 +31,9 @@ export const UNIT_ALIASES: Record<Unit, string[]> = {
 	tsp: [
 		'c. à thé',
 		'c.t.',
+		'c. à t.',
+		'c. à t',
+		'c. thé',
 		'c. à café',
 		'cuillère à thé',
 		'cuillère à café',

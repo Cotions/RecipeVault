@@ -51,12 +51,13 @@ describe('step amounts (Q6 B)', () => {
 	});
 
 	it('never reads a spoon abbreviation, « à la fois » or an elision as cups or litres (review)', () => {
-		expect(found('Ajouter 1 c. à t. de sel.', 2)).toEqual([]);
-		expect(found('Ajouter 1 c. thé de sel.', 2)).toEqual([]);
-		expect(found('Ajouter 1 c. table de beurre.', 2)).toEqual([]);
-		expect(found('Ajouter 1 c. soupe de beurre.', 2)).toEqual([]);
+		// Card spellings of the spoons are aliases (owner, 2026-09-30): read as spoons, never cups.
+		expect(found('Ajouter 1 c. à t. de sel.', 2)).toEqual(['1 c. à t. → 2 c. à thé']);
+		expect(found('Ajouter 1 c. thé de sel.', 2)).toEqual(['1 c. thé → 2 c. à thé']);
+		expect(found('Ajouter 1 c. table de beurre.', 2)).toEqual(['1 c. table → 2 c. à table']);
+		expect(found('Ajouter 1 c. soupe de beurre.', 2)).toEqual(['1 c. soupe → 2 c. à table']);
 		expect(found('Ajouter 1 c. à s. de beurre.', 2)).toEqual(['1 c. à s. → 2 c. à table']);
-		expect(found('Ajouter 1 c.à t. de sel.', 2)).toEqual([]);
+		expect(found('Ajouter 1 c.à t. de sel.', 2)).toEqual(['1 c.à t. → 2 c. à thé']);
 		expect(found('Ajouter 1 t. à thé de sel.', 2)).toEqual([]);
 		expect(found('Cuire 2 c. à la fois.', 2)).toEqual([]);
 		expect(found("Diviser en 2 l'une sur l'autre.", 2)).toEqual([]);
