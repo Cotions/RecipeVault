@@ -273,7 +273,8 @@ signed-in person, and its message offers "Annuler":
   (`delete: <title>`, hash-guarded), undone by the trash's restore. A recipe
   another recipe uses as a sub-recipe is never trashed from here: each side
   lists where it serves, the used side cannot be picked, and when both are used
-  the action is not offered (plan 05, review fixes; flagged for the owner).
+  the action is not offered (plan 05, review fixes; kept by the owner
+  2026-09-30).
 - "Recettes différentes": the pair added to `vocab/distinct.yaml`, commit
   `duplicate: <a> ≠ <b>`, hash-guarded on the file; "Annuler" takes the line out
   (`undo: duplicate <a> ≠ <b>`).
@@ -391,8 +392,8 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
   ingredient's name: `1 oignon` at ×2 reads `2 oignon`. The file holds one
   written form of the name (`RECIPE-SCHEMA.md`, `name`) and the docs define no
   plural for it; pluralizing would need each language's noun grammar in code
-  (`VOCAB.md` "Plurals" only strips endings, it cannot add them). Flagged in
-  plan 05, Phase 4, for the owner.
+  (`VOCAB.md` "Plurals" only strips endings, it cannot add them). Plan 05,
+  Phase 4.
 - **Sub-recipes** (Q5 A): kitchen mode's inline expansion is read at `line
   amount × factor / yield` — the cost rule (`INGREDIENTS.md`, "Cost";
   `subRecipeFactor`, one shared function) — when the sub-recipe's `yield`
@@ -449,7 +450,8 @@ Hard errors — refuse to save:
 - `slug` already exists → offer overwrite, or a suffixed slug
 - `family` set without `variant`, or `variant` without `family`
 
-Warnings — save anyway, mark the recipe `needs-review`:
+Warnings — save anyway; the status follows the markers (Conveniences below),
+not the warnings:
 - no method section
 - a tag not in the vocabulary → suggest closest canonical, else store `pending`
 - a `family` close to an existing one (catches `lasagne` vs `lasagna`)

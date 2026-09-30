@@ -1080,16 +1080,20 @@ none silently settled):
   is now `1 oz × ⅔ = 0,67 oz`. `DATA-FLOW.md`'s P2 table still gave 3.8 s for
   accepting a pending tag; `6e8ee04` made it ~0.5 s (now 0.65 s here) — the row
   says both. The review's rule that a used sub-recipe is never trashed from
-  `/doublons` was only in this plan: now in `DATA-FLOW.md` too, still flagged
-  for the owner.
-- *Open, for the owner:* (a) `DATA-FLOW.md` "Validation" heads its warnings
+  `/doublons` was only in this plan: now in `DATA-FLOW.md` too; kept by the
+  owner (2026-09-30).
+- *Decided by the owner 2026-09-30:* (a) docs fixed to match the code; (b) the
+  seed command now names the vocab files it adds; (c) kept as built; (d) kept
+  (`18 c. à table`). Also decided: `c. à t.`, `c. à t`, `c. thé` (tsp) and
+  `c. table`, `c. soupe` (tbsp) are aliases (VOCAB.md, AI template rule 8).
+  Leftovers: issue #13. The questions as raised: (a) `DATA-FLOW.md` "Validation" heads its warnings
   "save anyway, mark the recipe `needs-review`", while its Conveniences (and the
   code) set `needs-review` only for an uncertain marker (W605): no other
   warning, W505 included, changes the status. Proposed: "save anyway; the
   status follows the markers (Conveniences)". (b) `vault ingredients seed`
   adds the vocab files a vault lacks (`unit-labels.yaml`, `scaling.yaml`), but
   its help line says "add the seed ingredients missing from the vault" and its
-  output counts only ingredients, so the owner cannot see that his vault got
+  output counts only ingredients, so the owner cannot see that their vault got
   the scaling rules. `README.md` now says both; the CLI text is code (not
   changed here). (c) A decimal beyond the tolerance can carry `≈` (`½ oz × ½`
   shows `≈ 0,13 oz`: two decimals are 4 % from 0.125); `VOCAB.md` does not say
