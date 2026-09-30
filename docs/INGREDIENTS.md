@@ -370,6 +370,51 @@ Each recipe's needs are read once from the index (`ingredients.item`,
 changes; a search is one pass over them. At 5000 recipes and ~60 000 ingredient
 rows: ~50 ms to build, ~3–5 ms per search after that.
 
+## Duplicates — same ingredients, another title
+
+Titles lie: *Lasagnes de maman* and *Lasagnes bolo* can be one card pasted
+twice. The title checks (`W503`, `W608`) cannot see it; the ingredient set can
+(`PLANNING.md`, Tier 2; plan 05, Phase 5). Code:
+`src/lib/ingredients/similar.ts` (pure), `src/lib/server/index/similar.ts` (the
+model from the index).
+
+- **The set** (plan 05, Q10 A): every line that is not optional (item or group)
+  and not `to_taste`, as its registry slug, else `k:<lookup key>` (the family
+  diff's identity, so a duplicate shows before the queue is worked); a
+  sub-recipe line is one element `r:<slug>`, not flattened (every tarte on one
+  crust would look alike); `or` choices are ignored (the main line counts);
+  staples are kept. A recipe with fewer than **3** elements never pairs.
+- **The similarity** (Q11 B): weighted Jaccard, Σ w(A ∩ B) / Σ w(A ∪ B), each
+  element weighted by its rarity **in this vault**, `w = ln(1 + N / df)` (N
+  recipes, df those using it), recomputed with the model. Salt weighs little,
+  *chipits* much, with no list of "common ingredients" anywhere.
+- **The threshold: 0.65** (`DUPLICATE_THRESHOLD`). Tuned on the invented corpus
+  (`tests/duplicates-corpus.test.ts`) with its dish key: every planted copy
+  found (a copy under another title, lines reordered with one written form
+  swapped, one line removed — the last scores 0.70 at worst), and 97 % of the
+  flagged corpus pairs are one dish. Below ~0.58 precision falls under 90 %
+  (desserts sharing flour, butter, sugar, eggs and one syrup); at `PLANNING.md`'s
+  0.8, 4 of the 26 copies missing one line are lost. The flagged pairs of two
+  dishes at 0.65 are *grands-pères* and *pouding chômeur* on the same syrup,
+  *cretons* and *tourtière* on the same spices, two Jell-O desserts, a chili and
+  a *riz espagnol*.
+- **Same family** (Q16 C): two recipes of one family are declared versions and
+  are left out, unless their sets **and** amounts are identical — the same card
+  twice in one family.
+- **Settled pairs**: "Recettes différentes" on `/doublons` writes the pair to
+  `vocab/distinct.yaml` (`VOCAB.md`, "Distinct recipes"); such a pair is never
+  listed nor warned again.
+- **Fast enough**: candidates by prefix filtering (two sets scoring ≥ t share
+  an element among the rarest of each), exact scores only on candidates,
+  checked against brute force in the tests. The model is kept in memory per
+  index state, like the pantry model: a save, a sync or a registry edit (a
+  queue "Relier" can make a pair) rebuilds it on the next read. At 5000
+  generated recipes: ~0.2 s to build, ~0.3 ms to check one recipe (the paste,
+  the form).
+
+Where the pairs show: `W505` on the paste box, the form and the save result
+(`VALIDATION.md`), and the pair list `/doublons` (`DATA-FLOW.md`).
+
 ## Two views
 
 **Recipe view** — what it is today, plus a cost line (consumed cost total and per

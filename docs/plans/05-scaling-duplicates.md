@@ -550,6 +550,25 @@ out; the model is rebuilt after a save and after a registry edit (a queue
 Done when: D0 = 100 %, D1 ≥ 90 % at the recorded threshold (or a report of why
 not, with the pairs that break it), and brute force equals the fast path.
 
+**Built.** Threshold **0.65**, weights `ln(1 + N/df)` (not `ln(N/df)`: an
+element in every recipe keeps a small positive weight, so a set is never
+weightless), recorded in `INGREDIENTS.md`, "Duplicates". Corpus at 0.65: D0
+100 % (78 planted copies of 26 cards; the worst, a copy missing its last line,
+scores 0.699), D1 97.2 % of 213 flagged corpus pairs, D2 recall 27 % (French–
+French and any language alike), D4 66.6 pairs per 100 recipes. The gates hold
+from ~0.58 (D1 = 90 %) to 0.699 (D0); 0.65 sits inside with margin on both.
+D3's top different-dish pairs are dessert batters on one syrup (*grands-pères*
+/ *pouding chômeur*, 0.68), *cretons* / *tourtière* (same spices), two Jell-O
+desserts, chili / *riz espagnol*. Decisions: the model is keyed per index state
+by `indexMemo` (the pantry model has its own copy of that key); dismissed pairs
+(Q14) are filtered per read, not in the memo, since `vocab/distinct.yaml` can
+change without an index write; `pairsFor` scores an unsaved recipe against the
+vault's weights (an element the vault does not use yet weighs as df = 1).
+5000 generated recipes: build ~0.2 s, `pairsFor` ~0.3 ms median — but 74 580
+pairs, because `gen-vault.ts` draws 4–11 lines from ~30 common words: the
+generated vault says nothing about the page's size on a real vault (Phase 8's
+planted-pair bench is for the scaling agent or a later session).
+
 ### Phase 6 — the warning on paste and form
 
 Depends on: Q12.
