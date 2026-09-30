@@ -1,0 +1,106 @@
+# Scaling answer key (plan 05, Phase 0). Invented cases, written by hand from
+# the decided answers (Q2 A snap + ≈, Q3 B ladder in data, Q4 A halves) and the
+# seed rules of docs/VOCAB.md "Scaling". Each case: an amount as a file writes
+# it, a factor, and the amount text the recipe page shows (formatAmount).
+# `qty` / `qty_max` are written as in a file; `factor` is a number or a
+# fraction; `lang` defaults to fr.
+#
+# Reading the rules (seed):
+#   cup ¼ ⅓ ½ ⅔ ¾ · tbsp ½ · tsp ⅛ ¼ ½ ¾ · lb ¼ ½ ¾ · kg, L whole · counts and
+#   containers ½; cups, spoons, counts, containers, pinches and drops always
+#   snap (≈ beyond 2 %); other units snap within 10 %, else a short decimal;
+#   g and ml round to 1, then 5 from 100, then 25 from 1000;
+#   ladder 3 tsp = 1 tbsp, 16 tbsp = 1 cup, 1000 g = 1 kg, 1000 ml = 1 L.
+
+cases:
+  # Factor 1: the card as written, never snapped, never moved up or down.
+  - { qty: 1, unit: cup, factor: 1, text: 1 tasse }
+  - { qty: 2/3, unit: cup, factor: 1, text: ⅔ tasse }
+  - { qty: 1/8, unit: cup, factor: 1, text: ⅛ tasse }
+  - { qty: 6, unit: tsp, factor: 1, text: 6 c. à thé }
+  - { qty: 22.5, unit: g, factor: 1, text: 22,5 g }
+  - { qty: 1 1/2, unit: piece, factor: 1, text: 1 ½ }
+
+  # Volume, cups: the unit's own fractions.
+  - { qty: 1, unit: cup, factor: 2, text: 2 tasses }
+  - { qty: 1, unit: cup, factor: 1.5, text: 1 ½ tasse }
+  - { qty: 1/3, unit: cup, factor: 2, text: ⅔ tasse }
+  - { qty: 2/3, unit: cup, factor: 1.5, text: 1 tasse }
+  - { qty: 3/4, unit: cup, factor: 3, text: 2 ¼ tasses }
+  - { qty: 1/2, unit: cup, factor: 0.5, text: ¼ tasse }
+  # 0.833 cup: ¾ is 10 % off, within the tolerance: kept in cups, marked.
+  - { qty: 2/3, unit: cup, factor: 1.25, text: ≈ ¾ tasse }
+
+  # The ladder (Q3 B): down below the unit's smallest fraction, up when the next
+  # unit shows the amount exactly, down again when nothing in the unit is close.
+  - { qty: 1/4, unit: cup, factor: 0.5, text: 2 c. à table }
+  - { qty: 3/4, unit: cup, factor: 0.5, text: 6 c. à table }
+  - { qty: 2/3, unit: cup, factor: 4/3, text: 14 c. à table }
+  - { qty: 2, unit: tsp, factor: 3, text: 2 c. à table }
+  - { qty: 1, unit: tsp, factor: 3, text: 1 c. à table }
+  - { qty: 5, unit: tbsp, factor: 4, text: 1 ¼ tasse }
+  - { qty: 2, unit: tbsp, factor: 2, text: ¼ tasse }
+  # 6 tbsp is ⅜ cup, not a cup measure: stays in tablespoons.
+  - { qty: 3, unit: tbsp, factor: 2, text: 6 c. à table }
+  - { qty: 1, unit: tbsp, factor: 0.5, text: ½ c. à table }
+  - { qty: 1, unit: tbsp, factor: 1/3, text: 1 c. à thé }
+  - { qty: 1, unit: tbsp, factor: 1.5, text: 1 ½ c. à table }
+
+  # Teaspoons: the smallest spoon; below it, the nearest one, marked.
+  - { qty: 1/4, unit: tsp, factor: 0.5, text: ⅛ c. à thé }
+  - { qty: 3/4, unit: tsp, factor: 2/3, text: ½ c. à thé }
+  - { qty: 1/4, unit: tsp, factor: 2/3, text: ≈ ⅛ c. à thé }
+  - { qty: 1, unit: tsp, factor: 2, text: 2 c. à thé }
+
+  # Metric: rounded by the steps; up to kg / L only on a whole.
+  - { qty: 250, unit: g, factor: 4/3, text: 335 g }
+  - { qty: 454, unit: g, factor: 0.5, text: 225 g }
+  - { qty: 30, unit: g, factor: 1/3, text: 10 g }
+  - { qty: 500, unit: g, factor: 2, text: 1 kg }
+  - { qty: 500, unit: g, factor: 3, text: 1500 g }
+  - { qty: 250, unit: ml, factor: 1.5, text: 375 ml }
+  - { qty: 500, unit: ml, factor: 3, text: 1500 ml }
+  - { qty: 2, unit: l, factor: 0.5, text: 1 L }
+  - { qty: 1, unit: l, factor: 0.75, text: 750 ml }
+  - { qty: 5, unit: g, factor: 2/3, text: ≈ 3 g }
+
+  # Mass, imperial: never into grams (Q3 B); beyond the tolerance, a decimal.
+  - { qty: 2, unit: lb, factor: 1.5, text: 3 lb }
+  - { qty: 1 1/2, unit: lb, factor: 0.5, text: ¾ lb }
+  - { qty: 1, unit: lb, factor: 2/3, text: 0,67 lb }
+
+  # Counts and containers (Q4 A): halves, marked when rounded; never 0.
+  - { qty: 2, unit: piece, factor: 1.5, text: "3" }
+  - { qty: 1, unit: piece, factor: 4/3, text: ≈ 1 ½ }
+  - { qty: 1, unit: piece, factor: 0.25, text: ≈ ½ }
+  - { qty: 3, unit: clove, factor: 0.5, text: 1 ½ gousse }
+  - { qty: 2, unit: clove, factor: 1.5, text: 3 gousses }
+  - { qty: 1, unit: can, factor: 1.5, text: 1 ½ boîte }
+  - { qty: 1, unit: can, factor: 4/3, text: ≈ 1 ½ boîte }
+  - { qty: 2, unit: drop, factor: 1/3, text: ≈ 1 goutte }
+  - { qty: 1, unit: pinch, factor: 2, text: 2 pincées }
+
+  # Ranges: both ends, one unit for both; equal ends show once.
+  - { qty: 1, qty_max: 2, unit: cup, factor: 0.25, text: ¼ à ½ tasse }
+  - { qty: 2, qty_max: 3, unit: tsp, factor: 3, text: 2 à 3 c. à table }
+  - { qty: 2, qty_max: 3, unit: piece, factor: 0.2, text: ≈ ½ }
+  # 12 to 16 tbsp: both ends are cup measures.
+  - { qty: 6, qty_max: 8, unit: tbsp, factor: 2, text: ¾ à 1 tasse }
+
+  # English cards.
+  - { qty: 1/3, unit: cup, factor: 1.5, lang: en, text: ½ cup }
+  - { qty: 1, unit: tsp, factor: 3, lang: en, text: 1 tbsp }
+  - { qty: 1, unit: cup, factor: 2, lang: en, text: 2 cups }
+  - { qty: 1, unit: piece, factor: 4/3, lang: en, text: ≈ 1 ½ }
+
+# Whole lines (ingredientText): markers after the number, `alt` rounded in its
+# own unit, what never scales.
+lines:
+  - { line: { qty: "250 [?]", unit: g, name: noix }, factor: 2, text: "500 g [?] de noix" }
+  - { line: { qty: 250, unit: ml, name: crème, alt: { qty: 1, unit: cup } }, factor: 4/3, text: 335 ml (1 ⅓ tasse) de crème }
+  - { line: { qty: 250, unit: ml, name: lait, alt: { qty: 1, unit: cup } }, factor: 1.5, text: 375 ml (1 ½ tasse) de lait }
+  - { line: { qty: 1, unit: can, name: tomates, note: 796 ml }, factor: 2, text: 2 boîtes de tomates (796 ml) }
+  - { line: { name: sel, to_taste: true }, factor: 2, text: "sel, au goût" }
+  - { line: { name: nouilles, note: pour servir }, factor: 3, text: nouilles (pour servir) }
+  - { line: { qty: 1, unit: piece, name: oignon, prep: haché }, factor: 2, text: 2 oignon haché }
+  - { line: { qty: 2, unit: ml, name: cannelle, or: [{ qty: 1, unit: ml, name: muscade }] }, factor: 2, text: "4 ml de cannelle, ou 2 ml de muscade" }

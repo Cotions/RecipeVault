@@ -349,6 +349,18 @@ Done when: `expected-dishes.yaml` covers all 320 cards and the corpus
 regenerates unchanged otherwise; the harness loads it and the planted pairs;
 the scaling table exists and the owner has read it.
 
+Built (scaling side), with these decisions:
+
+- **Display baseline.** `tests/fixtures/scaling-baseline.txt`, written once by
+  `scripts/gen-scaling-baseline.ts` from the code as it was before this plan:
+  every line's parts (kind and text), the servings, the yield, a digest of the
+  method's HTML, and every unit word, for the 320 corpus cards and the fixture
+  vault. The factor-1 gate compares against this file, not against a copy of
+  the old code. Regenerate only for a display change that is meant.
+- **Table.** `tests/fixtures/scaling.yaml`: 58 amount cases and 8 whole lines,
+  written by hand from Q2 A / Q3 B / Q4 A and the seed of Phase 1. The owner
+  has not read it yet (open: review before relying on the seed values).
+
 **Built (duplicates side).** `expected-dishes.yaml` is a flat `slug: key` map,
 generated; the hand cards’ keys are in `scripts/corpus/hand-dishes.ts` (16 hand
 cards are dishes of their own: `chili`, `brownies`, `scalloped-potatoes`, …;
