@@ -689,6 +689,15 @@ Asked for:
 
 ## Open questions
 
+**Decided 2026-09-29: the owner took the recommended option on every question,
+Q1–Q16.** Where a phase says "depends on Qn", that dependency is settled. Doc
+changes that follow from a decision are part of the phase that implements it.
+
+**Also decided:** the unit display words (*tasse*, *c. à thé*, …) move out of
+`src/lib/render/ingredient.ts` into a seeded vocab file, like the other
+regional words (STORAGE.md: code holds no regional words). Done in Phase 1,
+beside `vocab/scaling.yaml`; a vault without the file shows the unit code.
+
 The docs leave each of these open or contradict themselves. For each: the
 options, then the recommendation with its reason. Q-numbers are referenced
 from the phases. **Key** marks the answers that change the most code.
