@@ -1,13 +1,18 @@
 // Scale fixture: write N invented recipes (some using an earlier one as a
 // sub-recipe), ~1000 registry entries and ~3000 price rows into a new
-// temporary vault, then (with --bench) time the index against the plans'
+// temporary vault, plus planted duplicate copies and families of close
+// variants (plan 05), then (with --bench) time the index against the plans'
 // targets: plan 02's index, plan 03's ingredient paths, plan 04's write path
 // (form, save, undo, photo, history over a ~20 000-commit vault, pending tags,
-// sign-in, sessions).
+// sign-in, sessions), plan 05's scaling and duplicates.
 //
-//   npx tsx scripts/gen-vault.ts [N=5000] [--dir /tmp/x] [--bench]
+//   npx tsx scripts/gen-vault.ts [N=5000] [--dir /tmp/x] [--bench] [--plant]
 //
-// Everything is random combinations of invented words — no real recipe.
+// The planted copies and families are written with --bench or --plant only, so
+// a plain run writes exactly N recipes.
+//
+// Everything is random combinations of invented words and of the seed
+// registry's names (docs/INGREDIENTS-SEED.yaml) — no real recipe.
 
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -16,6 +21,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
+import { parse as parseYaml } from 'yaml';
 import { openVault } from '../src/lib/server/context';
 import { browse } from '../src/lib/server/index/query';
 import { syncVault } from '../src/lib/server/index/sync';
@@ -50,6 +56,18 @@ import { currentUser, signIn, startSession, Throttle, type Auth } from '../src/l
 import { loadCheckWords } from '../src/lib/server/vocab';
 import { checkFile, hasErrors } from '../src/lib/vault/check';
 import { emptyForm, ensureSection, nameHint, newItem, type FormRecipe, type MethodSection, type StepRow } from '../src/lib/form';
+import { parseScaling } from '../src/lib/render/scale';
+import { ingredientParts } from '../src/lib/render/ingredient';
+import { stepAmounts } from '../src/lib/render/stepamounts';
+import { renderMarkdown } from '../src/lib/render/markdown';
+import { setUnitWords } from '../src/lib/render/unitwords';
+import { loadNormalize, loadScaling, loadUnitWords } from '../src/lib/server/vocab';
+import { getRecipe, titles as titlesOf } from '../src/lib/server/index/query';
+import { loadRecipePage, loadSubRecipes, photoView, referencedSlugs, subScale } from '../src/lib/server/pages';
+import { duplicateModel, allPairs, pairKey, pairsFor } from '../src/lib/server/index/similar';
+import { weightedJaccard, weightOf } from '../src/lib/ingredients/similar';
+import { closeRecipes, dismissedPairs, dismissPair, duplicateCount, duplicatePage, DISTINCT_FILE, pairVersions, sameRecipe, undismissPair } from '../src/lib/server/duplicates';
+import { readVaultFile } from '../src/lib/server/files';
 
 const args = process.argv.slice(2);
 const n = Number(args.find((a) => /^\d+$/.test(a)) ?? 5000);
@@ -66,6 +84,8 @@ const UNKNOWN_SHARE = 0.05;
 const dirArg = args.indexOf('--dir');
 const dir = dirArg >= 0 ? args[dirArg + 1] : join(mkdtempSync(join(tmpdir(), 'rv-scale-')), 'vault');
 const bench = args.includes('--bench');
+/** Plan 05: planted duplicates and close-variant families (always with --bench). */
+const plant = bench || args.includes('--plant');
 
 // Deterministic PRNG so runs are comparable.
 let seed = 42;
@@ -84,21 +104,120 @@ const UNITS = ['cup', 'tbsp', 'tsp', 'g', 'ml', 'lb', 'piece'];
 const QTYS = [1, 2, 3, '1/2', '1/4', '2/3', '1 1/2', 250, 500];
 const VERBS = ['Mélanger', 'Ajouter', 'Cuire', 'Verser', 'Battre', 'Incorporer', 'Faire revenir', 'Laisser reposer', 'Servir'];
 
-function recipe(i: number, earlier: readonly string[]): { slug: string; text: string } {
-	const title = `${pick(DISHES)} ${pick(WITH)} ${pick(STYLE)}`.trim() + ` ${i}`;
-	const slug = title
+// ---------------------------------------------------------------------------
+// The ingredient mix (plan 05, Phase 8). Until plan 05 every line drew its name
+// from the ~30 words of ING (or an invented entry, uniformly): every dessert
+// shared five staples with every other, and the duplicate model found 74 580
+// pairs in 5000 recipes — a figure about the generator, not a card box. Now a
+// recipe is one of DISH_TYPES invented dish archetypes, drawn with a long tail
+// (a few dishes with dozens of cards, most with one to three); an archetype
+// is a sweet or savoury base of staples plus a few flavour ingredients drawn
+// from the seed registry's own names (docs/INGREDIENTS-SEED.yaml, first French
+// name, by category, each category in a long-tailed order) and sometimes an
+// invented registry entry; a card keeps most of its archetype and adds an
+// extra or two. All of it from a second PRNG: the main one keeps its exact
+// call sequence, so titles, families, amounts, units, tags, times, prices and
+// the history are drawn as before; only the names on the lines changed.
+let seed2 = 7;
+const rand2 = () => ((seed2 = (seed2 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const pick2 = <T>(xs: readonly T[]): T => xs[Math.floor(rand2() * xs.length)];
+/** Index into a long-tailed list: weight 1 / (rank + offset). */
+function tail(len: number, offset: number): number {
+	let total = 0;
+	for (let k = 0; k < len; k++) total += 1 / (k + offset);
+	let x = rand2() * total;
+	for (let k = 0; k < len; k++) if ((x -= 1 / (k + offset)) < 0) return k;
+	return len - 1;
+}
+const shuffle2 = <T>(xs: T[]): T[] => {
+	for (let k = xs.length - 1; k > 0; k--) {
+		const j = Math.floor(rand2() * (k + 1));
+		[xs[k], xs[j]] = [xs[j], xs[k]];
+	}
+	return xs;
+};
+/** Number of invented dish archetypes. */
+const DISH_TYPES = 1200;
+type Kind = 'sweet' | 'savoury';
+interface Archetype {
+	kind: Kind;
+	core: string[];
+}
+const SEED_NAMES = (() => {
+	const data = parseYaml(readFileSync('docs/INGREDIENTS-SEED.yaml', 'utf8'), { version: '1.2' }) as Record<string, { category: string; names: { fr: string[] }; when?: unknown }>;
+	// A `when:` entry's bare name needs the unit or the prep to resolve (tomates, bœuf haché): left out.
+	return Object.values(data)
+		.filter((e) => !e.when)
+		.map((e) => ({ name: e.names.fr[0], category: e.category }));
+})();
+const BASE: Record<Kind, string[]> = {
+	sweet: ['farine', 'sucre', 'beurre', 'œuf', 'poudre à pâte', 'bicarbonate de soude', 'vanille', 'sel', 'lait', 'cassonade'],
+	savoury: ['sel', 'poivre', 'oignon', 'ail', 'beurre', 'huile végétale', 'farine', 'eau']
+};
+const POOL_CATEGORIES: Record<Kind, string[]> = {
+	sweet: ['fruit', 'epicerie', 'cremerie', 'surgele', 'epice'],
+	savoury: ['viande', 'poisson', 'legume', 'epice', 'conserve', 'cremerie', 'boisson', 'epicerie']
+};
+/**
+ * The words of ING as cards write them (plurals, bare names such as *tomates*
+ * that need a rule or the queue) head each list, so the resolve queue still
+ * sees what it saw before plan 05.
+ */
+const HEAD: Record<Kind, string[]> = {
+	sweet: ['crème 35 %', 'pommes', 'bleuets', 'sirop d’érable', 'cannelle', 'noix', 'chocolat', 'œufs'],
+	savoury: ['carottes', 'patates', 'bœuf haché', 'poulet', 'tomates', 'fromage cheddar', 'céleri', 'riz', 'jambon', 'fèves', 'saumon', 'persil', 'moutarde', 'crème 35 %']
+};
+/** Flavour names per kind, in a long-tailed order: HEAD, then the seed names shuffled once. */
+const POOL: Record<Kind, string[]> = {
+	sweet: [...HEAD.sweet, ...shuffle2(SEED_NAMES.filter((e) => POOL_CATEGORIES.sweet.includes(e.category) && !BASE.sweet.includes(e.name)).map((e) => e.name))],
+	savoury: [...HEAD.savoury, ...shuffle2(SEED_NAMES.filter((e) => POOL_CATEGORIES.savoury.includes(e.category) && !BASE.savoury.includes(e.name)).map((e) => e.name))]
+};
+const flavour = (kind: Kind) => POOL[kind][tail(POOL[kind].length, 3)];
+let archetypes: Archetype[] = [];
+function makeArchetypes(): void {
+	archetypes = Array.from({ length: DISH_TYPES }, (): Archetype => {
+		const kind: Kind = rand2() < 0.45 ? 'sweet' : 'savoury';
+		const base = shuffle2([...BASE[kind]]).slice(0, 2 + Math.floor(rand2() * 4));
+		const flav = Array.from({ length: 2 + Math.floor(rand2() * 4) }, () => flavour(kind));
+		const inv = rand2() < 0.5 ? [pick2(invented)] : [];
+		// Flavours first: a card with few lines keeps what makes the dish, not only its staples.
+		return { kind, core: [...new Set([...flav, ...inv, ...base])] };
+	});
+}
+/** A card's names for `slots` lines: most of its archetype, then extras. */
+function cardNames(a: Archetype, slots: number): string[] {
+	const out = new Set(a.core.filter(() => rand2() < 0.8));
+	for (let guard = 0; out.size < slots && guard < 50; guard++) out.add(rand2() < 0.25 ? pick2(invented) : flavour(a.kind));
+	return [...out].slice(0, slots);
+}
+
+function slugOf(title: string): string {
+	return title
 		.normalize('NFD')
 		.replace(/\p{M}/gu, '')
 		.replace(/œ/g, 'oe')
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-|-$/g, '');
+}
+
+/** The archetype of each generated recipe (by index into `archetypes`), for the bench's precision figures. */
+const dishOf = new Map<string, number>();
+
+function recipe(i: number, earlier: readonly string[]): { slug: string; text: string; dish: number } {
+	const title = `${pick(DISHES)} ${pick(WITH)} ${pick(STYLE)}`.trim() + ` ${i}`;
+	const slug = slugOf(title);
 	const fam = rand() < 0.3 ? pick(FAMILIES) : undefined;
-	const items = some(ING, 4 + Math.floor(rand() * 8)).map((common) => {
-		// Most lines use the common names (the seed resolves most of them), some an
-		// invented registry entry under one of its aliases, a few a name no entry has.
+	// The line count and every main-PRNG draw as before plan 05; the names from the archetype.
+	const slots = some(ING, 4 + Math.floor(rand() * 8));
+	const dish = tail(DISH_TYPES, 30);
+	const names = cardNames(archetypes[dish], slots.length);
+	const items = slots.map((_, k) => {
+		// A few lines name something no entry has (the main PRNG's draw, as before);
+		// the rest the card's names. The invented-entry draw is still made, unused.
 		const r = rand();
-		const name = r < INVENTED_SHARE ? pick(invented) : r < INVENTED_SHARE + UNKNOWN_SHARE ? pick(unknown) : common;
+		const drawn = r < INVENTED_SHARE ? pick(invented) : r < INVENTED_SHARE + UNKNOWN_SHARE ? pick(unknown) : undefined;
+		const name = r >= INVENTED_SHARE && drawn !== undefined ? drawn : (names[k] ?? pick2(POOL.savoury));
 		const q = pick(QTYS);
 		return `      - { qty: ${typeof q === 'string' ? `"${q}"` : q}, unit: ${pick(UNITS)}, name: ${name} }`;
 	});
@@ -138,7 +257,7 @@ function recipe(i: number, earlier: readonly string[]): { slug: string; text: st
 		...steps,
 		''
 	].join('\n');
-	return { slug, text };
+	return { slug, text, dish };
 }
 
 await initVault(dir, readFileSync('docs/VOCAB.md', 'utf8'), { name: 'Scale Test', email: 'scale@example.invalid' }, readFileSync('docs/INGREDIENTS-SEED.yaml', 'utf8'));
@@ -175,6 +294,7 @@ for (let k = seeded; k < REGISTRY; k++) {
 // Names no entry has: a different syllable set, so no alias or plural matches.
 const UNK = ['zu', 'kra', 'plo', 'wen', 'yig', 'hax'];
 const unknown = Array.from({ length: 150 }, () => `${pick(UNK)}${pick(UNK)}${pick(UNK)} ${pick(UNK)}${pick(UNK)}`);
+makeArchetypes();
 const seen = new Set<string>();
 const written: string[] = [];
 for (let i = 1; i <= n; i++) {
@@ -182,7 +302,111 @@ for (let i = 1; i <= n; i++) {
 	if (seen.has(r.slug)) continue;
 	seen.add(r.slug);
 	written.push(r.slug);
+	dishOf.set(r.slug, r.dish);
 	writeFileSync(join(dir, 'recipes', `${r.slug}.md`), r.text);
+}
+
+// Plan 05, Phase 8: planted duplicates and families of close variants, after
+// the random recipes and from the second PRNG only (the main draws, and so the
+// prices below, stay as they were). A planted copy is what a second paste of a
+// card looks like: a new title and slug, no family (AI-TEMPLATE rule 19), its
+// lines in reverse order, and in turn one of three changes to one line: its
+// amount (the same card transcribed twice), its ingredient (another one: nearer
+// a version than a copy, the hardest case), or the line left out (as plan 05
+// Phase 0's (c)). Originals are taken
+// at a fixed stride among the recipes with at least 6 lines; a second, smaller
+// set among the recipes with 4 or 5 lines (one changed line of five is 20 % of
+// the set: reported, not a gate).
+const PLANTED = 50;
+const PLANTED_SHORT = 10;
+const FAMILY_GROUPS = 20;
+const ITEM_LINE = /^ {6}- \{.*\}$/;
+const OWNERS = ['tante Inventée', 'Mémé Test', 'la voisine Fictive', 'cousine Exemple', 'grand-maman Modèle'];
+const texts = new Map(written.map((s) => [s, readFileSync(join(dir, 'recipes', `${s}.md`), 'utf8')]));
+const counted = (t: string) => t.split('\n').filter((l) => ITEM_LINE.test(l) && !l.includes('recipe:')).length;
+const CHANGES = ['amount', 'ingredient', 'removed'] as const;
+/** Planted copies: `[original, copy]`, the change, and whether the original has 4–5 lines. */
+const planted: { original: string; copy: string; short: boolean; change: (typeof CHANGES)[number] }[] = [];
+function plantCopy(original: string, j: number, short: boolean): void {
+	const change = CHANGES[j % CHANGES.length];
+	const text = texts.get(original)!;
+	const title = `${pick2(DISHES)} de ${pick2(OWNERS)} (copie ${j})`;
+	const slug = slugOf(title);
+	const lines = text.split('\n');
+	const items = lines.filter((l) => ITEM_LINE.test(l)).reverse();
+	const k = items.findIndex((l) => !l.includes('recipe:'));
+	const kind = archetypes[dishOf.get(original)!].kind;
+	const used = new Set(items.map((l) => /name: ([^,}]*)/.exec(l)![1].trim()));
+	if (change === 'ingredient') {
+		let other = flavour(kind);
+		while (used.has(other)) other = flavour(kind);
+		items[k] = items[k].replace(/name: [^,}]*/, `name: ${other}`);
+	} else if (change === 'amount') items[k] = items[k].replace(/qty: [^,]*, unit: [^,]*/, 'qty: 3, unit: tbsp');
+	else items.splice(k, 1);
+	const out: string[] = [];
+	let itemsDone = false;
+	for (const l of lines) {
+		if (/^(family|variant):/.test(l)) continue;
+		if (ITEM_LINE.test(l)) {
+			if (!itemsDone) out.push(...items);
+			itemsDone = true;
+			continue;
+		}
+		out.push(l.startsWith('title: ') ? `title: ${title}` : l.startsWith('slug: ') ? `slug: ${slug}` : l);
+	}
+	writeFileSync(join(dir, 'recipes', `${slug}.md`), out.join('\n'));
+	dishOf.set(slug, dishOf.get(original)!);
+	planted.push({ original, copy: slug, short, change });
+}
+for (const [want, short] of [
+	[PLANTED, false],
+	[PLANTED_SHORT, true]
+] as const) {
+	if (!plant) break;
+	const pool = written.filter((s) => (short ? counted(texts.get(s)!) >= 4 && counted(texts.get(s)!) <= 5 : counted(texts.get(s)!) >= 6));
+	const stride = Math.floor(pool.length / want);
+	for (let j = 0; j < want; j++) plantCopy(pool[j * stride], planted.length + 1, short);
+}
+/** Families of close variants: one archetype, all its core, one extra line each. Same family: never listed (Q16 C). */
+const familyGroups: string[][] = [];
+for (let g = 1; plant && g <= FAMILY_GROUPS; g++) {
+	const dish = tail(DISH_TYPES, 30);
+	const a = archetypes[dish];
+	const group: string[] = [];
+	for (let v = 1; v <= 3; v++) {
+		const title = `Famille d’essai ${g}, version ${v}`;
+		const slug = slugOf(title);
+		const names = [...new Set([...a.core, flavour(a.kind)])];
+		const text = [
+			'---',
+			'schema: 3',
+			`title: ${title}`,
+			`slug: ${slug}`,
+			'lang: fr',
+			`family: essai-${g}`,
+			`variant: version ${v}`,
+			'source:',
+			'  type: family',
+			`  author: ${pick2(OWNERS)}`,
+			'servings: 6',
+			'ingredients:',
+			'  - items:',
+			...names.map((nm) => `      - { qty: ${pick2([1, 2, '"1/2"'])}, unit: ${pick2(['cup', 'tbsp', 'tsp', 'piece'])}, name: ${nm} }`),
+			'status: draft',
+			'added: 2026-09-30',
+			'extracted_by: ai',
+			'---',
+			'',
+			'## Préparation',
+			'',
+			'1. Mélanger et cuire 30 min.',
+			''
+		].join('\n');
+		writeFileSync(join(dir, 'recipes', `${slug}.md`), text);
+		dishOf.set(slug, dish);
+		group.push(slug);
+	}
+	familyGroups.push(group);
 }
 // Invented prices: random entries, packs and dates, a few in another currency.
 const slugs = entryFiles().map((f) => f.replace(/\.md$/, ''));
@@ -201,7 +425,7 @@ const priceLines = Array.from({ length: PRICE_ROWS }, () => {
 	return `${date},${pick(slugs)},${(0.5 + rand() * 15).toFixed(2)},${rand() < 0.02 ? 'USD' : 'CAD'},${q},${u},Magasin ${1 + Math.floor(rand() * 6)},`;
 });
 writeFileSync(join(dir, 'prices.csv'), [PRICE_HEADER, ...priceLines, ''].join('\n'));
-console.log(`${seen.size} recipes, ${slugs.length} registry entries, ${PRICE_ROWS} price rows written to ${dir}`);
+console.log(`${seen.size} recipes${plant ? ` (+ ${planted.length} planted copies, ${familyGroups.length * 3} in ${familyGroups.length} families of close variants)` : ''}, ${slugs.length} registry entries, ${PRICE_ROWS} price rows written to ${dir}`);
 
 if (bench) {
 	const ctx = openVault({ root: dir, author: { name: 'x', email: 'x@x' }, log: () => {} });
@@ -309,6 +533,7 @@ if (bench) {
 	const sorted = [...appends].sort((a, b) => a - b);
 	console.log(`${'append one price and commit'.padEnd(34)} ${sorted[2].toFixed(1)} ms (median of 5; ${appends.map((a) => a.toFixed(0)).join(', ')})`);
 	await benchWritePath(ctx);
+	await benchPlan05(ctx);
 	ctx.db.close();
 }
 
@@ -683,4 +908,203 @@ async function benchWritePath(ctx: ReturnType<typeof openVault>): Promise<void> 
 	}, 5000);
 	auth.sessions.close();
 	rmSync(home, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+// Plan 05: scaling (browser code, timed here in Node) and duplicates.
+
+/** An invented 60-line recipe for the scaling timings: every unit class, ranges, `alt`, `or`, markers, to_taste. */
+function scalingRecipe(): string {
+	const kinds = [
+		'{ qty: "2/3", unit: cup, name: farine }',
+		'{ qty: 1, qty_max: 2, unit: tsp, name: sel }',
+		'{ qty: 250, unit: ml, name: lait, alt: { qty: 1, unit: cup } }',
+		'{ qty: "3/4", unit: tsp, name: cannelle }',
+		'{ qty: 3, unit: piece, name: œufs }',
+		'{ qty: 1, unit: can, name: tomates en dés, note: 796 ml }',
+		'{ qty: 454, unit: g, name: bœuf haché }',
+		'{ qty: "1/4", unit: lb, name: beurre }',
+		'{ qty: 2, unit: tbsp, name: sucre, or: [{ qty: 3, unit: tbsp, name: miel }] }',
+		'{ qty: "250 [?]", unit: g, name: cheddar }',
+		'{ qty: 1, unit: pinch, name: muscade }',
+		'{ name: poivre, to_taste: true }'
+	];
+	// Five groups of the twelve kinds: a name appears once per group (E209).
+	const groups = Array.from({ length: 5 }, (_, g) => [`  - group: Partie ${g + 1}`, '    items:', ...kinds.map((k) => `      - ${k}`)]).flat();
+	return ['---', 'schema: 3', 'title: Banc de mise à l’échelle', 'slug: banc-echelle', 'lang: fr', 'servings: 6', 'ingredients:', ...groups, 'status: draft', 'added: 2026-09-30', 'extracted_by: ai', '---', '', '## Préparation', '', '1. Mélanger.', ''].join('\n');
+}
+
+/** 30 invented steps, each with amounts, a temperature, a time or a pan size. */
+function scalingSteps(): string[] {
+	const forms = [
+		'Ajouter 1 tasse de lait chaud et 2 c. à table de beurre fondu.',
+		'Incorporer 1 ½ tasse de farine, puis 2 à 3 c. à soupe d’eau froide.',
+		'Cuire au four à 350 °F pendant 25 min dans un moule de 9 x 13 po.',
+		'Verser 500 ml de bouillon et laisser mijoter 1 h.',
+		'Saupoudrer ½ c. à thé de sel et 1 lb de fromage râpé.',
+		'Battre les œufs dans un bol de 2 L avec 125 g de sucre.'
+	];
+	return Array.from({ length: 30 }, (_, k) => forms[k % forms.length]);
+}
+
+async function benchPlan05(ctx: ReturnType<typeof openVault>): Promise<void> {
+	console.log('\n— plan 05: scaling and duplicates —');
+	const person = { name: 'Cuisinière Test', email: 'cuisiniere@recipevault.invalid' };
+	const her = withAuthor(ctx, person);
+	const app = { ctx } as App;
+	const time = (label: string, fn: () => unknown, runs = 1) => {
+		fn(); // warm
+		const xs: number[] = [];
+		for (let i = 0; i < runs; i++) {
+			const t = performance.now();
+			fn();
+			xs.push(performance.now() - t);
+		}
+		const ms = median(xs);
+		console.log(`${label.padEnd(34)} ${ms < 1 ? ms.toFixed(3) : ms.toFixed(1)} ms (median of ${runs})`);
+		return ms;
+	};
+
+	// Scaling: the rules parsed once per page load; then every line at a factor, one tap.
+	setUnitWords(loadUnitWords(ctx.paths.vocab)); // as the root layout installs them
+	const scalingText = readFileSync(join(ctx.paths.vocab, 'scaling.yaml'), 'utf8');
+	time('parse vocab/scaling.yaml', () => parseScaling(parseYaml(scalingText, { version: '1.2' })), 200);
+	const rules = loadScaling(ctx.paths.vocab);
+	if (!rules) throw new Error('the bench vault has no vocab/scaling.yaml');
+	const checked = checkFile(scalingRecipe());
+	if (!checked.recipe || hasErrors(checked.diagnostics)) throw new Error(`scaling bench recipe: ${checked.diagnostics.map((d) => d.code).join(', ')}`);
+	const r60 = checked.recipe;
+	const lines = r60.ingredients.flatMap((g) => g.items);
+	const factors = [2 / 3, 4 / 3, 1.5, 2, 5 / 6, 1];
+	let fi = 0;
+	time(`rescale a ${lines.length}-line recipe (one tap)`, () => {
+		const factor = factors[fi++ % factors.length];
+		for (const it of lines) ingredientParts(it, { factor, lang: 'fr', rules });
+	}, 500);
+	const steps = scalingSteps();
+	let found = 0;
+	time(`scan ${steps.length} steps for amounts`, () => {
+		const factor = factors[fi++ % (factors.length - 1)];
+		found = 0;
+		for (const st of steps) found += stepAmounts(st, { factor, lang: 'fr', rules }).length;
+	}, 500);
+	console.log(`${'  amounts found in those steps'.padEnd(34)} ${found}`);
+	const body = ['## Préparation', '', ...steps.map((st, k) => `${k + 1}. ${st}`), ''].join('\n');
+	time('render the 30-step method, scaled', () => renderMarkdown(body, { scale: { factor: 1.5, lang: 'fr', rules, title: 'x' } }), 200);
+	// The corpus sweep as the test runs it (tests/scaling-corpus.test.ts): 320 cards × 7 factors, lines and method.
+	const { loadDisplayRecipes, displayLines } = await import('../tests/helpers/display');
+	const corpus = loadDisplayRecipes().filter((l) => l.file.startsWith('corpus/'));
+	const tsw = performance.now();
+	for (const f of [1 / 2, 2 / 3, 1, 4 / 3, 3 / 2, 2, 3]) for (const l of corpus) displayLines(l, { factor: f, rules });
+	console.log(`${`corpus sweep (${corpus.length} × 7 factors)`.padEnd(34)} ${(performance.now() - tsw).toFixed(0)} ms`);
+
+	// The recipe page and kitchen page server loads, and their plan 05 share.
+	const withSub = ctx.db.prepare('SELECT slug FROM ingredients WHERE recipe IS NOT NULL LIMIT 1').pluck().get() as string;
+	for (const slug of [benchSlug(), withSub]) {
+		time(`recipe page load (${slug.slice(0, 14)}…)`, () => loadRecipePage(app, slug), 50);
+		const recipe = getRecipe(ctx.db, slug)!.recipe;
+		time('  of which plan 05 (rules, subScale)', () => [loadScaling(ctx.paths.vocab), subScale(app, recipe)], 50);
+		time(`kitchen page load (${slug.slice(0, 14)}…)`, () => {
+			const d = getRecipe(ctx.db, slug)!;
+			return {
+				photo: photoView(app, d.recipe),
+				titles: titlesOf(ctx.db, referencedSlugs(d.recipe, d.row.body_md)),
+				subs: loadSubRecipes(app, d.recipe),
+				scaling: loadScaling(ctx.paths.vocab),
+				conversions: loadConversions(ctx.paths.vocab),
+				plural: loadNormalize(ctx.paths.vocab).plurals[d.recipe.lang] ?? null
+			};
+		}, 50);
+		time('  of which plan 05 (rules, conv., plural)', () => [loadScaling(ctx.paths.vocab), loadConversions(ctx.paths.vocab), loadNormalize(ctx.paths.vocab)], 50);
+	}
+	time('layout: unit words (every page)', () => loadUnitWords(ctx.paths.vocab), 50);
+
+	// Duplicates: the model, built once per index state.
+	const bump = ctx.db.prepare("INSERT INTO meta (key, value) VALUES ('bench', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+	let b = 0;
+	const builds: number[] = [];
+	for (let k = 0; k < 5; k++) {
+		bump.run(String(++b)); // a new index state: the next read rebuilds
+		const t = performance.now();
+		duplicateModel(ctx.db);
+		builds.push(performance.now() - t);
+	}
+	const m = duplicateModel(ctx.db);
+	show(`duplicate model build (${m.recipes.size})`, builds);
+	const sizes = [...m.recipes.values()].map((r) => r.elements.length);
+	console.log(`${'  pairs above the threshold'.padEnd(34)} ${m.pairs.length} (${((100 * m.pairs.length) / m.recipes.size).toFixed(1)} per 100 recipes; mean set ${(sizes.reduce((x, y) => x + y, 0) / sizes.length).toFixed(1)} elements)`);
+	const bands = [0.65, 0.7, 0.8, 0.9, 1.01];
+	console.log(`${'  by score'.padEnd(34)} ${bands.slice(1).map((t, k) => `${bands[k]}–${Math.min(t, 1)}: ${m.pairs.filter((p) => p.score >= bands[k] && p.score < t).length}`).join(', ')}`);
+	// Against the generator's own answer key (the archetype of each recipe).
+	const same = m.pairs.filter((p) => dishOf.has(p.a) && dishOf.get(p.a) === dishOf.get(p.b)).length;
+	const perDish = new Map<number, number>();
+	for (const s of m.recipes.keys()) if (dishOf.has(s)) perDish.set(dishOf.get(s)!, (perDish.get(dishOf.get(s)!) ?? 0) + 1);
+	const samePairs = [...perDish.values()].reduce((x, c) => x + (c * (c - 1)) / 2, 0);
+	console.log(`${'  same archetype (precision)'.padEnd(34)} ${same} of ${m.pairs.length} (${((100 * same) / m.pairs.length).toFixed(1)} %); recall ${((100 * same) / samePairs).toFixed(1)} % of ${samePairs} same-archetype pairs (${perDish.size} archetypes used, largest ${Math.max(...perDish.values())})`);
+
+	// D0 at 5000: every planted copy paired with its original, on the page and on paste.
+	const listed = new Set(m.pairs.map((p) => pairKey(p.a, p.b)));
+	const score = (a: string, bb: string) => weightedJaccard(m.recipes.get(a)!.elements, m.recipes.get(bb)!.elements, (e) => weightOf(m.weights, m.recipes.size, e));
+	for (const [short, change] of [false, true].flatMap((sh) => CHANGES.map((c) => [sh, c] as const))) {
+		const ps = planted.filter((p) => p.short === short && p.change === change);
+		const onPage = ps.filter((p) => listed.has(pairKey(p.original, p.copy))).length;
+		const onPaste = ps.filter((p) => pairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), getRecipe(ctx.db, p.copy)!.recipe, { own: p.copy }).some((x) => x.slug === p.original)).length;
+		const scores = ps.map((p) => score(p.original, p.copy)).sort((x, y) => x - y);
+		console.log(`${`  D0 ${short ? '4–5' : '6+'} lines, ${change}`.padEnd(34)} page ${onPage}/${ps.length}, paste ${onPaste}/${ps.length}; score min ${scores[0].toFixed(3)}, median ${scores[Math.floor(scores.length / 2)].toFixed(3)}`);
+	}
+	const famPairs = familyGroups.flatMap((g) => [[g[0], g[1]], [g[0], g[2]], [g[1], g[2]]]);
+	const famListed = famPairs.filter(([x, y]) => listed.has(pairKey(x, y))).length;
+	const famAbove = famPairs.filter(([x, y]) => score(x, y) >= 0.65).length;
+	console.log(`${'  close-variant families'.padEnd(34)} ${famListed} of ${famPairs.length} pairs listed (${famAbove} above the threshold, left out as families, Q16 C)`);
+
+	// pairsFor: one recipe not saved yet (the paste check, the form's check), model built.
+	const queries = planted.map((p) => ({ own: p.copy, recipe: getRecipe(ctx.db, p.copy)!.recipe }));
+	const vocab = () => loadVocab(ctx.paths.vocab);
+	let qi = 0;
+	time('pairsFor one recipe', () => {
+		const q = queries[qi++ % queries.length];
+		return pairsFor(ctx.db, vocab, q.recipe, { own: q.own });
+	}, 200);
+	time('closeRecipes (W505, with the file)', () => {
+		const q = queries[qi++ % queries.length];
+		return closeRecipes(ctx, q.recipe, q.own);
+	}, 200);
+	time('pair list page 1, model built', () => duplicatePage(ctx, 1), 50);
+	time('pair list page 50', () => duplicatePage(ctx, 50), 50);
+	time('nav count (markdown account)', () => duplicateCount(ctx), 50);
+	bump.run(String(++b));
+	const tf = performance.now();
+	duplicatePage(ctx, 1);
+	console.log(`${'pair list page, model not built'.padEnd(34)} ${(performance.now() - tf).toFixed(1)} ms`);
+
+	// The page's writes, each one commit through its writer (the vault's ~20 000 commits).
+	const page = () => duplicatePage(her, 1);
+	const dismissed: [string, string][] = [];
+	await timeAsync('dismiss a pair + commit', async () => {
+		const pg = page();
+		const p = pg.pairs.find((x) => !dismissed.some(([u, v]) => u === x.a.slug && v === x.b.slug))!;
+		await dismissPair(her, p.a.slug, p.b.slug, pg.distinctHash);
+		dismissed.push([p.a.slug, p.b.slug]);
+	}, 5);
+	console.log(`${'  distinct.yaml'.padEnd(34)} ${dismissedPairs(her).size} pairs, ${readVaultFile(her, DISTINCT_FILE).text.split('\n').length} lines`);
+	await timeAsync('undo a dismiss + commit', async (k) => {
+		await undismissPair(her, dismissed[k][0], dismissed[k][1]);
+	}, 3);
+	await timeAsync('"Deux versions" (both) + commit', async (k) => {
+		const p = page().pairs.find((x) => x.a.family !== x.b.family || !x.a.family)!;
+		await pairVersions(her, {
+			a: { slug: p.a.slug, hash: p.a.hash, variant: 'première' },
+			b: { slug: p.b.slug, hash: p.b.hash, variant: 'seconde' },
+			family: `banc-doublons-${k}`,
+			label: `Banc doublons ${k}`
+		});
+	}, 3);
+	await timeAsync('"Même recette" (trash one) + commit', async () => {
+		const p = page().pairs[0];
+		await sameRecipe(her, p.b.slug, p.b.hash);
+	}, 3);
+	const tr = performance.now();
+	duplicatePage(her, 1);
+	console.log(`${'pair list page after a write'.padEnd(34)} ${(performance.now() - tr).toFixed(1)} ms (model rebuilt)`);
+	console.log(`${'  pairs left'.padEnd(34)} ${allPairs(ctx.db, dismissedPairs(ctx)).length}`);
 }
