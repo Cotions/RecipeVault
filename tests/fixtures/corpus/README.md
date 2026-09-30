@@ -20,14 +20,16 @@ Crisco, Campbell's, Jell-O or Eagle Brand appear because 1990s cards named them.
 | `recipes/*.md` | the corpus. Generated files and hand-written cards together. Do not edit here. |
 | `hand/*.md` | about 40 hand-written "messy" cards: ditto marks, typos (`beouf haché`, `patattes`), `or` entries with their own amount, clippings with `alt`, English cards from anglophone neighbours, and every ambiguous name. They are copied into `recipes/` unchanged. Edit these directly. |
 | `expected-ingredients.yaml` | the answer key (generated) |
+| `expected-dishes.yaml` | the dish key: slug → dish archetype (generated; see "The dish key") |
 | `../../../scripts/gen-corpus.ts` | the generator |
 | `../../../scripts/corpus/ingredients.ts` | the ingredient table: canonical ids, written forms, typos, brands, ambiguous names, confusable pairs |
 | `../../../scripts/corpus/dishes.ts` | the dish templates: family variants, groups, steps |
+| `../../../scripts/corpus/hand-dishes.ts` | the dish of each hand-written card |
 
 ## Regenerate
 
 ```sh
-npx tsx scripts/gen-corpus.ts             # rewrites recipes/, expected-ingredients.yaml and the table below
+npx tsx scripts/gen-corpus.ts             # rewrites recipes/, expected-ingredients.yaml, expected-dishes.yaml and the table below
 npx tsx scripts/gen-corpus.ts --out /tmp/c  # writes somewhere else instead
 npx tsx src/cli/vault.ts check --dir tests/fixtures/corpus/recipes
 ```
@@ -119,6 +121,17 @@ Open points for plan 03, not decided here:
   `prep: haché`. The key is name-only by design, so these forms are ambiguous.
   If resolution later uses the unit or prep, move these entries from
   `ambiguous` to `ingredients`.
+
+## The dish key
+
+`expected-dishes.yaml` maps every card's slug to the dish it is: the `key` of
+its archetype in `scripts/corpus/dishes.ts` for a generated card, the entry in
+`scripts/corpus/hand-dishes.ts` for a hand-written one (a hand card that is no
+archetype's gets a key of its own: `chili`, `brownies`, …). Same key = same
+dish, whatever the title, the language or the family. It is the answer key of
+duplicate detection (plan 05, Phase 5: precision and recall of the pairs the
+model flags). The generator throws on a hand card with no entry, or an entry
+naming no card.
 
 ## Variant groups
 

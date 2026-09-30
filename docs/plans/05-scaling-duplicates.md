@@ -349,6 +349,22 @@ Done when: `expected-dishes.yaml` covers all 320 cards and the corpus
 regenerates unchanged otherwise; the harness loads it and the planted pairs;
 the scaling table exists and the owner has read it.
 
+**Built (duplicates side).** `expected-dishes.yaml` is a flat `slug: key` map,
+generated; the hand cards’ keys are in `scripts/corpus/hand-dishes.ts` (16 hand
+cards are dishes of their own: `chili`, `brownies`, `scalloped-potatoes`, …;
+*Relish aux tomates vertes* is `ketchup-vert`, whose own titles include
+"Marinade de tomates vertes"; *Salade de pâtes du méchoui* is its own dish, not
+the mayonnaise `salade-macaroni`). The planted pairs are built by
+`tests/helpers/duplicates.ts`: every 12th card (by slug) with at least 4
+counted lines, three copies each. Decisions: a copy drops the card's
+`family`/`variant` (a pasted transcription has none, AI-TEMPLATE rule 19; a
+copy inside the card's family would be a Q16 family pair, not a paste
+mistake); (b) reverses each group's lines and swaps the first line whose id
+has another written form **that the vault's resolver maps to the same entry**
+(a swap to a form the registry does not know is a resolution miss, measured by
+plan 03, not a duplicate-model miss); (c) removes the card's last counted line
+(a fixed choice, not the easiest).
+
 ### Phase 1 — scaling rules as data
 
 Depends on: Q2, Q3, Q4.

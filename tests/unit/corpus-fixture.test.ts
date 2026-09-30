@@ -67,8 +67,30 @@ describe("corpus fixture", () => {
     for (const f of files)
       expect(corpus.files.get(f.name), f.name).toBe(f.text);
     expect(corpus.yaml).toBe(yamlText);
+    expect(corpus.dishes).toBe(readFileSync(join(DIR, "expected-dishes.yaml"), "utf8"));
     const readme = readFileSync(join(DIR, "README.md"), "utf8");
     expect(updateReadme(readme, yamlText)).toBe(readme);
+  });
+});
+
+describe("dish key", () => {
+  const dishes = parseYaml(
+    readFileSync(join(DIR, "expected-dishes.yaml"), "utf8"),
+  ) as Record<string, string>;
+
+  it("names the dish of every card, and nothing else", () => {
+    expect(Object.keys(dishes).sort()).toEqual(
+      files.map((f) => f.name.replace(/\.md$/, "")).sort(),
+    );
+    for (const k of Object.values(dishes))
+      expect(k).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+  });
+
+  it("groups the cards: most dishes have several", () => {
+    const n = new Map<string, number>();
+    for (const k of Object.values(dishes)) n.set(k, (n.get(k) ?? 0) + 1);
+    expect([...n.values()].filter((c) => c > 1).length).toBeGreaterThan(50);
+    expect(dishes["binnes-du-camp"]).toBe("feves-au-lard");
   });
 });
 
