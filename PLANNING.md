@@ -279,7 +279,9 @@ away, and not touching the screen much.
   miss just shows nothing.
 - **Servings adjuster at the top,** before starting. Quantities rescale everywhere,
   including in the per-step ingredient lines. Free, because quantities are
-  structured.
+  structured. Built in plan 05: amounts a cook can measure, sub-recipes at
+  the amount the line needs, amounts written in steps shown scaled beside the
+  original (`DATA-FLOW.md`, "Scaling").
 - **Timers.** Durations in step text (`25 min`, `1 h`) become tappable. Several can
   run at once, each labelled with its step, visible at the top, with an alarm
   sound when done. Survives the screen changing steps.

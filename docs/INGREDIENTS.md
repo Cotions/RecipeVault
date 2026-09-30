@@ -255,7 +255,9 @@ Most ingredients will have no price for a long time. So:
   may be one portion or the whole crust, and a guess is a wrong price.
   Otherwise — a `yield` written as text, a unit that does not match, `servings`
   alone above one — the sub-recipe is one unpriced line; a
-  `yield: { qty: 2, unit: piece }` makes it costable. `buy_instead` does not
+  `yield: { qty: 2, unit: piece }` makes it costable. The same rule reads a
+  sub-recipe at a scaled amount on the recipe page and in kitchen mode
+  (plan 05, Q5 A; `DATA-FLOW.md`, "Scaling"). `buy_instead` does not
   change cost (homemade is costed).
 
 ### Unit conversion

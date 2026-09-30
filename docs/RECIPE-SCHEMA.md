@@ -203,7 +203,9 @@ ingredient entry can point at another recipe:
       - { qty: 1, unit: piece, name: pâte brisée, recipe: pate-brisee }
 ```
 
-- Renders as a link, optionally expandable inline.
+- Renders as a link, optionally expandable inline. Read at another amount, the
+  link and the expansion follow the line's amount against the sub-recipe's
+  `yield` (the cost rule; `DATA-FLOW.md`, "Scaling").
 - Cost recurses: the sub-recipe's consumed cost, scaled by `qty` against its
   `yield` (below); against `servings` only when it serves exactly one, since
   "1 piece" of a dish serving 8 may be a portion or the whole (`INGREDIENTS.md`,

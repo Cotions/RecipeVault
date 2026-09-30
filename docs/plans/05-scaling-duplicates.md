@@ -581,7 +581,9 @@ Stopped here (reboot). Next: Phase 4 (sub-recipes per Q5 A with
 sub-recipe link; `src/lib/render/stepamounts.ts` for the scaled step amount
 beside the original per Q6 B, in kitchen `pieces()` and the recipe page
 markdown; the times/oven/pan notice), then record Q1 and Q5–Q9 in the docs
-(DATA-FLOW.md), then check the `resolve-queue.spec.ts` failures.
+(DATA-FLOW.md), then check the `resolve-queue.spec.ts` failures. (Phase 4
+and the docs: done, below; the `resolve-queue.spec.ts` failures were fixed by
+`a67ef64`.)
 
 ### Phase 4 — kitchen mode: sub-recipes and step amounts
 
@@ -610,6 +612,70 @@ temperature, printed for the report.
 Done when: a scaled tarte in kitchen mode shows its crust at the right amount
 or says why not, and no step shows an amount that contradicts the scaled list
 without saying so.
+
+**Built** (`subRecipeScale` / `subRecipeHref` in `render/scale.ts`,
+`render/stepamounts.ts`, the `scale` option of `render/markdown.ts`), with
+these decisions:
+
+- **Sub-recipes.** `subRecipeScale` = `subRecipeFactor` (cost.ts, unchanged
+  rule, its parameter narrowed to `yield`/`servings`) × factor, kept inside the
+  file's cap (outside it: as written). Like cost it reads the line's upper
+  bound of a range. Kitchen mode shows « recette × ½ » beside the expanded
+  title when the factor is not 1; unscalable → as written with « Recette
+  complète : donne 2 litres » (the yield, else the servings). The recipe page
+  gets `subScale` (each directly used sub-recipe's yield and servings, and the
+  conversions) and the link carries `amountQuery(sub, f)` (`portions` when the
+  sub-recipe's servings come out whole, else `fois`; nothing at 1). The link
+  changes at ×1 too (`/r/pate-brisee?fois=0.5`), as Q5 intends; the line's
+  text does not. The expansion stays one level deep (no recursion, so no cycle
+  to guard beyond `loadSubRecipes`'s own); the sub-recipe's own steps show
+  their amounts at its factor.
+- **Step amounts.** Only `mass` and `volume` units: counts and containers in a
+  step are more often shapes (« couper en 8 tranches », « en 2 abaisses »), and
+  the per-step ingredient line already shows the scaled count. A range written
+  `2 à 3 tasses` / `2-3 cups` scales as one amount. Marked inside the method's
+  step lists only (the lists `stepLists` tags; notes and variants untouched),
+  after the original as `<span class="step-scaled"> → 2 tasses</span>`; in
+  kitchen mode inside the text between the timer buttons (the timers still
+  read the original). Emphasis or a marker splitting an amount's text leaves
+  that amount unmarked (best effort). ⚑ A size in a step (« la boîte (796 ml) »,
+  « un bol de 2 L ») is found and scaled beside the original, as Q6 B accepts.
+- **Notice** « Recette × f : les temps, la température du four et la taille du
+  moule restent ceux de la recette de base. », plus « Dans les étapes, la
+  quantité ajustée suit la flèche (→) » when a step holds an amount: above the
+  method (when it has steps, times or an oven; printed too) and on the kitchen
+  step.
+- **Fixtures.** *Crêpes minces* step 1 now writes « 1 ½ tasse de lait » and
+  *Molasses Cookies* step 3 « 2 T sugar » (the fixture vault had no amount in
+  any step); the baseline was regenerated with the code before this phase —
+  only those two body digests changed.
+- **Leftovers of Phase 3, decided.** ⚑ Names are not pluralized when scaled
+  (`2 oignon`, text yield `2 moule`): the file holds one form of the name, the
+  docs define no plural, and adding endings is a noun grammar per language
+  (`VOCAB.md` "Plurals" only strips them) — recorded in `DATA-FLOW.md`,
+  "Scaling", for the owner. `money.ts`'s `pièce/pièces`: `piece` now has words
+  in `vocab/unit-labels.yaml` (`VOCAB.md` seed), shown only where a count needs
+  a word (`unitWord`, a pack size); ingredient lines keep the bare count
+  (`unitLabel`). `render/steps.ts`'s `s`/`x` stem: the step-name matching uses
+  the vault's plural rule (`vocab/normalize.yaml`, the resolver's own, loaded
+  by the kitchen page for the recipe's `lang`) rather than the unit-labels file
+  — it is about ingredient names, and that data already exists; without the
+  file, names match as written. ⚑ `UNIT_ALIASES` stays in code: `STORAGE.md`
+  keeps "the canonical unit list" in code, `VOCAB.md` "Units" makes that list
+  the authority that must match `AI-TEMPLATE.md` rule 8, and the seeded
+  `vocab/units.yaml` says it only documents the vault. Moving it would make the
+  checker vault-dependent (E201 on a loose file); raised, not changed.
+
+Tests: `tests/unit/stepamounts.test.ts` (French and English units, `t`/`T`,
+ranges, nothing on °F / °C, minutes, `9 x 13`, counts; the bowl flagged; factor
+1 identical; escaping; 30 steps; sub-recipe ×1 / ×2, class conversion, text
+yield, mismatched class, no amount, the cap); corpus: every step of the 320
+cards scanned — 3 amounts in 2 of 1472 steps (all `cup`), none in a sentence
+about a pan, a bowl or the oven, none a temperature, duration or pan size
+(~35 ms). The factor-1 gate now renders the method with the step option on.
+E2E: steps scaled beside the original with the notice (desktop), the
+sub-recipe link's factor (desktop), the kitchen expansion at ½ / 0,56 / whole /
+text yield and kitchen step amounts (phone, tablet).
 
 ### Phase 5 — the duplicate model
 

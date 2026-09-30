@@ -346,6 +346,61 @@ link shows on the next load. The server sends the totals at the base servings
 and every line's cost; the browser multiplies the total by the servings
 adjuster. The rules are `INGREDIENTS.md`, "Cost".
 
+### Scaling on the recipe page and in kitchen mode
+
+A recipe read at another amount (plan 05) is display only, in the browser:
+nothing scaled is ever written to a file, to the index or to git — not the
+quantities, not `servings` (Q9 A: the card as written is the archive; a version
+she really cooks differently is a new recipe typed in the form). The page load
+carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
+"Scaling"); every tap after that is local.
+
+- **The amount lives in the address** (Q1 A): `?portions=8` when the recipe
+  has servings and they come out whole, else `?fois=1.5`; nothing at the card's
+  amount. The recipe page rewrites it with `replaceState` as she taps, so a
+  reload, the back button, a bookmark or a link sent to a sibling shows the
+  same amounts; a recipe opened fresh shows the card's. A value that does not
+  read (`1e9`, `0x10`, a sign) or lies outside the file's `factor` cap (×0.1 to
+  ×20) is ignored. Kitchen mode keeps its own per-device session
+  (`localStorage`, 12 h): the address wins when present, then is dropped, so a
+  reload resumes what was set there. The service worker caches kitchen pages
+  under the path alone; the parameters create no cache entry.
+- **Ways in** (Q8 B): the stepper (±1 serving, to the next whole number), the
+  multiplier list for a recipe without servings, a free factor (« Autre
+  quantité ») on every recipe, and tapping an ingredient's amount to type what
+  she has (factor = typed ÷ written, from the lower bound of a range; not a
+  `to_taste` line, not a zero). « Remettre » returns to the card.
+- **Servings and yields** (Q7 A): a servings range is scaled at both ends; a
+  text yield's leading plain number or fraction is scaled as a count and the
+  rest kept (`24 biscuits` → `48 biscuits`); a text with no such number, or a
+  range (`2 à 3 douzaines`), shows as written with `(× f)`. The words after a
+  number keep their written number (`1 moule` → `2 moule`), as ingredient
+  names do: see below.
+- **Names stay as written.** A scaled line changes its amount and its unit word
+  (`1 tasse` → `2 tasses`, from `vocab/unit-labels.yaml`), never the
+  ingredient's name: `1 oignon` at ×2 reads `2 oignon`. The file holds one
+  written form of the name (`RECIPE-SCHEMA.md`, `name`) and the docs define no
+  plural for it; pluralizing would need each language's noun grammar in code
+  (`VOCAB.md` "Plurals" only strips endings, it cannot add them). Flagged in
+  plan 05, Phase 4, for the owner.
+- **Sub-recipes** (Q5 A): kitchen mode's inline expansion is read at `line
+  amount × factor / yield` — the cost rule (`INGREDIENTS.md`, "Cost";
+  `subRecipeFactor`, one shared function) — when the sub-recipe's `yield`
+  object is in the line's unit or class; one crust of a pastry that makes two
+  shows the half pastry, at ×1 already. Otherwise (a text yield, another
+  class) it shows as written with « Recette complète : donne … ». The recipe
+  page's sub-recipe link carries the same factor (`/r/pate-brisee?fois=0.5`),
+  or none when it is 1 or cannot be derived.
+- **Amounts in steps** (Q6 B): measures written in a step (mass and volume
+  units found with the vocabulary's unit words, `t`/`T` by the recipe's
+  `lang`) get their scaled value beside them in a distinct style (`1 tasse →
+  2 tasses`); the original always stays, so a misread (« un bol de 2 L ») is
+  seen as one. Temperatures, durations and pan sizes use no recipe unit and are
+  never found; counts and containers in steps are left alone (« couper en 8
+  tranches » is a shape, not an amount). The timers read the original text.
+  When the factor is not 1, one notice above the method (and on the kitchen
+  step) says that times, the oven and the pan are the base recipe's.
+
 ### Pantry search
 
 `/garde-manger` (plan 03, Phase 7) is read-only. The first search builds every
