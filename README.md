@@ -88,10 +88,10 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 | Path | What |
 |---|---|
 | `/` | browse and search: facets, sort, pagination; state in the URL |
-| `/r/<slug>` | a recipe: servings adjuster, cost line with coverage, ingredient links, print view, Vérifié, Modifier, Historique, Supprimer, "Ajouter une photo", the raw file |
+| `/r/<slug>` | a recipe: servings adjuster (the amount in the address, `?portions=` / `?fois=`; a free factor; tap an amount to scale by what you have), cost line with coverage, ingredient links, print view, Vérifié, Modifier, Historique, Supprimer, "Ajouter une photo", the raw file |
 | `/nouvelle`, `/r/<slug>/modifier` | the recipe form (signed in): ingredient and step rows, family picker, tags, source, times, photo; drafts kept in the browser, Annuler after a save |
 | `/r/<slug>/historique` | every version of a recipe, what changed in plain French, "Revenir à cette version" |
-| `/r/<slug>/cuisine` | kitchen mode: screen kept on, checklist, one step at a time, timers, offline |
+| `/r/<slug>/cuisine` | kitchen mode: screen kept on, checklist, one step at a time, timers, offline; scaled amounts in the steps and sub-recipes at the amount the line needs |
 | `/familles`, `/famille/<slug>` | families and the variant diff table |
 | `/ingredients` | the ingredient registry with current prices; inline price entry, sorted by what to price first |
 | `/ingredients/<slug>` | one ingredient: names, prices and their history, the recipes using it by quantity, substitutes, drifting names; edit and "Fusionner dans…" |
@@ -99,6 +99,8 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 | `/garde-manger` | pantry search: what can I make with what I have — ready, with a substitution, almost, ideas |
 | `/ajouter` | the paste box: live checks, fix-request block, web import |
 | `/etiquettes` | pending tags: make one a new tag with its label, map it to an existing tag, or remove it |
+| `/doublons` | possible duplicates (nearly the same ingredients): two versions of one recipe, the same recipe (one to the trash), or different recipes |
+| `/doublons/comparer?a=…&b=…` | two recipes side by side, every field where they differ |
 | `/corbeille` | the trash, with restore |
 | `/connexion` | sign in ("Rester connectée" by default: a year, renewed on use); sign out from the header |
 
@@ -106,7 +108,7 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 
 ```sh
 npx vault init <dir>                  # create a vault: layout, vocab and ingredient seed, git
-npx vault ingredients seed            # add the seed ingredients a vault lacks (never overwrites)
+npx vault ingredients seed            # add the seed ingredients and vocab files a vault lacks (never overwrites)
 npx vault add <file…>                 # save files through the app's save path (one commit)
 npx vault sync [--force]              # bring the index in line with the files
 npx vault reindex                     # delete the index and rebuild it
@@ -119,7 +121,7 @@ npx vault user list                   # logins and names
 npx vault check recipe.md other.md    # check files
 npx vault check - < answer.txt        # a whole AI answer: every ```markdown fence is a file
 npx vault check --dir inbox/          # every .md in a folder, with a summary by code
-npx vault check --dir ~/vault         # a vault: its recipes and its ingredient files
+npx vault check --dir ~/vault         # a vault: its recipes, its ingredient files, stale lines of vocab/distinct.yaml
 npx vault check --vault ~/vault new.md
 npx vault check --fix-block bad.md    # the block to paste back into the AI chat
 npx vault check --json recipe.md
@@ -136,7 +138,10 @@ sync, search, browse, resolution, the resolve queue, the ingredient pages, cost,
 pantry search and price entry; then grows the vault's history to ~20 000
 commits (`git fast-import`) and times the write path: the form, its saves,
 undo and restore, the history page, a 12 MP photo, `/etiquettes`, sign-in and
-the session lookup (the figures are in `docs/DATA-FLOW.md`).
+the session lookup; last, scaling (a 60-line recipe, 30 steps, the corpus
+sweep, the page loads) and duplicates (the model, `W505`'s check, `/doublons`
+and its three writes), with ~50 planted duplicate copies and 20 families of
+close variants (the figures are in `docs/DATA-FLOW.md`).
 
 ## Layout
 

@@ -514,8 +514,9 @@ yield) when the factor is not 1:
 - **Tolerance.** The nearest allowed value is taken when it is within
   `tolerance` (10 %) of the exact amount. A unit or class in `always` snaps to
   its nearest value whatever the distance, and never to 0 (a quarter of an egg
-  shows `≈ ½`); any other unit beyond the tolerance shows a short decimal
-  (`0,67 lb`).
+  shows `≈ ½`); any other unit beyond the tolerance, with no rung of the
+  ladder that fits better, shows a short decimal (`1 oz` at ×⅔ is `0,67 oz`;
+  `1 lb` at ×⅔ is `10 ½ oz`, by the `oz → lb` rung).
 - **The mark.** `≈` shows before an amount more than `approx` (2 %) away from
   the exact one.
 - **Metric.** The `metric.units` round to the step of the first `from` they

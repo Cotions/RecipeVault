@@ -218,15 +218,14 @@ The currency is the config's (`currency`, CAD by default). Prices are not stored
 the latest row. Pack size belongs to the purchase, not the ingredient: the same
 tomatoes come in 400 g and 800 g tins. See `STORAGE.md`.
 
-Two numbers, both honest, never conflated:
+One figure: the **consumed cost** — what the recipe actually uses. 800 g of
+tomatoes at $0.89 per 400 g pack = $1.78. Pro-rata, fractional packs allowed.
+Consumed cost per serving is the headline number on a recipe.
 
-- **Consumed cost** — what the recipe actually uses. 800 g of tomatoes at $0.89 per
-  400 g pack = $1.78. Pro-rata, fractional packs allowed.
-- **Shopping cost** — what you must buy if the cupboard is empty. 150 g of parmesan
-  when it is sold in 200 g blocks = one block, not 0.75 of one.
-
-Consumed cost per serving is the headline number on a recipe. Shopping cost belongs
-on a shopping list, where whole packs are what you carry home.
+There is no *shopping cost* (whole packs: 150 g of parmesan sold in 200 g blocks
+is one block to buy): it belongs on a shopping list, and the shopping list was
+declined (2026-09-29; `PLANNING.md`, "Deliberately out of scope"). A recipe page
+never shows a whole-pack figure.
 
 ### Partial pricing is the normal state
 
@@ -411,8 +410,19 @@ model from the index).
   checked against brute force in the tests. The model is kept in memory per
   index state, like the pantry model: a save, a sync or a registry edit (a
   queue "Relier" can make a pair) rebuilds it on the next read. At 5000
-  generated recipes: ~0.2 s to build, ~0.3 ms to check one recipe (the paste,
-  the form).
+  generated recipes: ~0.1 s to build, ~0.1 ms to check one recipe (the paste,
+  the form), ~3 ms for a page of `/doublons` (plan 05, Phase 8; `DATA-FLOW.md`,
+  "Final figures for P3").
+- **On the bench vault** (5000 generated recipes from 1200 invented dishes, a
+  long tail of cards per dish; `scripts/gen-vault.ts --bench`): ~78 pairs per
+  100 recipes, 97 % of them two cards of one dish — the page's size depends
+  mostly on how many cards of one dish a vault holds. Every planted copy with
+  an amount changed or a line left out is found (score ≥ 0.77 with 6+ lines);
+  a copy with one ingredient **replaced** by another is missed 1 time in 17
+  with 6+ lines (0.64) and 1 in 3 with 4–5 lines (0.51): a replaced rare
+  ingredient weighs as much as several staples, and such a copy is closer to a
+  version than to the same card. Families of close variants are never listed
+  (55 of their 60 pairs score above 0.65).
 
 Where the pairs show: `W505` on the paste box, the form and the save result
 (`VALIDATION.md`), and the pair list `/doublons` (`DATA-FLOW.md`).

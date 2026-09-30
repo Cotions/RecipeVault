@@ -231,9 +231,10 @@ Ranking, tiers, and the substitution logic: `docs/INGREDIENTS.md`.
 ## Cost
 
 Ingredient prices are stored per pack (`400 g for $0.89`), and recipe cost is
-computed. Two numbers, never conflated: **consumed cost** (pro-rata, what the
-recipe uses) and **shopping cost** (whole packs, what you must buy). Consumed cost
-per serving is the headline on a recipe page.
+computed: the **consumed cost** (pro-rata, what the recipe uses), per serving as
+the headline on a recipe page. It is the only figure: a whole-pack *shopping
+cost* belonged to the shopping list, which was declined ("Deliberately out of
+scope").
 
 Partial pricing is the normal state, so totals always show coverage —
 `≈ $4.20 · 9 of 12 ingredients priced` — and never a number that looks complete
@@ -328,7 +329,9 @@ Numbers to design against:
   upload, cached to disk, lazy loaded. Full-size phone photos in a
   grid is unusable. Handle EXIF rotation — phone photos arrive sideways.
 - **Duplicates** — the same recipe gets pasted twice, guaranteed. Slug collision
-  is a hard block; a near-identical title is a warning.
+  is a hard block; a near-identical title is a warning; nearly the same
+  ingredients under another title is a warning too (`W505`), and the vault's
+  pairs are listed on `/doublons` (plan 05).
 - **Families get big** — 30 variants of tarte is plausible. Family pages need
   their own filtering, not just a list.
 - **`vault sync`** — hash files, reparse only what changed. A no-op sync over 5000
@@ -396,9 +399,15 @@ recommended option; each is recorded in the doc it concerns.
 
 **P3 — only if actually wanted**
 Ingredient scaling (the structured quantities already make this nearly free),
-meal planner, price history charts. Scaling is planned in
-`docs/plans/05-scaling-duplicates.md`; the shopping list was declined (see
-"Deliberately out of scope").
+meal planner, price history charts. **Scaling built** (plan 05,
+`docs/plans/05-scaling-duplicates.md`): a recipe read at another amount shows
+amounts a cook can measure (the vault's `vocab/scaling.yaml`: fractions per
+unit, a kitchen ladder, metric steps, `≈` when rounded), the amount in the
+page's address, set by the stepper, a free factor or by tapping an ingredient's
+amount; sub-recipes at the amount the line needs; amounts written in steps shown
+scaled beside the original; nothing scaled is ever written (`DATA-FLOW.md`,
+"Scaling"). The shopping list was declined (see "Deliberately out of scope").
+Meal planner and price history charts: not chosen.
 
 ## Open questions
 
@@ -530,7 +539,12 @@ path only when a site lacks the markup. Goes in P1 alongside the paste box.
   made" sorts for free.
 - **Duplicate detection by ingredient set.** Titles lie — "Lasagnes de maman" and
   "Lasagnes bolo" can be one recipe. Structured ingredients make Jaccard similarity
-  on ingredient sets trivial. Flag pairs above ~0.8.
+  on ingredient sets trivial. Flag pairs above ~0.8. **Built** (plan 05): weighted
+  Jaccard (rare ingredients weigh more, the weights from the vault itself),
+  threshold 0.65 tuned on the corpus (`INGREDIENTS.md`, "Duplicates"); `W505`
+  on the paste box and the form; `/doublons` lists the pairs, each settled as
+  two versions, the same recipe (one to the trash) or different recipes
+  (`vocab/distinct.yaml`).
 - **Parser test fixtures.** The validator is the contract with every AI and the
   form. A `tests/fixtures/` folder of good files and deliberately broken files,
   each asserting its exact error codes. Every real-world failure found becomes a

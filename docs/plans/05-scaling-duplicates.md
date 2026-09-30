@@ -900,6 +900,54 @@ the form path and `/doublons` family both.
 Done when: the targets are measured and recorded, and every answered question
 is in its doc.
 
+**Built (bench and docs; the review ran separately).**
+
+- *Ingredient mix.* Phase 5 found the generated vault meaningless for pairs:
+  every line drew from ~30 common words, and 5000 recipes gave 74 580 pairs.
+  `gen-vault.ts` now draws each recipe's names from one of 1200 invented dish
+  archetypes, picked with a long tail (weight 1 / (rank + 30): a few dishes with
+  dozens of cards — the largest 78 —, most with one to three; 905 used). An
+  archetype is sweet (45 %) or savoury: 2–5 flavour names drawn, long-tailed,
+  from the seed registry's first French names by category (`when:` entries
+  left out), half the time an invented registry entry, then 2–5 staples of its
+  kind; a card keeps each with p 0.8 and fills its lines with extras. The old
+  ING words as cards write them (*patates*, *tomates*, *bœuf haché*) head each
+  list, so the resolve queue still has plural and ambiguous forms. Flavours
+  come first in the archetype: the first try listed staples first, so a 4-line
+  card kept only staples and unrelated dishes paired at 1.0 (precision against
+  the archetypes 61 %; 97 % after). All of it from a **second PRNG**: the main
+  one keeps its exact call sequence (the invented-entry draw is still made,
+  unused), so titles, families, amounts, units, tags, times, prices and the
+  history are drawn as before; only the names on the lines changed. **Break
+  with plans 03/04:** the resolution mix (unresolved or ambiguous 9.5 % of rows,
+  15 % before), the most used entry (*beurre*, 1154 recipes, not *cheddar*,
+  882) and the pantry results differ; the timings of those paths are within
+  their earlier ranges.
+- *Planted pairs* (`--bench`, or `--plant`; a plain `gen-vault.ts N` still
+  writes exactly N recipes, as `tests/server/duplicates.test.ts` expects): 50
+  copies of recipes with 6+ lines and 10 of 4–5 lines, at a fixed stride, each
+  with a new title and slug, no family, its lines reversed, and in turn one
+  line's amount changed, its ingredient replaced by another of the dish's
+  kind, or the line removed; 20 families of three close variants (one
+  archetype, all of its core, one extra line each). Second PRNG only.
+- *Bench* (`benchPlan05`, after the plan 04 part: the vault has ~20 000
+  commits): the 60-line recipe and the 30 steps are invented (every unit class,
+  ranges, `alt`, `or`, a marker, `to_taste`; amounts, °F, minutes, a pan size,
+  a bowl); the corpus sweep is `tests/helpers/display`'s, as the test runs it;
+  the page loads call `loadRecipePage` and the kitchen load's own calls, and
+  time plan 05's share apart; the duplicate model is rebuilt by a write to the
+  index's `meta` table. The generator's archetypes give the pair list a
+  precision and recall of its own, printed beside D0.
+- *No `src/` change.* No target is missed by a margin that matters (below).
+- *Docs.* `DATA-FLOW.md` (W505 in the paste box, the form and the warnings
+  list; the used-sub-recipe rule of "C'est la même recette"; "Final figures for
+  P3"; the P2 table's retag row, stale since `6e8ee04`), `INGREDIENTS.md`
+  (consumed cost the only figure; the bench's duplicate figures),
+  `PLANNING.md` (Cost; 5000 recipes' duplicates; P3 scaling built; Tier 2
+  duplicates built), `VOCAB.md` (a stale example, below), `README.md` (pages,
+  `vault ingredients seed`, `vault check --dir`, the bench). `STORAGE.md`,
+  `VALIDATION.md`, `RECIPE-SCHEMA.md` were already current.
+
 ## Speed targets
 
 Measured on the generated 5000-recipe vault on this machine; recorded in the
@@ -907,17 +955,41 @@ final report and in `DATA-FLOW.md` next to the plan 02–04 figures. Scaling is
 browser code, timed in Node on a desktop CPU (a tablet ~10× slower must stay
 under a frame).
 
-| Operation | Target | Why |
-|---|---|---|
-| rescale and reformat every line of a 60-line recipe (rules parsed once) | < 1 ms | one tap on the stepper on a mid-range tablet |
-| scan every step of a 30-step recipe for amounts | < 1 ms | per factor change in kitchen mode |
-| corpus sweep: 320 recipes × 7 factors | < 2 s | the test stays in the normal suite |
-| recipe page / kitchen page server load | unchanged ± 2 ms | the rules file is one small read |
-| duplicate model build: 5000 recipes, all pairs above the threshold | < 1 s | first visit to the page, first check after a write |
-| `pairsFor` one recipe (paste or form check), model built | < 10 ms | every debounced form check |
-| pair list page, model built | < 50 ms | |
-| dismiss a pair (write + commit) | < 500 ms | git dominates (a price append is ~170 ms) |
-| family both / trash one from the page | as the existing writes (< 500 ms) | same writers |
+| Operation | Target | Why | Measured (Phase 8) |
+|---|---|---|---|
+| rescale and reformat every line of a 60-line recipe (rules parsed once) | < 1 ms | one tap on the stepper on a mid-range tablet | **0.16 ms** (median of 500 taps over six factors); parsing the rules 0.5 ms, once per load |
+| scan every step of a 30-step recipe for amounts | < 1 ms | per factor change in kitchen mode | **0.96 ms — at the target** (30 invented steps holding 45 amounts; the corpus has 3 amounts in 1472 steps); rendering the whole scaled method 1.2 ms |
+| corpus sweep: 320 recipes × 7 factors | < 2 s | the test stays in the normal suite | **0.41 s** (lines and method); `tests/scaling-corpus.test.ts` 1.2 s in vitest |
+| recipe page / kitchen page server load | unchanged ± 2 ms | the rules file is one small read | **2.0–2.4 ms / 0.15–0.2 ms**, of which plan 05 **0.02–0.1 ms** (rules, `subScale`) / **0.03 ms** (rules, conversions, plural rule); the layout's unit words 0.03 ms per page |
+| duplicate model build: 5000 recipes, all pairs above the threshold | < 1 s | first visit to the page, first check after a write | **105 ms** (5126 recipes, 3980 pairs) |
+| `pairsFor` one recipe (paste or form check), model built | < 10 ms | every debounced form check | **0.11 ms**; `closeRecipes` (W505, with `distinct.yaml`) 0.15 ms |
+| pair list page, model built | < 50 ms | | **2.9 ms** (page 1 or 50); 107 ms with the model to build, 121 ms the first read after a write |
+| dismiss a pair (write + commit) | < 500 ms | git dominates (a price append is ~170 ms) | **322 ms**; its "Annuler" 189 ms (a price append 221 ms in the same run) |
+| family both / trash one from the page | as the existing writes (< 500 ms) | same writers | **368 ms / 409 ms** (a form save 341 ms in the same run; 436 / 514 ms in a run at load ~6) |
+
+Measured 2026-09-30 on the AMD Ryzen 5 5600X (load average 5.8 at the start,
+1.4 at the end: the parallel review's test runs), git 2.43, Node 24.20:
+`npx tsx scripts/gen-vault.ts --bench` at `bc852b3`, 5000 recipes + 60
+planted copies + 60 in close-variant families, 1000 registry entries, 3000
+price rows, 20 012 commits. A first run on the code before the review's
+duplicates fixes (`51275c5`) gave the same figures within noise, except the
+trash action at 514 ms under load ~6.
+
+Duplicates on the bench vault (not speed; the generator's archetypes as the
+answer key):
+
+| Measure | Figure |
+|---|---|
+| pairs above 0.65 | 3980 — **77.6 per 100 recipes** (corpus: 66.6); by score 0.65–0.7: 827, 0.7–0.8: 1117, 0.8–0.9: 584, 0.9–1: 1452 |
+| precision: both cards of one archetype | 96.8 % (corpus D1: 97.2 %) |
+| recall: same-archetype pairs flagged | 10.7 % of 35 886 (corpus D2: 27 %) |
+| D0, 6+ lines: amount changed / ingredient replaced / line removed | 16/16 / **16/17** / 17/17, on the page and on paste; lowest scores 1.0 / 0.639 / 0.770 |
+| D0, 4–5 lines: same three | 4/4 / **2/3** / 3/3; lowest 1.0 / 0.508 / 0.860 |
+| close-variant families (60 pairs) | 0 listed; 55 score above 0.65 (Q16 C leaves them out) |
+
+The page's size on a real vault is the number of cards per dish, which the
+generator assumes; the corpus and the bench agree on ~70–80 pairs per 100
+recipes when most dishes have a few cards, and on ~97 % of them being one dish.
 
 ## Testing summary
 
@@ -965,6 +1037,96 @@ Asked for:
 5. Doc contradictions or undefined cases found beyond the questions below, each
    with a proposed doc change.
 6. Anything deferred, and why; the review's leftovers as GitHub issue links.
+
+### Report (Phase 8)
+
+**1. Built, per phase.**
+
+| Phase | What | Commits |
+|---|---|---|
+| — | plan, questions decided (recommended options; unit words to data) | `a9cf7cb`, `d556f5a` |
+| 0 | dish answer key and planted pairs; factor-1 baseline, scaling table, corpus harness | `41a3a6c`, `854e858` |
+| 1 | `vocab/scaling.yaml` and `vocab/unit-labels.yaml`, seeded | `785aa3c` |
+| 2 | scaled amounts a cook can measure: unit fractions, kitchen ladder, metric steps, `≈` | `c5d3ae9` |
+| 3 | the amount in the address, tap an amount, free factor | `a4f1f9f` |
+| 4 | sub-recipes at the line's amount, step amounts beside the original, the notice; the docs of Q1, Q5–Q9 | `23755ca`, `3278cea` |
+| 5 | the duplicate model: element sets, rarity-weighted Jaccard, prefix filtering, 0.65 | `0e5c359` |
+| 6 | W505 on paste, form and save | `53317f4` |
+| 7 | `/doublons` and its three actions, "Comparer", the nav entry | `b4fc206` (and `a67ef64`, the resolve-queue e2e) |
+| review | step amounts, unit words per request, Back and « Retour », the duplicates findings | `030071b`, `9b7de75`, `d60f5b5`, `51275c5` |
+| 8 | bench (realistic mix, planted pairs, the targets); docs; this report | `bc852b3`, this pass's `docs` commit |
+
+**2. Scaling sweep and step amounts:** Phase 2 and Phase 4 notes above (seed
+rules: counts ≈ 903 of 3192, containers ≈ 324 of 972, mass ≈ 166 / ladder 157
+/ decimal 10, volume ≈ 1735 / ladder 1117 / decimal 14, none on a cup or a
+spoon; 3 step amounts in 2 of 1472 steps, all cups).
+
+**3. D0–D4 and the threshold:** Phase 5 above (0.65; corpus D0 100 %, D1
+97.2 %, D2 27 %, D4 66.6 per 100); at 5000 recipes, the table above.
+
+**4. Speed:** the table above; every target met, the step scan at it (0.96 ms
+for 1 ms). Not a speed problem worth a change: the bench's 30 steps hold 45
+amounts (the corpus averages 0.002 a step), and even so a tablet ~10× slower
+stays under a 16 ms frame. The duplicate model's rebuild (~0.1 s) is paid by
+the first read after any index write, including the nav count of a Markdown
+account's next page.
+
+**5. Doc and code disagreements, and undefined cases** (found in the docs pass;
+none silently settled):
+
+- *Fixed in the docs, the decision already recorded:* `VOCAB.md` "Scaling"
+  gave `0,67 lb` as a decimal beyond the tolerance; since Phase 2's `oz → lb`
+  rung, `1 lb × ⅔` shows `10 ½ oz` (the plan's recorded decision) — the example
+  is now `1 oz × ⅔ = 0,67 oz`. `DATA-FLOW.md`'s P2 table still gave 3.8 s for
+  accepting a pending tag; `6e8ee04` made it ~0.5 s (now 0.65 s here) — the row
+  says both. The review's rule that a used sub-recipe is never trashed from
+  `/doublons` was only in this plan: now in `DATA-FLOW.md` too, still flagged
+  for the owner.
+- *Open, for the owner:* (a) `DATA-FLOW.md` "Validation" heads its warnings
+  "save anyway, mark the recipe `needs-review`", while its Conveniences (and the
+  code) set `needs-review` only for an uncertain marker (W605): no other
+  warning, W505 included, changes the status. Proposed: "save anyway; the
+  status follows the markers (Conveniences)". (b) `vault ingredients seed`
+  adds the vocab files a vault lacks (`unit-labels.yaml`, `scaling.yaml`), but
+  its help line says "add the seed ingredients missing from the vault" and its
+  output counts only ingredients, so the owner cannot see that his vault got
+  the scaling rules. `README.md` now says both; the CLI text is code (not
+  changed here). (c) A decimal beyond the tolerance can carry `≈` (`½ oz × ½`
+  shows `≈ 0,13 oz`: two decimals are 4 % from 0.125); `VOCAB.md` does not say
+  whether a decimal is ever marked. Proposed: decimals keep two digits and the
+  mark follows the 2 % rule like any amount — or show three digits below 1.
+  (d) A written `9 c. à table × 2` shows `18 c. à table`, not `≈ 1 tasse`: the
+  ladder steps up only to an exact result, and "never as many of the smaller
+  unit as make one of the next" applies only when stepping down. Consistent with
+  `VOCAB.md` as written, but a cook might expect the cup; for the owner.
+- *The plan's Phase 8 wording:* "one line changed" can be an amount (the same
+  card twice: always found, 1.0) or another ingredient (closer to a version:
+  missed 1 in 17 with 6+ lines, 1 in 3 with 4–5). The corpus gate (D0 100 %)
+  planted no replaced ingredient. Not a threshold problem to fix: lowering it
+  to catch 0.51 would cost precision (below ~0.58, D1 < 90 %).
+
+**6. Deferred, and why** (the review's leftovers go to GitHub issues from its
+own report):
+
+- Names are not pluralized when scaled (`2 oignon`, text yield `2 moule`): the
+  file holds one form of the name and the docs define no plural; adding endings
+  is a noun grammar per language (`DATA-FLOW.md`, "Scaling").
+- `UNIT_ALIASES` stays in code: `STORAGE.md` keeps the canonical unit list in
+  code and moving it would make the checker vault-dependent (Phase 4 notes).
+- Kitchen mode expands one sub-recipe level (no recursion).
+- An amount in a step split by emphasis or a marker is not marked (best effort).
+- The owner has not read `tests/fixtures/scaling.yaml` yet (Phase 0): the seed
+  values rest on it.
+- Two copies pasted in the same batch are not compared with each other (W505
+  checks against the vault only).
+- The paste page's "Mettre en famille" families only the pasted recipe (as W608
+  in P1); the form and `/doublons` family both.
+- An existing vault needs `vault ingredients seed` to get
+  `vocab/unit-labels.yaml` and `vocab/scaling.yaml`; without them units show
+  their code and scaled amounts show as before this plan.
+- The pair count on a real vault is unknown until the owner opens `/doublons`
+  on it: the bench and the corpus say ~70–80 per 100 recipes if most dishes
+  have a few cards — 3500–4000 pairs, ~200 pages, at 5000 recipes.
 
 ## Out of scope
 

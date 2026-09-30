@@ -44,14 +44,16 @@ writes, would never commit it. Delete and restore roll back the same way.
 ### The paste box
 
 `/ajouter`. The browser checks every change live with the checker library; the
-server re-checks with the vault (`E103`, `W306`, `W503`, `W608`) and is the only
-judge on save. Several fences in one paste are saved in one commit; files that
+server re-checks with the vault (`E103`, `W306`, `W503`, `W608`, `W505`) and is
+the only judge on save. Several fences in one paste are saved in one commit; files that
 fail stay in the box. A collision (`E103`) is settled inline: "Remplacer" (an
 edit, with the hash guard below) or the suffixed slug. Two files in one paste with the same new slug: the first
 is saved, only the later one waits for that choice. A same title (`W608`)
 offers to set `family`/`variant` on the new file (the paste box leaves the
 existing file untouched; the form puts both in the family in one commit, below).
-The fix-request block holds only `ai` codes.
+A recipe with nearly the same ingredients (`W505`, "Possible duplicates",
+below) gets the same offer, the other recipe linked. The fix-request block
+holds only `ai` codes.
 
 **Web import.** A URL typed above the box is fetched by the server — `http`/`https`
 only, 10 s for the whole fetch (redirects and body included, not only while
@@ -105,7 +107,9 @@ is byte-identical over the fixture vault and the 320-card corpus.
   `vocab/families.yaml` in the recipe's commit — only when the family has no
   label yet, so her save needs no hash of that file. `W608` "En faire deux
   versions" puts the other recipe in the family too, in the same commit
-  (`add: <title>; edit: <other title>`), guarded by that file's hash.
+  (`add: <title>; edit: <other title>`), guarded by that file's hash. `W505`
+  (nearly the same ingredients) makes the same offer for the first close
+  recipe not already offered by its title (plan 05, Phase 6).
 - **Tags** (Q11 B): autocomplete over the canonical tags, their labels and
   aliases; a tag not in the vocabulary is written as typed and indexed as
   pending (below, "Pending tags").
@@ -266,7 +270,10 @@ signed-in person, and its message offers "Annuler":
   commit `edit: <a>; edit: <b>`, hash-guarded on both files, each result
   checked before anything is written. Undone by the history's undo.
 - "C'est la même recette": the one she does not keep goes to the trash
-  (`delete: <title>`, hash-guarded), undone by the trash's restore.
+  (`delete: <title>`, hash-guarded), undone by the trash's restore. A recipe
+  another recipe uses as a sub-recipe is never trashed from here: each side
+  lists where it serves, the used side cannot be picked, and when both are used
+  the action is not offered (plan 05, review fixes; flagged for the owner).
 - "Recettes différentes": the pair added to `vocab/distinct.yaml`, commit
   `duplicate: <a> ≠ <b>`, hash-guarded on the file; "Annuler" takes the line out
   (`undo: duplicate <a> ≠ <b>`).
@@ -447,6 +454,8 @@ Warnings — save anyway, mark the recipe `needs-review`:
 - a tag not in the vocabulary → suggest closest canonical, else store `pending`
 - a `family` close to an existing one (catches `lasagne` vs `lasagna`)
 - another recipe has a near-identical title (duplicate paste — expected at 5000)
+- another recipe has nearly the same ingredients under another title (`W505`,
+  "Possible duplicates")
 - no `servings`, no `times` (no photo is `W603`, not emitted: plan 04, Q13 A)
 
 Conveniences:
@@ -574,7 +583,7 @@ above), on the same 5000-recipe vault grown to ~20 000 commits, one recipe with
 | "Revenir à cette version" | ~410 ms (~2.8 s before: it read the whole history first) | < 500 ms |
 | commit index: catch up one new commit / already at HEAD / read all ~20 000 commits | ~46 ms / ~0.1 ms / ~5 s (once, after `cache/` is deleted or an upgrade) | — |
 | `/etiquettes` page (22 pending tags, two on ~800 recipes) | ~37 ms | — |
-| accept a pending tag, commit included | ~3.8 s (the retag of every recipe) | — |
+| accept a pending tag, commit included | ~3.8 s (the retag of every recipe); ~0.65 s since the retag runs in one transaction (`6e8ee04`, measured in plan 05's bench) | — |
 | sign in (argon2id verify; unknown login the same) | ~160 ms | 100–500 ms |
 | session lookup per request | ~0.05 ms | < 0.5 ms |
 
@@ -590,6 +599,34 @@ each): a 50-version page is mostly parsing. Undo and restore are now a save
 plus a couple of git reads; a git spawn from the server process costs tens of
 ms, so HEAD is read from `.git` directly and a commit's changes come from the
 index.
+
+Final figures for P3 (plan 05, Phase 8; same machine, 2026-09-30, load average
+~1.5–6, the parallel review's test runs beside it), on the 5000-recipe vault
+grown to ~20 000 commits. The generator's ingredient mix changed in this plan
+(lines drawn from 1200 invented dish archetypes built from the seed registry's
+names, instead of ~30 common words), plus 60 planted duplicate copies and 20
+families of three close variants: 5126 recipes, 9.5 % of the ~34 000 ingredient
+rows unresolved or ambiguous (15 % before). Everything else the generator draws
+is as before, and the P1.5 and P2 figures re-measured in the same run are within
+their earlier ranges (form save ~340 ms, undo ~250 ms, the resolve queue page
+~9 ms). Scaling is browser code, timed in Node (a tablet ~10× slower).
+
+| Operation | Measured | Target |
+|---|---|---|
+| rescale and reformat every line of a 60-line recipe (rules parsed once, ~0.5 ms) | ~0.16 ms | < 1 ms |
+| scan 30 steps for amounts (45 amounts: denser than any card) | ~0.96 ms; rendering the scaled method ~1.2 ms | < 1 ms |
+| corpus sweep: 320 cards × 7 factors (lines and method) | ~0.4 s (the test file ~1.2 s in vitest) | < 2 s |
+| recipe page / kitchen page server load | ~2.0–2.4 ms / ~0.15–0.2 ms, of which plan 05 adds ~0.02–0.1 ms (the rules, sub-recipe scaling) / ~0.03 ms; the layout's unit words ~0.03 ms per page | unchanged ± 2 ms |
+| duplicate model build, all pairs above 0.65 | ~105 ms (3980 pairs) | < 1 s |
+| `pairsFor` one recipe / W505's `closeRecipes` (with `distinct.yaml`) | ~0.11 ms / ~0.15 ms | < 10 ms |
+| `/doublons` page, model built / not built | ~3 ms / ~110 ms (~120 ms the first read after a write) | < 50 ms |
+| the nav's "Doublons (N)" (a Markdown account, every page) | ~0.55 ms | — |
+| "Recettes différentes" (write + commit) / its "Annuler" | ~320 ms / ~190 ms | < 500 ms |
+| "Deux versions" (both recipes, one commit) / "C'est la même recette" (trash) | ~370 ms / ~410 ms | < 500 ms |
+
+A first read after any write to the index rebuilds the duplicate model (~0.1 s):
+the pair list, W505's check and, for a Markdown account, the nav count of every
+page — the first page after a save pays it once.
 
 ## vault sync
 
