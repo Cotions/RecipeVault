@@ -344,3 +344,64 @@ export function scaleTextYield(text: string, factor: number, rules: ScalingRules
 	const shown = s.plain ? formatNumber(s.values[0], lang) : formatScaledNumber(s.values[0], s.decimal, lang);
 	return { text: shown + text.slice(m[0].length), scaled: true, approx: s.approx };
 }
+
+// --- the amount in the address (Q1 A, Q8 B) ------------------------------------
+
+/**
+ * The factor a page address asks for: `?portions=8` (a recipe with servings)
+ * or `?fois=1.5`, kept only inside the file's cap; anything else is 1.
+ */
+export function factorFromParams(params: URLSearchParams, recipe: Pick<Recipe, 'servings'>, rules: ScalingRules | null | undefined): number {
+	return paramFactor(params, recipe, rules) ?? 1;
+}
+
+/** As `factorFromParams`, but undefined when the address asks for nothing valid (kitchen mode then resumes its session). */
+export function paramFactor(params: URLSearchParams, recipe: Pick<Recipe, 'servings'>, rules: ScalingRules | null | undefined): number | undefined {
+	const portions = plainNumber(params.get('portions'));
+	if (portions !== undefined && recipe.servings) {
+		const f = capFactor(portions / recipe.servings, rules);
+		if (f !== undefined) return f;
+	}
+	const fois = plainNumber(params.get('fois'));
+	return fois === undefined ? undefined : capFactor(fois, rules);
+}
+
+/** `8`, `1.5`, `1,5` — digits only: no `1e9`, no `0x10`, no sign. */
+function plainNumber(s: string | null): number | undefined {
+	return s !== null && /^\d+([.,]\d+)?$/.test(s.trim()) ? Number(s.trim().replace(',', '.')) : undefined;
+}
+
+/** A factor for an address: at most 4 decimals, no trailing zeros. */
+const factorText = (f: number) => String(Number(f.toFixed(4)));
+
+/**
+ * The address parameter for a factor: `portions=N` when the recipe has
+ * servings and the factor makes a whole number of them, else `fois=F`; none at
+ * factor 1 unless `always` (the kitchen link always says how much, so an old
+ * kitchen session never wins over the page).
+ */
+export function amountParam(recipe: Pick<Recipe, 'servings'>, factor: number, always = false): { key: 'portions' | 'fois'; value: string } | null {
+	if (factor === 1 && !always) return null;
+	if (recipe.servings) {
+		const n = recipe.servings * factor;
+		if (Math.abs(n - Math.round(n)) < 1e-9 && Math.round(n) >= 1) return { key: 'portions', value: String(Math.round(n)) };
+	}
+	return { key: 'fois', value: factorText(factor) };
+}
+
+/** `?portions=8`, `?fois=1.5` or '' — for a link. */
+export function amountQuery(recipe: Pick<Recipe, 'servings'>, factor: number, always = false): string {
+	const p = amountParam(recipe, factor, always);
+	return p ? `?${p.key}=${p.value}` : '';
+}
+
+/**
+ * A typed amount (« j'ai 3 », « 2,5 », « 1 1/2 », « ½ ») as a number, or
+ * undefined. The factor is then typed ÷ written (Q8 B).
+ */
+export function readAmount(text: string): number | undefined {
+	const t = text.trim();
+	if (!t) return undefined;
+	const n = sizeNumber(t);
+	return n !== undefined && Number.isFinite(n) && n > 0 ? n : undefined;
+}

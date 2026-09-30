@@ -30,7 +30,7 @@ test('kitchen mode: checklist, steps by tap zones, timer, resume after reload', 
 
 	// Servings rescale the step's ingredients too.
 	await page.getByRole('button', { name: 'Plus de portions' }).click();
-	await expect(page.locator('.step-ings')).toContainText('933 g de tomates concassées');
+	await expect(page.locator('.step-ings')).toContainText('935 g de tomates concassées');
 
 	await page.reload();
 	await expect(page.getByText('Étape 3 sur 7')).toBeVisible();

@@ -10,22 +10,41 @@
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import { parseRecipe } from '$lib/vault/parse';
 	import { plainText } from '$lib/render/markers';
+	import { replaceState } from '$app/navigation';
+	import { amountQuery, factorFromParams } from '$lib/render/scale';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	// SvelteKit keeps this component when going from one recipe to another, so
-	// the scaling is derived from the recipe: it resets on every new recipe and
-	// can still be changed by hand in between.
-	// Keyed on the slug alone, so a form action reloading the same recipe keeps them.
+	// the factor is derived: read from the address (`?portions=` or `?fois=`,
+	// plan 05 Q1 A) on every new recipe or navigation, changed by hand in between.
+	// Keyed on the slug and the address's query alone, so a form action reloading
+	// the same recipe keeps it (replaceState below does not change page.url).
 	const slug = $derived(data.recipe.slug);
-	let servings = $derived.by(() => {
+	const search = $derived(page.url.search);
+	let factor = $derived.by(() => {
 		void slug;
-		return untrack(() => data.recipe.servings ?? 0);
+		void search;
+		return untrack(() => factorFromParams(page.url.searchParams, data.recipe, data.scaling));
 	});
-	let multiplier = $derived.by(() => {
-		void slug;
-		return 1;
+	// The address follows the factor, without a history entry: a reload, a
+	// bookmark or a shared link shows the same amounts. Only the two parameters
+	// are touched; the rest of the query stays.
+	$effect(() => {
+		const q = amountQuery(data.recipe, factor);
+		untrack(() => {
+			const url = new URL(location.href);
+			url.searchParams.delete('portions');
+			url.searchParams.delete('fois');
+			for (const [k, v] of new URLSearchParams(q)) url.searchParams.set(k, v);
+			if (url.href === location.href) return;
+			try {
+				replaceState(url, page.state);
+			} catch {
+				// Before the router is ready (first render): the next change writes it.
+			}
+		});
 	});
 	let copied = $state(false);
 	/** The file on disk that fails, to name the places of its errors. */
@@ -35,7 +54,7 @@
 
 	const uncertain = $derived(data.recipe.markers.some((m) => m.kind !== 'added'));
 	// Always say how much: an old kitchen session must not win over what this page shows.
-	const kitchenHref = $derived(`/r/${data.recipe.slug}/cuisine${data.recipe.servings ? `?portions=${servings}` : `?fois=${multiplier}`}`);
+	const kitchenHref = $derived(`/r/${data.recipe.slug}/cuisine${amountQuery(data.recipe, factor, true)}`);
 
 	async function copyFile() {
 		await navigator.clipboard.writeText(data.file.text);
@@ -99,8 +118,7 @@
 	tagViews={data.tags}
 	itemLinks={data.links}
 	scaling={data.scaling}
-	bind:servings
-	bind:multiplier
+	bind:factor
 >
 	{#snippet cost(factor: number)}
 		{#if data.cost}<CostLine cost={data.cost} {factor} money={data.money} />{/if}

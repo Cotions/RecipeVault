@@ -4,9 +4,9 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { t, tagLabel, familyLabel } from '$lib/i18n/fr';
 	import { formatDurationValue, formatSeconds } from '$lib/render/duration';
-	import { formatAmount } from '$lib/render/ingredient';
+	import { formatAmount, type ScaleBase } from '$lib/render/ingredient';
 	import { renderMarkdown } from '$lib/render/markdown';
-	import { MULTIPLIERS, scaleTextYield, servingsRange, type ScalingRules } from '$lib/render/scale';
+	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, readAmount, scaleTextYield, servingsRange, type ScalingRules } from '$lib/render/scale';
 	import { formatOven } from '$lib/render/temperature';
 	import { formatNumber } from '$lib/render/fraction';
 	import { parseBody } from '$lib/vault/body';
@@ -25,8 +25,7 @@
 		links = true,
 		familyName = null,
 		tagViews,
-		servings = $bindable(recipe.servings ?? 0),
-		multiplier = $bindable(1),
+		factor = $bindable(1),
 		itemLinks,
 		cost,
 		photoPrompt,
@@ -44,8 +43,8 @@
 		familyName?: string | null;
 		/** Recipe page: per tag of `recipe.tags`, its filter key and label (vocab/tag-labels.yaml). Without it (the paste preview) a tag shows as written. */
 		tagViews?: { key: string; label: string }[];
-		servings?: number;
-		multiplier?: number;
+		/** The scaling factor (plan 05): the page keeps it in its address (Q1 A). */
+		factor?: number;
 		/** Recipe page: how each line resolved, by position across groups. */
 		itemLinks?: Record<number, { item?: string; key?: string }>;
 		/** Recipe page: the cost line, given the current scaling factor. */
@@ -57,7 +56,60 @@
 	} = $props();
 
 	const lang = $derived(recipe.lang);
-	const factor = $derived(recipe.servings ? servings / recipe.servings : multiplier);
+	/** Tapping an amount and the free factor (Q8 B): on the recipe page, not in the paste preview. */
+	const interactive = $derived(links);
+	const cap = $derived(scaling?.factor ?? DEFAULT_FACTOR_CAP);
+	/** The servings at the factor: whole on the stepper, possibly not after a typed amount. */
+	const servingsNow = $derived(recipe.servings ? recipe.servings * factor : 0);
+	const wholeServings = $derived(Math.abs(servingsNow - Math.round(servingsNow)) < 1e-9);
+	/** The multipliers offered, and the current factor when it is none of them. */
+	const multipliers = $derived(MULTIPLIERS.includes(factor as (typeof MULTIPLIERS)[number]) ? [...MULTIPLIERS] : [...MULTIPLIERS, factor].sort((a, b) => a - b));
+	function setServings(n: number) {
+		const f = capFactor(n / recipe.servings!, scaling);
+		if (f !== undefined) factor = f;
+	}
+
+	// « J'en ai … »: a tapped amount, then factor = typed ÷ written.
+	let asking = $state<{ key: string; base: ScaleBase } | null>(null);
+	let haveText = $state('');
+	let haveError = $state('');
+	function ask(key: string, base: ScaleBase) {
+		asking = asking?.key === key && asking.base === base ? null : { key, base };
+		haveText = '';
+		haveError = '';
+	}
+	/** A typed factor or amount → the factor, or an error line. */
+	function checked(n: number | undefined): number | string {
+		if (n === undefined) return t.scaling.unreadable;
+		return capFactor(n, scaling) ?? t.scaling.outOfRange(formatNumber(cap.min, 'fr'), formatNumber(cap.max, 'fr'));
+	}
+	function applyHave(e: SubmitEvent) {
+		e.preventDefault();
+		if (!asking) return;
+		const typed = readAmount(haveText);
+		const f = checked(typed === undefined ? undefined : typed / asking.base.value);
+		if (typeof f === 'string') haveError = f;
+		else {
+			factor = f;
+			asking = null;
+		}
+	}
+	let askFactor = $state(false);
+	let factorText = $state('');
+	let factorError = $state('');
+	function applyFactor(e: SubmitEvent) {
+		e.preventDefault();
+		const f = checked(readAmount(factorText.replace(/^\s*[×x*]\s*/i, '')));
+		if (typeof f === 'string') factorError = f;
+		else {
+			factor = f;
+			askFactor = false;
+			factorError = '';
+		}
+	}
+	function focus(node: HTMLInputElement) {
+		node.focus();
+	}
 	/** The position of each group's first line across groups, as the index numbers them. */
 	const offsets = $derived(recipe.ingredients.reduce<number[]>((a, g, i) => (a.push(i ? a[i - 1] + recipe.ingredients[i - 1].items.length : 0), a), []));
 	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s], numbered: stepStyle.numbered }));
@@ -209,27 +261,40 @@
 				<h2 id="ingredients-title">{t.recipe.ingredients}</h2>
 				<div class="scaler no-print">
 					{#if recipe.servings}
-						<button class="step" type="button" aria-label={t.recipe.decrease} disabled={servings <= 1} onclick={() => (servings = Math.max(1, servings - 1))}>−</button>
-						<output aria-live="polite">{servings} <span class="unit">{t.recipe.scale.toLowerCase()}</span></output>
-						<button class="step" type="button" aria-label={t.recipe.increase} onclick={() => (servings = servings + 1)}>+</button>
-						{#if servings !== recipe.servings}
-							<button class="btn quiet" type="button" onclick={() => (servings = recipe.servings!)}>{t.recipe.reset}</button>
-						{/if}
+						<button class="step" type="button" aria-label={t.recipe.decrease} disabled={servingsNow <= 1 + 1e-9} onclick={() => setServings(Math.max(1, Math.ceil(servingsNow - 1e-9) - 1))}>−</button>
+						<output aria-live="polite">{formatNumber(servingsNow, lang)} <span class="unit">{t.recipe.scale.toLowerCase()}</span></output>
+						<button class="step" type="button" aria-label={t.recipe.increase} disabled={(Math.floor(servingsNow + 1e-9) + 1) / recipe.servings > cap.max + 1e-9} onclick={() => setServings(Math.floor(servingsNow + 1e-9) + 1)}>+</button>
 					{:else}
 						<label>
 							<span class="visually-hidden">{t.recipe.scaleFactor}</span>
-							<select bind:value={multiplier}>
-								{#each MULTIPLIERS as m (m)}
+							<select bind:value={factor}>
+								{#each multipliers as m (m)}
 									<option value={m}>× {formatNumber(m, lang)}</option>
 								{/each}
 							</select>
 						</label>
 					{/if}
+					{#if interactive}
+						<button class="btn quiet" type="button" aria-expanded={askFactor} onclick={() => ((askFactor = !askFactor), (factorError = ''))}>{t.scaling.other}</button>
+					{/if}
+					{#if factor !== 1}
+						<button class="btn quiet" type="button" onclick={() => ((factor = 1), (asking = null))}>{t.recipe.reset}</button>
+					{/if}
 				</div>
 				{#if factor !== 1}
-					<p class="print-only scaled">× {formatNumber(factor, lang)}</p>
+					<p class="scaled" class:print-only={!recipe.servings || wholeServings}>{t.scaling.factorShown(formatNumber(factor, 'fr'))}</p>
 				{/if}
 			</div>
+			{#if askFactor}
+				<form class="ask no-print" onsubmit={applyFactor}>
+					<label>{t.scaling.factorLabel} <span aria-hidden="true">×</span> <input inputmode="decimal" autocomplete="off" size="5" bind:value={factorText} use:focus /></label>
+					<button class="btn primary" type="submit">{t.scaling.apply}</button>
+					{#if factorError}<p class="err" role="alert">{factorError}</p>{/if}
+				</form>
+			{/if}
+			{#if interactive && recipe.ingredients.some((g) => g.items.some((it) => it.qty && !it.toTaste))}
+				<p class="tap-hint no-print">{t.scaling.tapHint}</p>
+			{/if}
 			{#each recipe.ingredients as g, gi (gi)}
 				<div class="group" class:optional={g.optional}>
 					{#if g.group || g.optional}
@@ -240,7 +305,18 @@
 					{/if}
 					<ul>
 						{#each g.items as item, ii (ii)}
-							<li><IngredientLine {item} {factor} {lang} {titles} rules={scaling} link={itemLinks?.[offsets[gi] + ii]} /></li>
+							{@const key = `${gi}:${ii}`}
+							<li>
+								<IngredientLine {item} {factor} {lang} {titles} rules={scaling} link={itemLinks?.[offsets[gi] + ii]} onscale={interactive ? (b) => ask(key, b) : undefined} />
+								{#if asking?.key === key}
+									<form class="ask no-print" onsubmit={applyHave}>
+										<label>{t.scaling.have(formatAmount({ qty: { value: asking.base.value }, unit: asking.base.unit }, { lang }))} <input inputmode="decimal" autocomplete="off" size="5" bind:value={haveText} use:focus /></label>
+										<button class="btn primary" type="submit">{t.scaling.apply}</button>
+										<button class="btn quiet" type="button" onclick={() => (asking = null)}>{t.scaling.cancel}</button>
+										{#if haveError}<p class="err" role="alert">{haveError}</p>{/if}
+									</form>
+								{/if}
+							</li>
 						{/each}
 					</ul>
 				</div>
@@ -425,6 +501,40 @@
 	}
 	.print-only {
 		display: none;
+	}
+	.scaled {
+		margin: 0;
+		font-size: var(--step--1);
+		font-weight: 700;
+		color: var(--rule-red);
+	}
+	.tap-hint {
+		margin: 0.35rem 0 0;
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+	}
+	.ask {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.5rem;
+		margin: 0.4rem 0 0.2rem;
+		padding: 0.5rem 0.6rem;
+		background: var(--paper, #f7f5ef);
+		border-left: 3px solid var(--rule-red);
+		font-size: var(--step--1);
+	}
+	.ask input {
+		font: inherit;
+		font-size: var(--step-0);
+		width: 5rem;
+		padding: 0.3rem 0.4rem;
+		margin-left: 0.25rem;
+	}
+	.ask .err {
+		flex-basis: 100%;
+		margin: 0;
+		color: var(--rule-red);
 	}
 	.group h3 {
 		font-family: var(--sans);

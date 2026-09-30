@@ -544,6 +544,45 @@ vault file unchanged afterwards.
 Done when: the amount survives reload and sharing, and can be set from any
 ingredient (per Q8).
 
+Decisions (done): one `factor` replaces the page's `servings`/`multiplier`
+pair, on the recipe page and in kitchen mode. The page reads it with
+`factorFromParams` (`?portions=` wins when the recipe has servings, then
+`?fois=`; digits only, so `1e9`, `0x10` and signs are ignored; outside the
+file's `factor` cap is ignored) and writes it back with `replaceState`
+(`amountQuery`: `portions` when the servings come out whole, else `fois` with at
+most 4 decimals; nothing at factor 1). `page.url` is not updated by
+`replaceState`, so the page compares against `location.href`; the factor is
+re-read on a new slug or a real navigation. The stepper goes to the next whole
+number of servings (from 7,5: + gives 8, − gives 7) inside the cap. "Autre
+quantité" takes a free factor on every recipe; a recipe without servings also
+lists the current factor in its select when it is not one of the multipliers.
+"Remettre" shows whenever the factor is not 1 (the button already existed under
+that name, so it was kept rather than renamed "Réinitialiser"). A tapped amount
+(main or `alt`, from the lower bound; not `to_taste`, not zero) opens « La
+recette demande … J'en ai : » under its line; errors say what to type or the
+cap. "recette × f" shows on screen when the servings are not whole, and always
+in print. The paste preview has no tapping and no free factor. Kitchen mode
+stores `factor` in its session and still resumes an older session's `servings`
+or `multiplier`; the page's parameter still wins, then is dropped from the
+address. UI numbers (the cap, "recette × f") are in French whatever the
+recipe's language. The kitchen e2e amount after + is now `935 g` (metric step
+5 from 100 g), was `933 g`.
+
+Tests: `tests/unit/scale.test.ts` (address in and out, typed amounts);
+`tests/e2e/scaling.spec.ts` (desktop: reload, bad parameters, tapping, free
+factor and cap, print, no request, file, HEAD and `git status` unchanged);
+`tests/e2e/kitchen-scaling.spec.ts` (phone and tablet: stepper, kitchen opened
+scaled, an older session). Vitest 1651 passed, 1 skipped; svelte-check 0
+errors; e2e 120 passed, 3 failed in `resolve-queue.spec.ts` (desktop; not
+touched by scaling, not investigated — the owner's reboot came first).
+
+Stopped here (reboot). Next: Phase 4 (sub-recipes per Q5 A with
+`subRecipeFactor × factor` in kitchen mode and `?fois=` on the recipe page's
+sub-recipe link; `src/lib/render/stepamounts.ts` for the scaled step amount
+beside the original per Q6 B, in kitchen `pieces()` and the recipe page
+markdown; the times/oven/pan notice), then record Q1 and Q5–Q9 in the docs
+(DATA-FLOW.md), then check the `resolve-queue.spec.ts` failures.
+
 ### Phase 4 — kitchen mode: sub-recipes and step amounts
 
 Depends on: Q5, Q6.

@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { capFactor, parseScaling, scaleTextYield, scaleValues, servingsRange, type ScalingRules } from '../../src/lib/render/scale';
+import { amountParam, amountQuery, capFactor, factorFromParams, paramFactor, parseScaling, readAmount, scaleTextYield, scaleValues, servingsRange, type ScalingRules } from '../../src/lib/render/scale';
 import { formatAmount, ingredientParts, ingredientText } from '../../src/lib/render/ingredient';
 import { seedVocab } from '../../src/lib/server/vault';
 import { parseQuantity } from '../../src/lib/vault/quantity';
@@ -103,7 +103,7 @@ describe('scaleValues', () => {
 		const parts = ingredientParts({ qty: q('1 [?]'), unit: 'piece', name: 'œuf' }, { factor: 4 / 3, lang: 'fr', rules: SEED_RULES });
 		expect(parts.slice(0, 3)).toEqual([
 			{ kind: 'approx', text: '≈ ' },
-			{ kind: 'amount', text: '1 ½' },
+			{ kind: 'amount', text: '1 ½', base: { value: 1, unit: 'piece' } },
 			{ kind: 'text', text: ' [?]' }
 		]);
 	});
@@ -150,5 +150,42 @@ describe('servings and yield (Q7 A)', () => {
 		expect(y('2 à 3 douzaines', 2)).toMatchObject({ scaled: false });
 		expect(y('2-3 pots', 2)).toMatchObject({ scaled: false });
 		expect(y('12muffins', 2)).toMatchObject({ scaled: false });
+	});
+});
+
+describe('the amount in the address (Q1 A)', () => {
+	const p = (q: string) => new URLSearchParams(q);
+	const four = { servings: 4 };
+	it('reads portions, then fois, inside the cap', () => {
+		expect(factorFromParams(p('portions=8'), four, SEED_RULES)).toBe(2);
+		expect(factorFromParams(p('fois=1.5'), four, SEED_RULES)).toBe(1.5);
+		expect(factorFromParams(p('fois=1,5'), {}, SEED_RULES)).toBe(1.5);
+		expect(factorFromParams(p('portions=6&fois=3'), four, SEED_RULES)).toBe(1.5);
+		// portions means nothing without servings: fois is read.
+		expect(factorFromParams(p('portions=6&fois=3'), {}, SEED_RULES)).toBe(3);
+	});
+	it('ignores anything else: 1, and undefined for kitchen mode', () => {
+		for (const q of ['', 'portions=0', 'portions=-2', 'fois=abc', 'portions=1e9', 'fois=1e9', 'fois=0x10', 'fois=Infinity', 'fois=0', 'portions=400', 'fois=0.01', 'fois=']) {
+			expect(factorFromParams(p(q), four, SEED_RULES), q).toBe(1);
+			expect(paramFactor(p(q), four, SEED_RULES), q).toBeUndefined();
+		}
+	});
+	it('writes portions when whole, else fois; nothing at 1 unless asked', () => {
+		expect(amountParam(four, 1)).toBeNull();
+		expect(amountQuery(four, 1, true)).toBe('?portions=4');
+		expect(amountQuery(four, 1.5)).toBe('?portions=6');
+		expect(amountQuery(four, 1.3)).toBe('?fois=1.3');
+		expect(amountQuery({}, 2 / 3)).toBe('?fois=0.6667');
+		expect(amountQuery({}, 1, true)).toBe('?fois=1');
+		// Written then read: the same amounts.
+		for (const f of [0.5, 2 / 3, 1.25, 3, 7])
+			expect(factorFromParams(p(amountQuery(four, f).slice(1)), four, SEED_RULES)).toBeCloseTo(f, 3);
+	});
+	it('reads a typed amount', () => {
+		expect(readAmount('3')).toBe(3);
+		expect(readAmount(' 2,5 ')).toBe(2.5);
+		expect(readAmount('1 1/2')).toBe(1.5);
+		expect(readAmount('½')).toBe(0.5);
+		for (const s of ['', 'abc', '0', '-1']) expect(readAmount(s), s).toBeUndefined();
 	});
 });

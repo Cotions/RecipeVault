@@ -50,13 +50,19 @@ export function formatAmount(q: Amounted, opts: AmountOptions): string {
 /** The mark of a rounded amount (plan 05, Q2 A). */
 export const APPROX = '≈';
 
+/** The written amount a tap scales against (Q8 B): factor = what she has ÷ `value`, the lower bound of a range, in `unit`. */
+export interface ScaleBase {
+	value: number;
+	unit?: Unit;
+}
+
 export type Part =
-	| { kind: 'amount'; text: string }
+	| { kind: 'amount'; text: string; base?: ScaleBase }
 	/** A scaled amount rounded more than 2 % (plan 05, Q2 A): `≈ `, before the amount. */
 	| { kind: 'approx'; text: string }
 	| { kind: 'text'; text: string }
 	| { kind: 'name'; text: string; recipe?: string }
-	| { kind: 'muted'; text: string };
+	| { kind: 'muted'; text: string; base?: ScaleBase };
 
 const WORDS = {
 	fr: { or: 'ou', toTaste: 'au goût', optional: 'facultatif', buy: 'ou acheter :', ready: 'du commerce' },
@@ -79,13 +85,17 @@ export function ingredientParts(it: Ingredient, opts: AmountOptions): Part[] {
 	const amount = amountView(it, opts);
 	if (amount.text) {
 		if (amount.approx) parts.push({ kind: 'approx', text: `${APPROX} ` });
-		parts.push({ kind: 'amount', text: amount.text });
+		const tappable = !it.toTaste && it.qty!.value > 0;
+		parts.push(tappable ? { kind: 'amount', text: amount.text, base: { value: it.qty!.value, unit: it.unit } } : { kind: 'amount', text: amount.text });
 		// A marker on the quantity itself ("250 [?]") must stay visible.
 		const qtyMarkers = [it.qty?.raw, it.qtyMax?.raw]
 			.filter((r): r is string => typeof r === 'string')
 			.flatMap((r) => r.match(/\[[^\]]*\]/g) ?? []);
 		if (qtyMarkers.length) parts.push({ kind: 'text', text: ` ${qtyMarkers.join(' ')}` });
-		if (it.alt) parts.push({ kind: 'muted', text: ` (${altText(it.alt, opts)})` });
+		if (it.alt) {
+			const text = ` (${altText(it.alt, opts)})`;
+			parts.push(tappable && it.alt.qty.value > 0 ? { kind: 'muted', text, base: { value: it.alt.qty.value, unit: it.alt.unit } } : { kind: 'muted', text });
+		}
 		// French measures take "de": 500 g de farine, 2 gousses d’ail; pieces do not: 3 oignons.
 		const joiner = lang === 'fr' && it.unit && it.unit !== 'piece' ? ` ${de(it.name)}` : ' ';
 		parts.push({ kind: 'text', text: joiner });

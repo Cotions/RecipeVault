@@ -537,7 +537,17 @@ export const fr = {
 	scaling: {
 		approxTitle: 'Arrondi : la quantité exacte ne se mesure pas avec les tasses et les cuillères',
 		times: (f: string) => `× ${f}`,
-		yieldTimes: (f: string) => `(× ${f})`
+		yieldTimes: (f: string) => `(× ${f})`,
+		tapHint: 'Touchez une quantité pour ajuster la recette à ce que vous avez.',
+		tapTitle: 'Ajuster la recette à cette quantité',
+		have: (written: string) => `La recette demande ${written}. J’en ai :`,
+		apply: 'Ajuster',
+		cancel: 'Annuler',
+		other: 'Autre quantité',
+		factorLabel: 'Multiplier la recette par',
+		unreadable: 'Écrivez un nombre : 3, 2,5 ou 1 1/2.',
+		outOfRange: (min: string, max: string) => `Entre × ${min} et × ${max}.`,
+		factorShown: (f: string) => `recette × ${f}`
 	},
 	add: {
 		title: 'Ajouter des recettes',
