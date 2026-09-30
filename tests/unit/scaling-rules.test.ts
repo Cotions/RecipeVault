@@ -32,7 +32,9 @@ describe('parseScaling', () => {
 			{ unit: 'tbsp', into: 'cup', per: 16 },
 			{ unit: 'oz', into: 'lb', per: 16 },
 			{ unit: 'g', into: 'kg', per: 1000 },
-			{ unit: 'ml', into: 'l', per: 1000 }
+			{ unit: 'ml', into: 'l', per: 1000 },
+			{ unit: 'cup', into: 'qt', per: 4, up: false },
+			{ unit: 'cup', into: 'pint', per: 2, up: false }
 		]);
 		expect(r.metric).toEqual({
 			units: ['g', 'ml'],
@@ -81,6 +83,27 @@ metric:
 		expect(r.always).toEqual(['cup']);
 		expect(r.ladder).toEqual([{ unit: 'tsp', into: 'tbsp', per: 3, from: 0.5 }]);
 		expect(r.metric).toEqual({ units: ['g'], steps: [{ from: 0, step: 1 }] });
+	});
+
+	it('steps down only may share their smaller unit; one rung down into a unit, one up out of it', () => {
+		const r = parseScaling(
+			read(`
+ladder:
+  - { unit: tbsp, into: cup, per: 16 }
+  - { unit: cup, into: qt, per: 4, up: false }
+  - { unit: cup, into: pint, per: 2, up: false }
+  - { unit: tbsp, into: qt, per: 64, up: false }
+  - { unit: cup, into: l, per: 4 }
+  - { unit: cup, into: kg, per: 4 }
+  - { unit: tbsp, into: pint, per: 32 }
+`)
+		)!;
+		expect(r.ladder).toEqual([
+			{ unit: 'tbsp', into: 'cup', per: 16 },
+			{ unit: 'cup', into: 'qt', per: 4, up: false },
+			{ unit: 'cup', into: 'pint', per: 2, up: false },
+			{ unit: 'cup', into: 'l', per: 4 }
+		]);
 	});
 
 	it('a partial file gets the default numbers', () => {

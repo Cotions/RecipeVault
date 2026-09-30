@@ -4,7 +4,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isMap, isScalar, parse, parseDocument, stringify, type Document } from 'yaml';
+import { isMap, isNode, isScalar, isSeq, parse, parseDocument, stringify, type Document } from 'yaml';
 import { parseIngredient, REGISTRY_KEYS, serializeIngredient } from '../ingredients/registry';
 import type { RegistryEntry } from '../ingredients/types';
 import { committed, type VaultContext } from './context';
@@ -156,6 +156,54 @@ export function writeMissingUnitLabels(root: string, vocabDoc: string): string[]
 }
 
 /**
+ * The ladder rungs added to the seed after vaults were first given
+ * `vocab/scaling.yaml` (docs/VOCAB.md, "Scaling"), by the unit they step down
+ * from: a quart and a pint shown in cups (owner, 2026-09-30).
+ */
+export const LADDER_ADDED = ['qt', 'pint'] as const;
+
+/**
+ * Those rungs, added to a vault's `vocab/scaling.yaml` that has a `ladder` and
+ * no rung down into that unit yet. A file without a ladder, one that does not
+ * read, or a rung the vault already has are left alone; nothing else is
+ * touched. Returns the path when written. (A missing file is
+ * `writeMissingVocab`'s: the whole seed.)
+ */
+export function writeMissingLadder(root: string, vocabDoc: string): string[] {
+	const rel = `${VOCAB}/scaling.yaml`;
+	const abs = join(root, rel);
+	if (!existsSync(abs)) return [];
+	const text = readFileSync(abs, 'utf8');
+	const doc = parseDocument(text, { version: '1.2' }) as unknown as Document;
+	if (doc.errors.length || !isMap(doc.contents)) return [];
+	const ladder = doc.contents.get('ladder', true);
+	if (!isSeq(ladder)) return [];
+	const has = new Set(ladder.items.map((r) => (isMap(r) ? r.get('into') : undefined)));
+	const seedText = seedVocab(vocabDoc)['scaling.yaml'];
+	const seed = (parse(seedText, { version: '1.2' }) as { ladder?: Record<string, unknown>[] })?.ladder ?? [];
+	const rungs = LADDER_ADDED.filter((into) => !has.has(into) && seed.some((r) => r.into === into));
+	if (!rungs.length) return [];
+	const last = ladder.items.at(-1);
+	let next: string;
+	if (!ladder.flow && last && isNode(last) && last.range) {
+		// As lines after the last rung, the way the seed writes them: the rest of the file stays byte for byte.
+		const end = last.range[1];
+		const lineStart = text.lastIndexOf('\n', end - 1) + 1;
+		const indent = /^[ \t]*/.exec(text.slice(lineStart))![0];
+		const lines = rungs.map((into) => `${indent}- ${stringify(seed.find((r) => r.into === into), { version: '1.2', collectionStyle: 'flow' }).trim()}`);
+		const eol = text.indexOf('\n', end);
+		const at = eol === -1 ? text.length : eol;
+		next = text.slice(0, at) + lines.map((l) => `\n${l}`).join('') + text.slice(at);
+	} else {
+		for (const into of rungs) ladder.items.push(doc.createNode(seed.find((r) => r.into === into), { flow: true }));
+		next = doc.toString({ lineWidth: 0 });
+	}
+	if (next === text) return [];
+	writeFileSync(abs, next);
+	return [rel];
+}
+
+/**
  * `vault ingredients seed`: add the missing seed entries and vocab files to a
  * vault, in one commit `ingredients: seed (N entries)`. Holds the lock.
  */
@@ -163,6 +211,7 @@ export function seedVault(ctx: VaultContext, seedText: string, vocabDoc: string)
 	return ctx.lock.run(async () => {
 		const vocab = [
 			...writeMissingVocab(ctx.paths.root, vocabDoc),
+			...writeMissingLadder(ctx.paths.root, vocabDoc),
 			...writeMissingTagLabels(ctx.paths.root, vocabDoc),
 			...writeMissingUnitLabels(ctx.paths.root, vocabDoc)
 		];

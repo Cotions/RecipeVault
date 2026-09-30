@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/lib/server/app';
 import { loadRecipePage } from '../../src/lib/server/pages';
 import { save } from '../../src/lib/server/save';
-import { seedVault, writeMissingUnitLabels } from '../../src/lib/server/seed';
+import { seedVault, writeMissingLadder, writeMissingUnitLabels } from '../../src/lib/server/seed';
 import { seedVocab } from '../../src/lib/server/vault';
 import { loadScaling, loadUnitWords } from '../../src/lib/server/vocab';
 import { parseScaling } from '../../src/lib/render/scale';
@@ -47,6 +47,30 @@ describe('scaling rules and unit words in a vault', () => {
 		v.git('commit', '-qam', 'own rules');
 		await seedVault(v.ctx, '{}\n', VOCAB_DOC);
 		expect(v.read('vocab/scaling.yaml')).toBe('tolerance: 0.2\n');
+	});
+
+	it('adds the quart and pint steps down to an older ladder, never over a rung it has (owner, 2026-09-30)', async () => {
+		const seed = seedVocab(VOCAB_DOC)['scaling.yaml'];
+		const older = seed.replace(/^ {2}- \{ unit: cup, into: (qt|pint).*\n/gm, '');
+		expect(older).not.toBe(seed);
+		writeFileSync(join(v.dir, 'vocab/scaling.yaml'), older);
+		v.git('commit', '-qam', 'older rules');
+		const r = await seedVault(v.ctx, '{}\n', VOCAB_DOC);
+		expect(r.vocab).toEqual(['vocab/scaling.yaml']);
+		expect(v.read('vocab/scaling.yaml')).toBe(seed);
+		expect(writeMissingLadder(v.dir, VOCAB_DOC)).toEqual([]);
+		// The vault's own rung into a quart stays; only the pint is added.
+		const own = older.replace('ladder:\n', 'ladder:\n  - { unit: cup, into: qt, per: 5, up: false }\n');
+		writeFileSync(join(v.dir, 'vocab/scaling.yaml'), own);
+		expect(writeMissingLadder(v.dir, VOCAB_DOC)).toEqual(['vocab/scaling.yaml']);
+		const ladder = loadScaling(v.ctx.paths.vocab)!.ladder;
+		expect(ladder.filter((x) => x.into === 'qt')).toEqual([{ unit: 'cup', into: 'qt', per: 5, up: false }]);
+		expect(ladder.filter((x) => x.into === 'pint')).toEqual([{ unit: 'cup', into: 'pint', per: 2, up: false }]);
+		// No ladder (the vault's choice), or a file that does not read: left alone.
+		writeFileSync(join(v.dir, 'vocab/scaling.yaml'), 'tolerance: 0.2\n');
+		expect(writeMissingLadder(v.dir, VOCAB_DOC)).toEqual([]);
+		writeFileSync(join(v.dir, 'vocab/scaling.yaml'), 'ladder: [\n');
+		expect(writeMissingLadder(v.dir, VOCAB_DOC)).toEqual([]);
 	});
 
 	it('adds only the units and languages the vault’s words lack', () => {

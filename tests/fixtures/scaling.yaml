@@ -11,7 +11,11 @@
 #   snap (≈ beyond 2 %); other units snap within 10 %, else a short decimal;
 #   g and ml round to 1, then 5 from 100, then 25 from 1000;
 #   ladder 3 tsp = 1 tbsp (from 1 tbsp), 16 tbsp = 1 cup, 16 oz = 1 lb,
-#   1000 g = 1 kg, 1000 ml = 1 L; never down to as many as make one up.
+#   1000 g = 1 kg, 1000 ml = 1 L; down only: 4 cups = 1 qt, 2 cups = 1 pint;
+#   never down to as many as make one up while that one is within the tolerance.
+#
+# Owner reviewed the table 2026-09-30: approved, with ¾ cup × 1.5 and
+# 1 qt × ⅞ changed as below.
 
 cases:
   # Factor 1: the card as written, never snapped, never moved up or down.
@@ -48,8 +52,10 @@ cases:
   - { qty: 1, unit: tbsp, factor: 1.5, text: 1 ½ c. à table }
   # From 1 tbsp only: 1 ½ tsp stays in teaspoons.
   - { qty: 1, unit: tsp, factor: 1.5, text: 1 ½ c. à thé }
-  # ¾ cup × 1.5: 18 tbsp is more than a cup; the cup shows, marked.
-  - { qty: 3/4, unit: cup, factor: 1.5, text: ≈ 1 tasse }
+  # ¾ cup × 1.5: 1 ⅛ cup is no cup measure; 18 tbsp is (owner, 2026-09-30:
+  # the cup only when it measures the amount).
+  - { qty: 3/4, unit: cup, factor: 1.5, text: 18 c. à table }
+  - { qty: 9, unit: tbsp, factor: 2, text: 18 c. à table }
   # ¼ cup × ⅔: 8 tsp is more than a tablespoon; tablespoons, marked.
   - { qty: 1/4, unit: cup, factor: 2/3, text: ≈ 2 ½ c. à table }
 
@@ -79,7 +85,11 @@ cases:
   - { qty: 1, unit: lb, factor: 2/3, text: 10 ½ oz }
   - { qty: 1/4, unit: lb, factor: 1.5, text: 6 oz }
   - { qty: 10, unit: oz, factor: 2, text: 1 ¼ lb }
-  - { qty: 1, unit: qt, factor: 7/8, text: "0,88 pinte" }
+  # A quart or a pint steps down into cups (4 and 2 to it), never up from them.
+  - { qty: 1, unit: qt, factor: 7/8, text: 3 ½ tasses }
+  - { qty: 1, unit: qt, factor: 1.5, text: 1 ½ pinte }
+  - { qty: 1, unit: pint, factor: 7/8, text: 1 ¾ tasse }
+  - { qty: 2, unit: cup, factor: 4, text: 8 tasses }
 
   # Counts and containers (Q4 A): halves, marked when rounded; never 0.
   - { qty: 2, unit: piece, factor: 1.5, text: "3" }

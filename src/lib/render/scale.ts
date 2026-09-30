@@ -30,8 +30,12 @@ export interface ScalingRules {
 	fractions: Record<string, number[]>;
 	/** Units and classes that snap whatever the distance. */
 	always: string[];
-	/** Kitchen equivalences: one `into` is `per` of `unit`; step up into it from `from` of it (default: its smallest value). */
-	ladder: { unit: Unit; into: Unit; per: number; from?: number }[];
+	/**
+	 * Kitchen equivalences: one `into` is `per` of `unit`; step up into it from
+	 * `from` of it (default: its smallest value). `up: false`: a step down only
+	 * (a quart shows in cups; cups never climb into quarts).
+	 */
+	ladder: { unit: Unit; into: Unit; per: number; from?: number; up?: false }[];
 	/** Units rounded by steps rather than fractions. */
 	metric: { units: Unit[]; steps: { from: number; step: number }[] };
 }
@@ -106,9 +110,14 @@ export function parseScaling(data: unknown): ScalingRules | null {
 			if (!isMap(r) || !isUnit(r.unit) || !isUnit(r.into) || r.unit === r.into || !positive(r.per)) continue;
 			// Within one class only: never mass to volume.
 			if (UNIT_CLASS_OF[r.unit] !== UNIT_CLASS_OF[r.into]) continue;
-			if (rules.ladder.some((x) => x.unit === r.unit || x.into === r.into)) continue;
+			// One rung down into each unit; one rung up out of each unit (a step
+			// down only, `up: false`, may share its smaller unit with another).
+			const down = r.up === false;
+			if (rules.ladder.some((x) => x.into === r.into || (x.unit === r.unit && !down && x.up !== false))) continue;
 			const from = typeof r.from === 'string' ? (glyphFraction(r.from) ?? Number(r.from)) : r.from;
-			rules.ladder.push(positive(from) ? { unit: r.unit, into: r.into, per: r.per, from } : { unit: r.unit, into: r.into, per: r.per });
+			const rung: ScalingRules['ladder'][number] = positive(from) ? { unit: r.unit, into: r.into, per: r.per, from } : { unit: r.unit, into: r.into, per: r.per };
+			if (down) rung.up = false;
+			rules.ladder.push(rung);
 		}
 	}
 	if (isMap(data.metric)) {
@@ -205,26 +214,27 @@ function snap(a: number, unit: Unit, rules: ScalingRules): Snap | undefined {
 
 /**
  * The written unit's ladder, smallest unit first: each with the factor from
- * the written unit, and the rung up from it (`per` of it make one of the next).
+ * the written unit, and the rung to the next one up the chain (`per` of it
+ * make one of the next). Down by any rung into a unit; up only by rungs that
+ * climb (not `up: false`).
  */
-function chainOf(unit: Unit, rules: ScalingRules): { unit: Unit; k: number; up?: ScalingRules['ladder'][number] }[] {
-	const down: { unit: Unit; k: number }[] = [];
-	let cur = unit;
-	let k = 1;
-	for (let r = rules.ladder.find((x) => x.into === cur); r && !down.some((d) => d.unit === r!.unit) && r.unit !== unit; r = rules.ladder.find((x) => x.into === cur)) {
-		k *= r.per;
-		cur = r.unit;
-		down.unshift({ unit: cur, k });
+function chainOf(unit: Unit, rules: ScalingRules): { unit: Unit; k: number; link?: ScalingRules['ladder'][number] }[] {
+	const chain: { unit: Unit; k: number; link?: ScalingRules['ladder'][number] }[] = [{ unit, k: 1 }];
+	const has = (u: Unit) => chain.some((c) => c.unit === u);
+	for (;;) {
+		const first = chain[0];
+		const r = rules.ladder.find((x) => x.into === first.unit);
+		if (!r || has(r.unit)) break;
+		chain.unshift({ unit: r.unit, k: first.k * r.per, link: r });
 	}
-	const up: { unit: Unit; k: number }[] = [];
-	cur = unit;
-	k = 1;
-	for (let r = rules.ladder.find((x) => x.unit === cur); r && !up.some((d) => d.unit === r!.into) && r.into !== unit; r = rules.ladder.find((x) => x.unit === cur)) {
-		k /= r.per;
-		cur = r.into;
-		up.push({ unit: cur, k });
+	for (;;) {
+		const last = chain[chain.length - 1];
+		const r = rules.ladder.find((x) => x.unit === last.unit && x.up !== false);
+		if (!r || has(r.into)) break;
+		last.link = r;
+		chain.push({ unit: r.into, k: last.k / r.per });
 	}
-	return [...down, { unit, k: 1 }, ...up].map((c) => ({ ...c, up: rules.ladder.find((x) => x.unit === c.unit) }));
+	return chain;
 }
 
 const plainOf = (exact: number[], unit: Unit | undefined): Scaled => ({ values: exact, unit, approx: false, decimal: false, moved: false, plain: true });
@@ -255,20 +265,26 @@ export function scaleValues(values: number[], unit: Unit | undefined, factor: nu
 	const cands: Cand[] = [own];
 	// Up: a larger unit once the amount reaches the rung's `from`, else the unit's smallest value.
 	for (let i = at + 1; i < chain.length; i++) {
-		const min = chain[i - 1].up?.from ?? minOf(chain[i].unit, rules);
+		const min = chain[i - 1].link?.from ?? minOf(chain[i].unit, rules);
 		if (min === undefined || lo * chain[i].k + EPS < min) break;
 		const c = evaluate(i);
 		if (c) cands.push(c);
 	}
 	// Down: below the written unit's smallest value, or when nothing so far is
-	// within the tolerance; never to as many of a smaller unit as make one of
-	// the next (18 c. à table is a cup and more: the cup, rounded, shows).
+	// within the tolerance. Never to as many of a smaller unit as make one of
+	// the next (8 c. à thé is more than a tablespoon: `≈ 2 ½ c. à table`)…
+	// unless that next unit is itself beyond the tolerance: ¾ tasse × 1,5 is
+	// `18 c. à table`, not `≈ 1 tasse` (owner, 2026-09-30).
 	const ownMin = minOf(written, rules)!;
 	if (lo + EPS < ownMin || Math.min(...cands.map((c) => c.rank)) >= 2) {
+		let above = own.rank;
 		for (let i = at - 1; i >= 0; i--) {
-			if (Math.max(...exact) * chain[i].k + EPS >= chain[i].up!.per) break;
+			const over = Math.max(...exact) * chain[i].k + EPS >= chain[i].link!.per;
+			if (over && above < 2) break;
 			const c = evaluate(i);
 			if (c) cands.push(c);
+			if (over) break;
+			if (c) above = c.rank;
 		}
 	}
 	cands.sort((a, b) => {

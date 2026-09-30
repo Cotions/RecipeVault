@@ -494,6 +494,8 @@ ladder:
   - { unit: oz, into: lb, per: 16 }
   - { unit: g, into: kg, per: 1000 }
   - { unit: ml, into: l, per: 1000 }
+  - { unit: cup, into: qt, per: 4, up: false }
+  - { unit: cup, into: pint, per: 2, up: false }
 metric:
   units: [g, ml]
   steps:
@@ -531,9 +533,19 @@ yield) when the factor is not 1:
   `½ c. à table`). A smaller one when the amount falls below the written unit's
   smallest value (`⅛ tasse` → `2 c. à table`), or when nothing in the written
   unit is within the tolerance (`0,89 tasse` → `14 c. à table`) — but never as
-  many of it as make one of the next (`18 c. à table` is more than a cup: the
-  cup shows, marked). Among exact results the largest unit wins; otherwise the
-  closest.
+  many of it as make one of the next while that next unit shows the amount
+  within the tolerance (`8 c. à thé` is more than a tablespoon: `≈ 2 ½ c. à
+  table`). When the next unit is beyond it, the smaller one shows (`¾ tasse`
+  at ×1,5 is `18 c. à table`, not `≈ 1 tasse`: the cup is taken only when it
+  measures the amount; owner, 2026-09-30). Among exact results the largest
+  unit wins; otherwise the closest.
+- **Steps down only** (`up: false`): a quart or a pint shows in cups when it
+  does not measure the amount itself (`1 pinte` at ×⅞ is `3 ½ tasses`, not
+  `0,88 pinte`), but cups never climb into quarts or pints (`8 tasses` stays
+  `8 tasses`). These are kitchen equivalences too: 4 cups to the *pinte*, 2
+  to the *chopine*, as a Québec cook counts them — not the imperial volumes of
+  the conversions. Each unit steps down into one unit and up out of at most
+  one; a step down only may share its smaller unit with another rung.
 - **Ranges** scale both ends in one unit; two ends that show the same value
   show once.
 - **`factor`** caps what a link or a typed amount may ask for (×0.1 to ×20); a
@@ -547,4 +559,7 @@ as before this plan: the exact value, as a fraction glyph when one is within 2 %
 else a decimal. An entry that does not read (an unknown unit, a fraction without
 a glyph, a negative step) is dropped, the rest kept. `vault init` writes the
 file; `vault ingredients seed` adds it to an older vault, never over one already
-there.
+there. To a file that already has a `ladder`, it adds only the rungs added to
+the seed since (the quart and pint steps down into cups), each only when the
+vault's ladder has no rung down into that unit; nothing else in the file is
+touched.

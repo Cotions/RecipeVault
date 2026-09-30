@@ -358,8 +358,16 @@ Built (scaling side), with these decisions:
   vault. The factor-1 gate compares against this file, not against a copy of
   the old code. Regenerate only for a display change that is meant.
 - **Table.** `tests/fixtures/scaling.yaml`: 58 amount cases and 8 whole lines,
-  written by hand from Q2 A / Q3 B / Q4 A and the seed of Phase 1. The owner
-  has not read it yet (open: review before relying on the seed values).
+  written by hand from Q2 A / Q3 B / Q4 A and the seed of Phase 1. Owner
+  reviewed the scaling table 2026-09-30 (issue #13): approved (`≈ ½` for tiny
+  counts stays), with two changes — `¾ tasse × 1,5` shows `18 c. à table`, not
+  `≈ 1 tasse` (the cup only when it measures the amount: stepping down past
+  "as many as make one of the next" is allowed when that next unit is beyond
+  the tolerance), and `1 pinte × ⅞` shows `3 ½ tasses`, not `0,88 pinte` (new
+  seed rungs `cup → qt` ×4 and `cup → pint` ×2, steps down only, `up: false`,
+  so cups never climb into quarts; `vault ingredients seed` adds them to an
+  existing ladder, never over a rung into those units). Cases added for both
+  (68 amount cases now; there were 64, not 58).
 
 **Built (duplicates side).** `expected-dishes.yaml` is a flat `slug: key` map,
 generated; the hand cards’ keys are in `scripts/corpus/hand-dishes.ts` (16 hand
@@ -496,8 +504,10 @@ Built (`scaleValues` in `render/scale.ts`, `amountView` / `formatAmount` /
   `tsp → tbsp` from 1, so `1 ½ c. à thé` stays), else the larger unit's
   smallest value. Down: below the written unit's smallest value, or when
   nothing is within the tolerance; never to as many of the smaller unit as make
-  one of the next (`18 c. à table` → `≈ 1 tasse`, `8 c. à thé` →
-  `≈ 2 ½ c. à table`). A range is ranked on its worse end, one unit for both.
+  one of the next (`8 c. à thé` → `≈ 2 ½ c. à table`) — unless that next unit
+  is beyond the tolerance too (owner, 2026-09-30: `18 c. à table` of a written
+  `¾ tasse × 1,5` stays tablespoons; it showed `≈ 1 tasse` before). A range
+  is ranked on its worse end, one unit for both.
 - **Seed additions** from the sweep: `oz → lb` (16) on the ladder and
   `oz: [1/2]`, so `¼ lb × ⅔` shows `≈ 2 ½ oz` rather than `0,17 lb`. Imperial
   never reaches grams.
@@ -1119,8 +1129,8 @@ own report):
   code and moving it would make the checker vault-dependent (Phase 4 notes).
 - Kitchen mode expands one sub-recipe level (no recursion).
 - An amount in a step split by emphasis or a marker is not marked (best effort).
-- The owner has not read `tests/fixtures/scaling.yaml` yet (Phase 0): the seed
-  values rest on it.
+- ~~The owner has not read `tests/fixtures/scaling.yaml` yet~~ — reviewed
+  2026-09-30 (Phase 0 notes: two cases changed, the rest approved).
 - Two copies pasted in the same batch are not compared with each other (W505
   checks against the vault only).
 - The paste page's "Mettre en famille" families only the pasted recipe (as W608
