@@ -130,6 +130,7 @@ export const fr = {
 		empty: 'Aucun doublon possible : aucune paire de recettes n’a presque les mêmes ingrédients.',
 		count: (n: number) => (n === 1 ? '1 paire' : `${n} paires`),
 		score: (pct: number) => `${pct} % en commun`,
+		sameMethod: 'Même préparation, mot pour mot',
 		sameTitle: 'Même titre',
 		nearTitle: 'Titre presque pareil',
 		shared: 'En commun',
@@ -593,6 +594,16 @@ export const fr = {
 		family: 'Famille',
 		variant: 'Version',
 		makeFamily: 'Mettre en famille',
+		pairVariant: (title: string) => `Version de « ${title} »`,
+		pairNote: (title: string) => `« ${title} » est mise dans la même famille, dans le même enregistrement.`,
+		pairRefused: (reason: string, title: string) =>
+			reason === 'variant'
+				? `Donnez deux noms de version différents : celui-ci et celui de « ${title} ».`
+				: reason === 'busy'
+					? `« ${title} » est déjà modifiée par un autre fichier de ce collage : enregistrez-les l’un après l’autre.`
+					: `« ${title} » a changé ou ne peut pas être modifiée : rien n’a été enregistré pour ce fichier. Vérifiez puis réessayez.`,
+		batchFile: (n: number) => `le fichier n° ${n} de ce collage`,
+		batchCloseHint: 'Deux fois la même fiche ? N’en gardez qu’une.',
 		stale: 'La recette à remplacer a changé entre-temps. Vérifiez puis réessayez.',
 		notSaved: (n: number) =>
 			n === 1 ? '1 recette n’a pas été enregistrée : voyez ce qui la retient ci-dessous.' : `${n} recettes n’ont pas été enregistrées : voyez ce qui les retient ci-dessous.`,

@@ -1048,7 +1048,10 @@ async function benchPlan05(ctx: ReturnType<typeof openVault>): Promise<void> {
 	for (const [short, change] of [false, true].flatMap((sh) => CHANGES.map((c) => [sh, c] as const))) {
 		const ps = planted.filter((p) => p.short === short && p.change === change);
 		const onPage = ps.filter((p) => listed.has(pairKey(p.original, p.copy))).length;
-		const onPaste = ps.filter((p) => pairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), getRecipe(ctx.db, p.copy)!.recipe, { own: p.copy }).some((x) => x.slug === p.original)).length;
+		const onPaste = ps.filter((p) => {
+			const d = getRecipe(ctx.db, p.copy)!;
+			return pairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), d.recipe, { own: p.copy, body: d.row.body_md }).some((x) => x.slug === p.original);
+		}).length;
 		const scores = ps.map((p) => score(p.original, p.copy)).sort((x, y) => x - y);
 		console.log(`${`  D0 ${short ? '4–5' : '6+'} lines, ${change}`.padEnd(34)} page ${onPage}/${ps.length}, paste ${onPaste}/${ps.length}; score min ${scores[0].toFixed(3)}, median ${scores[Math.floor(scores.length / 2)].toFixed(3)}`);
 	}
@@ -1058,16 +1061,19 @@ async function benchPlan05(ctx: ReturnType<typeof openVault>): Promise<void> {
 	console.log(`${'  close-variant families'.padEnd(34)} ${famListed} of ${famPairs.length} pairs listed (${famAbove} above the threshold, left out as families, Q16 C)`);
 
 	// pairsFor: one recipe not saved yet (the paste check, the form's check), model built.
-	const queries = planted.map((p) => ({ own: p.copy, recipe: getRecipe(ctx.db, p.copy)!.recipe }));
+	const queries = planted.map((p) => {
+		const d = getRecipe(ctx.db, p.copy)!;
+		return { own: p.copy, recipe: d.recipe, body: d.row.body_md };
+	});
 	const vocab = () => loadVocab(ctx.paths.vocab);
 	let qi = 0;
 	time('pairsFor one recipe', () => {
 		const q = queries[qi++ % queries.length];
-		return pairsFor(ctx.db, vocab, q.recipe, { own: q.own });
+		return pairsFor(ctx.db, vocab, q.recipe, { own: q.own, body: q.body });
 	}, 200);
 	time('closeRecipes (W505, with the file)', () => {
 		const q = queries[qi++ % queries.length];
-		return closeRecipes(ctx, q.recipe, q.own);
+		return closeRecipes(ctx, q.recipe, q.own, { body: q.body });
 	}, 200);
 	time('pair list page 1, model built', () => duplicatePage(ctx, 1), 50);
 	time('pair list page 50', () => duplicatePage(ctx, 50), 50);

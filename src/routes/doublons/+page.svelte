@@ -57,6 +57,7 @@
 				<header>
 					<span class="score">{s.score(pct(p.score))}</span>
 					{#if p.titles}<span class="mark">{p.titles === 'same' ? s.sameTitle : s.nearTitle}</span>{/if}
+					{#if p.method}<span class="mark" data-testid="same-method">{s.sameMethod}</span>{/if}
 				</header>
 				<div class="sides">
 					{#each [p.a, p.b] as r (r.slug)}

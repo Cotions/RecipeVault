@@ -14,6 +14,7 @@
 //   longer in the vault is ignored.
 
 import { parse } from 'yaml';
+import { DUPLICATE_THRESHOLD } from '../ingredients/similar';
 import { slugify } from '../vault/slug';
 import { stripMarkers } from '../vault/markers';
 import { normTitle } from '../vault/rules/batch';
@@ -23,7 +24,7 @@ import { committed, type VaultContext } from './context';
 import { cleanLabel, FAMILIES_FILE, familiesFile, FamilyLabelError, LABEL_MAX, withLabel } from './families';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
 import { usedBy } from './index/query';
-import { allPairs, duplicateModel, pairDetail, pairKey, pairsFor } from './index/similar';
+import { allPairs, batchPairsFor, duplicateModel, pairDetail, pairKey, pairsFor } from './index/similar';
 import { EditError, editRecipesLocked, SaveError } from './save';
 import { remove, TrashError } from './trash';
 import { VOCAB } from './vault';
@@ -72,6 +73,8 @@ export interface CloseRecipe {
 	hash: string;
 	/** Weighted Jaccard, 0–1. */
 	score: number;
+	/** The two methods are the same text: flagged even below the threshold. */
+	method?: true;
 }
 
 /** At most this many other recipes named by one W505. */
@@ -82,15 +85,16 @@ const MAX_CLOSE = 3;
  * pairs already settled left out. `own`: the slug it will be saved under (an
  * edit, a paste over itself): never paired with itself. `exclude`: a recipe
  * left out without taking its settled pairs (a paste whose slug is taken,
- * which may yet be saved under another slug).
+ * which may yet be saved under another slug). `body`: its Markdown body, for
+ * the second signal (the same method).
  */
 export function closeRecipes(
 	ctx: VaultContext,
 	recipe: Pick<Recipe, 'ingredients' | 'lang' | 'family'>,
 	own?: string,
-	opts: { exclude?: string } = {}
+	opts: { exclude?: string; body?: string } = {}
 ): CloseRecipe[] {
-	const found = pairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), recipe, { own, dismissed: dismissedPairs(ctx) })
+	const found = pairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), recipe, { own, dismissed: dismissedPairs(ctx), body: opts.body })
 		.filter((f) => f.slug !== opts.exclude)
 		.slice(0, MAX_CLOSE);
 	if (!found.length) return [];
@@ -98,17 +102,54 @@ export function closeRecipes(
 	return found.map((f) => ({ ...f, hash: (hash.get(f.slug) as string | undefined) ?? '' }));
 }
 
+/** An earlier file of the same batch (a paste, `vault add`) with nearly the same ingredients: not saved yet, so named by its place. */
+export interface BatchClose {
+	/** Its index in the batch, 0-based. */
+	index: number;
+	/** How the batch names it (`recipe 1`, a path for `vault add`). */
+	name: string;
+	/** Weighted Jaccard, 0–1. */
+	score: number;
+	method?: true;
+}
+
+/**
+ * W505 inside one batch: for each file, the earlier files of the batch with
+ * nearly the same ingredients (the second copy names the first, which is not
+ * saved yet). `recipes[i]` null for a file with no recipe; `slugs` the slug
+ * each is saved under, for the settled pairs.
+ */
+export function batchCloseRecipes(
+	ctx: VaultContext,
+	recipes: (Pick<Recipe, 'ingredients' | 'lang' | 'family'> | null | undefined)[],
+	slugs: (string | undefined)[],
+	names: string[] = recipes.map((_, i) => `recipe ${i + 1}`),
+	bodies?: (string | undefined)[]
+): BatchClose[][] {
+	if (recipes.filter(Boolean).length < 2) return recipes.map(() => []);
+	return batchPairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), recipes, { slugs, dismissed: dismissedPairs(ctx), bodies }).map((list) =>
+		list.slice(0, MAX_CLOSE).map((x) => ({ ...x, name: names[x.index] }))
+	);
+}
+
 const pct = (x: number) => `${Math.round(100 * x)} %`;
 
-/** W505 (`app`): computed with the vault in the server check, the form's check and the save result; never the fix-request block. */
-export function duplicateWarnings(close: CloseRecipe[]): Diagnostic[] {
-	if (!close.length) return [];
+/**
+ * W505 (`app`): computed with the vault in the server check, the form's check
+ * and the save result; never the fix-request block. `batch`: earlier files of
+ * the same paste, named by their place (not saved yet).
+ */
+export function duplicateWarnings(close: CloseRecipe[], batch: BatchClose[] = []): Diagnostic[] {
+	if (!close.length && !batch.length) return [];
+	// The method named where it is why the pair is flagged (below the ingredients' threshold).
+	const share = (x: { score: number; method?: true }) => `${pct(x.score)} in common, weighted${x.method && x.score < DUPLICATE_THRESHOLD ? '; the same method' : ''}`;
+	const named = [...close.map((c) => `${c.slug} (${share(c)})`), ...batch.map((b) => `${b.name} of this batch (${share(b)})`)];
 	return [
 		{
 			code: 'W505',
 			severity: 'warning',
 			path: 'ingredients',
-			message: `nearly the same ingredients as ${close.map((c) => `${c.slug} (${pct(c.score)} in common, weighted)`).join(', ')} — possible duplicate.`,
+			message: `nearly the same ingredients as ${named.join(', ')} — possible duplicate.`,
 			fix: 'The same card: do not save it twice. Versions of one dish: make both members of a family. Different recipes: settle the pair on /doublons.'
 		}
 	];
@@ -147,6 +188,8 @@ export interface PairView {
 	onlyB: string[];
 	/** The titles too: `same` (W608), `near` (W503), or null. */
 	titles: 'same' | 'near' | null;
+	/** The two methods are the same text (the second signal, issue #13). */
+	method: boolean;
 }
 
 /** Pairs per page. */
@@ -209,7 +252,16 @@ export function duplicatePage(ctx: VaultContext, page = 1): { pairs: PairView[];
 		const d = pairDetail(m, x);
 		const [a, b] = [side(x.a), side(x.b)];
 		const [ta, tb] = [normTitle(a.title), normTitle(b.title)];
-		return { a, b, score: x.score, shared: d.shared, onlyA: d.onlyA, onlyB: d.onlyB, titles: ta === tb ? 'same' : withinDistance(ta, tb, 2) ? 'near' : null };
+		return {
+			a,
+			b,
+			score: x.score,
+			shared: d.shared,
+			onlyA: d.onlyA,
+			onlyB: d.onlyB,
+			titles: ta === tb ? 'same' : withinDistance(ta, tb, 2) ? 'near' : null,
+			method: !!x.method
+		};
 	});
 	return { pairs, total: all.length, page: p, pages, distinctHash: distinct.hash };
 }

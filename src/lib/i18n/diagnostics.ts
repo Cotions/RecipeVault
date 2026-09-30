@@ -63,7 +63,7 @@ export const codeText: Readonly<Record<string, string>> = {
 	W502: 'Le nom de famille ressemble beaucoup à une famille existante (une faute de frappe ?). Vérifiez-le.',
 	W503: 'Une recette au titre presque identique existe déjà : c’est peut-être un doublon.',
 	W504: 'Saison inconnue : ce doit être printemps, été, automne ou hiver.',
-	W505: 'Une recette du coffre a presque les mêmes ingrédients : c’est peut-être la même recette sous un autre titre. Ouvrez-la pour comparer ; si ce sont deux versions, mettez-les dans une même famille.',
+	W505: 'Une recette du coffre, ou un fichier plus haut dans ce collage, a presque les mêmes ingrédients : peut-être la même fiche en double. Si ce sont deux versions, mettez-les en famille.',
 	W601: 'Le nombre de portions n’est pas indiqué. Rien à faire si l’original ne le dit pas.',
 	W602: 'Aucun temps n’est indiqué. Rien à faire si l’original ne le dit pas.',
 	W603: 'Pas de photo du plat.',

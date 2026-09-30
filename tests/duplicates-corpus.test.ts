@@ -85,7 +85,8 @@ interface Metrics {
 
 /** D0–D2 and D4 at threshold `t`, from the pairs at ≥ 0.3. */
 function metrics(pairs: SimPair[], t: number): Metrics {
-	const at = pairs.filter((p) => p.score >= t - 1e-9);
+	// Flagged at t: above it, or (the second signal, issue #13) above METHOD_FLOOR with the same method.
+	const at = pairs.filter((p) => p.score >= t - 1e-9 || p.method);
 	const flaggedKeys = new Set(at.map(key));
 	const missed = planted.filter((p) => !flaggedKeys.has(key({ a: p.slug, b: p.original })));
 	// D1 and D2 on the corpus alone: planted copies left out.
@@ -150,7 +151,9 @@ describe('duplicate detection over the corpus (Phase 5)', () => {
 			`  D2 recall: French–French ${pct(m.recallFr)}, any language ${pct(m.recallAll)}`,
 			`  D4: ${m.per100.toFixed(1)} pairs per 100 recipes`
 		);
-		const wrong = low.filter((p) => p.score >= DUPLICATE_THRESHOLD && !isPlanted(p.a) && !isPlanted(p.b) && dishOf(p.a) !== dishOf(p.b));
+		const wrong = low.filter((p) => (p.score >= DUPLICATE_THRESHOLD || p.method) && !isPlanted(p.a) && !isPlanted(p.b) && dishOf(p.a) !== dishOf(p.b));
+		const byMethod = low.filter((p) => p.method && p.score < DUPLICATE_THRESHOLD && !isPlanted(p.a) && !isPlanted(p.b));
+		report.push(`  of which below ${DUPLICATE_THRESHOLD}, flagged by the same method (issue #13): ${byMethod.length}, ${byMethod.filter((p) => dishOf(p.a) === dishOf(p.b)).length} one dish`);
 		if (wrong.length) report.push(`  flagged pairs of two dishes: ${wrong.map((p) => `${p.a} ~ ${p.b} (${p.score.toFixed(2)})`).join('; ')}`);
 		expect(m.precision).toBeGreaterThanOrEqual(0.9);
 	});

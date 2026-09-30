@@ -21,7 +21,7 @@
 	import { stripMarkers } from '$lib/vault/markers';
 	import type { Diagnostic } from '$lib/vault/types';
 	import type { ServerCheckFile } from '$lib/server/paste';
-	import type { SaveResult } from '$lib/server/save';
+	import type { SaveFile, SaveResult } from '$lib/server/save';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -36,8 +36,8 @@
 	let savedTitles = $state<string[]>([]);
 	let importUrl = $state('');
 	let importing = $state(false);
-	/** Files whose replace was refused because the vault recipe changed, by file key. */
-	let staleFiles = $state<Set<string>>(new Set());
+	/** Files the save refused because a vault recipe changed (the one to replace, or the other of its pair), by file key: what to say. */
+	let staleFiles = $state<Map<string, string>>(new Map());
 	/** Bumped to run the server check again on the same text (after a save). */
 	let recheck = $state(0);
 
@@ -48,6 +48,8 @@
 		family?: boolean;
 		familySlug?: string;
 		variant?: string;
+		/** The version name of the vault recipe put in the family with this one (`pairWith`). */
+		pairVariant?: string;
 	}
 	/**
 	 * Per file, by its key (slug and rank among the files with that slug), not
@@ -218,16 +220,17 @@
 	}
 
 	/** Rebuild the box from the files left to deal with; choices and stale flags follow their files. */
-	function keepOnly(indices: number[], stale: Set<string>) {
+	function keepOnly(indices: number[], stale: Map<string, string>) {
 		const left = indices.map((i) => files[i]);
 		const oldKeys = indices.map((i) => keys[i]);
 		const newKeys = keysOf(left);
 		text = left.length === 0 ? '' : left.length === 1 && !split.files.length ? left[0] : left.map((f) => '```markdown\n' + f.trimEnd() + '\n```').join('\n\n') + '\n';
 		const next: typeof choices = {};
-		const nextStale = new Set<string>();
+		const nextStale = new Map<string, string>();
 		oldKeys.forEach((old, i) => {
 			if (choices[old]) next[newKeys[i]] = choices[old];
-			if (stale.has(old)) nextStale.add(newKeys[i]);
+			const why = stale.get(old);
+			if (why) nextStale.set(newKeys[i], why);
 		});
 		choices = next;
 		staleFiles = nextStale;
@@ -239,11 +242,17 @@
 		const sending = views.filter((v) => v.ok);
 		const payload = sending.map((v) => {
 			const c = choices[v.key] ?? {};
-			const f: { text: string; slug?: string; overwrite?: string; family?: { family: string; variant: string } } = { text: v.text };
+			const f: SaveFile = { text: v.text };
 			const col = v.server?.collision;
 			if (v.mode === 'replace' && col?.existing) f.overwrite = col.existing.hash;
 			if (v.mode === 'suffix' && col) f.slug = col.suggested;
-			if (c.family && c.familySlug && slugify(c.familySlug) && c.variant?.trim()) f.family = { family: slugify(c.familySlug), variant: c.variant.trim() };
+			if (c.family && c.familySlug && slugify(c.familySlug) && c.variant?.trim()) {
+				f.family = { family: slugify(c.familySlug), variant: c.variant.trim() };
+				// Both in the family, one commit (as the form and /doublons): the other recipe as she saw it.
+				const other = pairOf(v);
+				const pv = (c.pairVariant ?? other?.variant ?? '').trim();
+				if (other && pv) f.family.pair = { slug: other.slug, hash: other.hash, variant: pv };
+			}
 			return f;
 		});
 		// The files still to fix are part of this save attempt too: their codes go
@@ -263,9 +272,11 @@
 			const result: SaveResult = await res.json();
 			const saved = result.files.flatMap((r) => (r.status === 'saved' ? [{ slug: r.slug, title: r.title }] : []));
 			const refused = result.files.filter((r) => r.status !== 'saved').length;
-			const stale = new Set<string>();
+			const stale = new Map<string, string>();
 			result.files.forEach((r, k) => {
-				if (r.status === 'stale') stale.add(sending[k].key);
+				if (r.status !== 'stale') return;
+				const other = sending[k].server?.pairWith;
+				stale.set(sending[k].key, r.pair ? t.add.pairRefused(r.pair.reason, other?.slug === r.pair.slug ? other.title : r.pair.slug) : t.add.stale);
 			});
 			savedTitles = [...savedTitles, ...saved.map((s) => s.title)];
 			const savedIdx = new Set(result.files.flatMap((r, k) => (r.status === 'saved' ? [sending[k].index] : [])));
@@ -302,7 +313,7 @@
 			}
 			text = '```markdown\n' + body.markdown + '```\n';
 			choices = {};
-			staleFiles = new Set();
+			staleFiles = new Map();
 			importUrl = '';
 			flash(t.add.imported);
 			await tick();
@@ -324,6 +335,9 @@
 	}
 
 	const group = (ds: Diagnostic[], sev: string) => ds.filter((d) => d.severity === sev);
+
+	/** The vault recipe "Mettre en famille" puts in the family too; none when she replaces a recipe. */
+	const pairOf = (v: FileView) => (v.mode === 'replace' ? undefined : v.server?.pairWith);
 
 	onMount(() => box?.focus());
 </script>
@@ -380,6 +394,8 @@
 		v.diagnostics.some((d) => d.code === 'W608') ||
 		(!!col?.existing && fold(stripMarkers(col.existing.title)) === fold(stripMarkers(v.title)))}
 	{@const close = v.mode === 'replace' ? [] : (v.server?.close ?? [])}
+	{@const other = pairOf(v)}
+	{@const inBatch = v.server?.closeInBatch ?? []}
 	<section class="file" class:bad={!v.ok} aria-label={v.title}>
 		<header>
 			<h2><Marked text={v.title} /></h2>
@@ -387,7 +403,7 @@
 		</header>
 
 		{#if staleFiles.has(v.key)}
-			<p class="warn">{t.add.stale}</p>
+			<p class="warn" data-testid="stale">{staleFiles.get(v.key)}</p>
 		{/if}
 
 		{#if col && !v.firstFree}
@@ -416,6 +432,15 @@
 			</div>
 		{/if}
 
+		{#if inBatch.length}
+			<!-- W505 inside the paste: an earlier file of this paste, not saved yet, named by its place. -->
+			<p class="choice" data-testid="close-batch">
+				{t.add.close}
+				{#each inBatch as c, i (c.index)}{i ? ', ' : ' '}{t.add.batchFile(c.index + 1)} (« <Marked text={c.title} /> »){/each}.
+				{t.add.batchCloseHint}
+			</p>
+		{/if}
+
 		{#if (sameTitle || close.length) && v.mode !== 'replace'}
 			<div class="choice">
 				{#if close.length}
@@ -432,7 +457,8 @@
 						onchange={(e) =>
 							setChoice(v.key, {
 								family: e.currentTarget.checked,
-								familySlug: choices[v.key]?.familySlug ?? ((sameTitle ? undefined : close[0]?.family) || slugify(v.title))
+								familySlug: choices[v.key]?.familySlug ?? (other?.family || slugify(v.title)),
+								pairVariant: choices[v.key]?.pairVariant ?? other?.variant ?? ''
 							})}
 					/>
 					{sameTitle ? t.add.sameTitle : t.add.closeFamily}
@@ -441,6 +467,13 @@
 					<div class="family-fields">
 						<label>{t.add.family} <input type="text" value={choices[v.key]?.familySlug} oninput={(e) => setChoice(v.key, { familySlug: e.currentTarget.value })} /></label>
 						<label>{t.add.variant} <input type="text" value={choices[v.key]?.variant ?? ''} oninput={(e) => setChoice(v.key, { variant: e.currentTarget.value })} /></label>
+						{#if other}
+							<label
+								>{t.add.pairVariant(other.title)}
+								<input type="text" value={choices[v.key]?.pairVariant ?? ''} oninput={(e) => setChoice(v.key, { pairVariant: e.currentTarget.value })} /></label
+							>
+							<p class="pair-note">{t.add.pairNote(other.title)}</p>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -615,6 +648,12 @@
 		flex-wrap: wrap;
 		gap: 0.5rem 1rem;
 		margin-top: 0.5rem;
+	}
+	.pair-note {
+		flex-basis: 100%;
+		margin: 0;
+		font-size: var(--step--1);
+		color: var(--ink-soft);
 	}
 	.family-fields label {
 		display: flex;

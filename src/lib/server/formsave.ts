@@ -22,6 +22,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkBatch, checkFile, hasErrors } from '../vault/check';
+import { bodyText } from '../vault/parse';
 import { stripMarkers } from '../vault/markers';
 import { fold, withinDistance } from '../vault/normalize';
 import { normTitle } from '../vault/rules/batch';
@@ -43,7 +44,7 @@ import type { FileWrite } from './files';
 import { indexMemo } from './index/memo';
 import { getResolver, toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { recipePath } from './index/sync';
-import { currentFile, localDate, saveLocked, SaveError, vaultEntries, type SaveOptions } from './save';
+import { currentFile, localDate, pairEdit, saveLocked, SaveError, vaultEntries, type PairRequest, type SaveOptions } from './save';
 import { loadVocab } from './vocab';
 
 export interface FormBase {
@@ -54,11 +55,7 @@ export interface FormBase {
 }
 
 /** W608 "mettre en famille" (Q10 A): the other recipe of the pair joins the family too. */
-export interface FormPair {
-	slug: string;
-	hash: string;
-	variant: string;
-}
+export type FormPair = PairRequest;
 
 export interface FormSaveRequest {
 	form: FormRecipe;
@@ -168,8 +165,8 @@ async function formSaveLocked(ctx: VaultContext, req: FormSaveRequest, opts: For
 	if (files.length) extra.files = files;
 	if (req.pair && recipe.family) {
 		const pair = pairEdit(ctx, req.pair, recipe.family, opts.today ?? localDate());
-		if (!pair) return { status: 'refused', reason: 'pair' };
-		extra.recipes = [pair];
+		if ('refused' in pair) return { status: 'refused', reason: 'pair' };
+		if (!pair.unchanged) extra.recipes = [{ slug: pair.slug, title: pair.title, text: pair.text }];
 	}
 
 	let result;
@@ -189,7 +186,7 @@ async function formSaveLocked(ctx: VaultContext, req: FormSaveRequest, opts: For
 			created: r.created,
 			commit: result.commit,
 			hash: saved.hash,
-			hints: hintsFrom(ctx, r.diagnostics, ids, recipe),
+			hints: hintsFrom(ctx, r.diagnostics, ids, recipe, undefined, r.diagnostics.some((d) => d.code === 'W505') ? closeRecipes(ctx, recipe, recipe.slug, { body: bodyText(text) }) : undefined),
 			...(result.indexError ? { indexError: result.indexError } : {})
 		};
 	}
@@ -202,17 +199,6 @@ async function formSaveLocked(ctx: VaultContext, req: FormSaveRequest, opts: For
 	ctx.log(`recipevault: form save refused by the checker for ${slug} (${r.status}): ${r.diagnostics.filter((d) => d.severity === 'error').map((d) => `${d.code} ${d.path ?? ''}`).join(', ')}`);
 	const errors = checkerBlocks(r.diagnostics, ids);
 	return errors.length ? { status: 'invalid', errors } : { status: 'failed' };
-}
-
-/** The other recipe of a W608 pair, put in the family (Q10 A): its text, or undefined when it changed or cannot be read. */
-function pairEdit(ctx: VaultContext, pair: FormPair, family: string, today: string): { slug: string; title: string; text: string } | undefined {
-	if (!isSlug(pair.slug) || !pair.variant.trim()) return undefined;
-	const cur = currentFile(ctx, pair.slug);
-	if (!cur || cur.hash !== pair.hash) return undefined;
-	const file = checkFile(cur.text);
-	if (!file.recipe || !file.body || hasErrors(file.diagnostics)) return undefined;
-	const recipe: Recipe = { ...file.recipe, family, variant: stripMarkers(pair.variant).trim(), updated: today };
-	return { slug: pair.slug, title: recipe.title, text: serialize(recipe, file.body) };
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +317,7 @@ export function formCheck(
 	const f = checked.files[0];
 	const diagnostics = [...f.diagnostics];
 	// An edit is never its own duplicate; a new recipe's slug is in no row.
-	const close = f.recipe ? closeRecipes(ctx, f.recipe, base?.slug) : [];
+	const close = f.recipe ? closeRecipes(ctx, f.recipe, base?.slug, { body: bodyText(text) }) : [];
 	if (f.recipe)
 		diagnostics.push(...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, f.recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, f.recipe), ...duplicateWarnings(close));
 	// One title walk for the hints and `same` (the recipe's slug is base.slug on an edit; a new recipe's is in no row).

@@ -14,6 +14,10 @@ function valid(f: unknown): f is SaveFile {
 	if (o.family !== undefined) {
 		const fam = o.family as Record<string, unknown>;
 		if (typeof fam?.family !== 'string' || !SLUG_RE.test(fam.family) || typeof fam.variant !== 'string' || !fam.variant.trim()) return false;
+		if (fam.pair !== undefined) {
+			const p = fam.pair as Record<string, unknown>;
+			if (typeof p?.slug !== 'string' || !SLUG_RE.test(p.slug) || typeof p.hash !== 'string' || typeof p.variant !== 'string' || !p.variant.trim()) return false;
+		}
 	}
 	return true;
 }
@@ -32,12 +36,14 @@ function validUnsent(u: unknown): u is Unsent {
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json().catch(() => null);
 	if (!body || !Array.isArray(body.files) || !body.files.length || body.files.length > 50 || !body.files.every(valid))
-		error(400, 'files: { text, slug?, overwrite?, family? }[]');
+		error(400, 'files: { text, slug?, overwrite?, family?: { family, variant, pair?: { slug, hash, variant } } }[]');
 	const unsent: unknown[] = body.unsent ?? [];
 	if (!Array.isArray(unsent) || unsent.length > 50 || !unsent.every(validUnsent)) error(400, 'unsent: { codes: string[], slug?: string }[]');
 	const app = getApp();
 	try {
-		const result = await savePaste(app, body.files, unsent as Unsent[], writeContext(locals.user).author);
+		// Only the fields the paste box sends: a file's name in a diagnostic is the server's own (`recipe N`).
+		const files: SaveFile[] = (body.files as SaveFile[]).map(({ text, slug, overwrite, family }) => ({ text, slug, overwrite, family }));
+		const result = await savePaste(app, files, unsent as Unsent[], writeContext(locals.user).author);
 		return json(result);
 	} catch (e) {
 		if (e instanceof SaveError) error(500, e.message);

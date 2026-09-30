@@ -8,10 +8,11 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDocument } from 'yaml';
 import { checkBatch, checkFile, hasErrors } from '../vault/check';
+import { bodyText } from '../vault/parse';
 import { stripMarkers } from '../vault/markers';
-import { normalizeText } from '../vault/normalize';
+import { fold, normalizeText } from '../vault/normalize';
 import { serialize } from '../vault/serialize';
-import { SLUG_RE } from '../vault/slug';
+import { isSlug, SLUG_RE } from '../vault/slug';
 import type { Diagnostic, Recipe } from '../vault/types';
 import type { VaultEntry } from '../vault/rules/batch';
 import { committed, type VaultContext } from './context';
@@ -19,7 +20,7 @@ import { FileWriteError, writeAndCommit, type FileWrite } from './files';
 import { refreshFamilies, sha256 } from './index/build';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { checkOptions } from './checkopts';
-import { closeRecipes, duplicateWarnings } from './duplicates';
+import { batchCloseRecipes, closeRecipes, duplicateWarnings, type CloseRecipe } from './duplicates';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
 import { indexMemo } from './index/memo';
 import { loadVocab } from './vocab';
@@ -31,11 +32,27 @@ export interface SaveFile {
 	slug?: string;
 	/** Replace the vault recipe with this slug: the hash of the file the person saw (stale-write guard). */
 	overwrite?: string;
-	/** W608: make this recipe a member of a family (the existing one is untouched in P1). */
-	family?: { family: string; variant: string };
+	/**
+	 * W608 / W505 "Mettre en famille": make this recipe a member of a family;
+	 * `pair`, the vault recipe it was offered with, joins the family too, in the
+	 * same commit, hash-guarded (as the form's pair and /doublons).
+	 */
+	family?: { family: string; variant: string; pair?: PairRequest };
 	/** An edit keeps the recipe's status (plan 04, Q14 A: the form): see `statusFor`. */
 	keepStatus?: boolean;
+	/** How a diagnostic names this file to another of the batch (`vault add`: its path); default `recipe N`. */
+	name?: string;
 }
+
+/** The other recipe of a W608 / W505 pair, put in the family with this one: its hash as the person saw it, its variant. */
+export interface PairRequest {
+	slug: string;
+	hash: string;
+	variant: string;
+}
+
+/** Why the other recipe of a pair was not edited (the file is then not saved): see `pairEdit`. */
+export type PairRefusal = 'gone' | 'stale' | 'invalid' | 'variant' | 'busy';
 
 export type FileResult =
 	| { status: 'saved'; slug: string; title: string; recipeStatus: string; created: boolean; diagnostics: Diagnostic[] }
@@ -50,7 +67,13 @@ export type FileResult =
 			inTrash: boolean;
 			diagnostics: Diagnostic[];
 	  }
-	| { status: 'stale'; slug: string; diagnostics: Diagnostic[] };
+	| {
+			status: 'stale';
+			slug: string;
+			diagnostics: Diagnostic[];
+			/** Set when it is the other recipe of its pair that could not be put in the family (this file is not saved either). */
+			pair?: { slug: string; reason: PairRefusal };
+	  };
 
 export interface SaveResult {
 	files: FileResult[];
@@ -229,7 +252,7 @@ export async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: Sav
 	const texts = files.map((f) => {
 		const changes: Record<string, string> = {};
 		if (f.slug) changes.slug = f.slug;
-		if (f.family) Object.assign(changes, f.family);
+		if (f.family) Object.assign(changes, { family: f.family.family, variant: f.family.variant });
 		return Object.keys(changes).length ? setFrontmatter(f.text, changes) : normalizeText(f.text);
 	});
 	const { entries, trash } = vaultEntries(ctx);
@@ -243,6 +266,10 @@ export async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: Sav
 	const results: FileResult[] = [];
 	const ready: Ready[] = [];
 	const claimed = new Set<string>();
+	/** The other recipes of pairs, edited in this commit: slug → text. */
+	const paired = new Map<string, string>();
+	/** Saved files, for W505: the vault's close recipes now, the batch's once every file is judged. */
+	const saved: { result: number; file: number; slug: string; recipe: Recipe; body: string; close: CloseRecipe[] }[] = [];
 	checked.files.forEach((f, i) => {
 		const diagnostics = f.diagnostics;
 		const errors = diagnostics.filter((d) => d.severity === 'error');
@@ -270,9 +297,26 @@ export async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: Sav
 			results.push({ status: 'collision', slug, suggested: suffixed(slug, taken), existing: { title: slug, hash: cur.hash }, inTrash: false, diagnostics });
 			return;
 		}
-		if (files[i].overwrite !== undefined && cur?.hash !== files[i].overwrite) {
+		if ((files[i].overwrite !== undefined && cur?.hash !== files[i].overwrite) || paired.has(slug)) {
+			// A recipe another file's pair edits in this commit is not replaced in the same one.
 			results.push({ status: 'stale', slug, diagnostics });
 			return;
+		}
+		const pair = files[i].family?.pair;
+		let pairText: { slug: string; title: string; text: string } | undefined;
+		if (pair) {
+			const variant = files[i].family!.variant;
+			const edit =
+				pair.slug === slug || claimed.has(pair.slug)
+					? { refused: 'busy' as const }
+					: fold(stripMarkers(pair.variant).trim()) === fold(stripMarkers(variant).trim())
+						? { refused: 'variant' as const }
+						: pairEdit(ctx, pair, files[i].family!.family, today);
+			if ('refused' in edit || (paired.has(edit.slug) && paired.get(edit.slug) !== edit.text)) {
+				results.push({ status: 'stale', slug, diagnostics, pair: { slug: pair.slug, reason: 'refused' in edit ? edit.refused : 'busy' } });
+				return;
+			}
+			if (!paired.has(edit.slug) && !edit.unchanged) pairText = edit;
 		}
 		claimed.add(slug);
 		const previous = cur ? checkFile(cur.text).recipe : undefined;
@@ -285,14 +329,25 @@ export async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: Sav
 			extractedBy: recipe.extractedBy ?? 'hand'
 		};
 		ready.push({ slug, title: recipe.title, text: serialize(final, file.body!), created: !cur, verb: cur ? 'edit' : 'add' });
-		const unresolved = [
-			...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, recipe),
-			...toTasteWarnings(ctx.db, ctx.paths.vocab, recipe),
-			// W505 against the vault before this save: the recipe itself is left out (an edit, a replace).
-			...duplicateWarnings(closeRecipes(ctx, recipe, slug))
-		];
+		if (pairText) {
+			paired.set(pairText.slug, pairText.text);
+			ready.push({ ...pairText, created: false, verb: 'edit' });
+		}
+		const unresolved = [...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, recipe)];
+		// W505 against the vault before this save (the recipe itself left out: an edit, a replace), with the batch's below.
+		const body = bodyText(texts[i]);
+		saved.push({ result: results.length, file: i, slug, recipe, body, close: closeRecipes(ctx, recipe, slug, { body }) });
 		results.push({ status: 'saved', slug, title: recipe.title, recipeStatus: final.status!, created: !cur, diagnostics: [...diagnostics, ...unresolved] });
 	});
+	// W505 inside the batch: a saved file names the earlier saved files close to it (saved in this same commit).
+	const inBatch = batchCloseRecipes(
+		ctx,
+		saved.map((x) => x.recipe),
+		saved.map((x) => x.slug),
+		saved.map((x) => files[x.file].name ?? `recipe ${x.file + 1}`),
+		saved.map((x) => x.body)
+	);
+	saved.forEach((x, k) => results[x.result].diagnostics.push(...duplicateWarnings(x.close, inBatch[k])));
 	if (!ready.length) return { files: results };
 	for (const r of opts.extra?.recipes ?? []) ready.push({ ...r, created: false, verb: 'edit' });
 	const { commit, indexError } = await writeCommitIndex(ctx, ready, undefined, opts.extra?.files);
@@ -304,6 +359,32 @@ function fileSlugOf(text: string): string | undefined {
 	if (r.recipe) return r.recipe.slug;
 	const s = r.frontmatter?.slug;
 	return typeof s === 'string' ? s : undefined;
+}
+
+/**
+ * The other recipe of a W608 / W505 pair, put in `family` with `variant`
+ * (plan 04, Q10 A; the paste box and the form): its new text, or why not —
+ * gone, changed since the person saw it (`hash`), or a file with errors.
+ * Written by the caller in the same commit as the recipe it pairs with;
+ * `unchanged` when it is already that version of that family (nothing to write).
+ */
+export function pairEdit(
+	ctx: VaultContext,
+	pair: PairRequest,
+	family: string,
+	today: string
+): { slug: string; title: string; text: string; unchanged?: boolean } | { refused: PairRefusal } {
+	if (!isSlug(pair.slug) || !pair.variant.trim()) return { refused: 'invalid' };
+	const cur = currentFile(ctx, pair.slug);
+	if (!cur) return { refused: 'gone' };
+	if (cur.hash !== pair.hash) return { refused: 'stale' };
+	const file = checkFile(cur.text);
+	if (!file.recipe || !file.body || hasErrors(file.diagnostics)) return { refused: 'invalid' };
+	const variant = stripMarkers(pair.variant).trim();
+	if (file.recipe.family === family && file.recipe.variant && stripMarkers(file.recipe.variant).trim() === variant)
+		return { slug: pair.slug, title: file.recipe.title, text: cur.text, unchanged: true };
+	const recipe: Recipe = { ...file.recipe, family, variant, updated: today };
+	return { slug: pair.slug, title: recipe.title, text: serialize(recipe, file.body) };
 }
 
 export class EditError extends Error {

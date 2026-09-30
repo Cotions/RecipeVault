@@ -3,8 +3,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+	batchPairs,
 	DUPLICATE_THRESHOLD,
 	elementSet,
+	METHOD_FLOOR,
+	methodShingles,
+	sameMethod,
 	familyExcluded,
 	MIN_ELEMENTS,
 	rarityWeights,
@@ -186,5 +190,84 @@ describe('candidates by prefix filtering', () => {
 				.sort();
 			expect(got, q.slug).toEqual(want);
 		}
+	});
+});
+
+describe('the second signal: the same method (issue #13)', () => {
+	const METHOD = '## Préparation\n\n1. Crémer le beurre et la cassonade, ajouter les œufs un à un.\n2. Incorporer la farine et le bicarbonate, puis les raisins.\n3. Cuire 12 minutes à 350 °F sur une plaque beurrée.\n';
+
+	it('word pairs of the method: headings, numbers, short words and accents out', () => {
+		const m = methodShingles(METHOD);
+		expect(m).toContain('cremer beurre');
+		expect(m).toContain('beurre cassonade');
+		expect(m.some((w) => w.includes('preparation'))).toBe(false);
+		expect(m.some((w) => /\d/.test(w))).toBe(false);
+		expect(m).toEqual([...m].sort());
+		// The same text differently spaced, cased and numbered reads the same.
+		expect(methodShingles(METHOD.toUpperCase().replace(/\n\d\. /g, '\n- '))).toEqual(m);
+	});
+
+	it('same method: most word pairs shared, and both long enough', () => {
+		const m = methodShingles(METHOD);
+		expect(sameMethod(m, m)).toBe(true);
+		expect(sameMethod(m, methodShingles(METHOD.replace('une plaque beurrée', 'une plaque graissée')))).toBe(true);
+		expect(sameMethod(m, methodShingles('1. Mélanger tous les ingrédients, verser dans un moule et cuire une heure.'))).toBe(false);
+		// "Mélanger. Cuire." twice says nothing.
+		const short = methodShingles('1. Mélanger.\n2. Cuire 20 min.\n');
+		expect(sameMethod(short, short)).toBe(false);
+		expect(sameMethod(undefined, m)).toBe(false);
+	});
+
+	it('a copy with one ingredient swapped: below the threshold, flagged when the method is the same text', () => {
+		const lines = (...xs: string[]) => elementSet(xs.map((x) => L(x)));
+		const a = { slug: 'a', family: null, ...lines('avoine', 'raisins', 'cassonade', 'beurre'), method: methodShingles(METHOD) };
+		const b = { slug: 'b', family: null, ...lines('avoine', 'dattes', 'cassonade', 'beurre'), method: methodShingles(METHOD) };
+		const w = () => 1;
+		const score = weightedJaccard(a.elements, b.elements, w);
+		expect(score).toBeLessThan(DUPLICATE_THRESHOLD);
+		expect(score).toBeGreaterThanOrEqual(METHOD_FLOOR);
+		expect(similarPairs([a, b], w)).toEqual([{ a: 'a', b: 'b', score, method: true }]);
+		expect(similarTo(b, simIndex([a]), w)).toEqual([{ slug: 'a', score, method: true }]);
+		expect(batchPairs([a, b], w)[1]).toEqual([{ index: 0, score, method: true }]);
+		// Another method: not flagged.
+		const c = { ...b, slug: 'c', method: methodShingles('1. Faire fondre le beurre, mélanger le reste et presser dans un moule carré. Réfrigérer.') };
+		expect(similarPairs([a, c], w)).toEqual([]);
+		// Too far on ingredients, even with the same method: not flagged.
+		const d = { ...a, slug: 'd', ...lines('avoine', 'dattes', 'noix', 'miel') };
+		expect(similarPairs([a, d], w)).toEqual([]);
+	});
+
+	describe('prefix filtering with methods equals brute force', () => {
+		// Methods from a few texts (by the first element), a word changed now and then: many same-method pairs, most far on ingredients.
+		const word = (n: number) => `mot${'abcdefghij'[n % 10]}${'abcdefghij'[Math.floor(n / 10) % 10]}`;
+		const texts = Array.from({ length: 12 }, (_, k) => `Étape ${k}: ` + Array.from({ length: 14 }, (_, i) => word((k * 7 + i * 3) % 40)).join(' '));
+		let s = 11;
+		const rand = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+		const recipes = randomRecipes(400).map((r) => {
+			// Near copies mostly keep their source's first element, so mostly its method.
+			const words = texts[Number(r.elements[0]?.slice(1) ?? 0) % texts.length].split(' ');
+			if (rand() < 0.4) words[2 + Math.floor(rand() * (words.length - 2))] = word(40 + Math.floor(rand() * 5));
+			return rand() < 0.1 ? r : { ...r, method: methodShingles(words.join(' ')) };
+		});
+		const ws = rarityWeights(recipes);
+		const weight = (e: string) => ws.get(e) ?? 1;
+
+		it.each([0.3, 0.5, DUPLICATE_THRESHOLD, 0.8, 1])('at %s', (t) => {
+			const brute = similarPairsBrute(recipes, weight, t);
+			expect(similarPairs(recipes, weight, t)).toEqual(brute);
+			if (t === DUPLICATE_THRESHOLD) {
+				expect(brute.filter((p) => p.method && p.score < t).length).toBeGreaterThan(0);
+			}
+		});
+
+		it('one recipe against the vault finds what the all-pairs pass finds for it', () => {
+			const idx = simIndex(recipes);
+			const all = similarPairsBrute(recipes, weight, DUPLICATE_THRESHOLD);
+			for (const q of recipes.slice(0, 120)) {
+				const got = similarTo(q, idx, weight, DUPLICATE_THRESHOLD, q.slug).map((x) => x.slug).sort();
+				const want = all.filter((p) => p.a === q.slug || p.b === q.slug).map((p) => (p.a === q.slug ? p.b : p.a)).sort();
+				expect(got, q.slug).toEqual(want);
+			}
+		});
 	});
 });

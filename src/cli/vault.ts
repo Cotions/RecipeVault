@@ -197,7 +197,7 @@ async function add(args: string[]): Promise<number> {
 		const files = split.files.length ? split.files : [text];
 		files.forEach((t, i) => inputs.push({ name: files.length > 1 ? `${f} #${i + 1}` : f, text: t }));
 	}
-	const result = await save(ctx, inputs.map((i) => ({ text: i.text })));
+	const result = await save(ctx, inputs.map((i) => ({ text: i.text, name: i.name })));
 	const log = new PasteLog(ctx.paths.pasteLog);
 	log.append('save', result.files.map((r, i) => ({
 		codes: r.diagnostics.map((d) => d.code),
@@ -207,8 +207,11 @@ async function add(args: string[]): Promise<number> {
 	let failed = 0;
 	result.files.forEach((r, i) => {
 		const name = inputs[i].name;
-		if (r.status === 'saved') console.log(`${green('✓')} ${name} → recipes/${r.slug}.md (${r.recipeStatus})`);
-		else {
+		if (r.status === 'saved') {
+			console.log(`${green('✓')} ${name} → recipes/${r.slug}.md (${r.recipeStatus})`);
+			// W505: a possible duplicate, in the vault or earlier in this batch — saved anyway, said here.
+			for (const d of r.diagnostics.filter((d) => d.code === 'W505')) console.log(`  W505 ${d.message}`);
+		} else {
 			failed++;
 			const codes = [...new Set(r.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code))].join(', ');
 			const why = r.status === 'collision' ? `slug ${r.slug} taken${r.inTrash ? ' (in the trash)' : ''}; free: ${r.suggested}` : r.status === 'stale' ? 'changed on disk' : codes;

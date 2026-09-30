@@ -7,9 +7,12 @@
 // out by the callers, per read: the file is small and edited as text.
 
 import {
+	batchPairs,
 	DUPLICATE_THRESHOLD,
 	elementOf,
+	MIN_ELEMENTS,
 	elementSet,
+	methodShingles,
 	rarityWeights,
 	recipeLines,
 	similarPairs,
@@ -66,6 +69,9 @@ const line = (r: Row): SimLine => ({
 	unit: r.unit
 });
 
+/** File hash → its method's word pairs, from the last build: a rebuild after one save shingles one body. */
+let methodCache = new Map<string, string[]>();
+
 function build(db: DB, threshold: number): DuplicateModel {
 	const t0 = performance.now();
 	const byRecipe = new Map<string, SimLine[]>();
@@ -80,10 +86,25 @@ function build(db: DB, threshold: number): DuplicateModel {
 	}
 	for (const r of db.prepare('SELECT slug, name FROM registry').all() as { slug: string; name: string }[]) labels.set(r.slug, r.name);
 	const recipes = new Map<string, SimRecipe & { title: string }>();
-	for (const r of db.prepare('SELECT slug, title, family FROM recipes').all() as { slug: string; title: string; family: string | null }[]) {
-		recipes.set(r.slug, { slug: r.slug, title: stripMarkers(r.title), family: r.family, ...elementSet(byRecipe.get(r.slug) ?? []) });
+	const seen = new Map<string, string[]>();
+	for (const r of db.prepare('SELECT slug, title, family, file_hash, body_md FROM recipes').all() as {
+		slug: string;
+		title: string;
+		family: string | null;
+		file_hash: string;
+		body_md: string;
+	}[]) {
+		const set = elementSet(byRecipe.get(r.slug) ?? []);
+		// The method's word pairs only where they can matter (a set that can pair at all), kept per file across rebuilds.
+		let method: string[] | undefined;
+		if (set.elements.length >= MIN_ELEMENTS) {
+			method = methodCache.get(r.file_hash) ?? methodShingles(r.body_md);
+			seen.set(r.file_hash, method);
+		}
+		recipes.set(r.slug, { slug: r.slug, title: stripMarkers(r.title), family: r.family, ...set, ...(method ? { method } : {}) });
 		labels.set(`r:${r.slug}`, stripMarkers(r.title));
 	}
+	methodCache = seen;
 	const list = [...recipes.values()];
 	const weights = rarityWeights(list);
 	const n = list.length;
@@ -130,22 +151,51 @@ export function allPairs(db: DB, dismissed: Set<string> = new Set()): SimPair[] 
 /**
  * The vault recipes close to a recipe not yet saved (a paste, the form): its
  * lines resolved as the index would resolve them. `own`: the slug it is saved
- * under (an edit, or a paste over itself), left out.
+ * under (an edit, or a paste over itself), left out. `body`: its Markdown
+ * body, for the second signal (the same method); without it, ingredients only.
  */
 export function pairsFor(
 	db: DB,
 	vocab: Pick<VaultVocab, 'normalize'> | (() => Pick<VaultVocab, 'normalize'>),
 	recipe: Pick<Recipe, 'ingredients' | 'lang' | 'family'>,
-	opts: { own?: string; dismissed?: Set<string> } = {}
-): { slug: string; title: string; family: string | null; score: number }[] {
+	opts: { own?: string; dismissed?: Set<string>; body?: string } = {}
+): { slug: string; title: string; family: string | null; score: number; method?: true }[] {
 	const m = duplicateModel(db);
 	const lines = recipeLines(recipe, getResolver(db, vocab));
-	const q = { ...elementSet(lines), family: recipe.family ?? null };
+	const q = { ...elementSet(lines), family: recipe.family ?? null, ...(opts.body !== undefined ? { method: methodShingles(opts.body) } : {}) };
 	const weight = (e: string) => weightOf(m.weights, m.recipes.size, e);
 	return similarTo(q, m.index, weight, DUPLICATE_THRESHOLD, opts.own)
 		.filter((x) => !(opts.own && opts.dismissed?.has(pairKey(opts.own, x.slug))))
 		.map((x) => {
 			const r = m.recipes.get(x.slug)!;
-			return { slug: x.slug, title: r.title, family: r.family, score: x.score };
+			return { slug: x.slug, title: r.title, family: r.family, score: x.score, ...(x.method ? { method: x.method } : {}) };
 		});
+}
+
+/**
+ * W505 inside one batch (a paste, `vault add` with several files): for each
+ * recipe, the earlier recipes of the batch close to it, scored with the
+ * vault's weights as `pairsFor` does. `slugs`: the slug each file is saved
+ * under, so a pair settled as different recipes (`dismissed`) is left out.
+ */
+export function batchPairsFor(
+	db: DB,
+	vocab: Pick<VaultVocab, 'normalize'> | (() => Pick<VaultVocab, 'normalize'>),
+	recipes: (Pick<Recipe, 'ingredients' | 'lang' | 'family'> | null | undefined)[],
+	opts: { slugs?: (string | undefined)[]; dismissed?: Set<string>; bodies?: (string | undefined)[] } = {}
+): { index: number; score: number; method?: true }[][] {
+	if (recipes.filter(Boolean).length < 2) return recipes.map(() => []);
+	const m = duplicateModel(db);
+	const resolver = getResolver(db, vocab);
+	const sets = recipes.map((r, i) => {
+		if (!r) return null;
+		const body = opts.bodies?.[i];
+		return { ...elementSet(recipeLines(r, resolver)), family: r.family ?? null, ...(body !== undefined ? { method: methodShingles(body) } : {}) };
+	});
+	const weight = (e: string) => weightOf(m.weights, m.recipes.size, e);
+	const slug = (i: number) => opts.slugs?.[i];
+	return batchPairs(sets, weight, DUPLICATE_THRESHOLD, (i, j) => {
+		const [a, b] = [slug(i), slug(j)];
+		return !!a && !!b && a !== b && !!opts.dismissed?.has(pairKey(a, b));
+	});
 }
