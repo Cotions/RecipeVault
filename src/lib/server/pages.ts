@@ -16,7 +16,7 @@ import { loadConversions, loadScaling } from './vocab';
 import { tagNamer } from './tags';
 import type { CostLineView, CostView } from '../ingredients/cost';
 import type { Conversions } from '../ingredients/units';
-import type { SubScaleRecipe } from '../render/scale';
+import { SUB_RECIPE_DEPTH, type SubScaleRecipe } from '../render/scale';
 
 const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]/g;
 
@@ -133,17 +133,29 @@ export function recipeCostView(app: App, slug: string): CostView | null {
 	return { total: c.total, priced: c.priced, counted: c.counted, enough: c.enough, perServing: c.perServing, stale: c.stale, lines };
 }
 
-/** Sub-recipes of a recipe, recursively (a cycle cannot be saved, but guard anyway). */
-export function loadSubRecipes(app: App, recipe: Recipe, depth = 3, seen = new Set<string>([recipe.slug])): SubRecipe[] {
-	if (depth === 0) return [];
+/**
+ * Sub-recipes of a recipe and theirs, level by level down to `depth` (kitchen
+ * mode opens them inside one another, `SUB_RECIPE_DEPTH`). Each recipe once,
+ * at the shallowest level it is used, so its own sub-recipes load too; the
+ * recipe itself never (a cycle cannot be saved, but guard anyway).
+ */
+export function loadSubRecipes(app: App, recipe: Recipe, depth = SUB_RECIPE_DEPTH): SubRecipe[] {
+	const seen = new Set<string>([recipe.slug]);
 	const out: SubRecipe[] = [];
-	for (const slug of referencedSlugs(recipe, '')) {
-		if (seen.has(slug)) continue;
-		seen.add(slug);
-		const d = getRecipe(app.ctx.db, slug);
-		if (!d) continue;
-		out.push({ slug, recipe: d.recipe, body: d.row.body_md });
-		out.push(...loadSubRecipes(app, d.recipe, depth - 1, seen));
+	let level: Recipe[] = [recipe];
+	for (let d = 0; d < depth && level.length; d++) {
+		const next: Recipe[] = [];
+		for (const r of level) {
+			for (const slug of referencedSlugs(r, '')) {
+				if (seen.has(slug)) continue;
+				seen.add(slug);
+				const got = getRecipe(app.ctx.db, slug);
+				if (!got) continue;
+				out.push({ slug, recipe: got.recipe, body: got.row.body_md });
+				next.push(got.recipe);
+			}
+		}
+		level = next;
 	}
 	return out;
 }

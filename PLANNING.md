@@ -287,7 +287,8 @@ away, and not touching the screen much.
   run at once, each labelled with its step, visible at the top, with an alarm
   sound when done. Survives the screen changing steps.
 - **Sub-recipes inline.** A step using pâte brisée can expand the pastry recipe in
-  place instead of navigating away.
+  place instead of navigating away — and a sub-recipe's own sub-recipes inside
+  it, each at the amount its line needs (`DATA-FLOW.md`, "Scaling").
 - **Resumes where she left off** if the tab reloads or the phone switches apps —
   current step and running timers kept in local storage.
 - **Works offline** once opened. Kitchen wifi is often the worst in the house; the

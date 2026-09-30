@@ -14,7 +14,7 @@
 	import { formatSeconds } from '$lib/render/duration';
 	import { formatAmount, ingredientText } from '$lib/render/ingredient';
 	import { renderInline } from '$lib/render/markdown';
-	import { amountQuery, capFactor, MULTIPLIERS, paramFactor, servingsStep, subRecipeScale } from '$lib/render/scale';
+	import { amountQuery, canOpenSub, capFactor, MULTIPLIERS, paramFactor, servingsStep, subRecipeScale } from '$lib/render/scale';
 	import type { Ingredient, Recipe } from '$lib/vault/types';
 	import { stepIngredients } from '$lib/render/steps';
 	import { plainText } from '$lib/render/markers';
@@ -254,9 +254,13 @@
 
 	// --- sub-recipes (Q5 A) ------------------------------------------------------
 
-	/** A sub-recipe's expansion at the amount its line needs, or as written with its yield. */
-	function subView(item: Ingredient, sub: Recipe): { factor: number; scaled: boolean; whole?: string | null } {
-		const f = subRecipeScale(item, sub, data.conversions, factor, data.scaling);
+	/**
+	 * A sub-recipe's expansion at the amount its line needs at `at` (the factor
+	 * of the level holding the line: the page's, or the enclosing expansion's,
+	 * so nested factors multiply), or as written with its yield.
+	 */
+	function subView(item: Ingredient, sub: Recipe, at: number): { factor: number; scaled: boolean; whole?: string | null } {
+		const f = subRecipeScale(item, sub, data.conversions, at, data.scaling);
 		if (f !== undefined) return { factor: f, scaled: f !== 1 };
 		// Not scalable by the rule: as written, saying how much the whole recipe makes.
 		const y = sub.yield;
@@ -301,6 +305,38 @@
 </svelte:head>
 
 <svelte:window onkeydown={onKey} />
+
+<!-- A sub-recipe line's expansion, and inside it its own sub-recipes' (Q5 A,
+     issue #13): each level at the amount its line needs at the level above.
+     Keyed by position, so the same sub-recipe opens separately in two places. -->
+{#snippet subRecipe(item: Ingredient, at: number, path: string[], key: string)}
+	{#if item.recipe && subs[item.recipe] && canOpenSub(item.recipe, path)}
+		{@const sub = subs[item.recipe]}
+		<button class="expand" type="button" aria-expanded={!!open[key]} onclick={() => (open[key] = !open[key])}>
+			{open[key] ? t.kitchen.collapse : t.kitchen.expand}
+		</button>
+		{#if open[key]}
+			{@const sv = subView(item, sub.recipe, at)}
+			<div class="sub">
+				<p class="subtitle"><Marked text={sub.recipe.title} />{#if sv.scaled}{' '}<span class="subscale">{t.scaling.subScaled(formatNumber(sv.factor, 'fr'))}</span>{/if}</p>
+				{#if sv.whole !== undefined}<p class="subwhole">{t.scaling.subWhole(sv.whole)}</p>{/if}
+				<ul>
+					{#each sub.recipe.ingredients.flatMap((sg) => sg.items) as si, sk (sk)}
+						<li>
+							<IngredientLine item={si} factor={sv.factor} lang={sub.recipe.lang} rules={data.scaling} />
+							{@render subRecipe(si, sv.factor, [...path, sub.slug], `${key}/${sk}`)}
+						</li>
+					{/each}
+				</ul>
+				<ol>
+					{#each parseBody(sub.body).body.steps as ss, sk (sk)}
+						<li>{@html renderInline(ss.text, { scale: stepScale(sv.factor, sub.recipe.lang) })}</li>
+					{/each}
+				</ol>
+			</div>
+		{/if}
+	{/if}
+{/snippet}
 
 <div class="kitchen" class:dark>
 	<header class="top">
@@ -354,29 +390,7 @@
 								<input type="checkbox" checked={ticks.has(k)} onchange={() => toggleTick(k)} />
 								<span><IngredientLine {item} {factor} {lang} titles={{}} rules={data.scaling} /></span>
 							</label>
-							{#if item.recipe && subs[item.recipe]}
-								{@const sub = subs[item.recipe]}
-								<button class="expand" type="button" onclick={() => (open[item.recipe!] = !open[item.recipe!])}>
-									{open[item.recipe] ? t.kitchen.collapse : t.kitchen.expand}
-								</button>
-								{#if open[item.recipe]}
-									{@const sv = subView(item, sub.recipe)}
-									<div class="sub">
-										<p class="subtitle"><Marked text={sub.recipe.title} />{#if sv.scaled}{' '}<span class="subscale">{t.scaling.subScaled(formatNumber(sv.factor, 'fr'))}</span>{/if}</p>
-										{#if sv.whole !== undefined}<p class="subwhole">{t.scaling.subWhole(sv.whole)}</p>{/if}
-										<ul>
-											{#each sub.recipe.ingredients.flatMap((sg) => sg.items) as si, sk (sk)}
-												<li><IngredientLine item={si} factor={sv.factor} lang={sub.recipe.lang} rules={data.scaling} /></li>
-											{/each}
-										</ul>
-										<ol>
-											{#each parseBody(sub.body).body.steps as ss, sk (sk)}
-												<li>{@html renderInline(ss.text, { scale: stepScale(sv.factor, sub.recipe.lang) })}</li>
-											{/each}
-										</ol>
-									</div>
-								{/if}
-							{/if}
+							{@render subRecipe(item, factor, [recipe.slug], k)}
 						</li>
 					{/each}
 				</ul>
@@ -636,6 +650,14 @@
 		padding: 0.5rem 0.9rem;
 		border-left: 3px solid var(--accent);
 		font-size: 1.15rem;
+	}
+	.sub .expand,
+	.sub .sub {
+		margin-left: 0.25rem;
+	}
+	.sub .expand {
+		display: block;
+		margin-top: 0.25rem;
 	}
 	.subtitle {
 		font-weight: 700;

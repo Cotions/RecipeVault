@@ -86,6 +86,31 @@ test('kitchen mode scales a sub-recipe by the line’s amount, or says why not (
 	await expect(stock.locator('.subwhole')).toHaveText('Recette complète : donne 2 litres');
 });
 
+test('kitchen mode opens a sub-recipe inside a sub-recipe, each at its own amount (#13)', async ({ page }) => {
+	// Pizza ×2: 2 cups of a sauce making 1 L is the half sauce; its broth (a text yield) shows as written.
+	await page.goto('/r/pizza-maison/cuisine?portions=8');
+	await expect(page.locator('.scaler output')).toContainText('8');
+	const sauce = page.locator('.ingredients > ul > li').filter({ hasText: 'sauce tomate' });
+	await sauce.getByRole('button', { name: 'Voir la recette' }).tap();
+	const sub = sauce.locator('.sub').first();
+	await expect(sub.locator('.subtitle').first()).toContainText('Sauce tomate maison recette × ½');
+	await expect(sub.locator(':scope > ul > li').filter({ hasText: 'tomates entières' })).toContainText('½ boîte de tomates entières');
+	const broth = sub.locator(':scope > ul > li').filter({ hasText: 'bouillon de légumes' });
+	await expect(broth.locator('.sub')).toHaveCount(0);
+	await broth.getByRole('button', { name: 'Voir la recette' }).tap();
+	const inner = broth.locator('.sub');
+	await expect(inner.locator('.subtitle')).toHaveText('Bouillon de légumes');
+	await expect(inner.locator('.subwhole')).toHaveText('Recette complète : donne 2 litres');
+	await expect(inner.locator('ul > li').filter({ hasText: 'carottes' })).toHaveText('2 carottes');
+	// The broth has no sub-recipe of its own: no further button.
+	await expect(inner.getByRole('button', { name: 'Voir la recette' })).toHaveCount(0);
+	// Closing the outer level closes all; the inner one stays open underneath.
+	await sauce.getByRole('button', { name: 'Masquer' }).first().tap();
+	await expect(sauce.locator('.sub')).toHaveCount(0);
+	await sauce.getByRole('button', { name: 'Voir la recette' }).tap();
+	await expect(sauce.locator('.sub')).toHaveCount(2);
+});
+
 test('kitchen steps show the scaled amount beside the original', async ({ page }) => {
 	await page.goto('/r/crepes/cuisine?portions=8');
 	await page.getByRole('button', { name: 'Commencer' }).tap();

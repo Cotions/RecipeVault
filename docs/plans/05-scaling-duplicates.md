@@ -638,8 +638,8 @@ these decisions:
   sub-recipe's servings come out whole, else `fois`; nothing at 1). The link
   changes at ×1 too (`/r/pate-brisee?fois=0.5`), as Q5 intends; the line's
   text does not. The expansion stays one level deep (no recursion, so no cycle
-  to guard beyond `loadSubRecipes`'s own); the sub-recipe's own steps show
-  their amounts at its factor.
+  to guard beyond `loadSubRecipes`'s own; nested since issue #13, below); the
+  sub-recipe's own steps show their amounts at its factor.
 - **Step amounts.** Only `mass` and `volume` units: counts and containers in a
   step are more often shapes (« couper en 8 tranches », « en 2 abaisses »), and
   the per-step ingredient line already shows the scaled count. A range written
@@ -707,6 +707,17 @@ text yield and kitchen step amounts (phone, tablet).
   `[illisible]` (it may hide part of the number), code, links and line breaks
   end a run: an amount across them stays unmarked. The « → » notice now reads
   the rendered steps, so it follows the same rule.
+- *Nested sub-recipes in kitchen mode.* A sub-recipe's lines that use a
+  sub-recipe get their own « Voir la recette », opening inside the expansion
+  (a recursive snippet), each level at `subRecipeScale(line, sub, conv, factor
+  of the level above)` — the cost rule per level, so the factors multiply; a
+  level the rule cannot scale shows as written and counts as ×1 below it; each
+  level inside the `factor` cap. `canOpenSub`: never a slug already on the
+  path (a cycle cannot be saved, but a hand-edited vault could hold one), at
+  most `SUB_RECIPE_DEPTH` = 4 levels. Open state is keyed by position, so the
+  same sub-recipe used in two places opens separately. `loadSubRecipes` now
+  walks level by level (breadth first) to the same depth: depth-first with one
+  `seen` set, a recipe reached deep first had its own sub-recipes cut off.
 
 ### Phase 5 — the duplicate model
 
@@ -1148,7 +1159,8 @@ own report):
   is a noun grammar per language (`DATA-FLOW.md`, "Scaling").
 - `UNIT_ALIASES` stays in code: `STORAGE.md` keeps the canonical unit list in
   code and moving it would make the checker vault-dependent (Phase 4 notes).
-- Kitchen mode expands one sub-recipe level (no recursion).
+- ~~Kitchen mode expands one sub-recipe level~~ — nested since issue #13, 4
+  levels, cycle-guarded (Phase 4 notes).
 - ~~An amount in a step split by emphasis or a marker is not marked~~ — marked
   since issue #13 (Phase 4 notes), except across `[illisible]`, code or a link.
 - ~~The owner has not read `tests/fixtures/scaling.yaml` yet~~ — reviewed

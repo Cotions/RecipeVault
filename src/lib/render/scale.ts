@@ -459,6 +459,24 @@ export function subRecipeScale(item: Ingredient, sub: SubScaleRecipe, conv: Conv
 	return capFactor(at, rules);
 }
 
+/**
+ * How many sub-recipe levels kitchen mode opens inside one another (a pie →
+ * its pastry → …): each level read at the amount its line needs at the level
+ * above (`subRecipeScale` with that level's factor, so the factors multiply).
+ * The server loads as deep.
+ */
+export const SUB_RECIPE_DEPTH = 4;
+
+/**
+ * Whether kitchen mode may open sub-recipe `slug` inside the expansion `path`
+ * (the recipe's slug, then each opened sub-recipe's): never a recipe inside
+ * itself (a cycle cannot be saved, but a hand-edited vault could hold one),
+ * and no deeper than `SUB_RECIPE_DEPTH` levels.
+ */
+export function canOpenSub(slug: string, path: readonly string[]): boolean {
+	return !path.includes(slug) && path.length <= SUB_RECIPE_DEPTH;
+}
+
 /** The sub-recipe's link from a line: its page at the derived amount when scalable (`/r/pate-brisee?fois=0.5`), else its page. */
 export function subRecipeHref(item: Ingredient, sub: SubScaleRecipe | undefined, conv: Conversions, factor: number, rules: ScalingRules | null | undefined): string {
 	const base = `/r/${item.recipe}`;

@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { parseScaling, subRecipeHref, subRecipeScale, type SubScaleRecipe } from '../../src/lib/render/scale';
+import { canOpenSub, parseScaling, SUB_RECIPE_DEPTH, subRecipeHref, subRecipeScale, type SubScaleRecipe } from '../../src/lib/render/scale';
 import { stepAmounts } from '../../src/lib/render/stepamounts';
 import { renderInline, renderMarkdown } from '../../src/lib/render/markdown';
 import { parseConversions } from '../../src/lib/ingredients/units';
@@ -198,5 +198,33 @@ describe('sub-recipes (Q5 A)', () => {
 		const big: SubScaleRecipe = { slug: 'big', yield: { qty: { raw: 100, value: 100 }, unit: 'piece' } };
 		expect(subRecipeScale(crust(1), big, CONV, 0.5, RULES)).toBeUndefined();
 		expect(subRecipeHref(crust(1), big, CONV, 0.5, RULES)).toBe('/r/pate-brisee');
+	});
+
+	it('nested sub-recipes: each level at the amount its line needs at the level above — the factors multiply (#13)', () => {
+		// A pie ×2 uses 1 crust of a pastry making 2 (×1); the pastry uses ½ cup of a butter that makes 1 cup (×½ at ×1).
+		const butter: SubScaleRecipe = { slug: 'beurre-clarifie', yield: { qty: { raw: 1, value: 1 }, unit: 'cup' } };
+		const butterLine: Ingredient = { qty: { raw: '1/2', value: 0.5 }, unit: 'cup', name: 'beurre clarifié', recipe: 'beurre-clarifie' };
+		const pastryAt = (pie: number) => subRecipeScale(crust(1), pastry, CONV, pie, RULES)!;
+		expect(pastryAt(2)).toBe(1);
+		expect(subRecipeScale(butterLine, butter, CONV, pastryAt(2), RULES)).toBe(0.5);
+		expect(pastryAt(3)).toBe(1.5);
+		expect(subRecipeScale(butterLine, butter, CONV, pastryAt(3), RULES)).toBe(0.75);
+		// ×1: ½ pastry → ¼ of the butter (0.5 × 0.5).
+		expect(subRecipeScale(butterLine, butter, CONV, pastryAt(1), RULES)).toBe(0.25);
+		// A level that cannot scale shows as written (×1): the level below is read against the whole of it.
+		const text: SubScaleRecipe = { slug: 'bouillon', yield: '2 litres' };
+		expect(subRecipeScale({ qty: { raw: 1, value: 1 }, unit: 'cup', name: 'bouillon', recipe: 'bouillon' }, text, CONV, 2, RULES)).toBeUndefined();
+		expect(subRecipeScale(butterLine, butter, CONV, 1, RULES)).toBe(0.5);
+		// Each level stays inside the file's cap: ×0.1 at least.
+		expect(subRecipeScale(butterLine, butter, CONV, 0.15, RULES)).toBeUndefined();
+	});
+
+	it('never opens a recipe inside itself, and stops at the depth cap (#13)', () => {
+		expect(SUB_RECIPE_DEPTH).toBe(4);
+		expect(canOpenSub('pate-brisee', ['tarte'])).toBe(true);
+		expect(canOpenSub('tarte', ['tarte'])).toBe(false);
+		expect(canOpenSub('a', ['tarte', 'a', 'b'])).toBe(false);
+		expect(canOpenSub('e', ['tarte', 'a', 'b', 'c'])).toBe(true);
+		expect(canOpenSub('e', ['tarte', 'a', 'b', 'c', 'd'])).toBe(false);
 	});
 });

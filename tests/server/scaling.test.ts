@@ -6,7 +6,8 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/lib/server/app';
-import { loadRecipePage } from '../../src/lib/server/pages';
+import { loadRecipePage, loadSubRecipes } from '../../src/lib/server/pages';
+import { getRecipe } from '../../src/lib/server/index/query';
 import { save } from '../../src/lib/server/save';
 import { seedVault, writeMissingLadder, writeMissingUnitLabels } from '../../src/lib/server/seed';
 import { seedVocab } from '../../src/lib/server/vault';
@@ -95,5 +96,28 @@ describe('scaling rules and unit words in a vault', () => {
 		expect(loadRecipePage({ ctx: v.ctx } as App, 'galette-inventee')!.scaling?.fractions.cup).toHaveLength(5);
 		writeFileSync(join(v.dir, 'vocab/scaling.yaml'), 'tolerance: [\n');
 		expect(loadRecipePage({ ctx: v.ctx } as App, 'galette-inventee')!.scaling).toBeNull();
+	});
+});
+
+describe('sub-recipes for kitchen mode (#13)', () => {
+	const uses = (title: string, subs: string[]) =>
+		`---\nschema: 3\ntitle: ${title}\nyield: { qty: 1, unit: cup }\ningredients:\n  - items:\n      - { qty: 1, unit: cup, name: farine }\n${subs.map((s) => `      - { qty: 1/2, unit: cup, name: ${s}, recipe: ${s} }\n`).join('')}extracted_by: ai\n---\n\n## Préparation\n\n1. Mélanger.\n`;
+
+	it('loads every level, each recipe at the shallowest level it is used, the recipe itself never', async () => {
+		// tarte → croute, garniture; croute → beurre; beurre → garniture; garniture → sirop.
+		// Depth-first, garniture was reached third-deep first and sirop never loaded.
+		const r = await save(v.ctx, [
+			{ text: uses('sirop', []) },
+			{ text: uses('garniture', ['sirop']) },
+			{ text: uses('beurre', ['garniture']) },
+			{ text: uses('croute', ['beurre']) },
+			{ text: uses('tarte', ['croute', 'garniture']) }
+		]);
+		expect(r.commit, JSON.stringify(r.files.map((f) => f.diagnostics?.filter((d) => d.severity === 'error')))).toBeTruthy();
+		const tarte = getRecipe(v.ctx.db, 'tarte')!.recipe;
+		expect(loadSubRecipes({ ctx: v.ctx } as App, tarte).map((s) => s.slug)).toEqual(['croute', 'garniture', 'beurre', 'sirop']);
+		expect(loadSubRecipes({ ctx: v.ctx } as App, tarte, 1).map((s) => s.slug)).toEqual(['croute', 'garniture']);
+		const sirop = getRecipe(v.ctx.db, 'sirop')!.recipe;
+		expect(loadSubRecipes({ ctx: v.ctx } as App, sirop)).toEqual([]);
 	});
 });

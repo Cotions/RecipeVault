@@ -399,7 +399,13 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
   `subRecipeFactor`, one shared function) — when the sub-recipe's `yield`
   object is in the line's unit or class; one crust of a pastry that makes two
   shows the half pastry, at ×1 already. Otherwise (a text yield, another
-  class) it shows as written with « Recette complète : donne … ». The recipe
+  class) it shows as written with « Recette complète : donne … ». A
+  sub-recipe's own sub-recipes open inside its expansion the same way, each
+  level read at the amount its line needs at the level above (the factors
+  multiply; a level shown as written counts as ×1 for the one below), each
+  level kept inside the file's `factor` cap, up to 4 levels deep; a recipe
+  never opens inside itself. The page load carries each sub-recipe once, at
+  the shallowest level that uses it. The recipe
   page's sub-recipe link carries the same factor (`/r/pate-brisee?fois=0.5`),
   or none when it is 1 or cannot be derived.
 - **Amounts in steps** (Q6 B): measures written in a step (mass and volume
