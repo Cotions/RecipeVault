@@ -49,11 +49,18 @@ the only judge on save. Several fences in one paste are saved in one commit; fil
 fail stay in the box. A collision (`E103`) is settled inline: "Remplacer" (an
 edit, with the hash guard below) or the suffixed slug. Two files in one paste with the same new slug: the first
 is saved, only the later one waits for that choice. A same title (`W608`)
-offers to set `family`/`variant` on the new file (the paste box leaves the
-existing file untouched; the form puts both in the family in one commit, below).
-A recipe with nearly the same ingredients (`W505`, "Possible duplicates",
-below) gets the same offer, the other recipe linked. The fix-request block
-holds only `ai` codes.
+offers "Mettre en famille": `family`/`variant` on the new file and on the vault
+recipe of the same title, each with its version name, in the same commit
+(`add: <title>; edit: <other title>`), guarded by the other file's hash as the
+check read it — a changed, deleted or broken other recipe, the same version
+name twice, or two files of one paste pairing one recipe differently keep the
+file in the box with the reason (issue #13; as the form, below, and
+`/doublons`). A recipe with nearly the same ingredients (`W505`, "Possible
+duplicates", below) gets the same offer, the closest recipe put in the family,
+the others linked. Two copies inside one paste are compared too: the later
+file names the earlier one by its place ("le fichier n° 1 de ce collage"),
+with no offer, as neither is saved yet. The fix-request block holds only `ai`
+codes.
 
 **Web import.** A URL typed above the box is fetched by the server — `http`/`https`
 only, 10 s for the whole fetch (redirects and body included, not only while
@@ -631,14 +638,16 @@ their earlier ranges (form save ~340 ms, undo ~250 ms, the resolve queue page
 | scan 30 steps for amounts (45 amounts: denser than any card) | ~0.96 ms; rendering the scaled method ~1.2 ms | < 1 ms |
 | corpus sweep: 320 cards × 7 factors (lines and method) | ~0.4 s (the test file ~1.2 s in vitest) | < 2 s |
 | recipe page / kitchen page server load | ~2.0–2.4 ms / ~0.15–0.2 ms, of which plan 05 adds ~0.02–0.1 ms (the rules, sub-recipe scaling) / ~0.03 ms; the layout's unit words ~0.03 ms per page | unchanged ± 2 ms |
-| duplicate model build, all pairs above 0.65 | ~105 ms (3980 pairs) | < 1 s |
-| `pairsFor` one recipe / W505's `closeRecipes` (with `distinct.yaml`) | ~0.11 ms / ~0.15 ms | < 10 ms |
+| duplicate model build, all pairs above 0.65 | ~105 ms (3980 pairs); ~260 ms with the same-method signal (4124 pairs; ~420 ms the first build, issue #13) | < 1 s |
+| `pairsFor` one recipe / W505's `closeRecipes` (with `distinct.yaml`) | ~0.11 ms / ~0.15 ms; ~0.3 ms with the method | < 10 ms |
 | `/doublons` page, model built / not built | ~3 ms / ~110 ms (~120 ms the first read after a write) | < 50 ms |
 | the nav's "Doublons (N)" (a Markdown account, every page) | ~0.55 ms | — |
 | "Recettes différentes" (write + commit) / its "Annuler" | ~320 ms / ~190 ms | < 500 ms |
 | "Deux versions" (both recipes, one commit) / "C'est la même recette" (trash) | ~370 ms / ~410 ms | < 500 ms |
 
-A first read after any write to the index rebuilds the duplicate model (~0.1 s):
+A first read after any write to the index rebuilds the duplicate model (~0.1 s;
+~0.26 s on the bench since the same-method signal, most of it the generator's
+many recipes sharing one method text):
 the pair list, W505's check and, for a Markdown account, the nav count of every
 page — the first page after a save pays it once.
 

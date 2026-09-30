@@ -399,6 +399,20 @@ model from the index).
   dishes at 0.65 are *grands-pères* and *pouding chômeur* on the same syrup,
   *cretons* and *tourtière* on the same spices, two Jell-O desserts, a chili and
   a *riz espagnol*.
+- **The second signal: the same method** (issue #13). A copy with one
+  ingredient swapped for another keeps its card's method word for word, while
+  a rare swapped ingredient can pull the score under 0.65. A pair is flagged
+  too when it scores at least **0.45** (`METHOD_FLOOR`) and the two methods are
+  the same text: the body's words of three letters or more (headings out,
+  folded), as word pairs, plain Jaccard ≥ **0.8** (`METHOD_SIMILARITY`), both
+  methods holding at least **6** word pairs (a "Mélanger. Cuire." method says
+  nothing). Tuned like the threshold: on the corpus, every planted copy still
+  found, the 44 pairs it adds all one dish (precision 97.7 % of 257, from 97.2 %
+  of 213); on the bench, the swapped copies all found (below). The title was
+  tried as the second signal and does nothing for these copies (a pasted copy
+  may carry any title). `/doublons` marks such a pair "Même préparation, mot
+  pour mot"; W505 says "the same method". The paste and the form pass the body
+  they hold; the model reads `body_md` from the index.
 - **Same family** (Q16 C): two recipes of one family are declared versions and
   are left out, unless their sets **and** amounts are identical — the same card
   twice in one family.
@@ -412,17 +426,22 @@ model from the index).
   queue "Relier" can make a pair) rebuilds it on the next read. At 5000
   generated recipes: ~0.1 s to build, ~0.1 ms to check one recipe (the paste,
   the form), ~3 ms for a page of `/doublons` (plan 05, Phase 8; `DATA-FLOW.md`,
-  "Final figures for P3").
+  "Final figures for P3"). The same-method pairs come from a second prefix
+  filter on the methods' word pairs (rarest first), their ingredients scored
+  after; the word pairs are kept per file hash across rebuilds. With it the
+  build is ~0.26 s (~0.42 s the first time), of which most is the generator's
+  artefact of ~84 000 pairs of recipes with one method text (issue #13 notes in
+  plan 05).
 - **On the bench vault** (5000 generated recipes from 1200 invented dishes, a
   long tail of cards per dish; `scripts/gen-vault.ts --bench`): ~78 pairs per
-  100 recipes, 97 % of them two cards of one dish — the page's size depends
-  mostly on how many cards of one dish a vault holds. Every planted copy with
-  an amount changed or a line left out is found (score ≥ 0.77 with 6+ lines);
-  a copy with one ingredient **replaced** by another is missed 1 time in 17
-  with 6+ lines (0.64) and 1 in 3 with 4–5 lines (0.51): a replaced rare
-  ingredient weighs as much as several staples, and such a copy is closer to a
-  version than to the same card. Families of close variants are never listed
-  (55 of their 60 pairs score above 0.65).
+  100 recipes (~81 with the second signal), 97 % of them two cards of one dish
+  (95.7 % with it) — the page's size depends mostly on how many cards of one
+  dish a vault holds. Every planted copy with an amount changed or a line left
+  out is found (score ≥ 0.77 with 6+ lines). A copy with one ingredient
+  **replaced** by another scored under 0.65 1 time in 17 with 6+ lines (0.64)
+  and 1 in 3 with 4–5 lines (0.51): a replaced rare ingredient weighs as much as
+  several staples. The same method now finds them all (17/17, 3/3). Families of
+  close variants are never listed (55 of their 60 pairs score above 0.65).
 
 Where the pairs show: `W505` on the paste box, the form and the save result
 (`VALIDATION.md`), and the pair list `/doublons` (`DATA-FLOW.md`).

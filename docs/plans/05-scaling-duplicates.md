@@ -929,6 +929,53 @@ compared with each other (W505 checks against the vault only); the paste
 path's "Mettre en famille" families only the pasted recipe (as W608 in P1),
 the form path and `/doublons` family both.
 
+**Issue #13 (duplicates).**
+
+- *W505 inside one paste.* The files of one paste (and of one `vault add`) are
+  compared with each other too, as they stand: a later file names the earlier
+  one by its place, "le fichier n° 1 de ce collage (« title »)" in the box,
+  `recipe 1 of this batch (<name>)` in W505 (the CLI names the file). The first
+  file names nothing (a pair is shown once, on its later file), and no family
+  offer or link comes with it: neither file is saved. Two files of one slug are
+  still compared (the second is an E103 or an overwrite; the owner sees both).
+  A pair `distinct.yaml` settles is left out by slug. Computed in `saveLocked`
+  after the loop, over the files it saves, so a refused file names nothing.
+- *"Mettre en famille" from the paste box puts both in the family.* The check
+  offers `pairWith` (the recipe of the same title, else the closest): slug,
+  title, hash, its family and variant. The box asks the other recipe's version
+  ("Version de « … »", prefilled from the file) and posts it with the family;
+  `saveLocked` writes it with the form's pair writer (`pairEdit`, moved from
+  `formsave.ts` to `save.ts`) in the same commit, `add: X; edit: Y`. Hash
+  guarded; a refusal keeps the file in the box, nothing written, and says why:
+  the other recipe changed or is gone, it no longer checks, the same version
+  name twice, or two files of one paste pairing one recipe (or one file's
+  pair being another file of the paste). An other recipe already in that
+  family with that version is left as it is. Still no label from the paste
+  path (`VOCAB.md`). "Remplacer" posts no pair. The API takes no `name` from
+  the client (W505's batch names are the server's).
+- *Swapped-ingredient copies: the second signal is the method.* Tried: a lower
+  threshold (0.58: corpus precision 93.4 %; 0.5: 74.4 %; both lose the page),
+  title words (nothing: a copy's title is anything), the method's word pairs.
+  Shipped: flagged also when the score is ≥ 0.45 and the methods' word pairs
+  (words of 3+ letters, folded, headings out) have Jaccard ≥ 0.8, each method
+  ≥ 6 word pairs. Found through a second prefix filter on interned word-pair
+  ids, the ingredients scored after; word pairs cached per file hash. `SimPair`
+  and W505 carry `method`; `/doublons` marks it "Même préparation, mot pour
+  mot"; W505 adds "; the same method" only when the score is under 0.65.
+  Gates, corpus (`tests/duplicates-corpus.test.ts`): D0 100 % (78/78) before
+  and after; D1 97.2 % of 213 → 97.7 % of 257 (the 44 pairs it adds all one
+  dish); D2 fr–fr 35.2 %, all 32.9 % (was 27 %); D4 66.6 → 80.3 per 100.
+  Bench (5000 + planted): 3980 → 4124 pairs (80.5 per 100), precision 96.8 %
+  → 95.7 %; planted copies found on the page and by `pairsFor`: 6+ lines
+  amount 16/16, swapped 17/17 (was 16/17), removed 17/17; 4–5 lines amount
+  4/4, swapped 3/3 (was 2/3), removed 3/3; close-variant families listed 0/60.
+  Cost: model build ~105 ms → ~260–280 ms (~430 ms the first build, the word
+  pairs not cached yet), most of it ~84 000 same-method pairs the generator
+  makes (recipes of one title share their steps) that score under 0.45;
+  `pairsFor` ~0.3–0.5 ms. Under the < 1 s target. ⚑ A real vault with many
+  cards copying one method word for word would add pairs of two dishes only if
+  their ingredients also score ≥ 0.45 — the owner's `/doublons` will say.
+
 ### Phase 8 — bench, docs, report
 
 1. **Bench** (`scripts/gen-vault.ts --bench`, extended): the generated vault
@@ -1171,10 +1218,12 @@ own report):
   since issue #13 (Phase 4 notes), except across `[illisible]`, code or a link.
 - ~~The owner has not read `tests/fixtures/scaling.yaml` yet~~ — reviewed
   2026-09-30 (Phase 0 notes: two cases changed, the rest approved).
-- Two copies pasted in the same batch are not compared with each other (W505
-  checks against the vault only).
-- The paste page's "Mettre en famille" families only the pasted recipe (as W608
-  in P1); the form and `/doublons` family both.
+- ~~Two copies pasted in the same batch are not compared with each other~~ —
+  compared since issue #13 (Phase 7 notes).
+- ~~The paste page's "Mettre en famille" families only the pasted recipe~~ —
+  both, one commit, since issue #13 (Phase 7 notes).
+- ~~A copy with one ingredient replaced is sometimes missed~~ — found by the
+  same method since issue #13 (Phase 7 notes).
 - An existing vault needs `vault ingredients seed` to get
   `vocab/unit-labels.yaml` and `vocab/scaling.yaml`; without them units show
   their code and scaled amounts show as before this plan.
@@ -1197,8 +1246,9 @@ own report):
   Q9 (recommended: never).
 - **Merging two duplicates into one file** (combining lines, notes, sources):
   "same recipe" trashes one, undoably; a merge editor is a different feature.
-- **Duplicates by method text** (step similarity): the ingredient set is the
-  signal `PLANNING.md` chose; titles are W503/W608's.
+- **Duplicates by method text alone** (step similarity): the ingredient set is
+  the signal `PLANNING.md` chose; titles are W503/W608's. Since issue #13 the
+  same method only backs an ingredient score ≥ 0.45 (Phase 7 notes).
 - Moving unit display labels to data (flagged above, for the owner).
 
 ---

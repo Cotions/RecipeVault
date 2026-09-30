@@ -146,9 +146,10 @@ soon as a recipe names it, label or not.
 **Setting a label (P1).** On `/famille/<slug>`, "Changer le nom de la famille"
 sets the French label; an empty field removes it (and the entry once it holds
 no label). The write goes through the same guarantees as a recipe save
-(`DATA-FLOW.md`, "Family labels"). The paste box's "Mettre en famille" only
-writes `family`/`variant` into the new recipe; it does not write a label —
-naming the family is a separate, later step on the family page.
+(`DATA-FLOW.md`, "Family labels"). The paste box's "Mettre en famille" writes
+`family`/`variant` into the new recipe and the vault recipe it was offered
+with, in one commit (issue #13); it does not write a label — naming the family
+is a separate, later step on the family page.
 
 **The form (plan 04, Q10 A).** The family picker searches the labels and slugs
 (accents and case folded) and offers "Nouvelle famille « … »" only when no
