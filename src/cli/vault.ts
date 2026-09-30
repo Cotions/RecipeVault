@@ -47,7 +47,7 @@ const USAGE = `Usage:
         --quiet                  only the summary line
   vault prompt                   print the prompt from docs/AI-TEMPLATE.md
   vault init <dir>               create a new vault (layout, vocab and ingredient seed, git)
-  vault ingredients seed         add the seed ingredients missing from the vault
+  vault ingredients seed         add the seed ingredients and vocab files (units, scaling, tag labels…) missing from the vault
   vault add <file...>            save files through the app's save path
   vault sync [--force]           bring the index in line with the files (and the git history)
   vault reindex                  delete the index and rebuild it
@@ -180,6 +180,7 @@ async function ingredients(args: string[]): Promise<number> {
 	const report = syncVault(ctx.db, ctx.paths, { currency: ctx.currency });
 	await ctx.pusher.idle();
 	ctx.db.close();
+	if (r.vocab.length) console.log(`vocab added or completed: ${r.vocab.join(', ')}`);
 	console.log(`${plural(r.added.length, 'seed ingredient')} added${r.commit ? ` (commit ${r.commit.slice(0, 7)})` : ''}; the registry has ${plural(report.registry.files, 'ingredient')}.`);
 	return 0;
 }

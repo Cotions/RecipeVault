@@ -159,7 +159,7 @@ export function writeMissingUnitLabels(root: string, vocabDoc: string): string[]
  * `vault ingredients seed`: add the missing seed entries and vocab files to a
  * vault, in one commit `ingredients: seed (N entries)`. Holds the lock.
  */
-export function seedVault(ctx: VaultContext, seedText: string, vocabDoc: string): Promise<{ added: string[]; commit?: string }> {
+export function seedVault(ctx: VaultContext, seedText: string, vocabDoc: string): Promise<{ added: string[]; vocab: string[]; commit?: string }> {
 	return ctx.lock.run(async () => {
 		const vocab = [
 			...writeMissingVocab(ctx.paths.root, vocabDoc),
@@ -169,9 +169,9 @@ export function seedVault(ctx: VaultContext, seedText: string, vocabDoc: string)
 		const allergens = new Set(Object.keys(parse(seedVocab(vocabDoc)['allergens.yaml'], { version: '1.2' }) ?? {}));
 		const added = writeSeed(ctx.paths.root, seedEntries(seedText, allergens));
 		const paths = [...vocab, ...added];
-		if (!paths.length) return { added };
+		if (!paths.length) return { added, vocab };
 		const commit = await commitPaths(ctx.paths.root, paths, `ingredients: seed (${added.length} entries)`, ctx.author);
 		committed(ctx);
-		return { added, commit };
+		return { added, vocab, commit };
 	});
 }

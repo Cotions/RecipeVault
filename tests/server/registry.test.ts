@@ -147,7 +147,7 @@ describe('seed', () => {
 		expect(v.read('vocab/normalize.yaml')).toMatch(/plurals:/);
 		expect(v.read('vocab/conversions.yaml')).toMatch(/^ {2}cup: 250$/m);
 		const again = await seedVault(v.ctx, SEED, VOCAB_DOC);
-		expect(again).toEqual({ added: [] });
+		expect(again).toEqual({ added: [], vocab: [] });
 		const s = syncVault(v.ctx.db, v.ctx.paths);
 		expect(registryEntries(v.ctx.db).length).toBe(36 + r.added.length);
 		// The seed and the fixtures overlap on names: collisions are warnings, never errors.
