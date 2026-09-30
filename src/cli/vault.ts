@@ -31,6 +31,7 @@ import { seedVault } from '../lib/server/seed';
 import { checkRegistry, parseIngredient } from '../lib/ingredients/registry';
 import { loadCheckWords, loadVocab, seedCheckWords } from '../lib/server/vocab';
 import { resolveQueue } from '../lib/server/queue';
+import { DISTINCT_FILE, parseDistinct } from '../lib/server/duplicates';
 import { priceProblems } from '../lib/server/prices';
 import { parsePrices, PRICES_FILE, type PriceProblem } from '../lib/ingredients/prices';
 import { SessionStore } from '../lib/server/sessions';
@@ -552,6 +553,7 @@ function check(args: string[]): number {
 		printHuman(result, o);
 		if (vaultDir) printIngredients(ingredientResults, o.quiet);
 		if (priceResult) printPrices(priceResult.rows, priceResult.problems, !o.quiet);
+		if (vaultDir) printDistinct(vaultDir);
 	}
 	return failed ? 1 : 0;
 }
@@ -597,6 +599,17 @@ function printIngredients(files: { name: string; diagnostics: Diagnostic[] }[], 
 	const bad = files.filter((f) => hasErrors(f.diagnostics)).length;
 	const all = files.flatMap((f) => f.diagnostics);
 	console.log(`${plural(files.length, 'ingredient')}: ${bad} failed, ${files.length - bad} passed` + (all.length ? ` — ${counts(all)}` : ''));
+}
+
+/** vocab/distinct.yaml (plan 05, Q14): its pairs naming a recipe no longer in the vault are stale — harmless, reported, nothing more. */
+function printDistinct(vaultDir: string): void {
+	const file = join(vaultDir, DISTINCT_FILE);
+	if (!existsSync(file)) return;
+	const pairs = parseDistinct(readFileSync(file, 'utf8'));
+	const there = (slug: string) => existsSync(join(vaultDir, 'recipes', `${slug}.md`));
+	const stale = pairs.filter(([a, b]) => !there(a) || !there(b));
+	console.log(`${DISTINCT_FILE}: ${plural(pairs.length, 'pair')} settled as different recipes${stale.length ? `, ${stale.length} stale` : ''}`);
+	for (const [a, b] of stale) console.log(dim(`  ${a} ≠ ${b}  (no longer in recipes/; ignored)`));
 }
 
 function printPrices(rows: number, problems: PriceProblem[], detail: boolean): void {

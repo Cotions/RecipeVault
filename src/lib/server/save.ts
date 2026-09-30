@@ -340,6 +340,37 @@ export async function editRecipeLocked(
 	return writeCommitIndex(ctx, [{ slug, title: final.title, text: serialize(final, file.body!), created: false, verb: 'edit' }]);
 }
 
+/**
+ * Several recipes edited together, one commit (the pair list's "Deux versions",
+ * plan 05 Phase 7): each hash-guarded, each result checked, all or nothing;
+ * `files` (a family label) written in the same commit, only when a recipe
+ * is. Holds no lock: the caller holds `ctx.lock`. A recipe the change leaves
+ * as it was is not written; none changed, nothing is committed.
+ */
+export async function editRecipesLocked(
+	ctx: VaultContext,
+	edits: { slug: string; hash: string; change: (recipe: Recipe) => Recipe }[],
+	opts: SaveOptions & { files?: FileWrite[] } = {}
+): Promise<{ commit?: string; indexError?: string }> {
+	const ready: Ready[] = [];
+	for (const e of edits) {
+		const cur = currentFile(ctx, e.slug);
+		if (!cur) throw new EditError('gone', 'cette recette n’existe plus.');
+		if (cur.hash !== e.hash) throw new EditError('stale', 'le fichier a changé depuis l’ouverture de la page ; rechargez-la.');
+		const file = checkFile(cur.text);
+		if (!file.recipe || hasErrors(file.diagnostics)) throw new EditError('invalid', 'le fichier ne passe pas la validation.');
+		const changed = e.change({ ...file.recipe });
+		const text = serialize({ ...changed, slug: e.slug, updated: file.recipe.updated }, file.body!);
+		if (text === serialize({ ...file.recipe, slug: e.slug }, file.body!)) continue;
+		const final: Recipe = { ...changed, slug: e.slug, updated: opts.today ?? localDate() };
+		const out = serialize(final, file.body!);
+		if (hasErrors(checkFile(out).diagnostics)) throw new EditError('invalid', 'la modification ne passe pas la validation.');
+		ready.push({ slug: e.slug, title: final.title, text: out, created: false, verb: 'edit' });
+	}
+	if (!ready.length) return {};
+	return writeCommitIndex(ctx, ready, commitMessage(ready), opts.files ?? []);
+}
+
 export class VerifyError extends Error {}
 
 /**

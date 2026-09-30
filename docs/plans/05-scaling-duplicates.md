@@ -708,6 +708,46 @@ family page shows both.
 Done when: every pair on the page can be settled in one tap plus a confirm, and
 a settled pair never comes back unless the recipes change per Q14.
 
+**Built.** `/doublons` (`src/routes/doublons/`), the writers in
+`src/lib/server/duplicates.ts`, "Comparer" at `/doublons/comparer?a=…&b=…`
+(the form's `compareForms` table, read-only), "Doublons (N)" in the nav for a
+Markdown account while N > 0 (counted only for that account). Decisions:
+
+- "Deux versions" is its own writer over a new `editRecipesLocked` in
+  `save.ts` (several recipes, each hash-guarded and checked, one commit
+  `edit: <a>; edit: <b>`, a family label in the same commit only where the
+  family has none) — the W608 pair writer (`pairEdit`) only edits the *other*
+  recipe of a form save. Family offered: the one either recipe is in, else the
+  first title's slug with that title as its label; both variants required and
+  distinct (E105); existing variants prefilled. A pair already in one family
+  (identical sets and amounts, Q16 C) shows no offer — "C'est la même recette"
+  is the answer there. Undone by `undoCommit` (two edits + families.yaml is a
+  shape it already reverts).
+- "C'est la même recette": `remove()` of the one she does not keep (a radio,
+  default: keep the first), `delete: <title>`; undone by `undoCommit`, which
+  restores through the trash.
+- "Recettes différentes": `vocab/distinct.yaml` is not seeded (created with a
+  header comment by the first dismiss); edited as text, comment lines kept,
+  pair lines rewritten sorted, parsed back before the write; hash-guarded on
+  the file. Its "Annuler" is `undismissPair`, commit `undo: duplicate <a> ≠
+  <b>` — `undoCommit` stays recipe-only (it refuses a vocab-only commit as
+  `unsupported`).
+- "Annuler" is a form in the page's message (works without JavaScript), not
+  the toast: the action's result carries the commit (or the pair).
+- `vault check --dir` prints the file's pair count and its stale lines (a slug
+  no longer in `recipes/`), no code, never an error.
+- E2E runs on a phone (Pixel 7, like `/etiquettes`) rather than desktop and
+  tablet; the four actions are in the guard spec's signed-out list.
+
+**Where it stopped (reboot).** Green: `npm test`, `npx svelte-check`, and
+`doublons.spec.ts` + `guard.spec.ts` run alone. The full `npm run test:e2e` was
+not run after Phase 7 (the scaling session held the e2e port). Next: run the
+full e2e suite; then Phase 8 (bench with planted pairs on the pair list and
+`pairsFor`, report). Leftovers: two copies inside one paste batch are not
+compared with each other (W505 checks against the vault only); the paste
+path's "Mettre en famille" families only the pasted recipe (as W608 in P1),
+the form path and `/doublons` family both.
+
 ### Phase 8 — bench, docs, report
 
 1. **Bench** (`scripts/gen-vault.ts --bench`, extended): the generated vault

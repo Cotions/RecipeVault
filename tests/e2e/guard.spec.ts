@@ -23,7 +23,11 @@ const ACTIONS = [
 	'/ingredients/farine?/alias',
 	'/ingredients/farine?/link',
 	'/ingredients/farine?/edit',
-	'/ingredients/farine?/merge'
+	'/ingredients/farine?/merge',
+	'/doublons?/versions',
+	'/doublons?/same',
+	'/doublons?/distinct',
+	'/doublons?/undo'
 ];
 const APIS = ['/api/save', '/api/check', '/api/import', '/api/pastelog', '/api/photo'];
 

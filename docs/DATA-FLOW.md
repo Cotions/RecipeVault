@@ -249,6 +249,31 @@ comments and alignment stay. "Retirer" (`tag: drop <pending>`) rewrites every
 recipe holding the tag in one commit, guarded by each file's hash and by the
 set of recipes the page listed; a recipe with errors stops it.
 
+### Possible duplicates
+
+The duplicate model (`INGREDIENTS.md`, "Duplicates") is kept in memory per
+index state; the pairs settled as different (`vocab/distinct.yaml`) are read
+from the file on each request and filtered out. `W505` is computed beside the
+unresolved-name warnings in the paste box's server check, the form's check and
+the save result (the recipe's own slug left out). `/doublons` (plan 05, Phase
+7) lists the unsettled pairs, most similar first, 20 a page; readable by anyone,
+its actions need a session, and "Doublons (N)" shows in the nav for an account
+with the Markdown tools while N > 0. Each action is one commit by the
+signed-in person, and its message offers "Annuler":
+
+- "Deux versions de la même recette": `family`/`variant` set on both recipes
+  (and the family's label in `vocab/families.yaml` when it has none), one
+  commit `edit: <a>; edit: <b>`, hash-guarded on both files, each result
+  checked before anything is written. Undone by the history's undo.
+- "C'est la même recette": the one she does not keep goes to the trash
+  (`delete: <title>`, hash-guarded), undone by the trash's restore.
+- "Recettes différentes": the pair added to `vocab/distinct.yaml`, commit
+  `duplicate: <a> ≠ <b>`, hash-guarded on the file; "Annuler" takes the line out
+  (`undo: duplicate <a> ≠ <b>`).
+
+"Comparer" (`/doublons/comparer?a=…&b=…`) shows the two recipes side by side,
+every field where they differ, read-only: the form's stale-compare table.
+
 ### Ingredient edits: the resolve queue
 
 `/resoudre` (plan 03, Phase 3) lists every unresolved or ambiguous lookup key

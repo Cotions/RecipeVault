@@ -21,14 +21,11 @@ import { allPairs, duplicateModel, pairDetail } from '../../src/lib/server/index
 import { syncVault } from '../../src/lib/server/index/sync';
 import { linkKey } from '../../src/lib/server/queue';
 import { save } from '../../src/lib/server/save';
+import { copyOf } from '../helpers/duplicates';
 import { AUTHOR, fixtureVault, type TempVault } from '../helpers/vault';
 
 const POUDING = readFileSync('tests/fixtures/vault/recipes/pouding-chomeur.md', 'utf8');
 
-/** The fixture's pouding chômeur under another title and slug (a second paste of one card). */
-export function copyOf(text: string, title: string, slug: string, change: (t: string) => string = (t) => t): string {
-	return change(text.replace(/^title: .*$/m, `title: ${title}`).replace(/^slug: .*$/m, `slug: ${slug}`));
-}
 
 let v: TempVault | undefined;
 afterEach(() => {

@@ -28,6 +28,7 @@
 		...(markdown ? [{ href: '/ajouter', label: t.app.nav.add, match: (p: string) => p === '/ajouter' }] : []),
 		...(markdown && data?.toResolve ? [{ href: '/resoudre', label: t.app.nav.queue(data.toResolve), match: (p: string) => p === '/resoudre' }] : []),
 		...(markdown && data?.pendingTags ? [{ href: '/etiquettes', label: t.app.nav.pendingTags(data.pendingTags), match: (p: string) => p === '/etiquettes' }] : []),
+		...(markdown && data?.duplicates ? [{ href: '/doublons', label: t.app.nav.duplicates(data.duplicates), match: (p: string) => p.startsWith('/doublons') }] : []),
 		{ href: '/corbeille', label: t.app.nav.trash, match: (p: string) => p === '/corbeille' }
 	]);
 </script>

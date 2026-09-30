@@ -1,14 +1,30 @@
 // Possible duplicates (plan 05, Phases 6–7; docs/INGREDIENTS.md, "Duplicates"):
-// W505 on the paste box, the form and the save result, and the pairs a person
-// settled as different recipes, `vocab/distinct.yaml` (Q14 A; docs/VOCAB.md,
-// "Distinct recipes"): one line per pair, `- [a, b]`, the two slugs sorted,
-// the lines sorted. A pair naming a slug no longer in the vault is ignored.
+// W505 on the paste box, the form and the save result; the pair list
+// (/doublons) and its three actions, each one commit by the signed-in person
+// (Q13 B):
+//
+// - "Deux versions de la même recette": both recipes in one family, one
+//   commit editing both (the W608 pair, from the list), hash-guarded on both;
+// - "C'est la même recette": the one she picks to the trash (`delete:`, the
+//   trash's own writer; undone from the toast or /corbeille);
+// - "Recettes différentes": the pair written to `vocab/distinct.yaml` (Q14 A;
+//   docs/VOCAB.md, "Distinct recipes"): one line per pair, `- [a, b]`, the two
+//   slugs sorted, the lines sorted, edited as text (comments kept); commit
+//   `duplicate: <a> ≠ <b>`, hash-guarded on the file. A pair naming a slug no
+//   longer in the vault is ignored.
 
 import { parse } from 'yaml';
+import { slugify } from '../vault/slug';
+import { stripMarkers } from '../vault/markers';
+import { normTitle } from '../vault/rules/batch';
+import { withinDistance } from '../vault/normalize';
 import type { Diagnostic, Recipe } from '../vault/types';
-import type { VaultContext } from './context';
-import { readVaultFile } from './files';
-import { pairKey, pairsFor } from './index/similar';
+import { committed, type VaultContext } from './context';
+import { cleanLabel, FAMILIES_FILE, familiesFile, FamilyLabelError, LABEL_MAX, withLabel } from './families';
+import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
+import { allPairs, duplicateModel, pairDetail, pairKey, pairsFor } from './index/similar';
+import { EditError, editRecipesLocked, SaveError } from './save';
+import { remove, TrashError } from './trash';
 import { VOCAB } from './vault';
 import { loadVocab } from './vocab';
 
@@ -74,4 +90,253 @@ export function duplicateWarnings(close: CloseRecipe[]): Diagnostic[] {
 			fix: 'The same card: do not save it twice. Versions of one dish: make both members of a family. Different recipes: settle the pair on /doublons.'
 		}
 	];
+}
+
+// ---------------------------------------------------------------- the pair list
+
+export class DuplicateError extends Error {}
+
+/** One recipe of a pair, as the list shows it. */
+export interface PairSide {
+	slug: string;
+	title: string;
+	family: string | null;
+	familyLabel: string | null;
+	variant: string | null;
+	status: string | null;
+	/** Author, book or site, as one short line ('' when none). */
+	source: string;
+	sourceType: string | null;
+	hash: string;
+}
+
+export interface PairView {
+	a: PairSide;
+	b: PairSide;
+	/** Weighted Jaccard, 0–1. */
+	score: number;
+	shared: string[];
+	onlyA: string[];
+	onlyB: string[];
+	/** The titles too: `same` (W608), `near` (W503), or null. */
+	titles: 'same' | 'near' | null;
+}
+
+/** Pairs per page. */
+export const PAIRS_PAGE = 20;
+
+/** Number of unsettled pairs: the nav's "Doublons (N)". */
+export function duplicateCount(ctx: VaultContext): number {
+	return allPairs(ctx.db, dismissedPairs(ctx)).length;
+}
+
+interface SideRow {
+	slug: string;
+	title: string;
+	family: string | null;
+	variant: string | null;
+	status: string | null;
+	source_type: string | null;
+	author: string | null;
+	source_title: string | null;
+	source_url: string | null;
+	file_hash: string;
+}
+
+const hostOf = (url: string) => {
+	try {
+		return new URL(url).hostname.replace(/^www\./, '');
+	} catch {
+		return url;
+	}
+};
+
+/** The unsettled pairs, most similar first, `PAIRS_PAGE` from `page` (1-based). */
+export function duplicatePage(ctx: VaultContext, page = 1): { pairs: PairView[]; total: number; page: number; pages: number; distinctHash: string } {
+	const distinct = readVaultFile(ctx, DISTINCT_FILE);
+	const dismissed = new Set(parseDistinct(distinct.text).map(([a, b]) => pairKey(a, b)));
+	const all = allPairs(ctx.db, dismissed);
+	const pages = Math.max(1, Math.ceil(all.length / PAIRS_PAGE));
+	const p = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+	const slice = all.slice((p - 1) * PAIRS_PAGE, p * PAIRS_PAGE);
+	const m = duplicateModel(ctx.db);
+	const labels = loadVocab(ctx.paths.vocab).families;
+	const row = ctx.db.prepare('SELECT slug, title, family, variant, status, source_type, author, source_title, source_url, file_hash FROM recipes WHERE slug = ?');
+	const side = (slug: string): PairSide => {
+		const r = row.get(slug) as SideRow;
+		return {
+			slug,
+			title: stripMarkers(r.title),
+			family: r.family,
+			familyLabel: r.family ? (labels.get(r.family)?.fr ?? null) : null,
+			variant: r.variant ? stripMarkers(r.variant) : null,
+			status: r.status,
+			source: [r.author, r.source_title, r.source_url && hostOf(r.source_url)].filter(Boolean).map((x) => stripMarkers(x!)).join(', '),
+			sourceType: r.source_type,
+			hash: r.file_hash
+		};
+	};
+	const pairs = slice.map((x): PairView => {
+		const d = pairDetail(m, x);
+		const [a, b] = [side(x.a), side(x.b)];
+		const [ta, tb] = [normTitle(a.title), normTitle(b.title)];
+		return { a, b, score: x.score, shared: d.shared, onlyA: d.onlyA, onlyB: d.onlyB, titles: ta === tb ? 'same' : withinDistance(ta, tb, 2) ? 'near' : null };
+	});
+	return { pairs, total: all.length, page: p, pages, distinctHash: distinct.hash };
+}
+
+// ---------------------------------------------------------------- "Recettes différentes"
+
+const HEADER = `# Pairs of recipes settled as different recipes on /doublons (docs/VOCAB.md,
+# "Distinct recipes"): never listed as possible duplicates again. One pair per
+# line, the two slugs sorted, the lines sorted.
+`;
+
+const PAIR_LINE = /^- \[.*\]\s*$/;
+
+/** `text` with the pair lines replaced by `pairs`, sorted; comments and anything else kept above them. */
+function withPairs(text: string, pairs: [string, string][]): string {
+	const keep = text
+		.split('\n')
+		.filter((l) => !PAIR_LINE.test(l))
+		.join('\n')
+		.replace(/\n+$/, '');
+	const uniq = [...new Map(pairs.map(([a, b]) => [pairKey(a, b), (a < b ? [a, b] : [b, a]) as [string, string]])).values()].sort((x, y) =>
+		x[0] === y[0] ? (x[1] < y[1] ? -1 : 1) : x[0] < y[0] ? -1 : 1
+	);
+	const head = keep ? keep + '\n' : HEADER;
+	return head + uniq.map(([a, b]) => `- [${a}, ${b}]\n`).join('');
+}
+
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** The file as it will be written, checked: it must read back as exactly `pairs`. */
+function distinctText(cur: string, pairs: [string, string][]): string {
+	if (cur.trim()) {
+		let data: unknown;
+		try {
+			data = parse(cur, { version: '1.2' });
+		} catch {
+			throw new DuplicateError(`${DISTINCT_FILE} ne se lit pas (YAML) ; corrigez-le d’abord.`);
+		}
+		if (data !== null && !Array.isArray(data)) throw new DuplicateError(`${DISTINCT_FILE} n’est pas une liste de paires ; corrigez-le d’abord.`);
+	}
+	const next = withPairs(cur, pairs);
+	const back = parseDistinct(next).map(([a, b]) => pairKey(a, b));
+	const want = new Set(pairs.map(([a, b]) => pairKey(a, b)));
+	if (back.length !== want.size || back.some((k) => !want.has(k))) throw new DuplicateError(`${DISTINCT_FILE} n’a pas pu être modifié sans rien perdre ; corrigez-le à la main.`);
+	return next;
+}
+
+async function commitDistinct(ctx: VaultContext, text: string, message: string): Promise<string | undefined> {
+	let commit: string | undefined;
+	try {
+		commit = await writeAndCommit(ctx, [{ rel: DISTINCT_FILE, text }], message);
+	} catch (e) {
+		if (!(e instanceof FileWriteError)) throw e;
+		throw new DuplicateError(
+			e.stage === 'write' ? `le fichier n’a pas pu être écrit ; rien n’a changé : ${e.message}` : `le choix n’a pas pu être enregistré (git) ; rien n’a changé : ${e.message}`
+		);
+	}
+	committed(ctx);
+	return commit;
+}
+
+/**
+ * "Recettes différentes": the pair written to vocab/distinct.yaml, one commit
+ * `duplicate: <a> ≠ <b>`. `expectedHash`: the file's hash when the page was
+ * read ('' for no file).
+ */
+export function dismissPair(ctx: VaultContext, x: string, y: string, expectedHash: string): Promise<{ commit?: string }> {
+	return ctx.lock.run(async () => {
+		if (!SLUG_RE.test(x) || !SLUG_RE.test(y) || x === y) throw new DuplicateError('paire invalide.');
+		const [a, b] = x < y ? [x, y] : [y, x];
+		const cur = readVaultFile(ctx, DISTINCT_FILE);
+		if (cur.hash !== expectedHash) throw new DuplicateError('la liste a changé depuis l’ouverture de la page ; rechargez-la.');
+		const pairs = parseDistinct(cur.text);
+		if (pairs.some((p) => p[0] === a && p[1] === b)) return {};
+		const text = distinctText(cur.text, [...pairs, [a, b]]);
+		return { commit: await commitDistinct(ctx, text, `duplicate: ${a} ≠ ${b}`) };
+	});
+}
+
+/** "Annuler" after "Recettes différentes": the pair's line taken out, one commit `undo: duplicate <a> ≠ <b>`. */
+export function undismissPair(ctx: VaultContext, x: string, y: string): Promise<{ commit?: string }> {
+	return ctx.lock.run(async () => {
+		const [a, b] = x < y ? [x, y] : [y, x];
+		const cur = readVaultFile(ctx, DISTINCT_FILE);
+		const pairs = parseDistinct(cur.text);
+		const left = pairs.filter((p) => !(p[0] === a && p[1] === b));
+		if (left.length === pairs.length) return {};
+		const text = distinctText(cur.text, left);
+		return { commit: await commitDistinct(ctx, text, `undo: duplicate ${a} ≠ ${b}`) };
+	});
+}
+
+// ---------------------------------------------------------------- "Deux versions"
+
+export interface VersionsRequest {
+	a: { slug: string; hash: string; variant: string };
+	b: { slug: string; hash: string; variant: string };
+	/** The family slug (slugified here). */
+	family: string;
+	/** The family's French label, written only where the family has none. */
+	label?: string;
+}
+
+/**
+ * "Deux versions de la même recette": both recipes members of `family`, each
+ * with its variant, one commit editing both (and the family's label when it
+ * has none). Refused when either file changed since the page was read.
+ */
+export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { today?: string } = {}): Promise<{ commit?: string; family: string }> {
+	return ctx.lock.run(async () => {
+		const family = slugify(req.family);
+		if (!family || !SLUG_RE.test(family)) throw new DuplicateError('choisissez un nom de famille.');
+		const va = stripMarkers(req.a.variant).trim();
+		const vb = stripMarkers(req.b.variant).trim();
+		if (!va || !vb) throw new DuplicateError('nommez chacune des deux versions.');
+		if (va === vb) throw new DuplicateError('donnez deux noms de version différents.');
+		if (req.a.slug === req.b.slug) throw new DuplicateError('paire invalide.');
+		const files: FileWrite[] = [];
+		const label = cleanLabel(req.label ?? '');
+		if (label.length > LABEL_MAX) throw new DuplicateError(`le nom est trop long (${LABEL_MAX} caractères au plus).`);
+		if (label && !loadVocab(ctx.paths.vocab).families.get(family)?.fr) {
+			try {
+				const fam = familiesFile(ctx);
+				const next = withLabel(fam.text, family, label);
+				if (next !== fam.text) files.push({ rel: FAMILIES_FILE, text: next });
+			} catch (e) {
+				if (e instanceof FamilyLabelError) throw new DuplicateError(e.message);
+				throw e;
+			}
+		}
+		const set = (variant: string) => (r: Recipe): Recipe => ({ ...r, family, variant });
+		try {
+			const r = await editRecipesLocked(
+				ctx,
+				[
+					{ slug: req.a.slug, hash: req.a.hash, change: set(va) },
+					{ slug: req.b.slug, hash: req.b.hash, change: set(vb) }
+				],
+				{ today: opts.today, files }
+			);
+			return { commit: r.commit, family };
+		} catch (e) {
+			if (e instanceof EditError || e instanceof SaveError) throw new DuplicateError(e.message);
+			throw e;
+		}
+	});
+}
+
+// ---------------------------------------------------------------- "C'est la même recette"
+
+/** "C'est la même recette": the one she picked to the trash (`delete:`), undoable. */
+export async function sameRecipe(ctx: VaultContext, drop: string, hash: string): Promise<{ commit?: string }> {
+	try {
+		return await remove(ctx, drop, hash);
+	} catch (e) {
+		if (e instanceof TrashError) throw new DuplicateError(e.reason === 'stale' ? e.message : e.reason === 'gone' ? 'cette recette n’existe plus.' : 'la recette n’a pas pu être mise à la corbeille ; rien n’a changé.');
+		throw e;
+	}
 }

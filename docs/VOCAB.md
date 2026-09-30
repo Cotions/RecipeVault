@@ -160,6 +160,30 @@ commit. English
 labels (`en`) are kept when present but not edited by the app until there is
 an English UI.
 
+## Distinct recipes
+
+`vocab/distinct.yaml` holds the pairs of recipes a person settled as different
+recipes on `/doublons` (plan 05, Q14 A; `INGREDIENTS.md`, "Duplicates"): two
+recipes with nearly the same ingredients that are not the same card and not two
+versions of one dish. A pair listed here is never shown on `/doublons` again,
+nor named by W505, whatever the two recipes become. One pair per line, the two
+slugs sorted, the lines sorted:
+
+```yaml
+# Pairs of recipes settled as different recipes on /doublons …
+- [carres-aux-dattes, carres-magiques]
+- [cretons, tourtiere]
+```
+
+Not seeded: the file is written by the first "Recettes différentes", one commit
+`duplicate: <a> ≠ <b>`; its "Annuler" takes the line out again (`undo:
+duplicate <a> ≠ <b>`). The app edits it as text — comments are kept, the pair
+lines rewritten sorted — and reads it on every request, so a hand edit or a
+`git pull` counts at once; it is not in the index, so deleting `cache/` loses
+nothing. A line naming a slug no longer in the vault (a recipe sent to the
+trash) is ignored. Slugs are permanent (`STORAGE.md`, "Slugs"), so a pair keeps
+its meaning.
+
 ## Regional ingredient names
 
 Quebec French names map to the same registry entries as France French ones — this

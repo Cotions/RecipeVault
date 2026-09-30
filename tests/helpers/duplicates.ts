@@ -120,3 +120,8 @@ export function plantDuplicates(
 	}
 	return out;
 }
+
+/** A recipe file under another title and slug (a second paste of one card), `change` applied after. */
+export function copyOf(text: string, title: string, slug: string, change: (t: string) => string = (t) => t): string {
+	return change(text.replace(/^title: .*$/m, `title: ${title}`).replace(/^slug: .*$/m, `slug: ${slug}`));
+}

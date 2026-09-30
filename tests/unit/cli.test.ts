@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -83,6 +83,16 @@ describe('vault check', () => {
 		const j = JSON.parse(vault(['check', '--dir', 'tests/fixtures/vault', '--json']).out);
 		expect(j.files.length).toBe(22);
 		expect(j.ingredients.find((f: { name: string }) => f.name === 'ingredients/casse.md').diagnostics[0].code).toBe('E803');
+	});
+
+	it('--dir reports the settled duplicate pairs naming a recipe no longer in the vault as stale (plan 05, Q14)', () => {
+		const v = join(mkdtempSync(join(tmpdir(), 'rv-cli-distinct-')), 'vault');
+		cpSync('tests/fixtures/vault', v, { recursive: true });
+		mkdirSync(join(v, 'vocab'), { recursive: true });
+		writeFileSync(join(v, 'vocab', 'distinct.yaml'), '# settled\n- [crepes, pate-brisee]\n- [crepes, gone-recipe]\n');
+		const r = vault(['check', '--dir', v]);
+		expect(r.out).toContain('vocab/distinct.yaml: 2 pairs settled as different recipes, 1 stale');
+		expect(r.out).toContain('crepes ≠ gone-recipe  (no longer in recipes/; ignored)');
 	});
 
 	it('exits 2 on usage and IO errors', () => {

@@ -38,6 +38,7 @@ Data splits by how it changes, because each kind wants a different format:
 │   ├── brands.yaml                  # brand words for W607
 │   ├── conversions.yaml             # unit factors for cost: g per mass unit, ml per volume unit
 │   ├── descriptors.yaml             # size words for W304
+│   ├── distinct.yaml                # recipe pairs settled as different recipes on /doublons (not seeded)
 │   ├── families.yaml                # family slug → { fr, en } labels, set on the family page
 │   ├── normalize.yaml               # plural rules for ingredient lookup
 │   ├── participles.yaml             # preparation words for W302
