@@ -36,7 +36,7 @@ export const actions: Actions = {
 				family: str(f, 'family'),
 				label: str(f, 'label')
 			});
-			return { message: t.duplicates.versionsDone(r.family), undo: r.commit ? { kind: 'commit', commit: r.commit, slug: a } : undefined };
+			return { message: t.duplicates.versionsDone(r.family), undo: r.commit ? { kind: 'commit', commit: r.commit, slug: r.edited[0] ?? a } : undefined };
 		});
 	},
 	same: async ({ request, locals }) => {

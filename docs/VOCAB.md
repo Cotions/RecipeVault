@@ -180,7 +180,11 @@ Not seeded: the file is written by the first "Recettes différentes", one commit
 duplicate <a> ≠ <b>`). The app edits it as text — comments are kept, the pair
 lines rewritten sorted — and reads it on every request, so a hand edit or a
 `git pull` counts at once; it is not in the index, so deleting `cache/` loses
-nothing. A line naming a slug no longer in the vault (a recipe sent to the
+nothing. A slug YAML would read as something other than a string (`1905`,
+`null`) is written double-quoted (`- ["1905", gateau]`); a line that looks like
+a pair but does not read as one is left as written and ignored. A file that
+does not parse, or is not a list, counts no pair and is not rewritten until it
+is fixed by hand (`vault check --dir` says so). A line naming a slug no longer in the vault (a recipe sent to the
 trash) is ignored. Slugs are permanent (`STORAGE.md`, "Slugs"), so a pair keeps
 its meaning.
 

@@ -22,6 +22,7 @@ import type { Diagnostic, Recipe } from '../vault/types';
 import { committed, type VaultContext } from './context';
 import { cleanLabel, FAMILIES_FILE, familiesFile, FamilyLabelError, LABEL_MAX, withLabel } from './families';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
+import { usedBy } from './index/query';
 import { allPairs, duplicateModel, pairDetail, pairKey, pairsFor } from './index/similar';
 import { EditError, editRecipesLocked, SaveError } from './save';
 import { remove, TrashError } from './trash';
@@ -30,20 +31,32 @@ import { loadVocab } from './vocab';
 
 export const DISTINCT_FILE = `${VOCAB}/distinct.yaml`;
 
-/** The pairs of vocab/distinct.yaml, as they read: well-formed lines only. */
-export function parseDistinct(text: string): [string, string][] {
+/** One entry of the file as a pair of two different slugs, sorted; null when it is not one. */
+function asPair(e: unknown): [string, string] | null {
+	if (!Array.isArray(e) || e.length !== 2 || typeof e[0] !== 'string' || typeof e[1] !== 'string' || e[0] === e[1]) return null;
+	return e[0] < e[1] ? [e[0], e[1]] : [e[1], e[0]];
+}
+
+/**
+ * vocab/distinct.yaml as it reads: its well-formed pairs, and `problem` when
+ * the file as a whole does not read (bad YAML, or not a list) — then no pair
+ * of it counts, and the app refuses to rewrite it.
+ */
+export function readDistinct(text: string): { pairs: [string, string][]; problem?: 'yaml' | 'not-a-list' } {
 	let data: unknown;
 	try {
 		data = parse(text, { version: '1.2' });
 	} catch {
-		return [];
+		return { pairs: [], problem: 'yaml' };
 	}
-	if (!Array.isArray(data)) return [];
-	const out: [string, string][] = [];
-	for (const e of data)
-		if (Array.isArray(e) && e.length === 2 && typeof e[0] === 'string' && typeof e[1] === 'string' && e[0] !== e[1])
-			out.push(e[0] < e[1] ? [e[0], e[1]] : [e[1], e[0]]);
-	return out;
+	if (data === null || data === undefined) return { pairs: [] };
+	if (!Array.isArray(data)) return { pairs: [], problem: 'not-a-list' };
+	return { pairs: data.map(asPair).filter((p): p is [string, string] => !!p) };
+}
+
+/** The pairs of vocab/distinct.yaml, as they read: well-formed lines only. */
+export function parseDistinct(text: string): [string, string][] {
+	return readDistinct(text).pairs;
 }
 
 /** The settled pairs, as `pairKey`s. */
@@ -67,10 +80,19 @@ const MAX_CLOSE = 3;
 /**
  * The vault recipes whose ingredients are close to `recipe` (not saved yet),
  * pairs already settled left out. `own`: the slug it will be saved under (an
- * edit, a paste over itself): never paired with itself.
+ * edit, a paste over itself): never paired with itself. `exclude`: a recipe
+ * left out without taking its settled pairs (a paste whose slug is taken,
+ * which may yet be saved under another slug).
  */
-export function closeRecipes(ctx: VaultContext, recipe: Pick<Recipe, 'ingredients' | 'lang' | 'family'>, own?: string): CloseRecipe[] {
-	const found = pairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), recipe, { own, dismissed: dismissedPairs(ctx) }).slice(0, MAX_CLOSE);
+export function closeRecipes(
+	ctx: VaultContext,
+	recipe: Pick<Recipe, 'ingredients' | 'lang' | 'family'>,
+	own?: string,
+	opts: { exclude?: string } = {}
+): CloseRecipe[] {
+	const found = pairsFor(ctx.db, () => loadVocab(ctx.paths.vocab), recipe, { own, dismissed: dismissedPairs(ctx) })
+		.filter((f) => f.slug !== opts.exclude)
+		.slice(0, MAX_CLOSE);
 	if (!found.length) return [];
 	const hash = ctx.db.prepare('SELECT file_hash FROM recipes WHERE slug = ?').pluck();
 	return found.map((f) => ({ ...f, hash: (hash.get(f.slug) as string | undefined) ?? '' }));
@@ -102,12 +124,17 @@ export interface PairSide {
 	title: string;
 	family: string | null;
 	familyLabel: string | null;
+	/** The variant as read (markers stripped), for display. */
 	variant: string | null;
+	/** The variant as written in the file (markers kept), for the "Deux versions" prefill. */
+	variantText: string | null;
 	status: string | null;
 	/** Author, book or site, as one short line ('' when none). */
 	source: string;
 	sourceType: string | null;
 	hash: string;
+	/** The recipes that use this one as a sub-recipe: it cannot go to the trash while any does. */
+	usedBy: { slug: string; title: string }[];
 }
 
 export interface PairView {
@@ -170,10 +197,12 @@ export function duplicatePage(ctx: VaultContext, page = 1): { pairs: PairView[];
 			family: r.family,
 			familyLabel: r.family ? (labels.get(r.family)?.fr ?? null) : null,
 			variant: r.variant ? stripMarkers(r.variant) : null,
+			variantText: r.variant,
 			status: r.status,
 			source: [r.author, r.source_title, r.source_url && hostOf(r.source_url)].filter(Boolean).map((x) => stripMarkers(x!)).join(', '),
 			sourceType: r.source_type,
-			hash: r.file_hash
+			hash: r.file_hash,
+			usedBy: usedBy(ctx.db, slug).map((u) => ({ slug: u.slug, title: stripMarkers(u.title) }))
 		};
 	};
 	const pairs = slice.map((x): PairView => {
@@ -194,33 +223,53 @@ const HEADER = `# Pairs of recipes settled as different recipes on /doublons (do
 
 const PAIR_LINE = /^- \[.*\]\s*$/;
 
-/** `text` with the pair lines replaced by `pairs`, sorted; comments and anything else kept above them. */
+/** A pair line that reads as a pair (those are rewritten); any other line is kept as written. */
+function isPairLine(l: string): boolean {
+	if (!PAIR_LINE.test(l)) return false;
+	try {
+		const data = parse(l, { version: '1.2' });
+		return Array.isArray(data) && data.length === 1 && !!asPair(data[0]);
+	} catch {
+		return false;
+	}
+}
+
+/** A slug as a flow scalar: plain when YAML reads it back as that string, else double-quoted (`1905`, `null`, `1e5`). */
+function scalar(slug: string): string {
+	let back: unknown;
+	try {
+		back = parse(`[${slug}]`, { version: '1.2' });
+	} catch {
+		back = null;
+	}
+	return Array.isArray(back) && back.length === 1 && back[0] === slug ? slug : JSON.stringify(slug);
+}
+
+/**
+ * `text` with the pair lines replaced by `pairs`, sorted; comments and
+ * anything else kept above them — a line that looks like a pair but does not
+ * read as one (`- [1905, gateau]` written by hand) is kept as written.
+ */
 function withPairs(text: string, pairs: [string, string][]): string {
 	const keep = text
 		.split('\n')
-		.filter((l) => !PAIR_LINE.test(l))
+		.filter((l) => !isPairLine(l))
 		.join('\n')
 		.replace(/\n+$/, '');
 	const uniq = [...new Map(pairs.map(([a, b]) => [pairKey(a, b), (a < b ? [a, b] : [b, a]) as [string, string]])).values()].sort((x, y) =>
 		x[0] === y[0] ? (x[1] < y[1] ? -1 : 1) : x[0] < y[0] ? -1 : 1
 	);
 	const head = keep ? keep + '\n' : HEADER;
-	return head + uniq.map(([a, b]) => `- [${a}, ${b}]\n`).join('');
+	return head + uniq.map(([a, b]) => `- [${scalar(a)}, ${scalar(b)}]\n`).join('');
 }
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** The file as it will be written, checked: it must read back as exactly `pairs`. */
 function distinctText(cur: string, pairs: [string, string][]): string {
-	if (cur.trim()) {
-		let data: unknown;
-		try {
-			data = parse(cur, { version: '1.2' });
-		} catch {
-			throw new DuplicateError(`${DISTINCT_FILE} ne se lit pas (YAML) ; corrigez-le d’abord.`);
-		}
-		if (data !== null && !Array.isArray(data)) throw new DuplicateError(`${DISTINCT_FILE} n’est pas une liste de paires ; corrigez-le d’abord.`);
-	}
+	const { problem } = readDistinct(cur);
+	if (problem === 'yaml') throw new DuplicateError(`${DISTINCT_FILE} ne se lit pas (YAML) ; corrigez-le d’abord.`);
+	if (problem === 'not-a-list') throw new DuplicateError(`${DISTINCT_FILE} n’est pas une liste de paires ; corrigez-le d’abord.`);
 	const next = withPairs(cur, pairs);
 	const back = parseDistinct(next).map(([a, b]) => pairKey(a, b));
 	const want = new Set(pairs.map(([a, b]) => pairKey(a, b)));
@@ -289,14 +338,15 @@ export interface VersionsRequest {
  * with its variant, one commit editing both (and the family's label when it
  * has none). Refused when either file changed since the page was read.
  */
-export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { today?: string } = {}): Promise<{ commit?: string; family: string }> {
+export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { today?: string } = {}): Promise<{ commit?: string; family: string; edited: string[] }> {
 	return ctx.lock.run(async () => {
 		const family = slugify(req.family);
 		if (!family || !SLUG_RE.test(family)) throw new DuplicateError('choisissez un nom de famille.');
-		const va = stripMarkers(req.a.variant).trim();
-		const vb = stripMarkers(req.b.variant).trim();
-		if (!va || !vb) throw new DuplicateError('nommez chacune des deux versions.');
-		if (va === vb) throw new DuplicateError('donnez deux noms de version différents.');
+		// Written as she typed it, markers kept (`de matante [?: Rita]`); compared as read.
+		const [va, vb] = [req.a.variant.trim(), req.b.variant.trim()];
+		const [ra, rb] = [stripMarkers(va).trim(), stripMarkers(vb).trim()];
+		if (!ra || !rb) throw new DuplicateError('nommez chacune des deux versions.');
+		if (ra === rb) throw new DuplicateError('donnez deux noms de version différents.');
 		if (req.a.slug === req.b.slug) throw new DuplicateError('paire invalide.');
 		const files: FileWrite[] = [];
 		const label = cleanLabel(req.label ?? '');
@@ -311,7 +361,12 @@ export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { to
 				throw e;
 			}
 		}
-		const set = (variant: string) => (r: Recipe): Recipe => ({ ...r, family, variant });
+		// The same variant as read as the file's: the file's own text stays, markers and all.
+		const set = (variant: string) => (r: Recipe): Recipe => ({
+			...r,
+			family,
+			variant: r.variant && stripMarkers(r.variant).trim() === stripMarkers(variant).trim() ? r.variant : variant
+		});
 		try {
 			const r = await editRecipesLocked(
 				ctx,
@@ -321,7 +376,7 @@ export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { to
 				],
 				{ today: opts.today, files }
 			);
-			return { commit: r.commit, family };
+			return { commit: r.commit, family, edited: r.slugs ?? [] };
 		} catch (e) {
 			if (e instanceof EditError || e instanceof SaveError) throw new DuplicateError(e.message);
 			throw e;
@@ -331,8 +386,17 @@ export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { to
 
 // ---------------------------------------------------------------- "C'est la même recette"
 
-/** "C'est la même recette": the one she picked to the trash (`delete:`), undoable. */
+/**
+ * "C'est la même recette": the one she picked to the trash (`delete:`),
+ * undoable. Refused while another recipe uses it as a sub-recipe: that line
+ * would point at nothing (keep that one instead, or change those recipes first).
+ */
 export async function sameRecipe(ctx: VaultContext, drop: string, hash: string): Promise<{ commit?: string }> {
+	const users = usedBy(ctx.db, drop).filter((u) => u.slug !== drop);
+	if (users.length)
+		throw new DuplicateError(
+			`cette recette sert de sous-recette dans ${users.map((u) => `« ${stripMarkers(u.title)} »`).join(', ')} ; gardez-la plutôt, ou changez d’abord ces recettes.`
+		);
 	try {
 		return await remove(ctx, drop, hash);
 	} catch (e) {

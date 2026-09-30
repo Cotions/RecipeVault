@@ -351,7 +351,7 @@ export async function editRecipesLocked(
 	ctx: VaultContext,
 	edits: { slug: string; hash: string; change: (recipe: Recipe) => Recipe }[],
 	opts: SaveOptions & { files?: FileWrite[] } = {}
-): Promise<{ commit?: string; indexError?: string }> {
+): Promise<{ commit?: string; indexError?: string; slugs?: string[] }> {
 	const ready: Ready[] = [];
 	for (const e of edits) {
 		const cur = currentFile(ctx, e.slug);
@@ -368,7 +368,8 @@ export async function editRecipesLocked(
 		ready.push({ slug: e.slug, title: final.title, text: out, created: false, verb: 'edit' });
 	}
 	if (!ready.length) return {};
-	return writeCommitIndex(ctx, ready, commitMessage(ready), opts.files ?? []);
+	// `slugs`: the recipes actually rewritten (one left unchanged is not in the commit).
+	return { ...(await writeCommitIndex(ctx, ready, commitMessage(ready), opts.files ?? [])), slugs: ready.map((r) => r.slug) };
 }
 
 export class VerifyError extends Error {}

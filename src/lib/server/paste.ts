@@ -42,7 +42,7 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 		const out: ServerCheckFile = { diagnostics: f.diagnostics, slug, titles: {} };
 		if (f.recipe) {
 			out.titles = Object.fromEntries(titles(app.ctx.db, referencedSlugs(f.recipe, '')));
-			// Pasted over itself (E103 "Remplacer"), a file is never its own duplicate.
+			// A file is never its own duplicate.
 			const close = closeRecipes(app.ctx, f.recipe, slug);
 			if (close.length) out.close = close;
 			out.diagnostics = [
@@ -51,6 +51,16 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 				...toTasteWarnings(app.ctx.db, app.ctx.paths.vocab, f.recipe),
 				...duplicateWarnings(close)
 			];
+		}
+		if (!f.recipe && slug && f.diagnostics.every((d) => d.severity !== 'error' || d.code === 'E103')) {
+			// Its slug taken (E103, its only error): it may yet be saved under
+			// another slug ("Enregistrer comme"), so the close recipes are those of
+			// a new file — the recipe there left out (the collision names it), and
+			// its settled pairs not applied. Only `close`, which the box shows
+			// unless she picks "Remplacer"; no W505 line, which would show either way.
+			const recipe = checkFile(texts[i]).recipe;
+			const close = recipe ? closeRecipes(app.ctx, recipe, undefined, { exclude: slug }) : [];
+			if (close.length) out.close = close;
 		}
 		if (slug && f.diagnostics.some((d) => d.code === 'E103')) {
 			let n = 2;

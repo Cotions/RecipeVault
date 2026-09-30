@@ -844,6 +844,34 @@ Markdown account while N > 0 (counted only for that account). Decisions:
 - E2E runs on a phone (Pixel 7, like `/etiquettes`) rather than desktop and
   tablet; the four actions are in the guard spec's signed-out list.
 
+**Review fixes (duplicates).** From the one end-of-work review:
+
+- ⚑ **Flagged — "C'est la même recette" and sub-recipes** (the docs left it
+  open). Chosen, the safest: a recipe another recipe uses as a sub-recipe is
+  **never sent to the trash from `/doublons`** — each side lists "Sert de
+  sous-recette dans …"; the radio defaults to trashing the side nobody uses and
+  the used side cannot be picked; when both are used the action is not offered
+  ("changez d'abord ces recettes"); `sameRecipe` refuses it server-side too.
+  Not chosen: repointing the linking recipes to the kept one in the same
+  commit (a bigger writer), or a confirm that lets her break the link. For the
+  owner to revisit; the recipe page's own delete still only shows `usedBy`.
+- The form's W505 hint shows whatever the family (a copy put in the wrong
+  family is the case it is for); only "En faire deux versions" needs no family.
+- A paste whose slug is taken (`E103`, its only error) gets its close recipes
+  as a new file would ("Enregistrer comme"): the recipe it collides with left
+  out, that recipe's settled pairs not applied. Only `close` (shown unless she
+  picks "Remplacer"), no W505 line. Before, a colliding file had no recipe and
+  so no close list at all.
+- "Deux versions": the variant is prefilled and written as in the file,
+  markers kept; a posted variant equal to the file's as read leaves the file's
+  text. "Annuler" names a recipe the commit wrote (`editRecipesLocked` returns
+  `slugs`), not always the first of the pair.
+- `vocab/distinct.yaml`: a slug YAML would read as something else (`1905`,
+  `null`, `1e5`) is written double-quoted; a hand-written line that looks like
+  a pair but does not read as one is kept as written. `vault check --dir` says
+  when the file does not parse or is not a list (its pairs ignored) rather than
+  "0 pairs"; still no code, never an error.
+
 **Where it stopped (reboot).** Green: `npm test`, `npx svelte-check`, and
 `doublons.spec.ts` + `guard.spec.ts` run alone. The full `npm run test:e2e` was
 not run after Phase 7 (the scaling session held the e2e port). Next: run the

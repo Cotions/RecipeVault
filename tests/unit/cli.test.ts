@@ -95,6 +95,20 @@ describe('vault check', () => {
 		expect(r.out).toContain('crepes ≠ gone-recipe  (no longer in recipes/; ignored)');
 	});
 
+	it('--dir says so when vocab/distinct.yaml does not read, rather than "0 pairs" (plan 05, Q14)', () => {
+		const v = join(mkdtempSync(join(tmpdir(), 'rv-cli-distinct-')), 'vault');
+		cpSync('tests/fixtures/vault', v, { recursive: true });
+		mkdirSync(join(v, 'vocab'), { recursive: true });
+		writeFileSync(join(v, 'vocab', 'distinct.yaml'), '- [crepes, pate-brisee\n- [crepes, sucre-a-la-creme]\n');
+		let r = vault(['check', '--dir', v]);
+		expect(r.out).toContain('vocab/distinct.yaml: does not parse as YAML; every pair in it is ignored');
+		expect(r.out).not.toContain('pairs settled');
+		// A merge conflict left in it reads as one string: not a list.
+		writeFileSync(join(v, 'vocab', 'distinct.yaml'), '<<<<<<< HEAD\n- [crepes, pate-brisee]\n=======\n');
+		r = vault(['check', '--dir', v]);
+		expect(r.out).toContain('vocab/distinct.yaml: is not a list of pairs; every pair in it is ignored');
+	});
+
 	it('exits 2 on usage and IO errors', () => {
 		expect(vault([]).code).toBe(2);
 		expect(vault(['check']).code).toBe(2);

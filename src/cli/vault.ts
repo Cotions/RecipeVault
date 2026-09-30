@@ -31,7 +31,7 @@ import { seedVault } from '../lib/server/seed';
 import { checkRegistry, parseIngredient } from '../lib/ingredients/registry';
 import { loadCheckWords, loadVocab, seedCheckWords } from '../lib/server/vocab';
 import { resolveQueue } from '../lib/server/queue';
-import { DISTINCT_FILE, parseDistinct } from '../lib/server/duplicates';
+import { DISTINCT_FILE, readDistinct } from '../lib/server/duplicates';
 import { priceProblems } from '../lib/server/prices';
 import { parsePrices, PRICES_FILE, type PriceProblem } from '../lib/ingredients/prices';
 import { SessionStore } from '../lib/server/sessions';
@@ -605,7 +605,14 @@ function printIngredients(files: { name: string; diagnostics: Diagnostic[] }[], 
 function printDistinct(vaultDir: string): void {
 	const file = join(vaultDir, DISTINCT_FILE);
 	if (!existsSync(file)) return;
-	const pairs = parseDistinct(readFileSync(file, 'utf8'));
+	const { pairs, problem } = readDistinct(readFileSync(file, 'utf8'));
+	if (problem) {
+		// Informational, never an error (plan 05, Phase 7): but not "0 pairs" when it does not read.
+		console.log(
+			yellow(`${DISTINCT_FILE}: ${problem === 'yaml' ? 'does not parse as YAML' : 'is not a list of pairs'}; every pair in it is ignored until it is fixed by hand`)
+		);
+		return;
+	}
 	const there = (slug: string) => existsSync(join(vaultDir, 'recipes', `${slug}.md`));
 	const stale = pairs.filter(([a, b]) => !there(a) || !there(b));
 	console.log(`${DISTINCT_FILE}: ${plural(pairs.length, 'pair')} settled as different recipes${stale.length ? `, ${stale.length} stale` : ''}`);

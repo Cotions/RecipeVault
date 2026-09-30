@@ -96,3 +96,20 @@ test('pairs on /doublons: compare, "Deux versions", "Même recette" with undo, "
 	await dattes.getByRole('button', { name: 'Ce sont deux recettes différentes' }).click();
 	await expect(dattes).toHaveCount(0);
 });
+
+test('"Même recette" never offers to trash a recipe another one uses as a sub-recipe', async ({ page, baseURL }) => {
+	// A second copy of the fixture's pizza dough, which pizza-maison uses as a sub-recipe.
+	const dough = readFileSync('tests/fixtures/vault/recipes/pate-a-pizza.md', 'utf8')
+		.replace(/^title: .*$/m, 'title: Pâte à pizza de Lise')
+		.replace(/^slug: .*$/m, 'slug: pate-a-pizza-de-lise')
+		.replace(/^(status|added): .*\n/gm, '');
+	const saved = await page.request.post('/api/save', { headers: { origin: baseURL! }, data: { files: [{ text: dough }] } });
+	expect(saved.ok()).toBe(true);
+	await page.goto('/doublons');
+	const card = page.locator('li.card[data-pair="pate-a-pizza pate-a-pizza-de-lise"]');
+	await expect(card.getByTestId('used-by')).toContainText('Pizza maison');
+	await card.getByText('C’est la même recette').click();
+	// Keeping the copy would trash the one in use: not offered.
+	await expect(card.getByLabel('Garder « Pâte à pizza de Lise »')).toBeDisabled();
+	await expect(card.getByLabel('Garder « Pâte à pizza »', { exact: true })).toBeChecked();
+});

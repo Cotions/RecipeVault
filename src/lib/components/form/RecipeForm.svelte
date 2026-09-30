@@ -482,10 +482,12 @@
 				<button type="button" class="btn" onclick={() => makePair(sameOffer)}>{f.sameTitle}</button>
 			</div>
 		{/if}
-		{#if closeOffer && !form.family}
+		<!-- W505 is shown whatever the family: a copy put in the wrong family is the case it
+		     is there for. Only the pair offer needs a recipe with no family yet. -->
+		{#if closeOffer}
 			<div class="hint" data-testid="close-recipe">
 				<span>{formHintText.W505({ value: closeOffer.title })} <a href="/r/{closeOffer.slug}" target="_blank" rel="noopener">{f.near}</a></span>
-				<button type="button" class="btn" onclick={() => makePair(closeOffer)}>{f.sameTitle}</button>
+				{#if !form.family}<button type="button" class="btn" onclick={() => makePair(closeOffer)}>{f.sameTitle}</button>{/if}
 			</div>
 		{/if}
 		{#if pair}

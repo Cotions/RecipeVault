@@ -67,6 +67,12 @@
 							</p>
 							{#if r.family}<p class="meta">{s.familyOf(familyName(r), r.variant)}</p>{/if}
 							{#if r.status}<p class="meta">{t.status[r.status] ?? r.status}</p>{/if}
+							{#if r.usedBy.length}
+								<p class="meta" data-testid="used-by">
+									{s.usedBy}
+									{#each r.usedBy as u, i (u.slug)}{i ? ', ' : ' '}<a href="/r/{u.slug}">{u.title}</a>{/each}
+								</p>
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -97,9 +103,9 @@
 									<input id="label-{id}" name="label" type="text" maxlength={data.labelMax} value={labelFor(p.a, p.b)} />
 								{/if}
 								<label for="va-{id}">{s.variant(p.a.title)}</label>
-								<input id="va-{id}" name="variantA" type="text" required value={p.a.variant ?? ''} />
+								<input id="va-{id}" name="variantA" type="text" required value={p.a.variantText ?? ''} />
 								<label for="vb-{id}">{s.variant(p.b.title)}</label>
-								<input id="vb-{id}" name="variantB" type="text" required value={p.b.variant ?? ''} />
+								<input id="vb-{id}" name="variantB" type="text" required value={p.b.variantText ?? ''} />
 								<button class="btn primary" type="submit">{s.versionsSave}</button>
 							</form>
 						{/if}
@@ -115,12 +121,22 @@
 							<input type="hidden" name="titleA" value={p.a.title} />
 							<input type="hidden" name="titleB" value={p.b.title} />
 							<p class="help">{s.sameHelp}</p>
-							<fieldset>
-								<!-- The value is the one that goes: "Garder A" sends B to the trash. -->
-								<label class="radio"><input type="radio" name="drop" value={p.b.slug} checked /> {s.keep(p.a.title)}</label>
-								<label class="radio"><input type="radio" name="drop" value={p.a.slug} /> {s.keep(p.b.title)}</label>
-							</fieldset>
-							<button class="btn danger" type="submit">{s.sameSave}</button>
+							{#if p.a.usedBy.length && p.b.usedBy.length}
+								<p class="help" data-testid="both-used">{s.bothUsed}</p>
+							{:else}
+								<fieldset>
+									<!-- The value is the one that goes: "Garder A" sends B to the trash. A recipe
+									     used as a sub-recipe elsewhere is never the one that goes. -->
+									<label class="radio"
+										><input type="radio" name="drop" value={p.b.slug} checked={!p.b.usedBy.length} disabled={!!p.b.usedBy.length} /> {s.keep(p.a.title)}</label
+									>
+									<label class="radio"
+										><input type="radio" name="drop" value={p.a.slug} checked={!!p.b.usedBy.length} disabled={!!p.a.usedBy.length} /> {s.keep(p.b.title)}</label
+									>
+								</fieldset>
+								{#if p.a.usedBy.length || p.b.usedBy.length}<p class="help">{s.keepUsed(p.a.usedBy.length ? p.a.title : p.b.title)}</p>{/if}
+								<button class="btn danger" type="submit">{s.sameSave}</button>
+							{/if}
 						</form>
 					</details>
 

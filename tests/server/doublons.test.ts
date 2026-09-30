@@ -3,12 +3,12 @@
 // settled pair gone from the list and from W505, and still gone after the
 // cache is deleted.
 
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/lib/server/app';
 import { withAuthor } from '../../src/lib/server/context';
-import { DISTINCT_FILE, dismissPair, DuplicateError, duplicateCount, duplicatePage, pairVersions, parseDistinct, sameRecipe, undismissPair } from '../../src/lib/server/duplicates';
+import { closeRecipes, DISTINCT_FILE, dismissPair, DuplicateError, duplicateCount, duplicatePage, pairVersions, parseDistinct, readDistinct, sameRecipe, undismissPair } from '../../src/lib/server/duplicates';
 import { undoCommit } from '../../src/lib/server/history';
 import { syncVault } from '../../src/lib/server/index/sync';
 import { serverCheck } from '../../src/lib/server/paste';
@@ -18,6 +18,7 @@ import { fixtureVault, type TempVault } from '../helpers/vault';
 import { copyOf } from '../helpers/duplicates';
 
 const POUDING = readFileSync('tests/fixtures/vault/recipes/pouding-chomeur.md', 'utf8');
+const PATE = readFileSync('tests/fixtures/vault/recipes/pate-brisee.md', 'utf8');
 const CAMILLE = { name: 'Camille Inventée', email: 'camille@recipevault.invalid' };
 
 let v: TempVault;
@@ -79,8 +80,9 @@ describe('"Recettes différentes"', () => {
 		expect(v.read(DISTINCT_FILE)).toMatch(/^# /);
 		expect(listed()).toEqual([]);
 		expect(duplicateCount(v.ctx)).toBe(0);
-		const [f] = serverCheck({ ctx: v.ctx } as App, [copyOf(POUDING, 'Pouding de matante', 'pouding-de-matante')]);
-		expect(f.diagnostics.filter((d) => d.code === 'W505')).toEqual([]);
+		// Its own check (an edit, the form): the settled pair gives no W505.
+		const matante = checkFile(v.read('recipes/pouding-de-matante.md')).recipe!;
+		expect(closeRecipes(v.ctx, matante, 'pouding-de-matante')).toEqual([]);
 
 		// The cache is rebuildable; the judgment is not in it.
 		v.ctx.db.close();
@@ -124,6 +126,49 @@ describe('"Recettes différentes"', () => {
 		await save(v.ctx, [{ text: copyOf(POUDING, 'Pouding pauvre', 'pouding-pauvre') }]);
 		expect(listed()).toEqual(['pouding-chomeur pouding-pauvre']);
 	});
+
+	it('a slug YAML would read as a number or null is quoted, so the pair reads back and is settled', async () => {
+		await save(v.ctx, [{ text: copyOf(POUDING, '"1905"', '"1905"') }]);
+		expect(listed()).toContain('1905 pouding-chomeur');
+		await dismissPair(ctx(), '1905', 'pouding-chomeur', '');
+		const text = v.read(DISTINCT_FILE);
+		expect(text).toContain('- ["1905", pouding-chomeur]');
+		expect(parseDistinct(text)).toEqual([['1905', 'pouding-chomeur']]);
+		expect(listed()).not.toContain('1905 pouding-chomeur');
+		await undismissPair(ctx(), '1905', 'pouding-chomeur');
+		expect(listed()).toContain('1905 pouding-chomeur');
+	});
+
+	it('a hand-written line that does not read as a pair is kept as written by the next write', async () => {
+		writeFileSync(join(v.ctx.paths.root, DISTINCT_FILE), '# mine\n- [1905, gateau]\n- [null, b]\n');
+		v.git('add', '-A');
+		v.git('commit', '-qm', 'hand edit');
+		await dismissPair(ctx(), 'pouding-chomeur', 'pouding-de-matante', duplicatePage(v.ctx).distinctHash);
+		const text = v.read(DISTINCT_FILE);
+		expect(text).toContain('- [1905, gateau]\n');
+		expect(text).toContain('- [null, b]\n');
+		expect(text).toContain('- [pouding-chomeur, pouding-de-matante]\n');
+		expect(readDistinct(text)).toEqual({ pairs: [['pouding-chomeur', 'pouding-de-matante']] });
+	});
+
+	it('readDistinct names a file that does not read', () => {
+		expect(readDistinct('<<<<<<< HEAD\n- [a, b]\n=======\n')).toMatchObject({ pairs: [], problem: expect.any(String) });
+		expect(readDistinct('a: b\n')).toEqual({ pairs: [], problem: 'not-a-list' });
+		expect(readDistinct('# only a comment\n')).toEqual({ pairs: [] });
+	});
+});
+
+describe('W505 on a paste whose slug is taken (E103)', () => {
+	it('leaves the recipe there out, but not the pairs settled for it', async () => {
+		await dismissPair(ctx(), 'pouding-chomeur', 'pouding-de-matante', '');
+		// As a paste arrives: no `status`/`added` (the app sets those).
+		const [f] = serverCheck({ ctx: v.ctx } as App, [POUDING.replace(/^(status|added): .*\n/gm, '')]);
+		expect(f.diagnostics.map((d) => d.code)).toEqual(['E103']);
+		// Saved as pouding-chomeur-2 it is close to pouding-de-matante: the pair
+		// settled for pouding-chomeur is not this file's. The recipe it collides with is left out.
+		expect(f.collision?.suggested).toBe('pouding-chomeur-2');
+		expect(f.close?.map((c) => c.slug)).toEqual(['pouding-de-matante']);
+	});
 });
 
 describe('"Deux versions"', () => {
@@ -163,13 +208,43 @@ describe('"Deux versions"', () => {
 		const p = duplicatePage(v.ctx).pairs.find((x) => x.a.slug === 'pouding-chomeur' && x.b.slug === 'pouding-pauvre')!;
 		expect(p.a).toMatchObject({ family: 'poudings', variant: 'original' });
 		const n = count();
-		await pairVersions(ctx(), {
+		const r = await pairVersions(ctx(), {
 			a: { slug: 'pouding-chomeur', hash: p.a.hash, variant: 'original' },
 			b: { slug: 'pouding-pauvre', hash: p.b.hash, variant: 'pauvre' },
 			family: 'poudings'
 		});
 		expect(count()).toBe(n + 1);
 		expect(changed()).toEqual(['M\trecipes/pouding-pauvre.md']);
+		// "Annuler" names a recipe the commit wrote, not the first of the pair.
+		expect(r.edited).toEqual(['pouding-pauvre']);
+		expect((await undoCommit(ctx(), r.commit!, { slug: r.edited[0] })).action).toBe('undone');
+		expect(checkFile(v.read('recipes/pouding-pauvre.md')).recipe?.family).toBeUndefined();
+	});
+
+	it('an existing variant keeps its markers when she keeps it', async () => {
+		const marked = copyOf(POUDING, 'Pouding de Rita', 'pouding-de-rita', (t) => t.replace(/^slug: .*$/m, (l) => `${l}\nfamily: poudings\nvariant: "de matante [?: Rita]"`));
+		await save(v.ctx, [{ text: marked }]);
+		const before = v.read('recipes/pouding-de-rita.md');
+		expect(before).toContain('[?: Rita]');
+		const p = duplicatePage(v.ctx).pairs.find((x) => x.a.slug === 'pouding-de-matante' && x.b.slug === 'pouding-de-rita')!;
+		expect(p.b).toMatchObject({ variant: 'de matante', variantText: 'de matante [?: Rita]' });
+		// The prefill as the page sends it (markers kept): the file is not rewritten.
+		const r = await pairVersions(ctx(), {
+			a: { slug: p.a.slug, hash: p.a.hash, variant: 'de la voisine' },
+			b: { slug: p.b.slug, hash: p.b.hash, variant: p.b.variantText! },
+			family: 'poudings'
+		});
+		expect(r.edited).toEqual(['pouding-de-matante']);
+		expect(v.read('recipes/pouding-de-rita.md')).toBe(before);
+		// A marker she types is written as typed.
+		await save(v.ctx, [{ text: copyOf(POUDING, 'Pouding trois', 'pouding-trois') }]);
+		const q = duplicatePage(v.ctx).pairs.find((x) => x.a.slug === 'pouding-chomeur' && x.b.slug === 'pouding-trois')!;
+		await pairVersions(ctx(), {
+			a: { slug: q.a.slug, hash: q.a.hash, variant: 'de la télé' },
+			b: { slug: q.b.slug, hash: q.b.hash, variant: 'de [?: Gisèle]' },
+			family: 'poudings'
+		});
+		expect(checkFile(v.read('recipes/pouding-trois.md')).recipe?.variant).toBe('de [?: Gisèle]');
 	});
 
 	it('a stale hash, a missing variant, two equal variants: refused, nothing written', async () => {
@@ -201,5 +276,18 @@ describe('"C\'est la même recette"', () => {
 		const n = count();
 		await expect(sameRecipe(ctx(), 'pouding-de-matante', 'stale')).rejects.toBeInstanceOf(DuplicateError);
 		expect(count()).toBe(n);
+	});
+
+	it('a recipe used as a sub-recipe elsewhere is shown so and never sent to the trash', async () => {
+		await save(v.ctx, [{ text: copyOf(PATE, 'Pâte brisée de tante', 'pate-brisee-de-tante') }]);
+		const p = duplicatePage(v.ctx).pairs.find((x) => x.a.slug === 'pate-brisee' && x.b.slug === 'pate-brisee-de-tante')!;
+		expect(p.a.usedBy.map((u) => u.slug).sort()).toEqual(['tarte-au-sucre', 'tarte-aux-pommes-grand-mere', 'tarte-aux-pommes-streusel']);
+		expect(p.b.usedBy).toEqual([]);
+		const n = count();
+		await expect(sameRecipe(ctx(), 'pate-brisee', p.a.hash)).rejects.toThrow(/sous-recette/);
+		expect(count()).toBe(n);
+		expect(v.read('recipes/pate-brisee.md')).toBe(PATE);
+		await sameRecipe(ctx(), 'pate-brisee-de-tante', p.b.hash);
+		expect(head()).toBe(`delete: Pâte brisée de tante|${CAMILLE.name}`);
 	});
 });

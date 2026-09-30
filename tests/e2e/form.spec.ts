@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
+import { file } from './helpers';
 
 // Plan 04, Phases 4–5: the recipe form on her devices (phone, tablet) and
 // the desktop, signed in as the invented owner. The three projects share one
@@ -445,5 +446,27 @@ test('an error only the server check finds is named above Save, never the generi
 	await expect(msg).toContainText('sous-recette');
 	await expect(msg).not.toContainText('corrigez les champs signalés');
 	await expect(msg).not.toContainText('E213');
+	await page.evaluate(() => localStorage.clear());
+});
+
+test('W505 in the form: shown for a recipe in a family too, without the pair offer (plan 05, Phase 6)', async ({ page }) => {
+	// Ingredients of this project only, so the close recipe is the one planted here.
+	const p = test.info().project.name;
+	const ing = ['gelée de coings', 'zeste de cédrat', 'pistaches grillées', 'eau de fleur d’oranger']
+		.map((n, i) => `      - { qty: ${i + 1}, unit: cup, name: ${n} ${p} }`)
+		.join('\n');
+	const [a, b] = [title('Carrés au cédrat'), title('Carrés de la voisine')];
+	const res = await page.request.post('/api/save', {
+		headers: ORIGIN,
+		data: { files: [{ text: file(a, '', ing) }, { text: file(b, `family: carres-cedrat-${p}\nvariant: de la voisine\n`, ing) }] }
+	});
+	expect(res.ok()).toBe(true);
+	await page.goto(`/r/${slugOf(b)}/modifier`);
+	const hint = page.getByTestId('close-recipe');
+	await expect(hint).toBeVisible();
+	await expect(hint).toContainText(a);
+	await expect(hint.getByRole('link')).toHaveAttribute('href', `/r/${slugOf(a)}`);
+	// Already in a family: no "En faire deux versions" here.
+	await expect(hint.getByRole('button')).toHaveCount(0);
 	await page.evaluate(() => localStorage.clear());
 });
