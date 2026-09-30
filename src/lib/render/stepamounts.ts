@@ -38,6 +38,11 @@ export interface StepScale {
 // and duration readers take.
 // `1-1/2` (a mixed number as cards write it) is read whole, never as `1/2`.
 const RANGE_LOW = /(?<![\p{L}\p{N}.,/-])(\d+-\d+\/\d+|\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅛])\s*(?:à|-|–|to|ou|or)\s*$/iu;
+// A number that labels rather than measures: « Étape 1 - 2 tasses », « Step 2 –
+// 3 cups », « n° 1 - 2 tasses », « #1 - 2 cups ». Such a number is never the low
+// end of a range: the amount is the one after it alone. Without such a word a
+// spaced dash still reads as a range (« 2 - 3 tasses »), as cards write it.
+const LABEL = /(?:^|[^\p{L}\p{N}])(?:[ée]tapes?|steps?|n[°º]|no\.|nos\.|num[ée]ros?|#)\s*$/iu;
 
 // The bare cup alias (`c.`, `t.`) at the start of a longer spoon abbreviation
 // the vocabulary does not list (« c. à t. », « c. thé », « c. soupe ») or of
@@ -81,7 +86,7 @@ export function stepAmounts(text: string, { factor, lang, rules }: StepScale): S
 		let start = m.start;
 		let lo: number | undefined;
 		const before = RANGE_LOW.exec(text.slice(0, m.start));
-		if (before) {
+		if (before && !LABEL.test(text.slice(0, m.start - before[0].length))) {
 			const n = sizeNumber(before[1]);
 			if (n !== undefined && n > 0 && n < value) {
 				lo = n;

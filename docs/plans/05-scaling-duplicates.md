@@ -643,7 +643,9 @@ these decisions:
 - **Step amounts.** Only `mass` and `volume` units: counts and containers in a
   step are more often shapes (« couper en 8 tranches », « en 2 abaisses »), and
   the per-step ingredient line already shows the scaled count. A range written
-  `2 à 3 tasses` / `2-3 cups` scales as one amount. Marked inside the method's
+  `2 à 3 tasses` / `2-3 cups` scales as one amount (issue #13: not after a
+  label word — « Étape 1 - 2 tasses » is `2 tasses`; *étape*, *step*, *n°*,
+  *no.*, *numéro*, `#`). Marked inside the method's
   step lists only (the lists `stepLists` tags; notes and variants untouched),
   after the original as `<span class="step-scaled"> → 2 tasses</span>`; in
   kitchen mode inside the text between the timer buttons (the timers still

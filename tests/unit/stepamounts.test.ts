@@ -38,6 +38,25 @@ describe('step amounts (Q6 B)', () => {
 		expect(found('Add 2-3 cups broth.', 2, 'en')).toEqual(['2-3 cups → 4–6 cups']);
 	});
 
+	it('never reads a step or item number as the low end of a range (#13)', () => {
+		expect(found('Étape 1 - 2 tasses de farine.', 2)).toEqual(['2 tasses → 4 tasses']);
+		expect(found('étape 2 – 3 tasses de lait.', 2)).toEqual(['3 tasses → 6 tasses']);
+		expect(found('ÉTAPE 1 - 2 tasses de farine.', 2)).toEqual(['2 tasses → 4 tasses']);
+		expect(found('Etape 1 - 2 tasses de farine.', 2)).toEqual(['2 tasses → 4 tasses']);
+		expect(found('Step 1 - 2 cups flour.', 2, 'en')).toEqual(['2 cups → 4 cups']);
+		expect(found('Steps 1-2 cups flour.', 2, 'en')).toEqual(['2 cups → 4 cups']);
+		expect(found('Mélange n° 1 - 2 tasses de farine.', 2)).toEqual(['2 tasses → 4 tasses']);
+		expect(found('Mix no. 1 - 2 cups flour.', 2, 'en')).toEqual(['2 cups → 4 cups']);
+		expect(found('Numéro 1 à 2 tasses.', 2)).toEqual(['2 tasses → 4 tasses']);
+		expect(found('#1 - 2 cups flour.', 2, 'en')).toEqual(['2 cups → 4 cups']);
+		// A real range, spaced dash or not, still reads as one; a word merely ending like a label does not count.
+		expect(found('Ajouter 2 - 3 tasses de farine.', 2)).toEqual(['2 - 3 tasses → 4 à 6 tasses']);
+		expect(found('1 - 2 tasses de farine.', 2)).toEqual(['1 - 2 tasses → 2 à 4 tasses']);
+		expect(found('Ajouter 1 - 2 tasses, étape suivante.', 2)).toEqual(['1 - 2 tasses → 2 à 4 tasses']);
+		expect(found('Add a cupcakestep 1 - 2 cups.', 2, 'en')).toEqual(['1 - 2 cups → 2–4 cups']);
+		expect(found('Casino 1 - 2 tasses.', 2)).toEqual(['1 - 2 tasses → 2 à 4 tasses']);
+	});
+
 	it('never touches temperatures, durations, pan sizes or counts', () => {
 		expect(found('Cuire à 350 °F pendant 25 min dans un moule de 9 x 13 po.', 2)).toEqual([]);
 		expect(found('Bake at 180 °C for 1 h 30 in a 9 x 13 inch pan.', 2, 'en')).toEqual([]);

@@ -408,7 +408,11 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
   2 tasses`); the original always stays, so a misread (« un bol de 2 L ») is
   seen as one. Temperatures, durations and pan sizes use no recipe unit and are
   never found; counts and containers in steps are left alone (« couper en 8
-  tranches » is a shape, not an amount). The timers read the original text.
+  tranches » is a shape, not an amount). A range written in a step (`2 à 3
+  tasses`, `2 - 3 tasses`) scales as one amount, except when its first number
+  follows a word that labels it (*étape*, *step*, *n°*, *no.*, *numéro*, `#`):
+  « Étape 1 - 2 tasses » is the amount `2 tasses` of step 1, not « 1 à 2 ».
+  The timers read the original text.
   When the factor is not 1, one notice above the method (and on the kitchen
   step) says that times, the oven and the pan are the base recipe's.
 
