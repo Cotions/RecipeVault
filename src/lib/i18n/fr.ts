@@ -516,6 +516,8 @@ export const fr = {
 		replace: 'Remplacer',
 		saveAs: (slug: string) => `Enregistrer comme ${slug}`,
 		sameTitle: 'Même titre qu’une recette existante. En faire deux versions d’une famille ?',
+		close: 'Presque les mêmes ingrédients que',
+		closeFamily: 'C’est une autre version du même plat : la mettre dans une famille ?',
 		family: 'Famille',
 		variant: 'Version',
 		makeFamily: 'Mettre en famille',

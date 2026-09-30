@@ -630,6 +630,22 @@ the warning never enters the fix-request block.
 Done when: pasting any planted duplicate warns, in the paste box and the form,
 and nothing else changes on those paths.
 
+**Built.** `W505` (`app`), `src/lib/server/duplicates.ts`: `closeRecipes`
+(at most three other recipes, settled pairs left out, each with its file hash)
+and `duplicateWarnings` (one diagnostic on `ingredients` naming each slug and
+its weighted share). Wired beside `unresolvedDiagnostics` in `serverCheck`, in
+`saveLocked`'s result and in `formCheck`, which also returns `close` (the same
+shape as `same`), so the form's "En faire deux versions" is the W608 pair offer
+unchanged (`makePair`). Decisions: the recipe's own slug is always left out
+(an edit, a paste over itself, a save over itself); the save result's W505 is
+against the vault before that save; on the paste page the offer is the W608
+checkbox with its own line and the other recipes linked, the family defaulting
+to the other recipe's family when it has one (in P1 the paste path families
+only the pasted recipe, as for W608; the form path families both); the form
+shows the first close recipe not already offered by title. Two recipes put in
+one family whose ingredients and amounts are identical stay a pair (Q16 C) —
+the right answer there is "C'est la même recette".
+
 ### Phase 7 — the pair list and its actions
 
 Depends on: Q12, Q13, Q14, Q15.

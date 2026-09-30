@@ -16,6 +16,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		return json(formCheck(getApp().ctx, body.form, base));
 	} catch {
-		return json({ hints: [], same: [] });
+		return json({ hints: [], same: [], close: [] });
 	}
 };

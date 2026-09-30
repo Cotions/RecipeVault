@@ -4,8 +4,9 @@
 // - the name words (W302 preparation, W304 size, W607 brand), computed here,
 //   live, from the same word lists the server checks with — each with its
 //   one-tap fix (the word moved to préparation / note / marque);
-// - the vault warnings (W501 tag, W502 family, W503 / W608 title, W303 / W305
-//   / W306 names, W605 markers), from the server's check of the form
+// - the vault warnings (W501 tag, W502 family, W503 / W608 title, W505
+//   ingredients close to another recipe, W303 / W305 / W306 names, W605
+//   markers), from the server's check of the form
 //   (`formCheck`, `formSave`), as `FormHint`s.
 //
 // Browser-safe.
@@ -15,7 +16,7 @@ import type { FormItem } from './model';
 
 /** A vault warning on a form field, as the server sends it. */
 export interface FormHint {
-	code: 'W501' | 'W502' | 'W503' | 'W608' | 'W303' | 'W305' | 'W306' | 'W605';
+	code: 'W501' | 'W502' | 'W503' | 'W505' | 'W608' | 'W303' | 'W305' | 'W306' | 'W605';
 	/** The row id (item, `or` entry, group) or `recipe`. */
 	target: string;
 	field: string;
@@ -25,12 +26,12 @@ export interface FormHint {
 	suggestion?: string;
 	/** The suggested family's label. */
 	label?: string;
-	/** The other recipe (W503 / W608). */
+	/** The other recipe (W503 / W505 / W608). */
 	slug?: string;
 }
 
 /** The codes the form maps to a field; each has a French text in `formHintText` (src/lib/i18n/diagnostics.ts). */
-export const FORM_HINT_CODES = ['W302', 'W304', 'W607', 'W501', 'W502', 'W503', 'W608', 'W303', 'W305', 'W306', 'W605'] as const;
+export const FORM_HINT_CODES = ['W302', 'W304', 'W607', 'W501', 'W502', 'W503', 'W505', 'W608', 'W303', 'W305', 'W306', 'W605'] as const;
 
 /** A word of the name that belongs in another field. */
 export interface NameHint {

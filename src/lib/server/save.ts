@@ -19,6 +19,7 @@ import { FileWriteError, writeAndCommit, type FileWrite } from './files';
 import { refreshFamilies, sha256 } from './index/build';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { checkOptions } from './checkopts';
+import { closeRecipes, duplicateWarnings } from './duplicates';
 import { indexText, isRecipeFile, recipePath } from './index/sync';
 import { indexMemo } from './index/memo';
 import { loadVocab } from './vocab';
@@ -284,7 +285,12 @@ export async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: Sav
 			extractedBy: recipe.extractedBy ?? 'hand'
 		};
 		ready.push({ slug, title: recipe.title, text: serialize(final, file.body!), created: !cur, verb: cur ? 'edit' : 'add' });
-		const unresolved = [...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, recipe)];
+		const unresolved = [
+			...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, recipe),
+			...toTasteWarnings(ctx.db, ctx.paths.vocab, recipe),
+			// W505 against the vault before this save: the recipe itself is left out (an edit, a replace).
+			...duplicateWarnings(closeRecipes(ctx, recipe, slug))
+		];
 		results.push({ status: 'saved', slug, title: recipe.title, recipeStatus: final.status!, created: !cur, diagnostics: [...diagnostics, ...unresolved] });
 	});
 	if (!ready.length) return { files: results };

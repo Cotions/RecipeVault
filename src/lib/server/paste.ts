@@ -9,6 +9,7 @@ import { withAuthor } from './context';
 import { titles } from './index/query';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { checkOptions } from './checkopts';
+import { closeRecipes, duplicateWarnings, type CloseRecipe } from './duplicates';
 import { referencedSlugs } from './pages';
 import { currentFile, save, vaultEntries, type SaveFile, type SaveResult } from './save';
 
@@ -19,6 +20,8 @@ export interface ServerCheckFile {
 	collision?: { suggested: string; existing?: { title: string; hash: string }; inTrash: boolean };
 	/** Titles of the recipes this file links to that exist in the vault. */
 	titles: Record<string, string>;
+	/** W505: vault recipes with nearly the same ingredients (plan 05, Phase 6), to link and to offer "Mettre en famille". */
+	close?: CloseRecipe[];
 }
 
 /** Slug a file would be saved under, when its frontmatter reads at all. */
@@ -39,10 +42,14 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 		const out: ServerCheckFile = { diagnostics: f.diagnostics, slug, titles: {} };
 		if (f.recipe) {
 			out.titles = Object.fromEntries(titles(app.ctx.db, referencedSlugs(f.recipe, '')));
+			// Pasted over itself (E103 "Remplacer"), a file is never its own duplicate.
+			const close = closeRecipes(app.ctx, f.recipe, slug);
+			if (close.length) out.close = close;
 			out.diagnostics = [
 				...f.diagnostics,
 				...unresolvedDiagnostics(app.ctx.db, app.ctx.paths.vocab, f.recipe),
-				...toTasteWarnings(app.ctx.db, app.ctx.paths.vocab, f.recipe)
+				...toTasteWarnings(app.ctx.db, app.ctx.paths.vocab, f.recipe),
+				...duplicateWarnings(close)
 			];
 		}
 		if (slug && f.diagnostics.some((d) => d.code === 'E103')) {

@@ -1,14 +1,22 @@
 // The duplicate model from the index (plan 05, Phase 5): rebuilt after a save
 // and after a registry edit, family pairs per Q16 C, and the fast path equal
-// to brute force on a 300-recipe generated vault.
+// to brute force on a 300-recipe generated vault. W505 (Phase 6) on the paste
+// check, the form's check and the save result.
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DUPLICATE_THRESHOLD, rarityWeights, similarPairs, similarPairsBrute, weightOf } from '../../src/lib/ingredients/similar';
+import type { App } from '../../src/lib/server/app';
 import { openVault } from '../../src/lib/server/context';
+import { DISTINCT_FILE } from '../../src/lib/server/duplicates';
+import { formCheck, formSave, openForm } from '../../src/lib/server/formsave';
+import { serverCheck } from '../../src/lib/server/paste';
+import { aiDiagnostics } from '../../src/lib/vault/fixblock';
+import { fixerOf } from '../../src/lib/vault/codes';
+import type { Diagnostic } from '../../src/lib/vault/types';
 import { allPairs, duplicateModel, pairDetail } from '../../src/lib/server/index/similar';
 import { syncVault } from '../../src/lib/server/index/sync';
 import { linkKey } from '../../src/lib/server/queue';
@@ -101,3 +109,89 @@ describe('prefix filtering on a generated vault', () => {
 		}
 	}, 60_000);
 });
+
+describe('W505 — nearly the same ingredients (Phase 6)', () => {
+	const COPY = () => copyOf(POUDING, 'Pouding du chômeur de matante', 'pouding-de-matante');
+	const w505 = (ds: Diagnostic[]) => ds.filter((d) => d.code === 'W505');
+
+	it('the paste check names the other recipe, with its hash; never the fix-request block', async () => {
+		v = await fixtureVault();
+		const [f] = serverCheck({ ctx: v.ctx } as App, [COPY()]);
+		expect(w505(f.diagnostics)).toHaveLength(1);
+		expect(w505(f.diagnostics)[0].message).toContain('pouding-chomeur (100 % in common, weighted)');
+		expect(f.close?.map((c) => [c.slug, c.score])).toEqual([['pouding-chomeur', 1]]);
+		expect(f.close?.[0].hash).toMatch(/^[0-9a-f]{64}$/);
+		expect(fixerOf('W505')).toBe('app');
+		expect(aiDiagnostics(f.diagnostics)).toEqual([]);
+	});
+
+	it('a file pasted over itself is not its own duplicate', async () => {
+		v = await fixtureVault();
+		const [f] = serverCheck({ ctx: v.ctx } as App, [POUDING]);
+		expect(w505(f.diagnostics)).toEqual([]);
+		expect(f.close).toBeUndefined();
+	});
+
+	it('the save result carries it; the vault after the save has the pair', async () => {
+		v = await fixtureVault();
+		const r = await save(v.ctx, [{ text: COPY() }]);
+		expect(r.files[0].status).toBe('saved');
+		expect(w505(r.files[0].status === 'saved' ? r.files[0].diagnostics : []).map((d) => d.path)).toEqual(['ingredients']);
+		// Saved again over itself (an edit): the other one is still named, never itself.
+		const again = await save(v.ctx, [{ text: COPY(), overwrite: readHash(v, 'pouding-de-matante') }]);
+		const d = again.files[0].status === 'saved' ? w505(again.files[0].diagnostics) : [];
+		expect(d).toHaveLength(1);
+		expect(d[0].message).toContain('pouding-chomeur');
+		expect(d[0].message).not.toContain('pouding-de-matante');
+	});
+
+	it('the form check hints it on the ingredients, with the pair offer; an edit is not its own duplicate', async () => {
+		v = await fixtureVault();
+		const o = openForm(v.ctx, 'pouding-chomeur');
+		if (!('form' in o)) throw new Error('cannot open');
+		const mine = { ...o.form, title: 'Pouding de matante' };
+		const c = formCheck(v.ctx, mine);
+		expect(c.hints.filter((h) => h.code === 'W505')).toEqual([{ code: 'W505', target: 'recipe', field: 'ingredients', value: 'Pouding chômeur', slug: 'pouding-chomeur' }]);
+		expect(c.close.map((x) => x.slug)).toEqual(['pouding-chomeur']);
+		const edit = formCheck(v.ctx, o.form, { slug: 'pouding-chomeur', hash: o.hash });
+		expect(edit.hints.filter((h) => h.code === 'W505')).toEqual([]);
+		expect(edit.close).toEqual([]);
+		// Saved from the form: the hint comes back with the result.
+		const r = await formSave(v.ctx, { form: mine });
+		expect(r.status).toBe('saved');
+		expect(r.status === 'saved' && r.hints.filter((h) => h.code === 'W505').map((h) => h.slug)).toEqual(['pouding-chomeur']);
+	});
+
+	it('"En faire deux versions" from the form: both recipes in one family, one commit', async () => {
+		v = await fixtureVault();
+		const o = openForm(v.ctx, 'pouding-chomeur');
+		if (!('form' in o)) throw new Error('cannot open');
+		const mine = { ...o.form, title: 'Pouding de matante', family: 'pouding-de-matante', variant: 'de matante' };
+		const [other] = formCheck(v.ctx, mine).close;
+		const r = await formSave(v.ctx, { form: mine, familyLabel: 'Pouding de matante', pair: { slug: other.slug, hash: other.hash, variant: 'original' } });
+		expect(r.status).toBe('saved');
+		expect(v.git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort()).toEqual([
+			'recipes/pouding-chomeur.md',
+			'recipes/pouding-de-matante.md',
+			'vocab/families.yaml'
+		]);
+		expect(v.read('recipes/pouding-chomeur.md')).toMatch(/^family: pouding-de-matante$/m);
+		// One family, amounts identical: still the same card twice (Q16 C), so the pair stays listed.
+		expect(allPairs(v.ctx.db).filter(pairOf('pouding-chomeur', 'pouding-de-matante'))).toHaveLength(1);
+	});
+
+	it('a pair settled as different recipes is never named again', async () => {
+		v = await fixtureVault();
+		await save(v.ctx, [{ text: COPY() }]);
+		writeFileSync(join(v.ctx.paths.root, DISTINCT_FILE), '- [pouding-chomeur, pouding-de-matante]\n');
+		const [f] = serverCheck({ ctx: v.ctx } as App, [copyOf(POUDING, 'Pouding de matante', 'pouding-de-matante')]);
+		expect(w505(f.diagnostics)).toEqual([]);
+		// A third copy still pairs with both.
+		const [g] = serverCheck({ ctx: v.ctx } as App, [copyOf(POUDING, 'Pouding pauvre', 'pouding-pauvre')]);
+		expect(g.close?.map((c) => c.slug).sort()).toEqual(['pouding-chomeur', 'pouding-de-matante']);
+	});
+});
+
+function readHash(t: TempVault, slug: string): string {
+	return t.ctx.db.prepare('SELECT file_hash FROM recipes WHERE slug = ?').pluck().get(slug) as string;
+}

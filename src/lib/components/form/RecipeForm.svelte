@@ -98,6 +98,8 @@
 	let pair = $state<DraftPair | null>(null);
 	let hints = $state<FormHint[]>([]);
 	let same = $state<{ slug: string; title: string; hash: string; family: string | null }[]>([]);
+	/** W505: vault recipes with nearly the same ingredients (plan 05, Phase 6). */
+	let close = $state<{ slug: string; title: string; hash: string; family: string | null }[]>([]);
 	let saving = $state(false);
 	let message = $state<string | null>(null);
 	let stale = $state<{ theirs: { form: FormRecipe; hash: string } } | null>(null);
@@ -124,6 +126,8 @@
 	const rowErr = (id: string, field: string) => blockText(blockOn(blocks, id, field));
 	const titleHints = $derived(hints.filter((h) => h.code === 'W503'));
 	const sameOffer = $derived(same.filter((s) => s.slug !== pair?.slug)[0]);
+	/** The first close recipe not already offered by title, nor already paired. */
+	const closeOffer = $derived(close.filter((c) => c.slug !== pair?.slug && c.slug !== sameOffer?.slug)[0]);
 
 	/** What keeps Save disabled, as short French lines, once each. */
 	const reasons = $derived.by(() => {
@@ -185,6 +189,7 @@
 		if (!snap.title.trim()) {
 			hints = [];
 			same = [];
+			close = [];
 			serverBlocks = [];
 			return;
 		}
@@ -197,6 +202,7 @@
 				if (mine !== checkSeq) return;
 				hints = got.hints ?? [];
 				same = got.same ?? [];
+				close = got.close ?? [];
 				serverBlocks = Array.isArray(got.errors) ? got.errors : [];
 			} catch {
 				/* offline: no hints, nothing blocks */
@@ -474,6 +480,12 @@
 			<div class="hint" data-testid="same-title">
 				<span>{formHintText.W608({ value: sameOffer.title })} <a href="/r/{sameOffer.slug}" target="_blank" rel="noopener">{f.near}</a></span>
 				<button type="button" class="btn" onclick={() => makePair(sameOffer)}>{f.sameTitle}</button>
+			</div>
+		{/if}
+		{#if closeOffer && !form.family}
+			<div class="hint" data-testid="close-recipe">
+				<span>{formHintText.W505({ value: closeOffer.title })} <a href="/r/{closeOffer.slug}" target="_blank" rel="noopener">{f.near}</a></span>
+				<button type="button" class="btn" onclick={() => makePair(closeOffer)}>{f.sameTitle}</button>
 			</div>
 		{/if}
 		{#if pair}

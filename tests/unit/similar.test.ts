@@ -64,8 +64,7 @@ describe('element set (Q10 A)', () => {
 				{ key: 'beurre', skey: 'beurre', slug: 'beurre' },
 				{ key: 'margarine', skey: 'margarine', slug: 'margarine' },
 				{ key: 'sucre', skey: 'sucre', slug: 'sucre' }
-			],
-			[]
+			]
 		);
 		const s = elementSet(recipeLines(recipe, resolver));
 		expect(s.elements).toEqual(['beurre', 'k:farine', 'sucre']);

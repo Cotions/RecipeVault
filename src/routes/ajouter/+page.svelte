@@ -379,6 +379,7 @@
 	{@const sameTitle =
 		v.diagnostics.some((d) => d.code === 'W608') ||
 		(!!col?.existing && fold(stripMarkers(col.existing.title)) === fold(stripMarkers(v.title)))}
+	{@const close = v.mode === 'replace' ? [] : (v.server?.close ?? [])}
 	<section class="file" class:bad={!v.ok} aria-label={v.title}>
 		<header>
 			<h2><Marked text={v.title} /></h2>
@@ -415,15 +416,26 @@
 			</div>
 		{/if}
 
-		{#if sameTitle && v.mode !== 'replace'}
+		{#if (sameTitle || close.length) && v.mode !== 'replace'}
 			<div class="choice">
+				{#if close.length}
+					<!-- W505 (plan 05, Phase 6): nearly the same ingredients as a vault recipe. -->
+					<p data-testid="close-recipes">
+						{t.add.close}
+						{#each close as c, i (c.slug)}{i ? ', ' : ' '}<a href="/r/{c.slug}" target="_blank"><Marked text={c.title} /></a>{/each}.
+					</p>
+				{/if}
 				<label class="check">
 					<input
 						type="checkbox"
 						checked={!!choices[v.key]?.family}
-						onchange={(e) => setChoice(v.key, { family: e.currentTarget.checked, familySlug: choices[v.key]?.familySlug ?? slugify(v.title) })}
+						onchange={(e) =>
+							setChoice(v.key, {
+								family: e.currentTarget.checked,
+								familySlug: choices[v.key]?.familySlug ?? ((sameTitle ? undefined : close[0]?.family) || slugify(v.title))
+							})}
 					/>
-					{t.add.sameTitle}
+					{sameTitle ? t.add.sameTitle : t.add.closeFamily}
 				</label>
 				{#if choices[v.key]?.family}
 					<div class="family-fields">

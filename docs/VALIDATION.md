@@ -165,6 +165,7 @@ Warnings. Save, mark `needs-review`.
 | W502 | app | `family` within edit distance 2 of an existing family (`vocab/families.yaml` plus the families in use, without the ones only this recipe uses — also when it is pasted again over itself) and not itself an existing family — drift suspected. `app`: family is decided in the app (`AI-TEMPLATE.md` rule 19). Server check, save result and recipe page |
 | W503 | app | near-identical `title` already in the vault — duplicate paste |
 | W504 | ai | a `season` value not in the fixed list of `VOCAB.md` — `printemps`, `ete`, `automne`, `hiver` or one of their aliases (`été`, `summer`, `fall`, …); the closest season is suggested |
+| W505 | app | nearly the same ingredients as a vault recipe — the same card pasted under another title, suspected. The ingredient sets (`INGREDIENTS.md`, "Duplicates") score at least 0.65 weighted Jaccard; at most three other recipes are named, each linked; a pair settled as different recipes (`vocab/distinct.yaml`, `VOCAB.md`) is never named again; a recipe is never its own duplicate (an edit, a paste over itself); a pair in one family is left out unless the ingredients and amounts are identical. `app`: the AI cannot see the vault. The offer is the W608 one — "En faire deux versions d'une famille". Server check, the form's check and save result (plan 05, Phase 6); the vault's pairs are listed on `/doublons` (Phase 7) |
 | W601 | app | no `servings` |
 | W602 | app | no `times` |
 | W603 | app | no dish photo. **Not emitted** (plan 04, Q13 A): a photo is optional and most recipes never get one, so as a warning it would sit on nearly every recipe; the recipe page (and the form) show an "Ajouter une photo" prompt instead, which is not a diagnostic |
@@ -269,7 +270,7 @@ plain sentence "La recette n'a pas pu être enregistrée ; rien n'a changé."
 Warnings reach the form as hints, never blocking (plan 04, Q9 A): `W302`,
 `W304` and `W607` live in the browser on the name field, each with its one-tap
 fix (move the word to *préparation*, the note or *marque*); `W501`, `W502`,
-`W503`/`W608`, `W303`/`W305`, `W306` and `W605` from the server check the form
+`W503`/`W608`, `W505`, `W303`/`W305`, `W306` and `W605` from the server check the form
 runs while she types (`DATA-FLOW.md`, "Her form"). Their French texts are a
 second table beside the codes' own, `formHintText` in
 `src/lib/i18n/diagnostics.ts`, with a test requiring an entry for every code

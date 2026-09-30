@@ -37,6 +37,7 @@ import type { VaultStats } from '../form/defaults';
 import { lookupKey } from '../ingredients/normalize';
 import { checkOptions } from './checkopts';
 import type { VaultContext } from './context';
+import { closeRecipes, duplicateWarnings, type CloseRecipe } from './duplicates';
 import { cleanLabel, familiesFile, FAMILIES_FILE, LABEL_MAX, withLabel } from './families';
 import type { FileWrite } from './files';
 import { indexMemo } from './index/memo';
@@ -256,7 +257,8 @@ export function hintsFrom(
 	diagnostics: Diagnostic[],
 	ids: Record<string, string>,
 	recipe: Recipe,
-	matches?: ReturnType<typeof titleMatches>
+	matches?: ReturnType<typeof titleMatches>,
+	close?: CloseRecipe[]
 ): FormHint[] {
 	const out: FormHint[] = [];
 	const vocab = loadVocab(ctx.paths.vocab);
@@ -287,6 +289,9 @@ export function hintsFrom(
 				for (const r of list) out.push({ code: d.code, target: 'recipe', field: 'title', value: r.title, slug: r.slug });
 				break;
 			}
+			case 'W505':
+				for (const r of (close ??= closeRecipes(ctx, recipe, recipe.slug))) out.push({ code: 'W505', target: 'recipe', field: 'ingredients', value: r.title, slug: r.slug });
+				break;
 			case 'W303':
 			case 'W305':
 			case 'W306':
@@ -303,7 +308,9 @@ export function hintsFrom(
 /**
  * The vault hints for a form not yet saved (the live check while she types,
  * Q9 A): the same check the save runs, nothing written. A W608 comes with the
- * other recipe's hash, for "mettre en famille" (Q10 A). `errors`: the
+ * other recipe's hash, for "mettre en famille" (Q10 A); so does a W505
+ * (`close`: nearly the same ingredients, plan 05 Phase 6), for "En faire deux
+ * versions". `errors`: the
  * vault check's errors on their fields (`blocks` shape), the ones the
  * browser's own check cannot see (E213) included; a new recipe's E103 is not
  * hers (its slug is chosen free on save).
@@ -312,7 +319,7 @@ export function formCheck(
 	ctx: VaultContext,
 	form: FormRecipe,
 	base?: FormBase
-): { hints: FormHint[]; errors: Block[]; same: { slug: string; title: string; hash: string; family: string | null }[] } {
+): { hints: FormHint[]; errors: Block[]; same: { slug: string; title: string; hash: string; family: string | null }[]; close: CloseRecipe[] } {
 	const slug = base?.slug ?? (slugify(form.title) || 'recette');
 	const { recipe, text, ids } = formRecipe(form, slug);
 	const { entries } = vaultEntries(ctx);
@@ -323,10 +330,18 @@ export function formCheck(
 	});
 	const f = checked.files[0];
 	const diagnostics = [...f.diagnostics];
-	if (f.recipe) diagnostics.push(...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, f.recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, f.recipe));
+	// An edit is never its own duplicate; a new recipe's slug is in no row.
+	const close = f.recipe ? closeRecipes(ctx, f.recipe, base?.slug) : [];
+	if (f.recipe)
+		diagnostics.push(...unresolvedDiagnostics(ctx.db, ctx.paths.vocab, f.recipe), ...toTasteWarnings(ctx.db, ctx.paths.vocab, f.recipe), ...duplicateWarnings(close));
 	// One title walk for the hints and `same` (the recipe's slug is base.slug on an edit; a new recipe's is in no row).
 	const matches = titleMatches(ctx, recipe.title, base?.slug);
-	return { hints: hintsFrom(ctx, diagnostics, ids, recipe, matches), errors: checkerBlocks(f.diagnostics.filter((d) => d.code !== 'E103'), ids), same: matches.same };
+	return {
+		hints: hintsFrom(ctx, diagnostics, ids, recipe, matches, close),
+		errors: checkerBlocks(f.diagnostics.filter((d) => d.code !== 'E103'), ids),
+		same: matches.same,
+		close
+	};
 }
 
 // ---------------------------------------------------------------------------

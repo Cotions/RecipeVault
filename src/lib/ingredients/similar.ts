@@ -264,7 +264,7 @@ export function similarTo(
 	own?: string
 ): { slug: string; score: number }[] {
 	if (q.elements.length < MIN_ELEMENTS) return [];
-	const [{ order, len }] = prefixes([{ slug: '', family: null, ...q }], weight, t);
+	const [{ order, len }] = prefixes([{ slug: '', ...q }], weight, t);
 	const seen = new Set<number>();
 	for (let k = 0; k < len; k++) for (const j of index.postings.get(order[k]) ?? []) seen.add(j);
 	const out: { slug: string; score: number }[] = [];
