@@ -6,13 +6,15 @@
 	import { formatDurationValue, formatSeconds } from '$lib/render/duration';
 	import { formatAmount, type ScaleBase } from '$lib/render/ingredient';
 	import { renderMarkdown } from '$lib/render/markdown';
-	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, readAmount, scaleTextYield, servingsRange, type ScalingRules } from '$lib/render/scale';
+	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, readAmount, scaleTextYield, servingsRange, subRecipeHref, type ScalingRules, type SubScaleRecipe } from '$lib/render/scale';
+	import { stepAmounts } from '$lib/render/stepamounts';
+	import type { Conversions } from '$lib/ingredients/units';
 	import { formatOven } from '$lib/render/temperature';
 	import { formatNumber } from '$lib/render/fraction';
 	import { parseBody } from '$lib/vault/body';
 	import { findMarkers } from '$lib/vault/markers';
 	import { loadStepStyle, setNumbered, stepStyle } from '$lib/stepstyle.svelte';
-	import type { Recipe } from '$lib/vault/types';
+	import type { Ingredient, Recipe } from '$lib/vault/types';
 	import IngredientLine from './IngredientLine.svelte';
 	import Marked from './Marked.svelte';
 	import StatusBadge from './StatusBadge.svelte';
@@ -29,7 +31,8 @@
 		itemLinks,
 		cost,
 		photoPrompt,
-		scaling = null
+		scaling = null,
+		subScale = null
 	}: {
 		recipe: Recipe;
 		body: string;
@@ -53,6 +56,8 @@
 		photoPrompt?: Snippet;
 		/** vocab/scaling.yaml (plan 05): how amounts show at another factor; null shows the exact values. */
 		scaling?: ScalingRules | null;
+		/** Recipe page: the sub-recipes' yields and the conversions, so a sub-recipe's link carries the amount its line needs (Q5 A). */
+		subScale?: { conversions: Conversions; recipes: Record<string, SubScaleRecipe> } | null;
 	} = $props();
 
 	const lang = $derived(recipe.lang);
@@ -112,8 +117,13 @@
 	}
 	/** The position of each group's first line across groups, as the index numbers them. */
 	const offsets = $derived(recipe.ingredients.reduce<number[]>((a, g, i) => (a.push(i ? a[i - 1] + recipe.ingredients[i - 1].items.length : 0), a), []));
-	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s], numbered: stepStyle.numbered }));
-	const hasSteps = $derived(parseBody(body).body.steps.length > 0);
+	/** Q6 B: at another amount, each measure in a step gets its scaled value beside it. */
+	const stepScale = $derived(factor === 1 ? undefined : { factor, lang, rules: scaling, title: t.scaling.stepAmountTitle(formatNumber(factor, 'fr')) });
+	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s], numbered: stepStyle.numbered, scale: stepScale }));
+	const steps = $derived(parseBody(body).body.steps);
+	const hasSteps = $derived(steps.length > 0);
+	const stepHasAmount = $derived(!!stepScale && steps.some((s) => stepAmounts(s.text, stepScale).length > 0));
+	const subHref = $derived(subScale ? (line: Ingredient) => subRecipeHref(line, subScale.recipes[line.recipe!], subScale.conversions, factor, scaling) : undefined);
 	onMount(loadStepStyle);
 	const oven = $derived(recipe.oven ? formatOven(recipe.oven) : null);
 	/** The markers of number fields written with one (`servings: "4 [?]"`), shown after the number. */
@@ -307,7 +317,7 @@
 						{#each g.items as item, ii (ii)}
 							{@const key = `${gi}:${ii}`}
 							<li>
-								<IngredientLine {item} {factor} {lang} {titles} rules={scaling} link={itemLinks?.[offsets[gi] + ii]} onscale={interactive ? (b) => ask(key, b) : undefined} />
+								<IngredientLine {item} {factor} {lang} {titles} rules={scaling} {subHref} link={itemLinks?.[offsets[gi] + ii]} onscale={interactive ? (b) => ask(key, b) : undefined} />
 								{#if asking?.key === key}
 									<form class="ask no-print" onsubmit={applyHave}>
 										<label>{t.scaling.have(formatAmount({ qty: { value: asking.base.value }, unit: asking.base.unit }, { lang }))} <input inputmode="decimal" autocomplete="off" size="5" bind:value={haveText} use:focus /></label>
@@ -329,6 +339,9 @@
 					<input type="checkbox" checked={stepStyle.numbered} onchange={(e) => setNumbered(e.currentTarget.checked)} />
 					{t.recipe.numberSteps}
 				</label>
+			{/if}
+			{#if factor !== 1 && (hasSteps || oven || times.length)}
+				<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, 'fr'))}{#if stepHasAmount}{' '}{t.scaling.arrowNotice}{/if}</p>
 			{/if}
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it with html: false -->
 			{@html html}
@@ -608,6 +621,20 @@
 	}
 	.method :global(p) {
 		margin: 0.5rem 0;
+	}
+	/* Q6 B: the scaled value after an amount in a step; the card's text stays before it. */
+	.method :global(.step-scaled) {
+		font-family: var(--sans);
+		font-weight: 700;
+		color: var(--rule-red);
+		white-space: nowrap;
+	}
+	.scale-notice {
+		font-family: var(--sans);
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+		border-left: 3px solid var(--rule-red);
+		padding-left: 0.6rem;
 	}
 	.legend {
 		display: flex;

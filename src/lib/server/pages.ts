@@ -15,6 +15,8 @@ import { costOfRecipe } from './cost';
 import { loadConversions, loadScaling } from './vocab';
 import { tagNamer } from './tags';
 import type { CostLineView, CostView } from '../ingredients/cost';
+import type { Conversions } from '../ingredients/units';
+import type { SubScaleRecipe } from '../render/scale';
 
 const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]/g;
 
@@ -79,6 +81,8 @@ export function loadRecipePage(app: App, slug: string) {
 		cost: broken ? null : recipeCostView(app, slug),
 		/** vocab/scaling.yaml (plan 05): how scaled amounts show; null shows them as before. */
 		scaling: loadScaling(app.ctx.paths.vocab),
+		/** Plan 05, Q5 A: what the sub-recipe links need to carry the amount a line uses. */
+		subScale: subScale(app, recipe),
 		// The currency the index prices in; the locale only formats (a bare test app has no config).
 		money: { currency: app.ctx.currency, locale: app.config?.locale ?? DEFAULT_LOCALE }
 	};
@@ -142,4 +146,19 @@ export function loadSubRecipes(app: App, recipe: Recipe, depth = 3, seen = new S
 		out.push(...loadSubRecipes(app, d.recipe, depth - 1, seen));
 	}
 	return out;
+}
+
+/**
+ * The sub-recipes a recipe's lines use (with `or` entries), reduced to what
+ * scales them (their yield and servings), and the conversions the cost rule
+ * reads: the recipe page's sub-recipe links carry the amount a line needs
+ * (plan 05, Q5 A).
+ */
+export function subScale(app: App, recipe: Recipe): { conversions: Conversions; recipes: Record<string, SubScaleRecipe> } {
+	const recipes: Record<string, SubScaleRecipe> = {};
+	for (const slug of referencedSlugs(recipe, '')) {
+		const d = getRecipe(app.ctx.db, slug);
+		if (d) recipes[slug] = { slug, yield: d.recipe.yield, servings: d.recipe.servings, servingsMax: d.recipe.servingsMax };
+	}
+	return { conversions: loadConversions(app.ctx.paths.vocab), recipes };
 }

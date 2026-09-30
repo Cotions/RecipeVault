@@ -3601,7 +3601,7 @@ vault/crepes.md	ingredients[0].items[3]	A:1 pincée¦T: de ¦N:sel
 vault/crepes.md	ingredients[0].items[4]	N:beurre¦M:, au goût
 vault/crepes.md	ingredients[1].items[0]	N:sirop d'érable
 vault/crepes.md	servings	4
-vault/crepes.md	body	335da51ae781ed87
+vault/crepes.md	body	018c249df3a67740
 vault/feves-au-lard.md	ingredients[0].items[0]	A:2 lb¦T: de ¦N:fèves blanches¦M: (sèches)
 vault/feves-au-lard.md	ingredients[0].items[1]	A:½ lb¦T: de ¦N:lard salé¦T: en cubes
 vault/feves-au-lard.md	ingredients[0].items[2]	A:1¦T: ¦N:oignon
@@ -3667,7 +3667,7 @@ vault/molasses-cookies.md	ingredients[0].items[4]	A:1 pinch¦T: ¦N:salt
 vault/molasses-cookies.md	ingredients[0].items[5]	A:1¦T: ¦N:egg¦M: (large)
 vault/molasses-cookies.md	ingredients[0].items[6]	N:sugar¦M: (for rolling)
 vault/molasses-cookies.md	yield	3 dozen cookies
-vault/molasses-cookies.md	body	0ca149a857f5e475
+vault/molasses-cookies.md	body	5a3de99c092b5a25
 vault/muffins-bleuets.md	ingredients[0].items[0]	A:2 tasses¦T: de ¦N:farine
 vault/muffins-bleuets.md	ingredients[0].items[1]	A:¾ tasse¦T: de ¦N:sucre
 vault/muffins-bleuets.md	ingredients[0].items[2]	A:2 c. à thé¦T: de ¦N:poudre à pâte

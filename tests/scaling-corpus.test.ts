@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 import { BASELINE, displayLines, loadDisplayRecipes, unitWordLines } from './helpers/display';
 import { parseScaling, scaleValues, type Scaled } from '../src/lib/render/scale';
 import { ingredientParts } from '../src/lib/render/ingredient';
+import { stepAmounts } from '../src/lib/render/stepamounts';
+import { parseBody } from '../src/lib/vault/body';
 import { UNIT_CLASS_OF } from '../src/lib/ingredients/types';
 import { seedVocab } from '../src/lib/server/vault';
 import type { Ingredient, Unit } from '../src/lib/vault/types';
@@ -132,5 +134,41 @@ describe('corpus sweep (plan 05, Phase 2)', () => {
 		const ms = performance.now() - t0;
 		console.log(`scaling render: ${lines} lines in ${ms.toFixed(0)} ms`);
 		expect(ms).toBeLessThan(2000);
+	});
+});
+
+describe('step amounts over the corpus (plan 05, Phase 4)', () => {
+	it('every step of the 320 cards scanned: amounts found, none a temperature, a duration or a pan', () => {
+		const perClass = new Map<string, number>();
+		let steps = 0;
+		let found = 0;
+		let steppy = 0;
+		const nearPan: string[] = [];
+		const bad: string[] = [];
+		const t0 = performance.now();
+		for (const l of corpus) {
+			for (const s of parseBody(l.body).body.steps) {
+				steps++;
+				const as = stepAmounts(s.text, { factor: 2, lang: l.recipe.lang, rules: RULES });
+				if (as.length) steppy++;
+				for (const a of as) {
+					found++;
+					const cls = UNIT_CLASS_OF[a.unit];
+					perClass.set(`${cls}:${a.unit}`, (perClass.get(`${cls}:${a.unit}`) ?? 0) + 1);
+					// What must never scale: °F/°C, a duration, a pan size.
+					if (/°|\b(?:min|h|heures?|minutes?|hours?)\b|\d\s*[x×]\s*\d/iu.test(a.text)) bad.push(`${l.file}: ${a.text}`);
+					// A sentence about a pan, a bowl or the oven: reported, for the flagged misreads.
+					const sentence = s.text.slice(Math.max(0, s.text.lastIndexOf('.', a.start) + 1), s.text.indexOf('.', a.end) === -1 ? undefined : s.text.indexOf('.', a.end));
+					if (/moule|plat|bol|casserole|four|°|pan|dish|bowl|oven/iu.test(sentence)) nearPan.push(`${l.file}: ${a.text} in « ${sentence.trim()} »`);
+				}
+			}
+		}
+		const ms = performance.now() - t0;
+		console.log(`step amounts: ${found} in ${steppy} of ${steps} steps of ${corpus.length} cards, ${ms.toFixed(0)} ms`);
+		for (const [k, n] of [...perClass].sort()) console.log(`  ${k.padEnd(14)} ${n}`);
+		console.log(`  in a sentence about a pan, bowl or oven: ${nearPan.length}`);
+		for (const x of nearPan.slice(0, 10)) console.log(`    ${x}`);
+		expect(bad).toEqual([]);
+		expect(found).toBeGreaterThan(0);
 	});
 });

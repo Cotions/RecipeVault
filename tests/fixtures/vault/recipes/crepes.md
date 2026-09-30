@@ -30,6 +30,6 @@ extracted_by: hand
 
 ## Préparation
 
-1. Fouetter la farine, les œufs, le lait et le sel.
+1. Fouetter la farine, les œufs et le sel. Ajouter 1 ½ tasse de lait peu à peu.
 2. Laisser reposer 30 minutes.
 3. Cuire dans une poêle beurrée, 1 minute de chaque côté.

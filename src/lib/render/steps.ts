@@ -1,9 +1,12 @@
 // Which ingredients a step mentions, for kitchen mode: names matched in the
 // step text, accent- and case-insensitive, singular or plural. Best effort —
-// a miss shows nothing.
+// a miss shows nothing. The plural endings are the vault's (vocab/normalize.yaml,
+// docs/VOCAB.md "Plurals"), the same rule the ingredient resolver uses; without
+// one, words match only as written.
 
 import { fold, stripAccents } from '../vault/normalize';
 import { stripMarkers } from '../vault/markers';
+import { singularKey, type PluralRule } from '../ingredients/normalize';
 import type { Ingredient, IngredientGroup } from '../vault/types';
 
 const STOP = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'a', 'au', 'aux', 'en', 'et', 'd', 'l', 'of', 'the', 'and']);
@@ -14,8 +17,6 @@ function words(s: string): string[] {
 		.filter((w) => w && !STOP.has(w));
 }
 
-/** Singular-ish stem: drop a final s/x (oignons → oignon, choux → chou). */
-const stem = (w: string) => (w.length > 3 ? w.replace(/(?:s|x)$/, '') : w);
 
 export interface StepIngredient {
 	group: number;
@@ -23,7 +24,9 @@ export interface StepIngredient {
 	ingredient: Ingredient;
 }
 
-export function stepIngredients(step: string, groups: IngredientGroup[]): StepIngredient[] {
+export function stepIngredients(step: string, groups: IngredientGroup[], plural?: PluralRule | null): StepIngredient[] {
+	// Singular form per the vault's rule (oignons → oignon, choux → chou).
+	const stem = (w: string) => (plural ? singularKey(w, plural) : w);
 	const text = ` ${words(step).map(stem).join(' ')} `;
 	const out: StepIngredient[] = [];
 	groups.forEach((g, gi) =>

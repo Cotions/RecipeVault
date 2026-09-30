@@ -59,7 +59,8 @@ export function displayLines(l: Loaded, opts: Omit<AmountOptions, 'lang'> = {}):
 	const y = recipe.yield;
 	if (y && typeof y === 'object') out.push(`${l.file}\tyield\t${[formatAmount(y, { ...opts, lang }), y.note].filter(Boolean).join(' ')}`);
 	else if (y) out.push(`${l.file}\tyield\t${yieldTextOf(recipe, opts)}`);
-	const html = renderMarkdown(l.body);
+	// The method as the recipe page renders it at this factor (step amounts, plan 05 Q6 B).
+	const html = renderMarkdown(l.body, { scale: { factor: opts.factor ?? 1, lang, rules: opts.rules, title: 'x' } });
 	out.push(`${l.file}\tbody\t${createHash('sha256').update(html).digest('hex').slice(0, 16)}`);
 	return out;
 }

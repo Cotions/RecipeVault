@@ -80,6 +80,11 @@ export function loadVocab(vocabDir: string): VaultVocab {
 	};
 }
 
+/** vocab/normalize.yaml alone (plural rules); missing or broken: none. */
+export function loadNormalize(vocabDir: string): NormalizeVocab {
+	return parseNormalizeVocab(readYaml(join(vocabDir, 'normalize.yaml')));
+}
+
 /** vocab/conversions.yaml alone; missing or broken: no conversions (same-unit prices still work). */
 export function loadConversions(vocabDir: string): Conversions {
 	return parseConversions(readYaml(join(vocabDir, 'conversions.yaml')));

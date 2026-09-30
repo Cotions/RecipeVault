@@ -12,9 +12,11 @@
 	import { parseBody } from '$lib/vault/body';
 	import { formatNumber } from '$lib/render/fraction';
 	import { formatSeconds } from '$lib/render/duration';
-	import { ingredientText } from '$lib/render/ingredient';
+	import { formatAmount, ingredientText } from '$lib/render/ingredient';
 	import { renderInline } from '$lib/render/markdown';
-	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, paramFactor } from '$lib/render/scale';
+	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, paramFactor, subRecipeScale } from '$lib/render/scale';
+	import { stepAmounts } from '$lib/render/stepamounts';
+	import type { Ingredient, Recipe } from '$lib/vault/types';
 	import { stepIngredients } from '$lib/render/steps';
 	import { plainText } from '$lib/render/markers';
 	import { formatOven } from '$lib/render/temperature';
@@ -232,17 +234,36 @@
 
 	// --- step text with timer buttons ----------------------------------------
 
+	/** Q6 B: at another amount, each measure in a step gets its scaled value beside it. */
+	function stepScale(f: number, stepLang: Recipe['lang']) {
+		return f === 1 ? undefined : { factor: f, lang: stepLang, rules: data.scaling, title: t.scaling.stepAmountTitle(formatNumber(f, 'fr')) };
+	}
+
 	type Piece = { html: string } | { seconds: number; max?: number; text: string };
 	function pieces(text: string): Piece[] {
 		const out: Piece[] = [];
 		let last = 0;
+		// The timers read the original text; the amounts are marked inside the text between them.
+		const opts = { resolve: (s: string) => data.titles[s], scale: stepScale(factor, lang) };
 		for (const d of findDurations(text)) {
-			if (d.start > last) out.push({ html: renderInline(text.slice(last, d.start), { resolve: (s) => data.titles[s] }) });
+			if (d.start > last) out.push({ html: renderInline(text.slice(last, d.start), opts) });
 			out.push({ seconds: d.maxSeconds ?? d.seconds, max: d.maxSeconds, text: d.text });
 			last = d.end;
 		}
-		if (last < text.length) out.push({ html: renderInline(text.slice(last), { resolve: (s) => data.titles[s] }) });
+		if (last < text.length) out.push({ html: renderInline(text.slice(last), opts) });
 		return out;
+	}
+
+	// --- sub-recipes (Q5 A) ------------------------------------------------------
+
+	/** A sub-recipe's expansion at the amount its line needs, or as written with its yield. */
+	function subView(item: Ingredient, sub: Recipe): { factor: number; scaled: boolean; whole?: string | null } {
+		const f = subRecipeScale(item, sub, data.conversions, factor, data.scaling);
+		if (f !== undefined) return { factor: f, scaled: f !== 1 };
+		// Not scalable by the rule: as written, saying how much the whole recipe makes.
+		const y = sub.yield;
+		const yieldText = !y ? null : typeof y === 'string' ? y : [formatAmount(y, { lang: sub.lang }), y.note].filter(Boolean).join(' ');
+		return { factor: 1, scaled: false, whole: yieldText ?? (sub.servings ? t.card.servings(sub.servings, sub.servingsMax) : null) };
 	}
 
 	const tickKey = (g: number, i: number) => `${g}:${i}`;
@@ -273,7 +294,7 @@
 	});
 
 	const current = $derived(step >= 0 && step < steps.length ? steps[step] : null);
-	const stepLines = $derived(current ? stepIngredients(current.text, recipe.ingredients) : []);
+	const stepLines = $derived(current ? stepIngredients(current.text, recipe.ingredients, data.plural) : []);
 </script>
 
 <svelte:head>
@@ -340,16 +361,18 @@
 									{open[item.recipe] ? t.kitchen.collapse : t.kitchen.expand}
 								</button>
 								{#if open[item.recipe]}
+									{@const sv = subView(item, sub.recipe)}
 									<div class="sub">
-										<p class="subtitle"><Marked text={sub.recipe.title} /></p>
+										<p class="subtitle"><Marked text={sub.recipe.title} />{#if sv.scaled}{' '}<span class="subscale">{t.scaling.subScaled(formatNumber(sv.factor, 'fr'))}</span>{/if}</p>
+										{#if sv.whole !== undefined}<p class="subwhole">{t.scaling.subWhole(sv.whole)}</p>{/if}
 										<ul>
 											{#each sub.recipe.ingredients.flatMap((sg) => sg.items) as si, sk (sk)}
-												<li><IngredientLine item={si} lang={sub.recipe.lang} /></li>
+												<li><IngredientLine item={si} factor={sv.factor} lang={sub.recipe.lang} rules={data.scaling} /></li>
 											{/each}
 										</ul>
 										<ol>
 											{#each parseBody(sub.body).body.steps as ss, sk (sk)}
-												<li>{@html renderInline(ss.text)}</li>
+												<li>{@html renderInline(ss.text, { scale: stepScale(sv.factor, sub.recipe.lang) })}</li>
 											{/each}
 										</ol>
 									</div>
@@ -371,6 +394,7 @@
 				<p class="count">
 					{t.kitchen.step(step + 1, steps.length)}{#if current?.subheading}{` · ${current.subheading}`}{/if}
 				</p>
+				{#if factor !== 1}<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, 'fr'))}{#if stepAmounts(current!.text, { factor, lang, rules: data.scaling }).length}{' '}{t.scaling.arrowNotice}{/if}</p>{/if}
 				{#if step > 0}<p class="ghost prev">{plainText(steps[step - 1].text, (s) => data.titles[s])}</p>{/if}
 				<p class="now">
 					{#each pieces(current!.text) as p, i (i)}
@@ -617,6 +641,29 @@
 	.subtitle {
 		font-weight: 700;
 		margin: 0;
+	}
+	.subscale {
+		color: var(--accent);
+		font-size: 0.95rem;
+	}
+	.subwhole {
+		margin: 0.25rem 0 0;
+		color: var(--soft);
+		font-size: 1rem;
+	}
+	.scale-notice {
+		margin: 0.5rem 0;
+		color: var(--soft);
+		font-size: 1rem;
+		border-left: 3px solid var(--accent);
+		padding-left: 0.6rem;
+	}
+	.now :global(.step-scaled),
+	.sub :global(.step-scaled) {
+		font-family: var(--sans);
+		font-weight: 800;
+		color: var(--accent);
+		white-space: nowrap;
 	}
 	.start {
 		margin-top: 1.5rem;

@@ -32,7 +32,7 @@ export function parseUnitWords(data: unknown): UnitWords {
 	const out: UnitWords = {};
 	if (!isMap(data)) return out;
 	for (const [unit, langs] of Object.entries(data)) {
-		if (!(UNITS as readonly string[]).includes(unit) || unit === 'piece' || !isMap(langs)) continue;
+		if (!(UNITS as readonly string[]).includes(unit) || !isMap(langs)) continue;
 		const entry: Partial<Record<Lang, [string, string]>> = {};
 		for (const lang of ['fr', 'en'] as const) {
 			const f = forms(langs[lang]);
@@ -56,11 +56,19 @@ export function unitWords(): UnitWords {
 }
 
 /**
- * The unit word for an amount: French plural from 2, English above 1. `piece`
- * has no word (a bare count); a unit without a word in the vault shows its code.
+ * The unit word for an amount on an ingredient line: French plural from 2,
+ * English above 1. `piece` shows no word there (a bare count, `3 oignons`); a
+ * unit without a word in the vault shows its code.
  */
 export function unitLabel(unit: Unit, amount: number, lang: Lang): string {
-	if (unit === 'piece') return '';
+	return unit === 'piece' ? '' : unitWord(unit, amount, lang);
+}
+
+/**
+ * The unit word wherever a count needs one, `piece` included (a price's pack
+ * size: `6 pièces`). A unit without a word in the vault shows its code.
+ */
+export function unitWord(unit: Unit, amount: number, lang: Lang): string {
 	const f = current[unit]?.[lang];
 	if (!f) return unit;
 	const plural = lang === 'fr' ? amount >= 2 : amount > 1;

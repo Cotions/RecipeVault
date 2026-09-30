@@ -210,7 +210,8 @@ the owner may change it. Per language, each word of a name at least
 digit are left alone). The rule applies to the written name and to every alias
 alike, and only as a fallback: an exact alias match always wins, and a singular
 form shared by two ingredients resolves to neither (so *pâte* and *pâtes* can be
-two ingredients).
+two ingredients). Kitchen mode matches ingredient names in step text
+with the same rule (`oignons` in a step is the `oignon` line).
 
 ```yaml
 plurals:
@@ -386,7 +387,9 @@ page, per language, singular then plural (`[tasse, tasses]`); one word stands
 for both (`c. à table`). French takes the plural from 2 (`1 ½ tasse`,
 `2 tasses`), English above 1; that rule is grammar and stays in the code. The
 words are regional (*c. à table* here, *c. à soupe* in France), so they are data
-(plan 05, "Also decided"). `piece` has no word: a bare count (`3 oignons`).
+(plan 05, "Also decided"). An ingredient line in `piece` shows no word, a bare
+count (`3 oignons`): the schema's rule, not a region's. `piece`'s words show
+only where a count needs a word, a price's pack size (`6 pièces`).
 
 A unit missing from the file, or a vault without it, shows its canonical code
 (`tbsp`). `vault init` writes the file; `vault ingredients seed` adds it to an
@@ -419,6 +422,7 @@ packet: { fr: [sachet, sachets], en: [packet, packets] }
 bottle: { fr: [bouteille, bouteilles], en: [bottle, bottles] }
 jar:    { fr: [pot, pots], en: [jar, jars] }
 bag:    { fr: [sac, sacs], en: [bag, bags] }
+piece:  { fr: [pièce, pièces], en: [piece, pieces] }
 ```
 
 ## Conversions
@@ -529,6 +533,9 @@ yield) when the factor is not 1:
   show once.
 - **`factor`** caps what a link or a typed amount may ask for (×0.1 to ×20); a
   value outside it is ignored.
+
+The same rules show the measures written inside steps, beside the original
+(`1 tasse → 2 tasses`, Q6 B; `DATA-FLOW.md`, "Scaling").
 
 A vault without the file, or with a file that does not read, shows every amount
 as before this plan: the exact value, as a fraction glyph when one is within 2 %,

@@ -61,7 +61,8 @@ export type Part =
 	/** A scaled amount rounded more than 2 % (plan 05, Q2 A): `≈ `, before the amount. */
 	| { kind: 'approx'; text: string }
 	| { kind: 'text'; text: string }
-	| { kind: 'name'; text: string; recipe?: string }
+	/** `line`: the ingredient a sub-recipe name belongs to, so its link can carry the derived amount (Q5 A). */
+	| { kind: 'name'; text: string; recipe?: string; line?: Ingredient }
 	| { kind: 'muted'; text: string; base?: ScaleBase };
 
 const WORDS = {
@@ -100,7 +101,7 @@ export function ingredientParts(it: Ingredient, opts: AmountOptions): Part[] {
 		const joiner = lang === 'fr' && it.unit && it.unit !== 'piece' ? ` ${de(it.name)}` : ' ';
 		parts.push({ kind: 'text', text: joiner });
 	}
-	parts.push({ kind: 'name', text: it.name, recipe: it.recipe });
+	parts.push(it.recipe ? { kind: 'name', text: it.name, recipe: it.recipe, line: it } : { kind: 'name', text: it.name });
 	if (it.brand) parts.push({ kind: 'text', text: ` ${it.brand}` });
 	if (it.prep) parts.push({ kind: 'text', text: lang === 'fr' ? ` ${it.prep}` : `, ${it.prep}` });
 	if (it.note) parts.push({ kind: 'muted', text: ` (${it.note})` });

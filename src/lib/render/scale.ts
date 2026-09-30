@@ -4,9 +4,10 @@
 // plan 05 (the exact value, a glyph within 2 %, else a decimal). Browser-safe.
 
 import { UNIT_CLASS_OF, UNIT_CLASSES } from '../ingredients/types';
-import { sizeNumber } from '../ingredients/units';
+import { sizeNumber, type Conversions } from '../ingredients/units';
+import { subRecipeFactor } from '../ingredients/cost';
 import { formatNumber } from './fraction';
-import { UNITS, type Recipe, type Unit } from '../vault/types';
+import { UNITS, type Ingredient, type Recipe, type Unit } from '../vault/types';
 
 /** The factor for a target number of servings; 1 when the recipe gives none. */
 export function scaleFactor(recipe: Pick<Recipe, 'servings'>, target: number): number {
@@ -404,4 +405,34 @@ export function readAmount(text: string): number | undefined {
 	if (!t) return undefined;
 	const n = sizeNumber(t);
 	return n !== undefined && Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+// --- sub-recipes (Q5 A) --------------------------------------------------------
+
+/** What of a sub-recipe the recipe page and kitchen mode need to scale it: plain data. */
+export type SubScaleRecipe = Pick<Recipe, 'slug' | 'yield' | 'servings' | 'servingsMax'>;
+
+/**
+ * The factor a sub-recipe is read at from one line that uses it, at the
+ * parent's `factor` (Q5 A): the cost rule (`subRecipeFactor`, plan 03 Q16 A —
+ * the line's amount against the sub-recipe's `yield` object in the same unit
+ * or class) times the factor, kept inside the file's cap. Undefined when the
+ * rule cannot scale it (a text yield, a unit of another class): the
+ * sub-recipe then shows as written, with its yield.
+ */
+export function subRecipeScale(item: Ingredient, sub: SubScaleRecipe, conv: Conversions, factor: number, rules: ScalingRules | null | undefined): number | undefined {
+	const f = subRecipeFactor(item, sub, conv);
+	if (f === undefined) return undefined;
+	const at = f * factor;
+	// A factor within rounding of 1 is the recipe as written.
+	if (Math.abs(at - 1) < 1e-9) return 1;
+	return capFactor(at, rules);
+}
+
+/** The sub-recipe's link from a line: its page at the derived amount when scalable (`/r/pate-brisee?fois=0.5`), else its page. */
+export function subRecipeHref(item: Ingredient, sub: SubScaleRecipe | undefined, conv: Conversions, factor: number, rules: ScalingRules | null | undefined): string {
+	const base = `/r/${item.recipe}`;
+	if (!sub) return base;
+	const f = subRecipeScale(item, sub, conv, factor, rules);
+	return f === undefined ? base : base + amountQuery(sub, f);
 }

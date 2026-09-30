@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_FACTOR_CAP, parseScaling } from '../../src/lib/render/scale';
-import { parseUnitWords, setUnitWords, unitLabel, unitWords } from '../../src/lib/render/unitwords';
+import { parseUnitWords, setUnitWords, unitLabel, unitWord, unitWords } from '../../src/lib/render/unitwords';
+import { formatPack } from '../../src/lib/render/money';
 import { ingredientText } from '../../src/lib/render/ingredient';
 import { seedVocab } from '../../src/lib/server/vault';
 
@@ -99,14 +100,16 @@ describe('unit words as data', () => {
 		const w = parseUnitWords(read(seed['unit-labels.yaml']));
 		expect(w.cup).toEqual({ fr: ['tasse', 'tasses'], en: ['cup', 'cups'] });
 		expect(w.tbsp).toEqual({ fr: ['c. à table', 'c. à table'], en: ['tbsp', 'tbsp'] });
-		expect(w.piece).toBeUndefined();
-		expect(Object.keys(w)).toHaveLength(25);
+		expect(w.piece).toEqual({ fr: ['pièce', 'pièces'], en: ['piece', 'pieces'] });
+		expect(Object.keys(w)).toHaveLength(26);
 	});
 
-	it('a vault without the file shows the unit code; piece never has a word', () => {
+	it('a vault without the file shows the unit code; a line in piece never has a word', () => {
 		setUnitWords({});
 		expect(unitLabel('tbsp', 2, 'fr')).toBe('tbsp');
 		expect(unitLabel('piece', 2, 'fr')).toBe('');
+		expect(unitWord('piece', 2, 'fr')).toBe('piece');
+		expect(formatPack(6, 'piece')).toBe('6 piece');
 		expect(ingredientText({ qty: { raw: 2, value: 2 }, unit: 'cup', name: 'farine' }, { lang: 'fr' })).toBe('2 cup de farine');
 	});
 
@@ -117,6 +120,9 @@ describe('unit words as data', () => {
 		expect(unitLabel('cup', 3, 'fr')).toBe('verre');
 		expect(unitLabel('tsp', 1, 'fr')).toBe('tsp');
 		expect(unitLabel('piece', 1, 'fr')).toBe('');
+		// A pack size is where piece's word shows (money.ts): the vault's, not the code's.
+		expect(formatPack(1, 'piece')).toBe('1 pièce');
+		expect(formatPack(6, 'piece')).toBe('6 pièce');
 		expect(unitWords()).not.toHaveProperty('pouce');
 	});
 

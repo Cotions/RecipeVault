@@ -13,7 +13,8 @@
 		titles = {},
 		link,
 		rules = null,
-		onscale
+		onscale,
+		subHref
 	}: {
 		item: Ingredient;
 		factor?: number;
@@ -25,6 +26,8 @@
 		titles?: Record<string, string>;
 		/** How the line resolved (recipe page only): the name links to its entry, or is marked not linked. */
 		link?: { item?: string; key?: string };
+		/** Recipe page: a sub-recipe's link at the amount this line needs (plan 05, Q5 A); else its page as written. */
+		subHref?: (line: Ingredient) => string;
 	} = $props();
 
 	const parts = $derived(ingredientParts(item, { factor, lang, rules }));
@@ -32,7 +35,7 @@
 
 {#each parts as p, i (i)}{#if p.kind === 'approx'}<abbr class="approx" title={t.scaling.approxTitle}>{p.text.trim()}</abbr>{' '}{:else if p.kind === 'amount'}{#if onscale && p.base}<button type="button" class="amount tap" title={t.scaling.tapTitle} onclick={() => onscale(p.base!)}>{p.text}</button>{:else}<span class="amount">{p.text}</span>{/if}{:else if p.kind === 'name'}{#if p.recipe && titles[p.recipe]}<a
 				class="name"
-				href="/r/{p.recipe}"><Marked text={p.text} /></a
+				href={subHref && p.line ? subHref(p.line) : `/r/${p.recipe}`}><Marked text={p.text} /></a
 			>{:else if link?.item}<a class="name item" href={ingredientHref(link.item)} title={t.cost.linkTitle(link.item)}><Marked text={p.text} /></a
 			>{:else}<span class="name"><Marked text={p.text} /></span>{#if link?.key}{' '}<a class="unlinked no-print" href={queueHref(link.key)} title={t.cost.unlinkedTitle}
 					>{t.cost.unlinked}</a

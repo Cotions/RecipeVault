@@ -2,7 +2,7 @@
 // the locale come from the config, never from this code. Browser-safe.
 
 import type { Unit } from '../vault/types';
-import { unitLabel } from './ingredient';
+import { unitWord } from './unitwords';
 
 export interface Money {
 	/** ISO 4217 code: the config's `currency`. */
@@ -23,7 +23,7 @@ export function formatMoney(amount: number, m: Money): string {
 
 /** A pack size as printed on the pack, in decimals: `400 g`, `2,5 kg`, `6 pièces`, `1 boîte`. */
 export function formatPack(qty: number, unit: Unit): string {
-	const word = unit === 'piece' ? (qty >= 2 ? 'pièces' : 'pièce') : unitLabel(unit, qty, 'fr');
+	const word = unitWord(unit, qty, 'fr');
 	return `${String(Number(qty.toFixed(3))).replace('.', ',')} ${word}`;
 }
 

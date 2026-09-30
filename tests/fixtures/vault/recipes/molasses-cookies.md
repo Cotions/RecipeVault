@@ -25,5 +25,5 @@ extracted_by: ai
 
 1. Cream the shortening with the molasses.
 2. Add the egg, then the dry ingredients.
-3. Roll into balls, then in sugar.
+3. Roll into balls, then in 2 T sugar.
 4. Bake 10 to 12 minutes.

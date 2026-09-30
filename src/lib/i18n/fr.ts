@@ -547,7 +547,17 @@ export const fr = {
 		factorLabel: 'Multiplier la recette par',
 		unreadable: 'Écrivez un nombre : 3, 2,5 ou 1 1/2.',
 		outOfRange: (min: string, max: string) => `Entre × ${min} et × ${max}.`,
-		factorShown: (f: string) => `recette × ${f}`
+		factorShown: (f: string) => `recette × ${f}`,
+		/** Q6 B: the scaled value shown after an amount written in a step. */
+		stepAmountTitle: (f: string) => `Quantité pour la recette × ${f} ; la carte dit ce qui précède la flèche`,
+		/** Q6: when the factor is not 1, above the method and on the kitchen step. */
+		stepNotice: (f: string) => `Recette × ${f} : les temps, la température du four et la taille du moule restent ceux de la recette de base.`,
+		/** Q6 B: added to the notice when a step holds an amount. */
+		arrowNotice: 'Dans les étapes, la quantité ajustée suit la flèche (→) ; la carte est avant.',
+		/** Q5 A: a sub-recipe read at a derived amount, in kitchen mode. */
+		subScaled: (f: string) => `recette × ${f}`,
+		/** Q5 A: a sub-recipe the line's amount cannot scale, shown as written. */
+		subWhole: (yieldText: string | null) => (yieldText ? `Recette complète : donne ${yieldText}` : 'Recette complète')
 	},
 	add: {
 		title: 'Ajouter des recettes',

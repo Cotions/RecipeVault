@@ -118,6 +118,7 @@
 	tagViews={data.tags}
 	itemLinks={data.links}
 	scaling={data.scaling}
+	subScale={data.subScale}
 	bind:factor
 >
 	{#snippet cost(factor: number)}

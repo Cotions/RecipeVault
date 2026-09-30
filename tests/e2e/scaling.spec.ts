@@ -108,3 +108,43 @@ test('scaling makes no request and writes nothing', async ({ page }) => {
 	expect(git('rev-parse', 'HEAD')).toBe(head);
 	expect(git('status', '--porcelain')).toBe('');
 });
+
+test('steps show the scaled amount beside the original, with the notice (Q6 B)', async ({ page }) => {
+	await page.goto('/r/crepes');
+	const step = page.locator('.method ul.steps > li, .method ol > li').first();
+	await expect(step).toHaveText('Fouetter la farine, les œufs et le sel. Ajouter 1 ½ tasse de lait peu à peu.');
+	await expect(page.locator('.scale-notice')).toHaveCount(0);
+
+	await page.goto('/r/crepes?portions=8');
+	await expect(step).toContainText('Ajouter 1 ½ tasse → 3 tasses de lait peu à peu.');
+	await expect(step.locator('.step-scaled')).toHaveText(' → 3 tasses');
+	await expect(page.locator('.scale-notice')).toContainText('les temps, la température du four et la taille du moule restent ceux de la recette de base');
+	await expect(page.locator('.scale-notice')).toContainText('la quantité ajustée suit la flèche');
+	// Times are never scaled.
+	await expect(page.locator('.method')).toContainText('Laisser reposer 30 minutes.');
+
+	// An English card reads T as a tablespoon: 2 T × 2 is 4 tbsp, a quarter cup on the ladder.
+	await page.goto('/r/molasses-cookies?fois=2');
+	await expect(page.locator('.method .step-scaled')).toHaveText(' → ¼ cup');
+});
+
+test('a sub-recipe link carries the amount the line needs (Q5 A)', async ({ page }) => {
+	// One crust of a pastry that makes two: the half pastry, at the card's own amount already.
+	await page.goto('/r/tarte-au-sucre');
+	const pastry = page.locator('.ingredients').getByRole('link', { name: 'pâte brisée' });
+	await expect(pastry).toHaveAttribute('href', '/r/pate-brisee?fois=0.5');
+	await page.getByRole('button', { name: 'Plus de portions' }).click();
+	await expect(pastry).toHaveAttribute('href', '/r/pate-brisee?fois=0.5625');
+	await page.goto('/r/tarte-au-sucre?portions=16');
+	await expect(pastry).toHaveAttribute('href', '/r/pate-brisee');
+	await pastry.click();
+	await expect(page).toHaveURL(/\/r\/pate-brisee$/);
+	await page.goto('/r/tarte-au-sucre?portions=24');
+	await pastry.click();
+	await expect(page).toHaveURL(/\/r\/pate-brisee\?fois=1.5$/);
+	await expect(page.locator('.ingredients li').filter({ hasText: 'farine' })).toContainText('3 ¾ tasses de farine');
+
+	// A text yield cannot be scaled by the rule: the page as written.
+	await page.goto('/r/sauce-tomate-maison?fois=2');
+	await expect(page.locator('.ingredients').getByRole('link', { name: 'bouillon de légumes' })).toHaveAttribute('href', '/r/bouillon-de-legumes');
+});

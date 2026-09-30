@@ -110,7 +110,7 @@ const upper = (q?: { value: number }, max?: { value: number }) => max?.value ?? 
  * object: one piece is then the whole of it. Wrong prices are worse than
  * absent ones.
  */
-export function subRecipeFactor(item: Ingredient, sub: Recipe, conv: Conversions): number | undefined {
+export function subRecipeFactor(item: Ingredient, sub: Pick<Recipe, 'yield' | 'servings' | 'servingsMax'>, conv: Conversions): number | undefined {
 	const q = upper(item.qty, item.qtyMax);
 	if (q === undefined) return undefined;
 	const unit: Unit = item.unit ?? 'piece';

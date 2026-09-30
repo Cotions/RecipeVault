@@ -169,9 +169,15 @@ describe('timers', () => {
 describe('step ingredients', () => {
 	it('matches names in step text, accent-, case- and plural-insensitive', () => {
 		const r = checkRecipe(readFileSync('tests/fixtures/vault/recipes/lasagna-bolognaise.md', 'utf8')).recipe!;
-		const names = (s: string) => stepIngredients(s, r.ingredients).map((x) => x.ingredient.name);
+		const names = (s: string) => stepIngredients(s, r.ingredients, { suffixes: ['x', 's'], minLength: 4 }).map((x) => x.ingredient.name);
 		expect(names("Ajouter l'ail, puis le boeuf haché. Laisser colorer.")).toEqual(['bœuf haché', 'ail']);
 		expect(names('Faire revenir les oignons.')).toEqual(['oignon']);
 		expect(names('Rien ici.')).toEqual([]);
+	});
+	it('takes its plural endings from the vault (vocab/normalize.yaml), none without it', () => {
+		const r = checkRecipe(readFileSync('tests/fixtures/vault/recipes/lasagna-bolognaise.md', 'utf8')).recipe!;
+		expect(stepIngredients('Faire revenir les oignons.', r.ingredients).map((x) => x.ingredient.name)).toEqual([]);
+		expect(stepIngredients('Faire revenir l’oignon.', r.ingredients).map((x) => x.ingredient.name)).toEqual(['oignon']);
+		expect(stepIngredients('Faire revenir les oignonz.', r.ingredients, { suffixes: ['z'], minLength: 4 }).map((x) => x.ingredient.name)).toEqual(['oignon']);
 	});
 });
