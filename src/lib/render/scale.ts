@@ -311,6 +311,20 @@ export function capFactor(f: number, rules: ScalingRules | null | undefined): nu
 	return f;
 }
 
+/**
+ * The servings stepper's next count: the next whole number of servings up or
+ * down (from 7,5: + gives 8, − gives 7), never below 1, as a factor inside the
+ * file's cap. `undefined` when that step leaves the cap: the button is then
+ * disabled rather than doing nothing.
+ */
+export function servingsStep(servingsNow: number, servings: number, dir: 1 | -1, rules: ScalingRules | null | undefined): { servings: number; factor: number } | undefined {
+	if (!(servings > 0)) return undefined;
+	const next = dir > 0 ? Math.floor(servingsNow + EPS) + 1 : Math.ceil(servingsNow - EPS) - 1;
+	if (next < 1) return undefined;
+	const factor = capFactor(next / servings, rules);
+	return factor === undefined ? undefined : { servings: next, factor };
+}
+
 // --- servings and yield (Q7 A) -------------------------------------------------
 
 /**

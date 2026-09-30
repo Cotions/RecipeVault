@@ -12,6 +12,37 @@ test('the servings stepper on a phone keeps the amount in the address', async ({
 	await expect(page.locator('.ingredients li').filter({ hasText: 'bœuf haché' })).toContainText('665 g de bœuf haché');
 });
 
+test('Back from kitchen mode and « Retour » keep the amount set on the recipe page (review, Q1 A)', async ({ page }) => {
+	await page.goto('/r/lasagna-bolognaise');
+	await page.getByRole('button', { name: 'Plus de portions' }).tap();
+	await page.getByRole('button', { name: 'Plus de portions' }).tap();
+	await expect(page).toHaveURL(/\?portions=8$/);
+	await page.getByRole('link', { name: 'Cuisiner' }).tap();
+	await expect(page.locator('.kitchen')).toBeVisible();
+	await expect(page.locator('.scaler output')).toContainText('8');
+	await page.goBack();
+	await expect(page).toHaveURL(/\/r\/lasagna-bolognaise\?portions=8$/);
+	await expect(page.locator('.scaler output')).toContainText('8');
+	await expect(page.locator('.ingredients li').filter({ hasText: 'bœuf haché' })).toContainText('665 g de bœuf haché');
+	// Still there after a reload, then Back again from kitchen mode.
+	await page.reload();
+	await page.getByRole('link', { name: 'Cuisiner' }).tap();
+	await expect(page.locator('.kitchen')).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL(/\?portions=8$/);
+	await expect(page.locator('.scaler output')).toContainText('8');
+
+	// « Retour » carries the amount cooked in kitchen mode.
+	await page.getByRole('link', { name: 'Cuisiner' }).tap();
+	await expect(page.locator('.kitchen')).toBeVisible();
+	await page.getByRole('button', { name: 'Plus de portions' }).tap();
+	await expect(page.locator('.scaler output')).toContainText('9');
+	await expect(page.locator('a.quit')).toHaveAttribute('href', '/r/lasagna-bolognaise?portions=9');
+	await page.locator('a.quit').tap();
+	await expect(page).toHaveURL(/\/r\/lasagna-bolognaise\?portions=9$/);
+	await expect(page.locator('.scaler output')).toContainText('9');
+});
+
 test('kitchen mode opens scaled from the recipe page, and reads an older session', async ({ page }) => {
 	await page.goto('/r/lasagna-bolognaise?portions=12');
 	await page.getByRole('link', { name: 'Cuisiner' }).click();

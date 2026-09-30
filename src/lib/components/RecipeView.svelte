@@ -6,7 +6,7 @@
 	import { formatDurationValue, formatSeconds } from '$lib/render/duration';
 	import { formatAmount, type ScaleBase } from '$lib/render/ingredient';
 	import { renderMarkdown } from '$lib/render/markdown';
-	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, readAmount, scaleTextYield, servingsRange, subRecipeHref, type ScalingRules, type SubScaleRecipe } from '$lib/render/scale';
+	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, readAmount, servingsStep, scaleTextYield, servingsRange, subRecipeHref, type ScalingRules, type SubScaleRecipe } from '$lib/render/scale';
 	import { stepAmounts } from '$lib/render/stepamounts';
 	import type { Conversions } from '$lib/ingredients/units';
 	import { formatOven } from '$lib/render/temperature';
@@ -69,9 +69,9 @@
 	const wholeServings = $derived(Math.abs(servingsNow - Math.round(servingsNow)) < 1e-9);
 	/** The multipliers offered, and the current factor when it is none of them. */
 	const multipliers = $derived(MULTIPLIERS.includes(factor as (typeof MULTIPLIERS)[number]) ? [...MULTIPLIERS] : [...MULTIPLIERS, factor].sort((a, b) => a - b));
-	function setServings(n: number) {
-		const f = capFactor(n / recipe.servings!, scaling);
-		if (f !== undefined) factor = f;
+	function stepServings(dir: 1 | -1) {
+		const next = servingsStep(servingsNow, recipe.servings!, dir, scaling);
+		if (next) factor = next.factor;
 	}
 
 	// « J'en ai … »: a tapped amount, then factor = typed ÷ written.
@@ -271,9 +271,9 @@
 				<h2 id="ingredients-title">{t.recipe.ingredients}</h2>
 				<div class="scaler no-print">
 					{#if recipe.servings}
-						<button class="step" type="button" aria-label={t.recipe.decrease} disabled={servingsNow <= 1 + 1e-9} onclick={() => setServings(Math.max(1, Math.ceil(servingsNow - 1e-9) - 1))}>−</button>
+						<button class="step" type="button" aria-label={t.recipe.decrease} disabled={!servingsStep(servingsNow, recipe.servings, -1, scaling)} onclick={() => stepServings(-1)}>−</button>
 						<output aria-live="polite">{formatNumber(servingsNow, lang)} <span class="unit">{t.recipe.scale.toLowerCase()}</span></output>
-						<button class="step" type="button" aria-label={t.recipe.increase} disabled={(Math.floor(servingsNow + 1e-9) + 1) / recipe.servings > cap.max + 1e-9} onclick={() => setServings(Math.floor(servingsNow + 1e-9) + 1)}>+</button>
+						<button class="step" type="button" aria-label={t.recipe.increase} disabled={!servingsStep(servingsNow, recipe.servings, 1, scaling)} onclick={() => stepServings(1)}>+</button>
 					{:else}
 						<label>
 							<span class="visually-hidden">{t.recipe.scaleFactor}</span>

@@ -357,9 +357,12 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
 
 - **The amount lives in the address** (Q1 A): `?portions=8` when the recipe
   has servings and they come out whole, else `?fois=1.5`; nothing at the card's
-  amount. The recipe page rewrites it with `replaceState` as she taps, so a
-  reload, the back button, a bookmark or a link sent to a sibling shows the
-  same amounts; a recipe opened fresh shows the card's. A value that does not
+  amount. The recipe page rewrites it as she taps (a navigation that replaces
+  the history entry, so the entry Back returns to holds the amount; no load
+  reads the address, so nothing is fetched), so a reload, the back button, a
+  bookmark or a link sent to a sibling shows the same amounts; a recipe opened
+  fresh shows the card's. Kitchen mode's « Retour » link carries the amount
+  cooked there. A value that does not
   read (`1e9`, `0x10`, a sign) or lies outside the file's `factor` cap (×0.1 to
   ×20) is ignored. Kitchen mode keeps its own per-device session
   (`localStorage`, 12 h): the address wins when present, then is dropped, so a

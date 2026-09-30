@@ -14,7 +14,7 @@
 	import { formatSeconds } from '$lib/render/duration';
 	import { formatAmount, ingredientText } from '$lib/render/ingredient';
 	import { renderInline } from '$lib/render/markdown';
-	import { capFactor, DEFAULT_FACTOR_CAP, MULTIPLIERS, paramFactor, subRecipeScale } from '$lib/render/scale';
+	import { amountQuery, capFactor, MULTIPLIERS, paramFactor, servingsStep, subRecipeScale } from '$lib/render/scale';
 	import { stepAmounts } from '$lib/render/stepamounts';
 	import type { Ingredient, Recipe } from '$lib/vault/types';
 	import { stepIngredients } from '$lib/render/steps';
@@ -83,13 +83,12 @@
 	}
 	const version = $derived(fingerprint(JSON.stringify([recipe.ingredients, steps.map((x) => x.text)])));
 
-	const cap = $derived(data.scaling?.factor ?? DEFAULT_FACTOR_CAP);
 	/** The servings at the factor: the stepper moves to the next whole number. */
 	const servingsNow = $derived(recipe.servings ? recipe.servings * factor : 0);
 	const multipliers = $derived(MULTIPLIERS.includes(factor as (typeof MULTIPLIERS)[number]) ? [...MULTIPLIERS] : [...MULTIPLIERS, factor].sort((a, b) => a - b));
-	function setServings(n: number) {
-		const f = capFactor(n / recipe.servings!, data.scaling);
-		if (f !== undefined) factor = f;
+	function stepServings(dir: 1 | -1) {
+		const next = servingsStep(servingsNow, recipe.servings!, dir, data.scaling);
+		if (next) factor = next.factor;
 	}
 
 	function load() {
@@ -306,14 +305,15 @@
 
 <div class="kitchen" class:dark>
 	<header class="top">
-		<a class="quit" href="/r/{recipe.slug}">← {t.kitchen.back}</a>
+		<!-- Back to the recipe at the amount cooked here (plan 05, Q1 A: the amount lives in the address). -->
+		<a class="quit" href="/r/{recipe.slug}{amountQuery(recipe, factor)}">← {t.kitchen.back}</a>
 		<p class="name"><Marked text={recipe.title} /></p>
 		<div class="tools">
 			{#if recipe.servings}
 				<div class="scaler">
-					<button type="button" aria-label={t.recipe.decrease} disabled={servingsNow <= 1 + 1e-9} onclick={() => setServings(Math.max(1, Math.ceil(servingsNow - 1e-9) - 1))}>−</button>
+					<button type="button" aria-label={t.recipe.decrease} disabled={!servingsStep(servingsNow, recipe.servings, -1, data.scaling)} onclick={() => stepServings(-1)}>−</button>
 					<output aria-live="polite">{formatNumber(servingsNow, lang)} <span class="unit">{t.recipe.scale.toLowerCase()}</span></output>
-					<button type="button" aria-label={t.recipe.increase} disabled={(Math.floor(servingsNow + 1e-9) + 1) / recipe.servings > cap.max + 1e-9} onclick={() => setServings(Math.floor(servingsNow + 1e-9) + 1)}>+</button>
+					<button type="button" aria-label={t.recipe.increase} disabled={!servingsStep(servingsNow, recipe.servings, 1, data.scaling)} onclick={() => stepServings(1)}>+</button>
 				</div>
 			{:else}
 				<select aria-label={t.recipe.scaleFactor} bind:value={factor}>

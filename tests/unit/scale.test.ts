@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { amountParam, amountQuery, capFactor, factorFromParams, paramFactor, parseScaling, readAmount, scaleTextYield, scaleValues, servingsRange, type ScalingRules } from '../../src/lib/render/scale';
+import { amountParam, amountQuery, capFactor, factorFromParams, paramFactor, parseScaling, readAmount, scaleTextYield, scaleValues, servingsRange, servingsStep, type ScalingRules } from '../../src/lib/render/scale';
 import { formatAmount, ingredientParts, ingredientText } from '../../src/lib/render/ingredient';
 import { seedVocab } from '../../src/lib/server/vault';
 import { parseQuantity } from '../../src/lib/vault/quantity';
@@ -127,6 +127,22 @@ describe('capFactor', () => {
 		expect(capFactor(0.1, SEED_RULES)).toBe(0.1);
 		for (const f of [0, -1, NaN, Infinity, 1e9, 0.01, 21]) expect(capFactor(f, SEED_RULES)).toBeUndefined();
 		expect(capFactor(15, null)).toBe(15);
+	});
+});
+
+describe('servingsStep (review: − disabled at the cap’s minimum)', () => {
+	it('moves to the next whole number inside the cap, else nothing', () => {
+		// servings 24, default cap min 0.1: 3 → 2 would be 0.083.
+		expect(servingsStep(3, 24, -1, null)).toBeUndefined();
+		expect(servingsStep(4, 24, -1, null)).toEqual({ servings: 3, factor: 0.125 });
+		expect(servingsStep(1, 4, -1, null)).toBeUndefined();
+		expect(servingsStep(7.5, 4, -1, null)).toEqual({ servings: 7, factor: 1.75 });
+		expect(servingsStep(7.5, 4, 1, null)).toEqual({ servings: 8, factor: 2 });
+		const tight: ScalingRules = { ...parseScaling(parse(seedVocab(readFileSync('docs/VOCAB.md', 'utf8'))['scaling.yaml'], { version: '1.2' }))!, factor: { min: 0.5, max: 2 } };
+		expect(servingsStep(4, 4, 1, tight)).toEqual({ servings: 5, factor: 1.25 });
+		expect(servingsStep(8, 4, 1, tight)).toBeUndefined();
+		expect(servingsStep(2, 4, -1, tight)).toBeUndefined();
+		expect(servingsStep(3, 4, -1, tight)).toEqual({ servings: 2, factor: 0.5 });
 	});
 });
 

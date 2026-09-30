@@ -128,6 +128,25 @@ test('steps show the scaled amount beside the original, with the notice (Q6 B)',
 	await expect(page.locator('.method .step-scaled')).toHaveText(' → ¼ cup');
 });
 
+test('Back from a sub-recipe keeps the amount set by hand (review, Q1 A)', async ({ page }) => {
+	await page.goto('/r/tarte-au-sucre');
+	await page.getByRole('button', { name: 'Plus de portions' }).click();
+	await page.getByRole('button', { name: 'Plus de portions' }).click();
+	const url = page.url();
+	expect(url).toMatch(/\?portions=\d+$/);
+	const output = await page.locator('.scaler output').textContent();
+	await page.locator('.ingredients').getByRole('link', { name: 'pâte brisée' }).click();
+	await expect(page).toHaveURL(/\/r\/pate-brisee/);
+	await page.goBack();
+	await expect(page).toHaveURL(url);
+	await expect(page.locator('.scaler output')).toHaveText(output!);
+	// Forward and Back again: the sub-recipe at its amount, then the tarte at hers.
+	await page.goForward();
+	await expect(page).toHaveURL(/\/r\/pate-brisee\?fois=/);
+	await page.goBack();
+	await expect(page).toHaveURL(url);
+});
+
 test('a sub-recipe link carries the amount the line needs (Q5 A)', async ({ page }) => {
 	// One crust of a pastry that makes two: the half pastry, at the card's own amount already.
 	await page.goto('/r/tarte-au-sucre');

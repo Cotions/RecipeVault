@@ -10,27 +10,35 @@
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import { parseRecipe } from '$lib/vault/parse';
 	import { plainText } from '$lib/render/markers';
-	import { replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { amountQuery, factorFromParams } from '$lib/render/scale';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
 	// SvelteKit keeps this component when going from one recipe to another, so
-	// the factor is derived: read from the address (`?portions=` or `?fois=`,
-	// plan 05 Q1 A) on every new recipe or navigation, changed by hand in between.
-	// Keyed on the slug and the address's query alone, so a form action reloading
-	// the same recipe keeps it (replaceState below does not change page.url).
-	const slug = $derived(data.recipe.slug);
-	const search = $derived(page.url.search);
-	let factor = $derived.by(() => {
-		void slug;
-		void search;
-		return untrack(() => factorFromParams(page.url.searchParams, data.recipe, data.scaling));
+	// the factor is read from the address (`?portions=` or `?fois=`, plan 05
+	// Q1 A) on every new recipe or navigation, and changed by hand in between.
+	// Keyed on the slug and the address's query alone, so a form action
+	// reloading the same recipe keeps it.
+	let factor = $state(untrack(() => factorFromParams(page.url.searchParams, data.recipe, data.scaling)));
+	/** The slug and query this page last wrote, so its own address change does not read the factor back. */
+	let written = { slug: untrack(() => data.recipe.slug), search: untrack(() => page.url.search) };
+	$effect.pre(() => {
+		const slug = data.recipe.slug;
+		const search = page.url.search;
+		untrack(() => {
+			if (slug === written.slug && search === written.search) return;
+			written = { slug, search };
+			factor = factorFromParams(page.url.searchParams, data.recipe, data.scaling);
+		});
 	});
 	// The address follows the factor, without a history entry: a reload, a
-	// bookmark or a shared link shows the same amounts. Only the two parameters
-	// are touched; the rest of the query stays.
+	// bookmark, a shared link or Back from another page shows the same amounts.
+	// A real (replacing) navigation rather than a shallow replaceState, which
+	// would leave page.url, and so the history entry SvelteKit goes Back to,
+	// without the amount. No load reads the address: nothing is fetched. Only
+	// the two parameters are touched; the rest of the query stays.
 	$effect(() => {
 		const q = amountQuery(data.recipe, factor);
 		untrack(() => {
@@ -39,11 +47,10 @@
 			url.searchParams.delete('fois');
 			for (const [k, v] of new URLSearchParams(q)) url.searchParams.set(k, v);
 			if (url.href === location.href) return;
-			try {
-				replaceState(url, page.state);
-			} catch {
+			written = { slug: data.recipe.slug, search: url.search };
+			goto(url, { replaceState: true, noScroll: true, keepFocus: true, state: page.state }).catch(() => {
 				// Before the router is ready (first render): the next change writes it.
-			}
+			});
 		});
 	});
 	let copied = $state(false);
