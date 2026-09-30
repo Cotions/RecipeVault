@@ -532,7 +532,8 @@ Depends on: Q1, Q8.
 
 1. **State** per Q1: the amount in the recipe page's URL (`?portions=8` or
    `?fois=1.5`, as the kitchen link already writes it), updated with
-   `replaceState` as she taps, read on load; kitchen mode's `localStorage`
+   `replaceState` as she taps (built as a replacing `goto`: Decisions below),
+   read on load; kitchen mode's `localStorage`
    session unchanged (a resume keeps what was set there, the parameter still
    wins when present, → the existing comment in `load()`).
 2. **Ways in** per Q8: the stepper; tapping an ingredient's amount to type "j'ai
@@ -558,11 +559,16 @@ Decisions (done): one `factor` replaces the page's `servings`/`multiplier`
 pair, on the recipe page and in kitchen mode. The page reads it with
 `factorFromParams` (`?portions=` wins when the recipe has servings, then
 `?fois=`; digits only, so `1e9`, `0x10` and signs are ignored; outside the
-file's `factor` cap is ignored) and writes it back with `replaceState`
+file's `factor` cap is ignored) and writes it back into the address
 (`amountQuery`: `portions` when the servings come out whole, else `fois` with at
-most 4 decimals; nothing at factor 1). `page.url` is not updated by
-`replaceState`, so the page compares against `location.href`; the factor is
-re-read on a new slug or a real navigation. The stepper goes to the next whole
+most 4 decimals; nothing at factor 1) with a replacing `goto` (`replaceState:
+true`, `noScroll`, `keepFocus`; no history entry, and no load reads the
+address, so nothing is fetched). It was first a shallow `replaceState`, which
+left `page.url` — and so the history entry Back returns to — without the
+amount: Back from kitchen mode or a sub-recipe lost it (fixed in `d60f5b5`).
+The page remembers the slug and query it wrote itself and re-reads the factor
+only when the address differs from that (a new slug, a link, Back), so its own
+write does not read the factor back. The stepper goes to the next whole
 number of servings (from 7,5: + gives 8, − gives 7) inside the cap. "Autre
 quantité" takes a free factor on every recipe; a recipe without servings also
 lists the current factor in its select when it is not one of the multipliers.
