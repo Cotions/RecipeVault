@@ -73,7 +73,7 @@ test('a recipe without servings: multiplier, free factor, bounds', async ({ page
 	await ask.getByRole('textbox').fill('1,5');
 	await ask.getByRole('button', { name: 'Ajuster' }).click();
 	await expect(page).toHaveURL(/\?fois=1\.5$/);
-	await expect(page.locator('.ingredients li').filter({ hasText: 'sugar' })).toHaveText('≈ 1 cup sugar');
+	await expect(page.locator('.ingredients li').filter({ hasText: 'sugar' })).toHaveText('18 tbsp sugar');
 	await expect(page.getByLabel('Quantité')).toHaveValue('1.5');
 	await page.getByRole('button', { name: 'Remettre' }).click();
 	await expect(page).toHaveURL(/\/r\/banana-bread$/);
