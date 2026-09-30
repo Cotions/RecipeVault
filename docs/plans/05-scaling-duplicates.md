@@ -422,6 +422,38 @@ block parses to exactly what `vault init` writes.
 Done when: a new vault and a seeded older vault both hold `vocab/scaling.yaml`;
 the recipe page and kitchen page receive the rules; nothing displayed changes yet.
 
+Built, with these decisions:
+
+- **Seed content** (`VOCAB.md` "Scaling"). Beyond the illustrative shape:
+  `approx: 0.02` (the ≈ threshold, data too); `factor: { min: 0.1, max: 20 }`
+  (Q8's cap); `tsp` gains ¾ (cards write it); `lb: [1/4, 1/2, 3/4]`; `kg` and
+  `l` whole only (so `500 g` never becomes `½ kg`); `pinch`, `drop` whole;
+  `metric` names its units (`g`, `ml`) beside the steps. **`always`** lists the
+  units and classes that snap whatever the distance (cups, spoons, pinches,
+  drops, counts, containers): without it the Phase 2 gate "no decimal on a cup
+  or spoon line" cannot hold at 10 % (a ¼ tsp at ×⅔ is 33 % from any spoon), and
+  Q4 A's "halves" for counts is a snap whatever the distance. The 10 %
+  tolerance then governs the other units (`lb`, `oz`, `qt`…), which show a
+  short decimal beyond it, as Q2 A says.
+- **Partial file.** A mapping keeps every entry that reads; missing numbers get
+  the seed's (`tolerance` 0.1, `approx` 0.02, the cap); a unit with no
+  fractions entry (own, class or `default`) shows its exact value as before.
+  Not a mapping → `null` → today's display.
+- **Unit words** move to `vocab/unit-labels.yaml` (`VOCAB.md` "Unit labels"):
+  `unit: { fr: word | [singular, plural], en: … }`. `piece` has no word and is
+  not in the file (a bare count is the schema's, not a region's). The plural
+  rule (French from 2, English above 1) stays code: grammar, like `fr.ts`. The
+  words reach the browser through the root layout, which installs them in
+  `render/unitwords.ts` before any page renders (server and browser): every
+  caller of `unitLabel` (ingredient lines, money, the form, the ingredient
+  page) keeps its signature. A unit without a word shows its code. `vault
+  ingredients seed` adds the file, or only the units and languages an older
+  copy lacks, never rewriting a word (as tag labels, plan 04 #11).
+- Tests run with the seed words installed (`tests/setup/unit-words.ts`);
+  `tests/unit/scaling-rules.test.ts` covers a vault without them.
+- `STORAGE.md`: layout gains both files; "the code holds no word…" now says
+  "beyond the canonical unit list and the UI strings of `fr.ts`".
+
 ### Phase 2 — the scaled amount
 
 Depends on: Q2, Q3, Q4, Q7.

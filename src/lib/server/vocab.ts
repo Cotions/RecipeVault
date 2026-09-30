@@ -12,6 +12,8 @@ import { parseWordList, type CheckWords } from '../vault/words';
 import { seedVocab } from './vault';
 import { parseNormalizeVocab, type NormalizeVocab } from '../ingredients/normalize';
 import { parseConversions, type Conversions } from '../ingredients/units';
+import { parseScaling, type ScalingRules } from '../render/scale';
+import { parseUnitWords, type UnitWords } from '../render/unitwords';
 
 export interface VaultVocab {
 	/** Folded alias or canonical tag → canonical tag. */
@@ -81,6 +83,16 @@ export function loadVocab(vocabDir: string): VaultVocab {
 /** vocab/conversions.yaml alone; missing or broken: no conversions (same-unit prices still work). */
 export function loadConversions(vocabDir: string): Conversions {
 	return parseConversions(readYaml(join(vocabDir, 'conversions.yaml')));
+}
+
+/** vocab/scaling.yaml (plan 05): null when missing or broken — amounts then show as before. */
+export function loadScaling(vocabDir: string): ScalingRules | null {
+	return parseScaling(readYaml(join(vocabDir, 'scaling.yaml')));
+}
+
+/** vocab/unit-labels.yaml (plan 05): the unit words; missing or broken: none, and units show their code. */
+export function loadUnitWords(vocabDir: string): UnitWords {
+	return parseUnitWords(readYaml(join(vocabDir, 'unit-labels.yaml')));
 }
 
 /**

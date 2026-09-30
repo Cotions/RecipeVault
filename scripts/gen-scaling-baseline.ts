@@ -5,6 +5,7 @@
 //
 //   npx tsx scripts/gen-scaling-baseline.ts
 
+import '../tests/setup/unit-words';
 import { writeFileSync } from 'node:fs';
 import { BASELINE, baselineText } from '../tests/helpers/display';
 

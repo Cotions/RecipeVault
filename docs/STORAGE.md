@@ -41,8 +41,10 @@ Data splits by how it changes, because each kind wants a different format:
 │   ├── families.yaml                # family slug → { fr, en } labels, set on the family page
 │   ├── normalize.yaml               # plural rules for ingredient lookup
 │   ├── participles.yaml             # preparation words for W302
+│   ├── scaling.yaml                 # how scaled amounts show: fractions per unit, kitchen ladder, metric steps
 │   ├── tag-labels.yaml              # tag slug → { fr, en } labels, seeded, set on /etiquettes
 │   ├── tags.yaml                    # canonical tags + aliases
+│   ├── unit-labels.yaml             # unit → { fr, en } display words (tasse / tasses, c. à thé)
 │   └── units.yaml                   # canonical units + aliases
 ├── prices.csv                       # append-only price history
 ├── media/
@@ -201,9 +203,11 @@ a new vault, plus the rules.
 
 The same holds for everything regional the ingredient features need (plan 03,
 decision 1): plural rules, allergens, unit conversion factors, and the word
-lists of W302, W304 and W607, and tag labels, are `vocab/` files seeded from `VOCAB.md`; regional
+lists of W302, W304 and W607, tag labels, the unit display words and the
+scaling rules (plan 05), are `vocab/` files seeded from `VOCAB.md`; regional
 ingredient names are aliases and rules in `ingredients/`. The code holds no
-word of a language or a region beyond the canonical unit list. `vault init`
+word of a language or a region beyond the canonical unit list and the UI
+strings of `fr.ts`. `vault init`
 writes them all; `vault ingredients seed` adds the ones an older vault lacks,
 never overwriting a file or an entry.
 

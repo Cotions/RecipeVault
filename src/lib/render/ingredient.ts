@@ -1,76 +1,13 @@
-// An ingredient entry as a sentence in the recipe's language, Québec words:
+// An ingredient entry as a sentence in the recipe's language, the vault's unit words:
 // "2 tasses de farine tamisée", "1 c. à thé de sel", "2 gousses d'ail".
 // Returned as parts so the page can link sub-recipes and style markers.
 
 import type { Alt, Ingredient, Lang, Unit } from '../vault/types';
 import { formatNumber } from './fraction';
+import { unitLabel } from './unitwords';
 
-type Forms = [singular: string, plural: string];
-
-const FR: Record<Unit, Forms> = {
-	g: ['g', 'g'],
-	kg: ['kg', 'kg'],
-	ml: ['ml', 'ml'],
-	cl: ['cl', 'cl'],
-	l: ['L', 'L'],
-	cup: ['tasse', 'tasses'],
-	tbsp: ['c. à table', 'c. à table'],
-	tsp: ['c. à thé', 'c. à thé'],
-	pinch: ['pincée', 'pincées'],
-	drop: ['goutte', 'gouttes'],
-	lb: ['lb', 'lb'],
-	oz: ['oz', 'oz'],
-	qt: ['pinte', 'pintes'],
-	pint: ['chopine', 'chopines'],
-	piece: ['', ''],
-	clove: ['gousse', 'gousses'],
-	leaf: ['feuille', 'feuilles'],
-	sprig: ['brin', 'brins'],
-	stalk: ['branche', 'branches'],
-	bunch: ['botte', 'bottes'],
-	slice: ['tranche', 'tranches'],
-	can: ['boîte', 'boîtes'],
-	packet: ['sachet', 'sachets'],
-	bottle: ['bouteille', 'bouteilles'],
-	jar: ['pot', 'pots'],
-	bag: ['sac', 'sacs']
-};
-
-const EN: Record<Unit, Forms> = {
-	g: ['g', 'g'],
-	kg: ['kg', 'kg'],
-	ml: ['ml', 'ml'],
-	cl: ['cl', 'cl'],
-	l: ['L', 'L'],
-	cup: ['cup', 'cups'],
-	tbsp: ['tbsp', 'tbsp'],
-	tsp: ['tsp', 'tsp'],
-	pinch: ['pinch', 'pinches'],
-	drop: ['drop', 'drops'],
-	lb: ['lb', 'lb'],
-	oz: ['oz', 'oz'],
-	qt: ['quart', 'quarts'],
-	pint: ['pint', 'pints'],
-	piece: ['', ''],
-	clove: ['clove', 'cloves'],
-	leaf: ['leaf', 'leaves'],
-	sprig: ['sprig', 'sprigs'],
-	stalk: ['stalk', 'stalks'],
-	bunch: ['bunch', 'bunches'],
-	slice: ['slice', 'slices'],
-	can: ['can', 'cans'],
-	packet: ['packet', 'packets'],
-	bottle: ['bottle', 'bottles'],
-	jar: ['jar', 'jars'],
-	bag: ['bag', 'bags']
-};
-
-/** The unit word for an amount: French plural from 2, English above 1. */
-export function unitLabel(unit: Unit, amount: number, lang: Lang): string {
-	const [one, many] = (lang === 'fr' ? FR : EN)[unit];
-	const plural = lang === 'fr' ? amount >= 2 : amount > 1;
-	return plural ? many : one;
-}
+// The unit words are the vault's (vocab/unit-labels.yaml, ./unitwords.ts).
+export { unitLabel } from './unitwords';
 
 // Words whose h is mute (elided: « d’huile »). Every other h is taken as
 // aspirated (« de haricots », « de homard », « de hachis »), and y is never

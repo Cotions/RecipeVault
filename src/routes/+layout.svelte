@@ -4,8 +4,15 @@
 	import { page } from '$app/state';
 	import { t, form as tf } from '$lib/i18n/fr';
 	import Toast from '$lib/components/Toast.svelte';
+	import { setUnitWords } from '$lib/render/unitwords';
 
 	let { children, data } = $props();
+
+	// The vault's unit words, installed before any page renders (server and
+	// browser), and again when the layout data changes.
+	// svelte-ignore state_referenced_locally
+	setUnitWords(data?.unitWords);
+	$effect.pre(() => setUnitWords(data?.unitWords));
 
 	const kitchen = $derived(page.url.pathname.endsWith('/cuisine'));
 	const markdown = $derived(!!data?.user?.markdown);

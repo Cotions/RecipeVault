@@ -78,6 +78,8 @@ export interface SeedVocab {
 	'descriptors.yaml': string;
 	'brands.yaml': string;
 	'tag-labels.yaml': string;
+	'unit-labels.yaml': string;
+	'scaling.yaml': string;
 }
 
 /** The seed vocabularies, copied from docs/VOCAB.md (the doc is the seed). */
@@ -91,6 +93,8 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 	const descriptors = yamlBlocksUnder(vocabDoc, 'Size words');
 	const brands = yamlBlocksUnder(vocabDoc, 'Brands');
 	const tagLabels = yamlBlocksUnder(vocabDoc, 'Tag labels');
+	const unitLabels = yamlBlocksUnder(vocabDoc, 'Unit labels');
+	const scaling = yamlBlocksUnder(vocabDoc, 'Scaling');
 	// Validate before writing: a broken seed would break every later read.
 	for (const [name, text] of [
 		['tags', tags],
@@ -101,7 +105,9 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 		['participles', participles],
 		['descriptors', descriptors],
 		['brands', brands],
-		['tag labels', tagLabels]
+		['tag labels', tagLabels],
+		['unit labels', unitLabels],
+		['scaling', scaling]
 	]) {
 		const data = parse(text, { version: '1.2' });
 		if (!data || typeof data !== 'object') throw new Error(`docs/VOCAB.md: the ${name} block is not a YAML mapping`);
@@ -116,7 +122,9 @@ export function seedVocab(vocabDoc: string): SeedVocab {
 		'participles.yaml': `# Preparation words that belong in \`prep\`, not in an ingredient's name (W302).\n# Seeded from docs/VOCAB.md ("Preparation words"); edit freely.\n${participles}`,
 		'descriptors.yaml': `# Size words that belong in \`note\`, not in an ingredient's name (W304).\n# Seeded from docs/VOCAB.md ("Size words"); edit freely.\n${descriptors}`,
 		'brands.yaml': `# Brands that belong in \`brand\`, not in an ingredient's name (W607).\n# Seeded from docs/VOCAB.md ("Brands"); edit freely.\n${brands}`,
-		'tag-labels.yaml': `# Canonical tag: { fr: label, en: label }. Seeded from docs/VOCAB.md ("Tag labels");\n# grows on /etiquettes. A tag without a label shows its slug.\n${tagLabels}`
+		'tag-labels.yaml': `# Canonical tag: { fr: label, en: label }. Seeded from docs/VOCAB.md ("Tag labels");\n# grows on /etiquettes. A tag without a label shows its slug.\n${tagLabels}`,
+		'unit-labels.yaml': `# Canonical unit: { fr: word | [singular, plural], en: … }: the words the pages\n# show. Seeded from docs/VOCAB.md ("Unit labels"); edit freely. A unit without\n# a word shows its code.\n${unitLabels}`,
+		'scaling.yaml': `# How amounts show when a recipe is read at another amount: fractions per unit,\n# the kitchen ladder, metric rounding. Seeded from docs/VOCAB.md ("Scaling"),\n# where the rules are; edit freely. Display only: nothing scaled is written.\n${scaling}`
 	};
 }
 

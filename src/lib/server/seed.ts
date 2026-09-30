@@ -52,11 +52,11 @@ export function writeSeed(root: string, entries: RegistryEntry[]): string[] {
 	return written;
 }
 
-/** vocab files an older vault may lack (plural rules, allergens, unit conversions, name-word lists): written when absent, never overwritten. */
+/** vocab files an older vault may lack (plural rules, allergens, unit conversions, name-word lists, scaling rules): written when absent, never overwritten. */
 export function writeMissingVocab(root: string, vocabDoc: string): string[] {
 	const seed = seedVocab(vocabDoc);
 	const written: string[] = [];
-	for (const name of ['normalize.yaml', 'allergens.yaml', 'conversions.yaml', 'participles.yaml', 'descriptors.yaml', 'brands.yaml'] as (keyof SeedVocab)[]) {
+	for (const name of ['normalize.yaml', 'allergens.yaml', 'conversions.yaml', 'participles.yaml', 'descriptors.yaml', 'brands.yaml', 'scaling.yaml'] as (keyof SeedVocab)[]) {
 		const rel = `${VOCAB}/${name}`;
 		const abs = join(root, rel);
 		if (existsSync(abs)) continue;
@@ -110,12 +110,62 @@ export function writeMissingTagLabels(root: string, vocabDoc: string): string[] 
 }
 
 /**
+ * The seed unit words (docs/VOCAB.md, "Unit labels") an older vault lacks: the
+ * whole seed file when `vocab/unit-labels.yaml` is absent, else the units, and
+ * the languages of a unit, its copy has no word for — a word already there is
+ * never rewritten, and a file that does not read as YAML is left alone.
+ * Returns the path when written.
+ */
+export function writeMissingUnitLabels(root: string, vocabDoc: string): string[] {
+	const rel = `${VOCAB}/unit-labels.yaml`;
+	const abs = join(root, rel);
+	const seed = seedVocab(vocabDoc)['unit-labels.yaml'];
+	if (!existsSync(abs)) {
+		mkdirSync(join(root, VOCAB), { recursive: true });
+		writeFileSync(abs, seed);
+		return [rel];
+	}
+	const text = readFileSync(abs, 'utf8');
+	const doc = parseDocument(text, { version: '1.2' }) as unknown as Document;
+	if (doc.errors.length) return [];
+	if (doc.contents === null || (isScalar(doc.contents) && (doc.contents.value === null || doc.contents.value === ''))) doc.contents = doc.createNode({});
+	const map = doc.contents;
+	if (!isMap(map)) return [];
+	let added = 0;
+	for (const [unit, words] of Object.entries((parse(seed, { version: '1.2' }) ?? {}) as Record<string, Record<string, unknown>>)) {
+		const had = map.get(unit, true);
+		if (isMap(had)) {
+			for (const [lang, w] of Object.entries(words ?? {})) {
+				if (had.get(lang) !== undefined && had.get(lang) !== null) continue;
+				had.set(lang, doc.createNode(w, { flow: true }));
+				added++;
+			}
+		} else if (had === undefined || had === null || (isScalar(had) && (had.value === null || had.value === ''))) {
+			const node = doc.createNode(words, { flow: true });
+			node.flow = true;
+			map.set(unit, node);
+			added++;
+		}
+	}
+	if (!added) return [];
+	map.flow = false;
+	const next = doc.toString({ lineWidth: 0 });
+	if (next === text) return [];
+	writeFileSync(abs, next);
+	return [rel];
+}
+
+/**
  * `vault ingredients seed`: add the missing seed entries and vocab files to a
  * vault, in one commit `ingredients: seed (N entries)`. Holds the lock.
  */
 export function seedVault(ctx: VaultContext, seedText: string, vocabDoc: string): Promise<{ added: string[]; commit?: string }> {
 	return ctx.lock.run(async () => {
-		const vocab = [...writeMissingVocab(ctx.paths.root, vocabDoc), ...writeMissingTagLabels(ctx.paths.root, vocabDoc)];
+		const vocab = [
+			...writeMissingVocab(ctx.paths.root, vocabDoc),
+			...writeMissingTagLabels(ctx.paths.root, vocabDoc),
+			...writeMissingUnitLabels(ctx.paths.root, vocabDoc)
+		];
 		const allergens = new Set(Object.keys(parse(seedVocab(vocabDoc)['allergens.yaml'], { version: '1.2' }) ?? {}));
 		const added = writeSeed(ctx.paths.root, seedEntries(seedText, allergens));
 		const paths = [...vocab, ...added];

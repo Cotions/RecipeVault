@@ -12,7 +12,7 @@ import { unresolvedDiagnostics } from './index/resolve';
 import { recipeVocabDiagnostics } from './checkopts';
 import { DEFAULT_LOCALE } from './config';
 import { costOfRecipe } from './cost';
-import { loadConversions } from './vocab';
+import { loadConversions, loadScaling } from './vocab';
 import { tagNamer } from './tags';
 import type { CostLineView, CostView } from '../ingredients/cost';
 
@@ -77,6 +77,8 @@ export function loadRecipePage(app: App, slug: string) {
 		/** Per line, by position across groups: where the name links (plan 03, Phase 5). */
 		links: ingredientLinks(app, slug),
 		cost: broken ? null : recipeCostView(app, slug),
+		/** vocab/scaling.yaml (plan 05): how scaled amounts show; null shows them as before. */
+		scaling: loadScaling(app.ctx.paths.vocab),
 		// The currency the index prices in; the locale only formats (a bare test app has no config).
 		money: { currency: app.ctx.currency, locale: app.config?.locale ?? DEFAULT_LOCALE }
 	};

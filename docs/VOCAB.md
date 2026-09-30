@@ -355,6 +355,48 @@ that makes a price computable: one clove of garlic is not one garlic.
 `boîte` stays an alias of `can` only: on a Québec card it almost always means a
 can, not a box. `pot` is a jar (*1 pot de moutarde*).
 
+## Unit labels
+
+The seed of `vocab/unit-labels.yaml`: the word each canonical unit shows on a
+page, per language, singular then plural (`[tasse, tasses]`); one word stands
+for both (`c. à table`). French takes the plural from 2 (`1 ½ tasse`,
+`2 tasses`), English above 1; that rule is grammar and stays in the code. The
+words are regional (*c. à table* here, *c. à soupe* in France), so they are data
+(plan 05, "Also decided"). `piece` has no word: a bare count (`3 oignons`).
+
+A unit missing from the file, or a vault without it, shows its canonical code
+(`tbsp`). `vault init` writes the file; `vault ingredients seed` adds it to an
+older vault, or adds only the units and languages the vault's copy lacks,
+never rewriting a word already there.
+
+```yaml
+g:      { fr: g, en: g }
+kg:     { fr: kg, en: kg }
+ml:     { fr: ml, en: ml }
+cl:     { fr: cl, en: cl }
+l:      { fr: L, en: L }
+cup:    { fr: [tasse, tasses], en: [cup, cups] }
+tbsp:   { fr: c. à table, en: tbsp }
+tsp:    { fr: c. à thé, en: tsp }
+pinch:  { fr: [pincée, pincées], en: [pinch, pinches] }
+drop:   { fr: [goutte, gouttes], en: [drop, drops] }
+lb:     { fr: lb, en: lb }
+oz:     { fr: oz, en: oz }
+qt:     { fr: [pinte, pintes], en: [quart, quarts] }
+pint:   { fr: [chopine, chopines], en: [pint, pints] }
+clove:  { fr: [gousse, gousses], en: [clove, cloves] }
+leaf:   { fr: [feuille, feuilles], en: [leaf, leaves] }
+sprig:  { fr: [brin, brins], en: [sprig, sprigs] }
+stalk:  { fr: [branche, branches], en: [stalk, stalks] }
+bunch:  { fr: [botte, bottes], en: [bunch, bunches] }
+slice:  { fr: [tranche, tranches], en: [slice, slices] }
+can:    { fr: [boîte, boîtes], en: [can, cans] }
+packet: { fr: [sachet, sachets], en: [packet, packets] }
+bottle: { fr: [bouteille, bouteilles], en: [bottle, bottles] }
+jar:    { fr: [pot, pots], en: [jar, jars] }
+bag:    { fr: [sac, sacs], en: [bag, bags] }
+```
+
 ## Conversions
 
 Factors for cost (`INGREDIENTS.md`, "Unit conversion"), seeded into
@@ -387,3 +429,81 @@ old Quebec cards predate metrication (plan 03, Q10). `pinch` and `drop` have no
 volume on purpose: a pinch of salt and one of saffron are priced only through
 the ingredient's `weights`. Mass to volume always needs the ingredient's
 `density`; it is never taken from this file.
+
+## Scaling
+
+The seed of `vocab/scaling.yaml` (plan 05, Q2–Q4, Q8): how a recipe read at
+another amount shows its quantities. Regional data like the conversions: which
+fractions a Québec kitchen's cups and spoons measure, and how many teaspoons make
+a tablespoon, are this file's, not the code's. The file only changes what is
+shown; nothing scaled is ever written (Q9).
+
+```yaml
+tolerance: 0.1
+approx: 0.02
+factor: { min: 0.1, max: 20 }
+fractions:
+  cup: [1/4, 1/3, 1/2, 2/3, 3/4]
+  tbsp: [1/2]
+  tsp: [1/8, 1/4, 1/2, 3/4]
+  lb: [1/4, 1/2, 3/4]
+  kg: []
+  l: []
+  pinch: []
+  drop: []
+  count: [1/2]
+  container: [1/2]
+  default: [1/4, 1/3, 1/2, 2/3, 3/4]
+always: [cup, tbsp, tsp, pinch, drop, count, container]
+ladder:
+  - { unit: tsp, into: tbsp, per: 3 }
+  - { unit: tbsp, into: cup, per: 16 }
+  - { unit: g, into: kg, per: 1000 }
+  - { unit: ml, into: l, per: 1000 }
+metric:
+  units: [g, ml]
+  steps:
+    - { from: 0, step: 1 }
+    - { from: 100, step: 5 }
+    - { from: 1000, step: 25 }
+```
+
+The rules, applied to each amount (`qty`, `qty_max`, `alt`, `or` amounts, the
+yield) when the factor is not 1:
+
+- **Factor 1 is the card.** Nothing is snapped, moved or marked: the amount
+  shows as written.
+- **Fractions.** An amount shows as a whole number plus one of its unit's
+  fractions (`fractions`: a canonical unit, else its class — `mass`, `volume`,
+  `count`, `container` — else `default`; `[]` means whole numbers only). Only
+  the fractions with a glyph are read: `1/8 1/4 1/3 3/8 1/2 5/8 2/3 3/4 7/8`.
+- **Tolerance.** The nearest allowed value is taken when it is within
+  `tolerance` (10 %) of the exact amount. A unit or class in `always` snaps to
+  its nearest value whatever the distance, and never to 0 (a quarter of an egg
+  shows `≈ ½`); any other unit beyond the tolerance shows a short decimal
+  (`0,67 lb`).
+- **The mark.** `≈` shows before an amount more than `approx` (2 %) away from
+  the exact one.
+- **Metric.** The `metric.units` round to the step of the first `from` they
+  reach, counting down from the largest (1 g below 100, 5 g from 100, 25 g from
+  1000), and never to 0.
+- **The ladder** (Q3 B). Kitchen equivalences, not the cost factors (a cup is
+  250 ml for cost, 16 tablespoons here). Within the written unit's ladder only
+  (never mass to volume, never `lb` to `g`): a larger unit is taken when the
+  amount reaches its smallest value and shows there within 2 % (`6 c. à thé` →
+  `2 c. à table`, `20 c. à table` → `1 ¼ tasse`, `1000 g` → `1 kg`); a smaller
+  one when the amount falls below the written unit's smallest value (`⅛ tasse`
+  → `2 c. à table`), or when nothing in the written unit is within the
+  tolerance (`0,89 tasse` → `14 c. à table`). Among exact results the largest
+  unit wins; otherwise the closest.
+- **Ranges** scale both ends in one unit; two ends that show the same value
+  show once.
+- **`factor`** caps what a link or a typed amount may ask for (×0.1 to ×20); a
+  value outside it is ignored.
+
+A vault without the file, or with a file that does not read, shows every amount
+as before this plan: the exact value, as a fraction glyph when one is within 2 %,
+else a decimal. An entry that does not read (an unknown unit, a fraction without
+a glyph, a negative step) is dropped, the rest kept. `vault init` writes the
+file; `vault ingredients seed` adds it to an older vault, never over one already
+there.
