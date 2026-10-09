@@ -1,7 +1,7 @@
 // Sign in and out (plan 04, Phase 1). The guard lets these two actions through
 // signed out; the Origin check and the host allowlist still come first.
 
-import { fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { getApp } from '$lib/server/app';
 import { clientAddress, endSession, safeNext, signIn, startSession, SESSION_COOKIE } from '$lib/server/auth';
 import { t } from '$lib/i18n/fr';
@@ -15,6 +15,8 @@ export const load: PageServerLoad = ({ url, locals }) => ({
 export const actions: Actions = {
 	login: async ({ request, cookies, getClientAddress }) => {
 		const app = getApp();
+		// The one body read before sign-in: a login form is a few hundred bytes, not the 26 MB a photo may be.
+		if (Number(request.headers.get('content-length') ?? 0) > 16 * 1024) error(413, t.auth.bad);
 		const f = await request.formData();
 		const login = String(f.get('login') ?? '').slice(0, 64);
 		const password = String(f.get('password') ?? '');
