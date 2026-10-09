@@ -420,6 +420,12 @@ describe('hints and pickers', () => {
 		expect(suggestNames(v.ctx, '', 'fr')).toEqual([]);
 	});
 
+	it('a name written several ways is suggested in its most-written spelling', () => {
+		const add = v.ctx.db.prepare("INSERT INTO ingredients (slug, position, group_idx, name, key, resolution) VALUES ('zz', ?, 0, ?, 'zzpanais', 'none')");
+		[['Zzpanais', 1], ['zzpanais', 2], ['zzpanais', 3], ['ZZPANAIS', 4]].forEach(([name, pos]) => add.run(pos, name));
+		expect(suggestNames(v.ctx, 'zzpan', 'fr').map((s) => s.name)).toEqual(['zzpanais']);
+	});
+
 	it('an author is suggested once, whatever markers or case its recipes write it with, most used first', async () => {
 		// The fixture has « Tante Irène [?] »; two more recipes write her as read.
 		for (const [title, author] of [['Galettes inventées', 'Tante Irène'], ['Biscuits inventés', 'tante irène']])

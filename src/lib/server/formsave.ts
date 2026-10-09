@@ -355,7 +355,7 @@ export function suggestNames(ctx: VaultContext, q: string, lang: string, limit =
 		else counts.set(k, { name, n });
 	};
 	const like = `%${key.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-	for (const r of ctx.db.prepare(`SELECT name, count(*) AS n FROM ingredients WHERE key LIKE ? ESCAPE '\\' GROUP BY key ORDER BY n DESC LIMIT 200`).all(like) as { name: string; n: number }[])
+	for (const r of ctx.db.prepare(`SELECT name, count(*) AS n FROM ingredients WHERE key LIKE ? ESCAPE '\\' GROUP BY key, name ORDER BY n DESC, name LIMIT 200`).all(like) as { name: string; n: number }[])
 		add(stripMarkers(r.name).trim(), r.n);
 	for (const r of ctx.db.prepare(`SELECT name FROM ingredient_names WHERE lang = ? AND key LIKE ? ESCAPE '\\' LIMIT 200`).all(lang, like) as { name: string }[]) add(r.name, 0);
 	const resolver = getResolver(ctx.db, () => loadVocab(ctx.paths.vocab));
