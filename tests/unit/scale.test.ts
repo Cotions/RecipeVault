@@ -202,6 +202,8 @@ describe('the amount in the address (Q1 A)', () => {
 		expect(readAmount(' 2,5 ')).toBe(2.5);
 		expect(readAmount('1 1/2')).toBe(1.5);
 		expect(readAmount('½')).toBe(0.5);
-		for (const s of ['', 'abc', '0', '-1']) expect(readAmount(s), s).toBeUndefined();
+		expect(readAmount(',5')).toBe(0.5);
+		expect(readAmount('.75')).toBe(0.75);
+		for (const s of ['', 'abc', '0', '-1', '.', ',,5']) expect(readAmount(s), s).toBeUndefined();
 	});
 });

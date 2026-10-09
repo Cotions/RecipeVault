@@ -427,11 +427,12 @@ export function amountQuery(recipe: Pick<Recipe, 'servings'>, factor: number, al
 }
 
 /**
- * A typed amount (« j'ai 3 », « 2,5 », « 1 1/2 », « ½ ») as a number, or
+ * A typed amount (« j'ai 3 », « 2,5 », « ,75 », « 1 1/2 », « ½ ») as a number, or
  * undefined. The factor is then typed ÷ written (Q8 B).
  */
 export function readAmount(text: string): number | undefined {
-	const t = text.trim();
+	// A typed « ,5 » or « .75 » is half and three quarters, not nothing.
+	const t = text.trim().replace(/^[.,](?=\d)/, '0.');
 	if (!t) return undefined;
 	const n = sizeNumber(t);
 	return n !== undefined && Number.isFinite(n) && n > 0 ? n : undefined;
