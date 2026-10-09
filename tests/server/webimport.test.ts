@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { checkRecipe } from '../../src/lib/vault/check';
 import { loadVocab } from '../../src/lib/server/vocab';
-import { checkUrl, fetchPage, ImportError, importUrl, isBlockedAddress, isoDuration, parseIngredientLine } from '../../src/lib/server/webimport';
+import { checkUrl, fetchPage, ImportError, importUrl, isBlockedAddress, isoDuration, parseIngredientLine, recipeFromJsonLd } from '../../src/lib/server/webimport';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -133,6 +133,12 @@ describe('mapping', () => {
 		// The unreadable line is kept, flagged: E210 (a quantity in the name) until a person fixes it.
 		expect(errors).toEqual(['E210']);
 		expect(check.diagnostics.some((d) => d.code === 'W605')).toBe(true);
+	});
+
+	it('drops a page\'s step numbers but keeps a decimal that starts a step', () => {
+		const ld = { '@type': 'Recipe', name: 'Purée inventée', recipeIngredient: ['2 pommes de terre'], recipeInstructions: ['1. Peler.\n2) Cuire.', { '@type': 'HowToStep', text: '1.5 kg de purée : garder au chaud.' }] };
+		const { markdown } = recipeFromJsonLd(ld, 'https://example.invalid/x', 'fr', vocab);
+		expect(markdown).toContain('1. Peler.\n1. Cuire.\n1. 1.5 kg de purée : garder au chaud.');
 	});
 
 	it('says so when the page has no JSON-LD', async () => {

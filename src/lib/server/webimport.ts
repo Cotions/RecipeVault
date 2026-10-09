@@ -437,7 +437,8 @@ function steps(v: unknown): string[] {
 	const visit = (x: unknown) => {
 		if (typeof x === 'string') {
 			for (const line of plain(x).split('\n')) {
-				const t = line.replace(/^\s*\d+[.)]\s*/, '').trim();
+				// The page's own step number goes ("2." or "2)"); "1.5 kg" is a quantity and stays.
+				const t = line.replace(/^\s*\d+[.)](?=\s|$)\s*/, '').trim();
 				if (t) out.push(`1. ${t}`);
 			}
 		} else if (Array.isArray(x)) x.forEach(visit);
