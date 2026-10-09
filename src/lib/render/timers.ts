@@ -1,6 +1,6 @@
 // Durations in step text become timer buttons in kitchen mode:
 // "25 min", "1 h 30", "45-50 minutes", "1 heure", "45 à 50 min", "2 hours",
-// "3 heures 1/2", "1 heure et demie".
+// "3 heures 1/2", "1 heure et demie", "1/2 heure", "3/4 h".
 // A range counts down its upper bound and says so in its label.
 
 export interface FoundDuration {
@@ -12,14 +12,14 @@ export interface FoundDuration {
 	maxSeconds?: number;
 }
 
-const NUM = String.raw`\d+(?:[.,]\d+)?(?:\s*[½¼¾]|\s+\d\/\d)?|[½¼¾]`;
+const NUM = String.raw`\d\/\d|\d+(?:[.,]\d+)?(?:\s*[½¼¾]|\s+\d\/\d)?|[½¼¾]`;
 const H = String.raw`h|hr|hrs|heures?|hours?`;
 const M = String.raw`min|mins|minutes?|mn`;
 // After the hours: « 1 h 30 », « 3 heures 1/2 », « 1 heure et demie ».
 const HALF = String.raw`(?:et\s+)?(?:demie?|1\/2|½)`;
 const ONE = String.raw`(${NUM})\s*(?:(${H})(?:\s*(${HALF})|\s*(\d{1,2})(?!\s*\/)(?:\s*(?:${M}))?)?|(${M}))`;
 const RANGE_RE = new RegExp(
-	String.raw`(?<![\p{L}\d])(?:(${NUM})\s*(?:-|–|à|to|ou|or)\s*)?${ONE}(?![\p{L}])`,
+	String.raw`(?<![\p{L}\d/])(?:(${NUM})\s*(?:-|–|à|to|ou|or)\s*)?${ONE}(?![\p{L}])`,
 	'giu'
 );
 
@@ -28,6 +28,7 @@ function num(s: string): number {
 	const glyph: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75 };
 	let m: RegExpMatchArray | null;
 	if ((m = t.match(/^(\d+)\s+(\d)\/(\d)$/))) return +m[1] + +m[2] / +m[3];
+	if ((m = t.match(/^(\d)\/(\d)$/))) return +m[1] / +m[2];
 	if ((m = t.match(/^(\d+(?:\.\d+)?)?\s*([½¼¾])$/))) return Number(m[1] ?? 0) + glyph[m[2]];
 	return Number(t);
 }

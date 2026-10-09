@@ -24,6 +24,12 @@ describe('findDurations: half hours', () => {
 		expect(found('Cuire 3 1/2 heures')).toEqual([['3 1/2 heures', 12600, undefined]]);
 		expect(found('Cuire 1 à 2 heures 1/2')).toEqual([['1 à 2 heures 1/2', 3600, 9000]]);
 	});
+	it('reads a bare fraction of an hour, never its denominator alone', () => {
+		expect(found('Cuire 1/2 heure.')).toEqual([['1/2 heure', 1800, undefined]]);
+		expect(found('Cuire 3/4 h.')).toEqual([['3/4 h', 2700, undefined]]);
+		expect(found('Cuire 1/2 à 3/4 h.')).toEqual([['1/2 à 3/4 h', 1800, 2700]]);
+		expect(found('Couper en 1/4, cuire 5 min.')).toEqual([['5 min', 300, undefined]]);
+	});
 });
 
 describe('de: elision', () => {
