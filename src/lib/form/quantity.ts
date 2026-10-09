@@ -36,7 +36,8 @@ const GLYPH_CLASS = `[${Object.keys(FRACTION_GLYPHS).join('')}]`;
 
 /** Parse a typed quantity. */
 export function parseQuantityInput(input: string): QuantityInput {
-	const s = input.normalize('NFC').replace(/⁄/g, '/').trim().replace(/\s+/g, ' ');
+	// « 1-1/2 » is how cards write one and a half (a range has its own field).
+	const s = input.normalize('NFC').replace(/⁄/g, '/').trim().replace(/\s+/g, ' ').replace(/^(\d+)-(?=\d+\/)/, '$1 ');
 	if (!s) return { ok: false, reason: 'empty' };
 	let m: RegExpMatchArray | null;
 	if ((m = s.match(new RegExp(`^(\\d+)? ?(${GLYPH_CLASS})$`)))) {

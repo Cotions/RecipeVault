@@ -23,7 +23,8 @@ describe('quantity input', () => {
 		['1 ½', '1 1/2'],
 		['2⅔', '2 2/3'],
 		['1⁄4', '1/4'],
-		['3/2', '3/2']
+		['3/2', '3/2'],
+		['1-1/2', '1 1/2']
 	])('%s → %j', (input, raw) => {
 		const q = parseQuantityInput(input);
 		expect(q.ok && q.raw).toStrictEqual(raw);
@@ -37,6 +38,7 @@ describe('quantity input', () => {
 		['1/0', 'format'],
 		['deux', 'format'],
 		['1-2', 'format'],
+		['1-3/2', 'fraction'],
 		['1,5,2', 'format'],
 		['-1', 'format']
 	])('%j refused (%s)', (input, reason) => {
