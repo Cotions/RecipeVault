@@ -1208,6 +1208,15 @@ function main() {
   const out = o >= 0 ? resolve(args[o + 1]) : CORPUS_DIR;
   const corpus = generateCorpus();
   const recipes = join(out, "recipes");
+  // Only a corpus this script wrote is replaced: `--out ~/vault` must not
+  // delete a vault's recipes.
+  let ours = true;
+  try {
+    ours = !readdirSync(recipes).length || readdirSync(out).includes("expected-ingredients.yaml");
+  } catch {
+    // no recipes folder yet
+  }
+  if (!ours) throw new Error(`${recipes} holds files and ${out} is not a corpus written by this script; refusing to delete them.`);
   rmSync(recipes, { recursive: true, force: true });
   mkdirSync(recipes, { recursive: true });
   for (const [f, t] of corpus.files) writeFileSync(join(recipes, f), t);
