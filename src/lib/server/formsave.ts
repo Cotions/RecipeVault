@@ -393,14 +393,27 @@ export function allFamilies(ctx: VaultContext): FamilySuggestion[] {
 		.sort((a, b) => b.count - a.count || a.slug.localeCompare(b.slug));
 }
 
-/** Authors already in the vault, most used first (the source author field). */
+/**
+ * Authors already in the vault, most used first (the source author field).
+ * One suggestion per author however her recipes write it (« Tante Irène [?] »,
+ * « tante irène »): counted together, shown as most written.
+ */
 export function suggestAuthors(ctx: VaultContext, q: string, limit = 8): string[] {
 	const key = fold(q).trim();
-	const rows = ctx.db.prepare('SELECT author, count(*) AS n FROM recipes WHERE author IS NOT NULL GROUP BY author ORDER BY n DESC').all() as { author: string; n: number }[];
-	return rows
-		.map((r) => stripMarkers(r.author).trim())
-		.filter((a) => a && (!key || fold(a).includes(key)))
-		.slice(0, limit);
+	const rows = ctx.db.prepare('SELECT author, count(*) AS n FROM recipes WHERE author IS NOT NULL GROUP BY author ORDER BY n DESC, author').all() as { author: string; n: number }[];
+	const authors = new Map<string, { name: string; n: number }>();
+	for (const r of rows) {
+		const name = stripMarkers(r.author).trim();
+		if (!name) continue;
+		const e = authors.get(fold(name));
+		if (e) e.n += r.n;
+		else authors.set(fold(name), { name, n: r.n });
+	}
+	return [...authors.entries()]
+		.filter(([k]) => !key || k.includes(key))
+		.sort(([a, x], [b, y]) => y.n - x.n || a.localeCompare(b))
+		.slice(0, limit)
+		.map(([, v]) => v.name);
 }
 
 export interface RecipeSuggestion {

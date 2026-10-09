@@ -11,6 +11,7 @@ import {
 	formSave,
 	openForm,
 	subRecipeCandidates,
+	suggestAuthors,
 	suggestNames,
 	vaultStats
 } from '../../src/lib/server/formsave';
@@ -417,5 +418,15 @@ describe('hints and pickers', () => {
 		const s = suggestNames(v.ctx, 'far', 'fr');
 		expect(s[0]).toEqual({ name: 'farine', linked: true });
 		expect(suggestNames(v.ctx, '', 'fr')).toEqual([]);
+	});
+
+	it('an author is suggested once, whatever markers or case its recipes write it with, most used first', async () => {
+		// The fixture has « Tante Irène [?] »; two more recipes write her as read.
+		for (const [title, author] of [['Galettes inventées', 'Tante Irène'], ['Biscuits inventés', 'tante irène']])
+			await formSave(ctx(), { form: newForm(title, (f) => (f.source.author = author)) }, { today: '2026-09-28' });
+		expect(suggestAuthors(v.ctx, 'irène')).toEqual(['Tante Irène']);
+		const all = suggestAuthors(v.ctx, '', 50);
+		expect(new Set(all.map((a) => a.toLowerCase())).size).toBe(all.length);
+		expect(all[0]).toBe('Tante Irène');
 	});
 });
