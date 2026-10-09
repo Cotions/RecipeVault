@@ -1,8 +1,9 @@
 // Disk, git and index stay in step: untracked files, failed commits, families,
 // vocabulary changes made while the app was down, season aliases.
-import { appendFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { clearStaleLock, STALE_LOCK_MS } from '../../src/lib/server/git';
 import { browse, families } from '../../src/lib/server/index/query';
 import { syncVault } from '../../src/lib/server/index/sync';
 import { currentFile, save, SaveError, verify, VerifyError } from '../../src/lib/server/save';
@@ -52,6 +53,30 @@ describe('untracked recipe files', () => {
 		expect(subject()).toBe('edit (external): Galette inventée');
 		expect(status()).toBe('?? recipes/cassee.md');
 		expect(await commitExternalEdits(v.ctx)).toBeUndefined();
+	});
+});
+
+describe('a stale git lock', () => {
+	const lockPath = () => join(v.dir, '.git/index.lock');
+	const err = () => `fatal: Unable to create '${lockPath()}': File exists.`;
+
+	it('left by a killed git is removed, and the save goes through', async () => {
+		lock();
+		const old = (Date.now() - STALE_LOCK_MS - 60_000) / 1000;
+		utimesSync(lockPath(), old, old);
+		await save(v.ctx, [{ text: recipe('Biscuits') }]);
+		expect(existsSync(lockPath())).toBe(false);
+		expect(subject()).toBe('add: Biscuits');
+	});
+
+	it('from before the last boot is removed; a fresh one is left alone', () => {
+		lock();
+		expect(clearStaleLock(err(), Date.now(), Date.now() + 1000)).toBe(true);
+		expect(existsSync(lockPath())).toBe(false);
+		lock();
+		expect(clearStaleLock(err())).toBe(false);
+		expect(existsSync(lockPath())).toBe(true);
+		expect(clearStaleLock('fatal: something else')).toBe(false);
 	});
 });
 

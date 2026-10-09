@@ -40,6 +40,11 @@ back as it was — a new file removed, an edited one restored — and the save
 reports that nothing was saved: a file the app wrote but git never recorded
 would otherwise sit uncommitted, and the watcher, which ignores the app's own
 writes, would never commit it. Delete and restore roll back the same way.
+A lock that is surely stale — older than the last boot (a power loss), or
+untouched for ten minutes (a killed git; the app's own git calls take
+seconds) — is removed and the git command run once more, so a crash never
+blocks every save until someone deletes the file by hand. A fresh lock is left
+alone: another git command may be running.
 
 ### The paste box
 

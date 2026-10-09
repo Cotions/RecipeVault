@@ -2,7 +2,8 @@
 // goes through here, attributed to the configured author.
 
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync, unlinkSync } from 'node:fs';
+import { uptime } from 'node:os';
 import { join } from 'node:path';
 import type { GitAuthor } from './config';
 
@@ -15,7 +16,38 @@ export class GitError extends Error {
 	}
 }
 
-export function git(cwd: string, args: string[], author?: GitAuthor): Promise<string> {
+/** A lock untouched this long is debris: the app's own git calls are serialized and take seconds. */
+export const STALE_LOCK_MS = 10 * 60 * 1000;
+
+/**
+ * The lock named in a "File exists" failure, if it is surely stale — older
+ * than the last boot (a power loss) or untouched for STALE_LOCK_MS (a killed
+ * git) — and could be removed. Otherwise false, and the failure stands.
+ */
+export function clearStaleLock(stderr: string, now = Date.now(), bootedAt = now - uptime() * 1000): boolean {
+	const m = /Unable to create '([^']+\.lock)': File exists/.exec(stderr);
+	if (!m) return false;
+	try {
+		const age = statSync(m[1]).mtimeMs;
+		if (age > bootedAt && now - age < STALE_LOCK_MS) return false;
+		unlinkSync(m[1]);
+		console.warn(`recipevault: removed a stale git lock: ${m[1]}`);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function git(cwd: string, args: string[], author?: GitAuthor): Promise<string> {
+	try {
+		return await run(cwd, args, author);
+	} catch (e) {
+		if (e instanceof GitError && clearStaleLock(e.stderr)) return run(cwd, args, author);
+		throw e;
+	}
+}
+
+function run(cwd: string, args: string[], author?: GitAuthor): Promise<string> {
 	const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
 	if (author) {
 		Object.assign(env, {
