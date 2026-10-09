@@ -570,6 +570,7 @@ export const fr = {
 		placeholder: 'Collez ici la réponse complète de l’IA…',
 		save: 'Enregistrer',
 		saveHint: 'Ctrl+Entrée',
+		tooMany: (n: number) => `Au plus ${n} recettes à la fois : enregistrez-en une partie, puis le reste.`,
 		saving: 'Enregistrement…',
 		copyPrompt: 'Copier le prompt',
 		promptCopied: 'Prompt copié. Collez-le dans une nouvelle conversation avec l’IA, avec la photo.',
