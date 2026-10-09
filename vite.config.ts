@@ -16,7 +16,26 @@ export default defineConfig({
 			// The app is reached as http://<lan-host>:3370 and through Tailscale
 			// HTTPS, so no single origin is right. hooks.server.ts checks instead
 			// that a writing request's Origin names the host it was sent to.
-			csrf: { trustedOrigins: ['*'] }
+			csrf: { trustedOrigins: ['*'] },
+			// Defense in depth behind the escaping (markdown `html: false`): no
+			// script but the app's own, nothing framed, no form posted elsewhere.
+			// SvelteKit adds a nonce for its inline start script.
+			csp: {
+				mode: 'auto',
+				directives: {
+					'default-src': ['self'],
+					'script-src': ['self'],
+					'style-src': ['self', 'unsafe-inline'],
+					'img-src': ['self', 'data:', 'blob:'],
+					'font-src': ['self', 'data:'],
+					'connect-src': ['self'],
+					'worker-src': ['self'],
+					'object-src': ['none'],
+					'base-uri': ['self'],
+					'form-action': ['self'],
+					'frame-ancestors': ['none']
+				}
+			}
 		})
 	]
 });
