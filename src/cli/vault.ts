@@ -22,7 +22,7 @@ import {
 import { extractPrompt } from '../lib/vault/prompt';
 import { DEFAULT_CURRENCY, findConfig, loadConfig, type GitAuthor } from '../lib/server/config';
 import { openVault } from '../lib/server/context';
-import { catchUpCommits } from '../lib/server/index/commits';
+import { catchUpCommits, commitsIdle } from '../lib/server/index/commits';
 import { syncVault } from '../lib/server/index/sync';
 import { PasteLog, pasteStats, readPasteLog } from '../lib/server/pastelog';
 import { save } from '../lib/server/save';
@@ -179,6 +179,7 @@ async function ingredients(args: string[]): Promise<number> {
 	const r = await seedVault(ctx, readFileSync(join(REPO, 'docs/INGREDIENTS-SEED.yaml'), 'utf8'), readFileSync(join(REPO, 'docs/VOCAB.md'), 'utf8'));
 	const report = syncVault(ctx.db, ctx.paths, { currency: ctx.currency });
 	await ctx.pusher.idle();
+	await commitsIdle(ctx.db);
 	ctx.db.close();
 	if (r.vocab.length) console.log(`vocab added or completed: ${r.vocab.join(', ')}`);
 	console.log(`${plural(r.added.length, 'seed ingredient')} added${r.commit ? ` (commit ${r.commit.slice(0, 7)})` : ''}; the registry has ${plural(report.registry.files, 'ingredient')}.`);
@@ -220,6 +221,7 @@ async function add(args: string[]): Promise<number> {
 	});
 	if (result.indexError) console.error(`vault: index update failed (run vault sync): ${result.indexError}`);
 	await ctx.pusher.idle();
+	await commitsIdle(ctx.db);
 	ctx.db.close();
 	console.log(`${plural(result.files.length, 'file')}: ${result.files.length - failed} saved, ${failed} not saved`);
 	return failed ? 1 : 0;

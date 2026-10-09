@@ -166,6 +166,11 @@ export function catchUpCommits(db: DB, root: string): Promise<CatchUp> {
 	return next;
 }
 
+/** Resolves when no catch-up is running on this database — before closing it. */
+export async function commitsIdle(db: DB): Promise<void> {
+	await running.get(db)?.catch(() => undefined);
+}
+
 /** After an app commit: catch up in the background (a read catches up anyway). */
 export function scheduleCatchUp(ctx: { db: DB; paths: { root: string }; log: (msg: string) => void }): void {
 	catchUpCommits(ctx.db, ctx.paths.root).catch((e) => ctx.log(`recipevault: commit index not updated (the next read retries): ${(e as Error).message}`));
