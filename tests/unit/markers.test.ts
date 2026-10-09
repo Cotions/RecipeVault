@@ -23,7 +23,14 @@ describe('stripMarkers', () => {
 		['sel [illisible], poivre', 'sel, poivre'],
 		['Jeanne Tremblay [?: Tremblé]', 'Jeanne Tremblay'],
 		['bouteille de .75 l [?]', 'bouteille de .75 l'],
-		['sel [?] , poivre', 'sel, poivre']
+		['sel [?] , poivre', 'sel, poivre'],
+		['(environ [?])', '(environ)'],
+		['boeuf [?]: 2', 'boeuf: 2'],
+		['boeuf [?] : 2', 'boeuf : 2'],
+		['Sauce : version rapide', 'Sauce : version rapide'],
+		['Pâte ; repos (1 h )', 'Pâte ; repos (1 h )'],
+		['[?] beurre', 'beurre'],
+		['a [?]b', 'a b']
 	])('%s → %s', (a, b) => expect(stripMarkers(a)).toBe(b));
 });
 

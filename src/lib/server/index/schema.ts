@@ -4,7 +4,7 @@
 // (Vite) load it the same way.
 
 /** Bump on any change below: the index is then rebuilt from scratch. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const SCHEMA_SQL = `
 CREATE TABLE recipes (

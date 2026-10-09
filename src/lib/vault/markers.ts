@@ -25,12 +25,19 @@ export function maskMarkers(s: string): string {
 	return s.replace(MARKER_RE, (m) => ' '.repeat(m.length));
 }
 
-/** Remove valid markers and tidy the whitespace they leave: 'boeuf [?]' → 'boeuf'. */
+const GAP_RE = new RegExp(`(?:[ \\t]*(?:${MARKER_RE.source}))+`, 'g');
+
+/**
+ * Remove valid markers and tidy the whitespace they leave: 'boeuf [?]' →
+ * 'boeuf', 'sel [?] , poivre' → 'sel, poivre'. Only the marker's gap is
+ * tidied: the space a French « Sauce : rapide » puts before its colon stays.
+ */
 export function stripMarkers(s: string): string {
 	return s
-		.replace(MARKER_RE, ' ')
+		.replace(GAP_RE, '\u0000')
+		.replace(/\u0000[ \t]*(?=\)|[,.](?!\d))|\u0000(?=[;:])/g, '')
+		.replace(/\u0000/g, ' ')
 		.replace(/[ \t]+/g, ' ')
-		.replace(/ +([;:)]|[,.](?!\d))/g, '$1')
 		.trim();
 }
 

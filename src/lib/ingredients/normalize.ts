@@ -14,6 +14,7 @@ import { fold } from '../vault/normalize';
 export function lookupKey(name: string): string {
 	return fold(
 		stripMarkers(name)
+			.replace(/ +([;:)]|[,.](?!\d))/g, '$1')
 			.normalize('NFC')
 			.replace(/[‘’ʼ`´′]/g, "'")
 			.replace(/[‐‑‒–—―−]/g, '-')
