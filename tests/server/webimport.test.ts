@@ -114,6 +114,9 @@ describe('mapping', () => {
 		expect(parseIngredientLine('2 c à soupe d’huile', 'fr')).toEqual({ name: '2 c à soupe d’huile [?]' });
 		expect(parseIngredientLine('2 tablespoons butter', 'en')).toEqual({ name: '2 tablespoons butter [?]' });
 		expect(parseIngredientLine('2 carottes', 'fr')).toMatchObject({ unit: 'piece', name: 'carottes' });
+		// « c. à tab. » is a tablespoon; « c. à » anything else is a spoon, never the cup « c. » alone means.
+		expect(parseIngredientLine('1 c. à tab. d’huile', 'fr')).toMatchObject({ qty: { value: 1 }, unit: 'tbsp', name: 'huile' });
+		expect(parseIngredientLine('1 c. à dessert de sucre', 'fr')).toEqual({ name: '1 c. à dessert de sucre [?]' });
 	});
 
 	it('imports a page into a file the checker reads, marked extracted_by: web', async () => {

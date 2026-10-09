@@ -374,6 +374,8 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 		let rest = lead[3];
 		const u = leadingUnit(rest, lang);
 		if (!u && looksLikeUnit(rest)) return fallback;
+		// "c." alone is a cup, but "c. à …" is a spoon this list does not know: not a cup.
+		if (u?.unit === 'cup' && /^à\s/i.test(u.rest)) return fallback;
 		it = { name: '', qty, unit: u?.unit ?? 'piece' };
 		if (qtyMax) it.qtyMax = qtyMax;
 		rest = u ? u.rest : rest;

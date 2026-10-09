@@ -17,6 +17,8 @@ export const UNIT_ALIASES: Record<Unit, string[]> = {
 	cup: ['tasse', 'tasses', 't.', 't', 'cup', 'cups', 'c.'],
 	tbsp: [
 		'c. à table',
+		'c. à tab.',
+		'c. à tab',
 		'c. à soupe',
 		'c.s.',
 		'c. à s.',
