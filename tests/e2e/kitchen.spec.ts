@@ -58,3 +58,28 @@ test('kitchen mode: bullet steps are shown one at a time', async ({ page }) => {
 	await expect(page.getByText('Étape 2 sur 4')).toBeVisible();
 	await expect(page.locator('.stage')).toContainText('égoutter');
 });
+
+test('kitchen mode: Space on a focused button presses it; Alt+← is left to the browser', async ({ page }) => {
+	await page.goto('/r/lasagna-bolognaise/cuisine');
+	await page.getByRole('button', { name: 'Commencer →' }).click();
+	await page.getByRole('button', { name: /Étape suivante/ }).click();
+	await expect(page.getByText('Étape 2 sur 7')).toBeVisible();
+	await page.keyboard.press('Space');
+	await expect(page.getByText('Étape 3 sur 7')).toBeVisible();
+	await page.getByRole('button', { name: '⏱ 25 min' }).focus();
+	await page.keyboard.press('Space');
+	await expect(page.getByRole('timer')).toHaveText(/^2[45]:\d\d$/);
+	await expect(page.getByText('Étape 3 sur 7')).toBeVisible();
+	await page.getByRole('button', { name: 'Plus de portions' }).focus();
+	await page.keyboard.press('Space');
+	await expect(page.locator('.scaler output')).toContainText('7');
+	await expect(page.getByText('Étape 3 sur 7')).toBeVisible();
+	await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+	const prevented = await page.evaluate(() => {
+		const e = new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true, cancelable: true });
+		document.body.dispatchEvent(e);
+		return e.defaultPrevented;
+	});
+	expect(prevented).toBe(false);
+	await expect(page.getByText('Étape 3 sur 7')).toBeVisible();
+});

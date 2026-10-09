@@ -220,7 +220,11 @@
 		}
 	}
 	function onKey(e: KeyboardEvent) {
-		if ((e.target as HTMLElement).closest('input, select, textarea')) return;
+		// Not a browser shortcut (Alt+← is Back), not typing, not Space on a focused button (a timer, the servings).
+		if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+		const target = e.target as HTMLElement;
+		if (target.closest('input, select, textarea, [contenteditable]')) return;
+		if (e.key === ' ' && target.closest('button, a, summary')) return;
 		if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
 			e.preventDefault();
 			go(1);
