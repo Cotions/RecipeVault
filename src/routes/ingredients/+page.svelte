@@ -388,5 +388,21 @@
 		thead .categorie {
 			display: none;
 		}
+		/* A phone's width: the headers and « Saisir un prix » wrap rather than push the page sideways. */
+		.index th,
+		.index td {
+			padding: 0.4rem 0.35rem;
+		}
+		/* The slug is on the ingredient's page; here it would set the column's width. */
+		.nom code {
+			display: none;
+		}
+		.nom {
+			hyphens: auto;
+		}
+		thead th,
+		.act .btn {
+			white-space: normal;
+		}
 	}
 </style>
