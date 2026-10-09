@@ -28,12 +28,19 @@ export const load: PageServerLoad = ({ url }) => {
 	const typed = p.get('ajout')?.trim();
 	if (typed || p.has('form')) {
 		if (typed) {
-			const slug = findSlug(typed);
 			const where = (LISTS as readonly string[]).includes(p.get('ou') ?? '') ? (p.get('ou') as (typeof LISTS)[number]) : 'have';
-			if (slug) {
-				for (const k of LISTS) lists[k] = lists[k].filter((s) => s !== slug);
-				lists[where].push(slug);
-			} else unknown = typed;
+			// « farine, lait, œufs » typed in one go: each name added; the ones not found stay in the box.
+			// A name that itself holds a comma is tried whole first.
+			const missed: string[] = [];
+			const names = findSlug(typed) ? [typed] : typed.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+			for (const name of names) {
+				const slug = findSlug(name);
+				if (slug) {
+					for (const k of LISTS) lists[k] = lists[k].filter((s) => s !== slug);
+					lists[where].push(slug);
+				} else missed.push(name);
+			}
+			if (missed.length) unknown = missed.join(', ');
 		}
 		if (p.has('form')) {
 			allergens = p.getAll('allergene');
