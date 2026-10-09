@@ -7,8 +7,9 @@ export const toC = (f: number) => Math.round(((f - 32) * 5) / 9 / 10) * 10;
 /** °C → °F, rounded to 25: 180 → 350. */
 export const toF = (c: number) => Math.round(((c * 9) / 5 + 32) / 25) * 25;
 
+/** One temperature when both ends round alike (350–360 °F is 180 °C, not 180–180 °C). */
 function range(a: number, b: number | undefined, unit: string): string {
-	return b ? `${a}–${b} ${unit}` : `${a} ${unit}`;
+	return b && b !== a ? `${a}–${b} ${unit}` : `${a} ${unit}`;
 }
 
 /** `350 °F · 180 °C` (the written unit first). */

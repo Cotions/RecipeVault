@@ -42,6 +42,7 @@ describe('temperature', () => {
 		expect(toF(200)).toBe(400);
 		expect(formatOven({ temp: 350, unit: 'F' })).toEqual({ written: '350 °F', converted: '180 °C' });
 		expect(formatOven({ temp: 350, tempMax: 375, unit: 'F' }).converted).toBe('180–190 °C');
+		expect(formatOven({ temp: 350, tempMax: 360, unit: 'F' })).toEqual({ written: '350–360 °F', converted: '180 °C' });
 	});
 });
 
