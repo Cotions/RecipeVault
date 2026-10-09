@@ -215,7 +215,10 @@ never overwriting a file or an entry.
 ### Media: per-recipe folder, originals never modified
 
 - `media/<slug>/` keeps a recipe and its images together. Deleting a recipe moves
-  the file and its folder to `_trash/` together; renaming moves both.
+  the file and its folder to `_trash/` together; renaming moves both. A
+  `_trash/<slug>/` folder already there without its file (the file removed by
+  hand) is moved aside to `_trash/<slug>~1/` first, never merged nor restored
+  with the new delete.
 - **Originals are stored exactly as uploaded.** Never resized, never recompressed,
   EXIF kept. Every lossy re-save degrades a photo.
 - Everything displayed is derived into `cache/img/`: thumbnails, and web-friendly

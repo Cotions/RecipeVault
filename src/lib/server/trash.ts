@@ -37,6 +37,11 @@ function titleOf(text: string, slug: string): string {
 	return typeof t === 'string' ? stripMarkers(t) : slug;
 }
 
+/** `_trash/<slug>~1/`, `~2/`, …: the first name not taken. */
+function freeAside(dir: string): string {
+	for (let n = 1; ; n++) if (!existsSync(`${dir}~${n}`)) return `${dir}~${n}`;
+}
+
 export function remove(ctx: VaultContext, slug: string, expectedHash?: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
 		if (!SLUG_RE.test(slug)) throw new TrashError(`no recipe ${slug}`, 'gone');
@@ -48,11 +53,14 @@ export function remove(ctx: VaultContext, slug: string, expectedHash?: string): 
 		const text = readFileSync(from, 'utf8');
 		if (expectedHash !== undefined && sha256(text) !== expectedHash)
 			throw new TrashError('le fichier a changé depuis l’ouverture de la page ; rechargez-la.', 'stale');
+		const media = join(root, MEDIA, slug);
+		const mediaTrash = join(root, TRASH, slug);
+		// A trashed media folder whose file was removed by hand: kept aside, never
+		// merged into this one nor handed to a later restore of this slug.
+		if (existsSync(mediaTrash)) renameSync(mediaTrash, freeAside(mediaTrash));
 		renameSync(from, to);
 		const now = new Date();
 		utimesSync(to, now, now); // the trash lists by deletion time
-		const media = join(root, MEDIA, slug);
-		const mediaTrash = join(root, TRASH, slug);
 		const movedMedia = existsSync(media);
 		if (movedMedia) renameSync(media, mediaTrash);
 		const paths = [recipePath(slug), trashPath(slug)];

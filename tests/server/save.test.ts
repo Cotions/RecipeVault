@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { syncVault } from '../../src/lib/server/index/sync';
@@ -183,6 +183,26 @@ describe('trash', () => {
 		expect(existsSync(join(v.dir, 'media/soupe/final.jpg'))).toBe(true);
 		expect(log()[0]).toMatch(/^restore: Soupe\|/);
 		expect(row('soupe')).toMatchObject({ title: 'Soupe' });
+	});
+
+	it('a trashed media folder left without its file is kept aside, not merged nor restored', async () => {
+		await save(v.ctx, [{ text: recipe('Soupe') }]);
+		mkdirSync(join(v.dir, 'media/soupe'), { recursive: true });
+		writeFileSync(join(v.dir, 'media/soupe/final.jpg'), 'new');
+		mkdirSync(join(v.dir, '_trash/soupe'), { recursive: true });
+		writeFileSync(join(v.dir, '_trash/soupe/final.jpg'), 'old');
+		await remove(v.ctx, 'soupe');
+		expect(readFileSync(join(v.dir, '_trash/soupe/final.jpg'), 'utf8')).toBe('new');
+		expect(readFileSync(join(v.dir, '_trash/soupe~1/final.jpg'), 'utf8')).toBe('old');
+		expect(v.git('status', '--porcelain').trim()).toBe('');
+
+		await save(v.ctx, [{ text: recipe('Potage') }]);
+		mkdirSync(join(v.dir, '_trash/potage'), { recursive: true });
+		writeFileSync(join(v.dir, '_trash/potage/final.jpg'), 'stale');
+		await remove(v.ctx, 'potage');
+		await restore(v.ctx, 'potage');
+		expect(existsSync(join(v.dir, 'media/potage'))).toBe(false);
+		expect(existsSync(join(v.dir, '_trash/potage~1/final.jpg'))).toBe(true);
 	});
 
 	it('refuses to restore over a taken slug', async () => {
