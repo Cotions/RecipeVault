@@ -13,7 +13,7 @@
 // Next to the config, a users.json with two invented accounts (plan 04,
 // Phase 1): FIXTURE_USERS below, passwords included — throwaway test data.
 
-import { cpSync, existsSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { commitPaths } from '../src/lib/server/git';
 import { initVault } from '../src/lib/server/vault';
@@ -25,8 +25,23 @@ export const FIXTURE_USERS = {
 	cook: { login: 'cuisine', name: 'Cuisinière Inventée', password: 'cuisine-mot-de-passe', markdown: false }
 };
 
+/**
+ * Whether `dir` may be wiped: absent, empty, or a fixture vault this script
+ * made (its config names `<dir>/vault`). A mistyped path — the real vault,
+ * a home folder — is refused rather than deleted.
+ */
+function replaceable(dir: string): boolean {
+	if (!existsSync(dir) || !readdirSync(dir).length) return true;
+	try {
+		return JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8')).vault_directory === join(dir, 'vault');
+	} catch {
+		return false;
+	}
+}
+
 export async function makeFixtureVault(root: string, port = 3399, { corpus = false } = {}): Promise<string> {
 	const dir = resolve(root);
+	if (!replaceable(dir)) throw new Error(`${dir} is not empty and is not a fixture vault made by this script; refusing to delete it.`);
 	if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
 	const vault = join(dir, 'vault');
 	const author = { name: 'Fixture', email: 'fixture@example.invalid' };
