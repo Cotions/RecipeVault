@@ -25,8 +25,8 @@ export interface RenderOptions {
 	scale?: StepScale & { title: string };
 }
 
-const MARKER_RE = /^\[(?:(\?)|\?:\s*([^\]\s][^\]]*?)\s*|(illisible)|(\+))\]/;
-const WIKI_RE = /^\[\[([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]/;
+const MARKER_RE = /^\[(?:(\?)|\?:\s*([^[\]\s][^[\]\n]{0,200}?)\s*|(illisible)|(\+))\]/;
+const WIKI_RE = /^\[\[([^[\]|\n]+?)(?:\|([^[\]\n]+))?\]\]/;
 
 function escape(s: string): string {
 	return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

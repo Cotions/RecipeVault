@@ -18,7 +18,7 @@ import type { CostLineView, CostView } from '../ingredients/cost';
 import type { Conversions } from '../ingredients/units';
 import { SUB_RECIPE_DEPTH, type SubScaleRecipe } from '../render/scale';
 
-const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]/g;
+const WIKI_RE = /\[\[([^[\]|\n]+?)(?:\|[^[\]\n]+)?\]\]/g;
 
 /** Every slug a recipe points at: sub-recipes (with `or` entries) and body wikilinks. */
 export function referencedSlugs(recipe: Recipe, body: string): string[] {

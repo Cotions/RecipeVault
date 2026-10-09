@@ -235,7 +235,7 @@ export interface EntryInput {
 /** A number as typed in a French form: `0,53` or `0.53`. */
 export const formNumber = (s: string) => {
 	const t = s.replace(/[\s  ]/g, '').replace(',', '.');
-	return /^\d*\.?\d+$/.test(t) ? Number(t) : NaN;
+	return /^(?:\d+|\d*\.\d+)$/.test(t) ? Number(t) : NaN;
 };
 
 function editError(slug: string, e: unknown): never {

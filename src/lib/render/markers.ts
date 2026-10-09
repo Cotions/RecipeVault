@@ -6,7 +6,7 @@ import type { MarkerKind } from '../vault/types';
 
 export type Segment = { text: string; marker?: undefined } | { text: string; marker: MarkerKind; alternative?: string };
 
-const MARKER_RE = /\[(?:(\?)|\?:\s*([^\]\s][^\]]*?)\s*|(illisible)|(\+))\]/g;
+const MARKER_RE = /\[(?:(\?)|\?:\s*([^[\]\s][^[\]\n]{0,200}?)\s*|(illisible)|(\+))\]/g;
 
 export function segments(s: string): Segment[] {
 	const out: Segment[] = [];
@@ -26,7 +26,7 @@ export function segments(s: string): Segment[] {
 
 export const hasMarker = (s: string) => new RegExp(MARKER_RE.source).test(s);
 
-const WIKI_RE = /\[\[([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]/g;
+const WIKI_RE = /\[\[([^[\]|\n]+?)(?:\|([^[\]\n]+))?\]\]/g;
 
 /**
  * A line as plain text for a title or a dimmed preview: [[slug]] and

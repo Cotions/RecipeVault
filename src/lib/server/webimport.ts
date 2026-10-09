@@ -265,9 +265,10 @@ export function decodeEntities(s: string): string {
 /** Plain text from an HTML-ish string: tags dropped, entities decoded, spaces collapsed. */
 export function plain(s: unknown): string {
 	if (typeof s !== 'string') return typeof s === 'number' ? String(s) : '';
-	return decodeEntities(s.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' '))
+	// Every pattern here matches in one pass: a hostile page (5 MB of `<`) must not stall the server.
+	return decodeEntities(s.replace(/<br\s*\/?>/gi, '\n').replace(/<[^<>]*>/g, ' '))
 		.replace(/[ \t ]+/g, ' ')
-		.replace(/\s*\n\s*/g, '\n')
+		.replace(/\s+/g, (w) => (w.includes('\n') ? '\n' : w))
 		.trim();
 }
 
@@ -290,14 +291,35 @@ export function findRecipes(html: string): LD[] {
 			else if (o.mainEntity) visit(o.mainEntity);
 		}
 	};
-	for (const m of html.matchAll(/<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi)) {
+	const close = /<\/script>/gi;
+	for (const tag of openTags(html, 'script')) {
+		if (!/\btype\s*=\s*["']?application\/ld\+json\b/i.test(tag.attrs)) continue;
+		close.lastIndex = tag.end;
+		const end = close.exec(html);
+		if (!end) break;
 		try {
-			visit(JSON.parse(m[1].trim()));
+			visit(JSON.parse(html.slice(tag.end, end.index).trim()));
 		} catch {
 			// a broken block on the page: skip it
 		}
 	}
 	return out;
+}
+
+/**
+ * Each opening `<name …>` tag on the page: its attribute text and where it
+ * ends. Found with indexOf, not one regex, so a page of unclosed tags is read
+ * once instead of once per tag.
+ */
+function* openTags(html: string, name: string): Generator<{ attrs: string; end: number }> {
+	const open = new RegExp(`<${name}(?=[\\s/>])`, 'gi');
+	let m: RegExpExecArray | null;
+	while ((m = open.exec(html))) {
+		const gt = html.indexOf('>', open.lastIndex);
+		if (gt < 0) return;
+		yield { attrs: html.slice(open.lastIndex, gt), end: gt + 1 };
+		open.lastIndex = gt + 1;
+	}
 }
 
 /** ISO 8601 duration → the file's format: PT1H30M → 1h30m. */
@@ -356,6 +378,21 @@ function looksLikeUnit(rest: string): boolean {
 }
 
 /**
+ * "farine (tamisée)" → name and note: the "(…)" that ends the text, from the
+ * first "(" after any earlier ")". Found by index; the regex this replaces went
+ * quadratic on a line of "(".
+ */
+function trailingNote(s: string): { name: string; note: string } | undefined {
+	const t = s.trimEnd();
+	if (!t.endsWith(')')) return;
+	const close = t.length - 1;
+	const open = t.indexOf('(', t.lastIndexOf(')', close - 1) + 1);
+	if (open < 0 || open >= close) return;
+	const name = t.slice(0, open).trimEnd();
+	return name ? { name, note: t.slice(open + 1, close).trim() } : undefined;
+}
+
+/**
  * One ingredient line from a web page → an entry. A line that does not read
  * cleanly becomes `{ name: "<the whole line> [?]" }` so the checker flags it
  * for review instead of losing it.
@@ -403,10 +440,10 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 		it.name = rest;
 	}
 	// A trailing "(…)" is a note; ", …" is the preparation.
-	const note = it.name.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
-	if (note && note[1]) {
-		it.name = note[1];
-		it.note = note[2].trim();
+	const note = trailingNote(it.name);
+	if (note) {
+		it.name = note.name;
+		it.note = note.note;
 	}
 	const comma = it.name.indexOf(',');
 	if (comma > 0) {
@@ -541,6 +578,6 @@ export async function importUrl(raw: string, vocab: VaultVocab, opts: FetchOptio
 	const recipes = findRecipes(html);
 	if (!recipes.length)
 		throw new ImportError('aucune recette structurée (JSON-LD) sur cette page. Faites une capture de la page et passez par l’IA avec le prompt.');
-	const lang = html.match(/<html[^>]*\blang=["']?([a-zA-Z-]+)/i)?.[1];
+	const lang = openTags(html, 'html').next().value?.attrs.match(/\blang=["']?([a-zA-Z-]+)/i)?.[1];
 	return recipeFromJsonLd(recipes[0], url, lang, vocab);
 }
