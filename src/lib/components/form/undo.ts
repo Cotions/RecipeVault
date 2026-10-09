@@ -25,13 +25,17 @@ const said = (action: string) => (action === 'trashed' ? t.history.trashedByUndo
 /** Undo `commits` (newest first) of the recipe `slug`, then say what happened. */
 export async function undoSave(slug: string, commits: string[], redoing = false): Promise<void> {
 	let last: Undone | undefined;
+	let done = 0;
 	for (const c of commits) {
 		last = await post(slug, c);
 		if (!last.ok) break;
+		done++;
 	}
 	if (!last) return;
 	if (!last.ok) {
-		toast.show({ text: f.undoFailed(last.message), error: true });
+		// The photo's commit undone, the recipe's not: say so, and show the page as it now is.
+		toast.show({ text: done ? f.undoPartial(last.message) : f.undoFailed(last.message), error: true });
+		if (done) await invalidateAll();
 		return;
 	}
 	const redo = commits.length === 1 && last.commit ? last.commit : undefined;

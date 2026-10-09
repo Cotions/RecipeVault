@@ -942,6 +942,7 @@ export const fr = {
 		unchanged: 'Rien n’a changé : il n’y avait rien à enregistrer.',
 		redone: 'Modification rétablie.',
 		undoFailed: (msg: string) => `Impossible d’annuler : ${msg}`,
+		undoPartial: (msg: string) => `Annulé en partie seulement (la photo, pas la recette) : ${msg}`,
 		offline: 'Pas de connexion : rien n’est perdu. Le brouillon est gardé sur l’appareil ; réessayez quand le réseau revient.',
 		failed: 'La recette n’a pas pu être enregistrée ; rien n’a changé.',
 		gone: 'Cette recette a été supprimée entre-temps. Votre version est gardée dans le brouillon.',
