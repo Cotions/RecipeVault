@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { browse, families } from '../../src/lib/server/index/query';
 import { syncVault } from '../../src/lib/server/index/sync';
-import { save, SaveError } from '../../src/lib/server/save';
+import { currentFile, save, SaveError, verify, VerifyError } from '../../src/lib/server/save';
 import { remove, restore, TrashError } from '../../src/lib/server/trash';
 import { commitExternalEdits, Watcher } from '../../src/lib/server/watcher';
 import { recipe, tempVault, type TempVault } from '../helpers/vault';
@@ -71,6 +71,18 @@ describe('a failed git commit leaves nothing behind', () => {
 		const r = await save(v.ctx, [{ text: recipe('Galettes') }]);
 		expect(r.files[0].status).toBe('saved');
 		expect(row('galettes')).toBeTruthy();
+	});
+
+	it('verify: refused with its own error (the page says why), the file put back', async () => {
+		await save(v.ctx, [{ text: recipe('Tarte') }]);
+		const before = v.read('recipes/tarte.md');
+		lock();
+		const e = await verify(v.ctx, 'tarte', currentFile(v.ctx, 'tarte')!.hash).catch((x) => x);
+		expect(e).toBeInstanceOf(VerifyError);
+		expect(e.message).toMatch(/rien n’a changé/);
+		expect(v.read('recipes/tarte.md')).toBe(before);
+		unlock();
+		expect(status()).toBe('');
 	});
 
 	it('delete and restore: files move back and the index is untouched', async () => {

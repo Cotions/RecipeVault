@@ -470,6 +470,12 @@ export function verify(ctx: VaultContext, slug: string, hash: string, opts: Save
 		if (statusFor(file.recipe) === 'needs-review') throw new VerifyError('des marqueurs [?] ou [illisible] restent à régler.');
 		const final: Recipe = { ...file.recipe, status: 'verified', updated: opts.today ?? localDate() };
 		const ready: Ready = { slug, title: final.title, text: serialize(final, file.body!), created: false, verb: 'verify' };
-		return writeCommitIndex(ctx, [ready]);
+		try {
+			return await writeCommitIndex(ctx, [ready]);
+		} catch (e) {
+			// A failed write or commit (put back already): the page's refusal, not a 500.
+			if (e instanceof SaveError) throw new VerifyError(`« Vérifié » n’a pas pu être enregistré ; rien n’a changé : ${e.message}`);
+			throw e;
+		}
 	});
 }
