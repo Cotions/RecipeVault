@@ -196,6 +196,24 @@ describe('"Deux versions"', () => {
 		expect(v.read('vocab/families.yaml')).not.toContain('pouding-chomeur:');
 	});
 
+	it('a failed commit is refused in French, both files as they were', async () => {
+		const [a0, b0] = [v.read('recipes/pouding-chomeur.md'), v.read('recipes/pouding-de-matante.md')];
+		writeFileSync(join(v.dir, '.git/index.lock'), '');
+		try {
+			const e = await pairVersions(ctx(), {
+				a: { slug: 'pouding-chomeur', hash: hash('pouding-chomeur'), variant: 'de la télé' },
+				b: { slug: 'pouding-de-matante', hash: hash('pouding-de-matante'), variant: 'de matante' },
+				family: 'Pouding chômeur',
+				label: ''
+			}).catch((x) => x);
+			expect(e).toBeInstanceOf(DuplicateError);
+			expect(e.message).toMatch(/^les deux versions n’ont pas pu être enregistrées ; rien n’a changé/);
+		} finally {
+			rmSync(join(v.dir, '.git/index.lock'), { force: true });
+		}
+		expect([v.read('recipes/pouding-chomeur.md'), v.read('recipes/pouding-de-matante.md')]).toEqual([a0, b0]);
+	});
+
 	it('joins the family one of them is in; the other file is not rewritten when unchanged', async () => {
 		const other = v.read('recipes/pouding-chomeur.md');
 		await pairVersions(ctx(), {

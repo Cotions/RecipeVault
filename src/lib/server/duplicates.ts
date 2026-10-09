@@ -430,7 +430,9 @@ export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { to
 			);
 			return { commit: r.commit, family, edited: r.slugs ?? [] };
 		} catch (e) {
-			if (e instanceof EditError || e instanceof SaveError) throw new DuplicateError(e.message);
+			if (e instanceof EditError) throw new DuplicateError(e.message);
+			// A failed write or commit: the save path's English reason, after her sentence (as the other refusals).
+			if (e instanceof SaveError) throw new DuplicateError(`les deux versions n’ont pas pu être enregistrées ; rien n’a changé : ${e.message}`);
 			throw e;
 		}
 	});
