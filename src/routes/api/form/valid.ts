@@ -4,7 +4,12 @@ import type { FormRecipe } from '$lib/form/model';
 export function validForm(f: unknown): f is FormRecipe {
 	if (typeof f !== 'object' || f === null) return false;
 	const o = f as Record<string, unknown>;
-	if (JSON.stringify(o).length > 500_000) return false;
+	// A body nested too deep for JSON.stringify (a RangeError) is no form either: a 400, not a 500.
+	try {
+		if (JSON.stringify(o).length > 500_000) return false;
+	} catch {
+		return false;
+	}
 	const str = (v: unknown) => typeof v === 'string';
 	const obj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 	const item = (it: unknown): boolean =>
