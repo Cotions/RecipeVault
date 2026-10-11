@@ -39,7 +39,7 @@
 			>{:else if link?.item}<a class="name item" href={ingredientHref(link.item)} title={t.cost.linkTitle(link.item)}><Marked text={p.text} /></a
 			>{:else}<span class="name"><Marked text={p.text} /></span>{#if link?.key}{' '}<a class="unlinked no-print" href={queueHref(link.key)} title={t.cost.unlinkedTitle}
 					>{t.cost.unlinked}</a
-				>{/if}{/if}{:else if p.kind === 'muted'}{#if onscale && p.base}<button type="button" class="muted tap" title={t.scaling.tapTitle} onclick={() => onscale(p.base!)}>{p.text}</button>{:else}<span class="muted"
+				>{/if}{/if}{:else if p.kind === 'muted'}{#if onscale && p.base}{p.text.startsWith(' ') ? ' ' : ''}<button type="button" class="muted tap" title={t.scaling.tapTitle} onclick={() => onscale(p.base!)}>{p.text.trimStart()}</button>{:else}<span class="muted"
 			><Marked text={p.text} /></span
 		>{/if}{:else}<Marked text={p.text} />{/if}{/each}
 
