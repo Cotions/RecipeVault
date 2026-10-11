@@ -8,7 +8,7 @@ import { formatSeconds, formatDurationValue } from '../../src/lib/render/duratio
 import { ingredientText, formatAmount } from '../../src/lib/render/ingredient';
 import { segments } from '../../src/lib/render/markers';
 import { renderInline, renderMarkdown } from '../../src/lib/render/markdown';
-import { clock, findDurations } from '../../src/lib/render/timers';
+import { clock, findDurations, timerLength } from '../../src/lib/render/timers';
 import { stepIngredients } from '../../src/lib/render/steps';
 import { parseQuantity } from '../../src/lib/vault/quantity';
 
@@ -159,6 +159,22 @@ describe('timers', () => {
 		expect(found('Laisser mijoter 1 heure.')).toEqual([['1 heure', 3600, undefined]]);
 		expect(found('Bake 60 to 70 minutes.')).toEqual([['60 to 70 minutes', 3600, 4200]]);
 		expect(found('Ajouter 2 tasses de lait et 350 g de farine.')).toEqual([]);
+	});
+	it('reads seconds, and a minute and a half as 90 s, never as one minute', () => {
+		expect(found('Saisir 45 secondes de chaque côté.')).toEqual([['45 secondes', 45, undefined]]);
+		expect(found('Mixer 10 sec. à la fois.')).toEqual([['10 sec', 10, undefined]]);
+		expect(found('Cuire 30 à 45 secondes.')).toEqual([['30 à 45 secondes', 30, 45]]);
+		expect(found('Cuire 1 min 30 s.')).toEqual([['1 min 30 s', 90, undefined]]);
+		expect(found('Cuire 1 minute 30 de chaque côté.')).toEqual([['1 minute 30', 90, undefined]]);
+		expect(found('Cuire 1 minute et demie.')).toEqual([['1 minute et demie', 90, undefined]]);
+		expect(found('Cuire 2 minutes 1/2.')).toEqual([['2 minutes 1/2', 150, undefined]]);
+		// A number after the minutes that is not a quarter, or after many minutes, is something else.
+		expect(found('Cuire 5 minutes 12 crêpes.')).toEqual([['5 minutes', 300, undefined]]);
+		expect(found('Cuire 20 minutes 30 biscuits.')).toEqual([['20 minutes', 1200, undefined]]);
+		expect(found('Ajouter 2 sachets et 3 sacs.')).toEqual([]);
+		expect(timerLength(45, String)).toBe('45 s');
+		expect(timerLength(90, String)).toBe('1 min 30 s');
+		expect(timerLength(120, (s) => `${s / 60} min`)).toBe('2 min');
 	});
 	it('formats a countdown', () => {
 		expect(clock(90_000)).toBe('1:30');

@@ -1,6 +1,7 @@
 // Durations in step text become timer buttons in kitchen mode:
 // "25 min", "1 h 30", "45-50 minutes", "1 heure", "45 à 50 min", "2 hours",
-// "3 heures 1/2", "1 heure et demie", "1/2 heure", "3/4 h".
+// "3 heures 1/2", "1 heure et demie", "1/2 heure", "3/4 h", "45 secondes",
+// "1 min 30 s", "1 minute 30".
 // A range counts down its upper bound and says so in its label.
 
 export interface FoundDuration {
@@ -17,7 +18,12 @@ const H = String.raw`h|hr|hrs|heures?|hours?`;
 const M = String.raw`min|mins|minutes?|mn`;
 // After the hours: « 1 h 30 », « 3 heures 1/2 », « 1 heure et demie ».
 const HALF = String.raw`(?:et\s+)?(?:demie?|1\/2|½)`;
-const ONE = String.raw`(${NUM})\s*(?:(${H})(?:\s*(${HALF})|\s*(\d{1,2})(?!\s*\/)(?:\s*(?:${M}))?)?|(${M}))`;
+const S = String.raw`s|sec|secs|secondes?|seconds?`;
+// After the minutes: « 1 min 30 s », or two bare digits (« 1 minute 30 »), which
+// `findDurations` takes only as a quarter (15, 30, 45) after a single-digit count of
+// minutes; « 1 minute et demie » too.
+const SECONDS = String.raw`\s*(\d{1,2})\s*(?:${S})(?![\p{L}])|(\s*(\d{2})(?![\d/]|\s*\/))`;
+const ONE = String.raw`(${NUM})\s*(?:(${H})(?:\s*(${HALF})|\s*(\d{1,2})(?!\s*\/)(?:\s*(?:${M}))?)?|(${M})(?:\s*(${HALF})|${SECONDS})?|(${S}))`;
 const RANGE_RE = new RegExp(
 	String.raw`(?<![\p{L}\d/])(?:(${NUM})\s*(?:-|–|à|to|ou|or)\s*)?${ONE}(?![\p{L}])`,
 	'giu'
@@ -36,9 +42,17 @@ function num(s: string): number {
 export function findDurations(text: string): FoundDuration[] {
 	const out: FoundDuration[] = [];
 	for (const m of text.matchAll(RANGE_RE)) {
-		const [whole, low, value, hours, half, extraMin, minutes] = m;
-		const perUnit = hours ? 3600 : 60;
-		const main = num(value) * perUnit + (hours && half ? 1800 : 0) + (hours && extraMin ? Number(extraMin) * 60 : 0);
+		const [, low, value, hours, half, extraMin, minutes, halfMin, extraSec, bare, bareSec] = m;
+		let whole = m[0];
+		const perUnit = hours ? 3600 : minutes ? 60 : 1;
+		let main = num(value) * perUnit + (hours && half ? 1800 : 0) + (hours && extraMin ? Number(extraMin) * 60 : 0);
+		if (halfMin) main += 30;
+		else if (extraSec && Number(extraSec) < 60) main += Number(extraSec);
+		else if (bare) {
+			// « 1 minute 30 » is a minute and a half; « 20 minutes 12 … » is not read further.
+			if (/^\d$/.test(value) && low === undefined && ['15', '30', '45'].includes(bareSec)) main += Number(bareSec);
+			else whole = whole.slice(0, whole.length - bare.length);
+		}
 		if (!main || main > 48 * 3600) continue;
 		const d: FoundDuration = { start: m.index ?? 0, end: (m.index ?? 0) + whole.length, text: whole.trim(), seconds: main };
 		if (low !== undefined) {
@@ -48,7 +62,6 @@ export function findDurations(text: string): FoundDuration[] {
 				d.maxSeconds = main;
 			}
 		}
-		void minutes;
 		out.push(d);
 	}
 	return out;
@@ -62,4 +75,11 @@ export function clock(ms: number): string {
 	const sec = s % 60;
 	const mm = String(m).padStart(h ? 2 : 1, '0');
 	return h ? `${h}:${mm}:${String(sec).padStart(2, '0')}` : `${mm}:${String(sec).padStart(2, '0')}`;
+}
+
+/** A timer's length in words: whole minutes as everywhere else, seconds when it has some (« 45 s », « 1 min 30 s »). */
+export function timerLength(seconds: number, whole: (s: number) => string): string {
+	if (seconds % 60 === 0 || seconds >= 3600) return whole(seconds);
+	const m = Math.floor(seconds / 60);
+	return m ? `${m} min ${seconds % 60} s` : `${seconds} s`;
 }

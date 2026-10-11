@@ -19,7 +19,7 @@
 	import { stepIngredients } from '$lib/render/steps';
 	import { plainText } from '$lib/render/markers';
 	import { formatOven } from '$lib/render/temperature';
-	import { clock, findDurations } from '$lib/render/timers';
+	import { clock, findDurations, timerLength } from '$lib/render/timers';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -241,6 +241,7 @@
 		return f === 1 ? undefined : { factor: f, lang: stepLang, rules: data.scaling, title: t.scaling.stepAmountTitle(formatNumber(f, 'fr')) };
 	}
 
+	const length = (seconds: number) => timerLength(seconds, (s) => formatSeconds(s, lang));
 	type Piece = { html: string } | { seconds: number; max?: number; text: string };
 	function pieces(text: string): Piece[] {
 		const out: Piece[] = [];
@@ -418,7 +419,7 @@
 						{#if 'html' in p}{@html p.html}{:else}<button
 								class="timer"
 								type="button"
-								onclick={() => startTimer(p.seconds, `${t.kitchen.stepShort(step + 1)} · ${p.max ? t.kitchen.timerUpTo(formatSeconds(p.seconds, lang)) : formatSeconds(p.seconds, lang)}`, step)}
+								onclick={() => startTimer(p.seconds, `${t.kitchen.stepShort(step + 1)} · ${p.max ? t.kitchen.timerUpTo(length(p.seconds)) : length(p.seconds)}`, step)}
 								>⏱ {p.text}</button
 							>{/if}
 					{/each}
