@@ -145,6 +145,8 @@ textarea {
 	opacity: 0.75;
 }
 
+/* An input written without a type is a text field too; `:where` keeps a page's own rule stronger. */
+input:where(:not([type]), [type='password'], [type='number']),
 input[type='search'],
 input[type='text'],
 input[type='url'],

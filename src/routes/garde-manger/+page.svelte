@@ -69,7 +69,7 @@
 	<div class="add">
 		<label>
 			{t.pantry.add}
-			<input name="ajout" list="pantry-names" autocomplete="off" aria-describedby="pantry-add-help" value={data.unknown ?? ''} />
+			<input type="text" name="ajout" list="pantry-names" autocomplete="off" aria-describedby="pantry-add-help" value={data.unknown ?? ''} />
 		</label>
 		<label>
 			{t.pantry.addTo}
@@ -77,7 +77,7 @@
 				{#each LISTS as l (l.key)}<option value={l.key}>{l.label}</option>{/each}
 			</select>
 		</label>
-		<button>{t.pantry.addSubmit}</button>
+		<button class="btn">{t.pantry.addSubmit}</button>
 		<datalist id="pantry-names">
 			{#each data.aliases as a (a)}<option value={a}></option>{/each}
 		</datalist>
@@ -105,7 +105,7 @@
 			{/each}
 		{/if}
 		<label class="check staples"><input type="checkbox" name="essentiels" value="oui" checked={data.assume} /> {t.pantry.staples}</label>
-		<button>{t.pantry.apply}</button>
+		<button class="btn primary">{t.pantry.apply}</button>
 		{#if searched}<a class="clear" href="/garde-manger?vide=1">{t.pantry.clear}</a>{/if}
 	</fieldset>
 </form>
