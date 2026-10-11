@@ -346,6 +346,9 @@
 		border-radius: var(--radius);
 		padding: 0 0.35rem;
 		margin-left: 0.3rem;
+		/* A badge is one word in a box: it moves to the next line whole, never « essen-tiel ». */
+		white-space: nowrap;
+		hyphens: manual;
 	}
 	.stale {
 		border-color: var(--highlight);
