@@ -7,7 +7,7 @@
 	const date = (iso: string) => new Date(iso).toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' });
 </script>
 
-<svelte:head><title>{t.trash.title}</title></svelte:head>
+<svelte:head><title>{t.trash.title} — {t.app.name}</title></svelte:head>
 
 <h1>{t.trash.title}</h1>
 <p class="intro">{t.trash.intro}</p>

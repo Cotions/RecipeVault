@@ -8,7 +8,7 @@
 	const message = $derived(raw && !DEFAULTS.has(raw) ? raw : page.status === 404 ? t.error.notFound : t.error.generic);
 </script>
 
-<svelte:head><title>{message}</title></svelte:head>
+<svelte:head><title>{message} — {t.app.name}</title></svelte:head>
 
 <h1>{page.status}</h1>
 <p>{message}</p>

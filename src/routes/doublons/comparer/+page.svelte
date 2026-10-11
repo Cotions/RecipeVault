@@ -14,7 +14,7 @@
 	const onlyTitle = $derived(data.rows.every((r) => r.key === 'title'));
 </script>
 
-<svelte:head><title>{s.compareTitle}</title></svelte:head>
+<svelte:head><title>{s.compareTitle} — {t.app.name}</title></svelte:head>
 
 <p><a class="back" href="/doublons">← {s.back}</a></p>
 <h1>{s.compareTitle}</h1>

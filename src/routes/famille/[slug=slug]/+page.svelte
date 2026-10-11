@@ -13,7 +13,7 @@
 	const variantName = (v: { variant: string | null; title: string }) => v.variant?.replace(/-/g, ' ') ?? v.title;
 </script>
 
-<svelte:head><title>{name} — {t.families.title}</title></svelte:head>
+<svelte:head><title>{name} — {t.families.title} — {t.app.name}</title></svelte:head>
 
 <p class="up"><a href="/familles">{t.families.title}</a></p>
 <h1>{name}</h1>

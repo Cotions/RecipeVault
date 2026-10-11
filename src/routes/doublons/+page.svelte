@@ -20,7 +20,7 @@
 	const pageHref = (p: number) => (p === 1 ? '/doublons' : `/doublons?page=${p}`);
 </script>
 
-<svelte:head><title>{s.title}</title></svelte:head>
+<svelte:head><title>{s.title} — {t.app.name}</title></svelte:head>
 
 <h1>{s.title}</h1>
 <p class="intro">{s.intro}</p>

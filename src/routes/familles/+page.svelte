@@ -5,7 +5,7 @@
 	let { data }: PageProps = $props();
 </script>
 
-<svelte:head><title>{t.families.title}</title></svelte:head>
+<svelte:head><title>{t.families.title} — {t.app.name}</title></svelte:head>
 
 <h1>{t.families.title}</h1>
 <p class="intro">{t.families.intro}</p>
