@@ -110,9 +110,21 @@ describe('mapping', () => {
 		expect(parseIngredientLine('2 tbsp butter, melted', 'en')).toMatchObject({ unit: 'tbsp', name: 'butter', prep: 'melted' });
 		expect(parseIngredientLine('3 gousses d’ail hachées 500 g', 'fr')).toEqual({ name: '3 gousses d’ail hachées 500 g [?]' });
 		// A unit word that is not an alias: kept whole with [?], never read as `piece`.
-		expect(parseIngredientLine('2 cuillères à soupe de beurre', 'fr')).toEqual({ name: '2 cuillères à soupe de beurre [?]' });
+		expect(parseIngredientLine('2 cuillerées de beurre', 'fr')).toEqual({ name: '2 cuillerées de beurre [?]' });
 		expect(parseIngredientLine('2 c à soupe d’huile', 'fr')).toEqual({ name: '2 c à soupe d’huile [?]' });
-		expect(parseIngredientLine('2 tablespoons butter', 'en')).toEqual({ name: '2 tablespoons butter [?]' });
+		expect(parseIngredientLine('2 tbs butter', 'en')).toEqual({ name: '2 tbs butter [?]' });
+		// The plural spellings are aliases (docs/VOCAB.md).
+		expect(parseIngredientLine('2 cuillères à soupe de beurre', 'fr')).toMatchObject({ qty: { value: 2 }, unit: 'tbsp', name: 'beurre' });
+		expect(parseIngredientLine('2 tablespoons butter', 'en')).toMatchObject({ unit: 'tbsp', name: 'butter' });
+		expect(parseIngredientLine('1 c. à c. de vanille', 'fr')).toMatchObject({ unit: 'tsp', name: 'vanille' });
+		// The size printed on a container is its note; the celery alias names the ingredient.
+		expect(parseIngredientLine('2 boîtes de 398 ml de sauce tomate, égouttées', 'fr')).toEqual({ name: 'sauce tomate', qty: { raw: 2, value: 2 }, unit: 'can', note: '398 ml', prep: 'égouttées' });
+		expect(parseIngredientLine('1 boîte de 796 ml (28 oz) de tomates en dés', 'fr')).toMatchObject({ unit: 'can', name: 'tomates en dés', note: '796 ml (28 oz)' });
+		expect(parseIngredientLine('1 sac de 2 kg de farine (tout usage)', 'fr')).toEqual({ name: '1 sac de 2 kg de farine (tout usage) [?]' });
+		expect(parseIngredientLine('1 boîte de 796 ml', 'fr')).toEqual({ name: '1 boîte de 796 ml [?]' });
+		expect(parseIngredientLine('2 branches de céleri', 'fr')).toMatchObject({ qty: { value: 2 }, unit: 'stalk', name: 'céleri' });
+		expect(parseIngredientLine('1 branche de céleri, hachée', 'fr')).toMatchObject({ unit: 'stalk', name: 'céleri', prep: 'hachée' });
+		expect(parseIngredientLine('2 branches de thym', 'fr')).toEqual({ name: '2 branches de thym [?]' });
 		expect(parseIngredientLine('2 carottes', 'fr')).toMatchObject({ unit: 'piece', name: 'carottes' });
 		// « c. à tab. » is a tablespoon; « c. à » anything else is a spoon, never the cup « c. » alone means.
 		expect(parseIngredientLine('1 c. à tab. d’huile', 'fr')).toMatchObject({ qty: { value: 1 }, unit: 'tbsp', name: 'huile' });

@@ -356,9 +356,41 @@ function leadingUnit(rest: string, lang: Lang): { unit: Unit; rest: string } | u
 		const after = rest.slice(alias.length);
 		if (after && !/^[\s.,)]/.test(after)) continue;
 		const unit = unitForAlias(rest.slice(0, alias.length), lang);
-		if (unit) return { unit, rest: after.replace(/^\.?\s*/, '') };
+		if (!unit) continue;
+		const left = after.replace(/^\.?\s*/, '');
+		// « 2 branches de céleri »: the alias names the ingredient too.
+		const of = alias.match(/ de (.+)$/)?.[1];
+		if (of && (!left || /^[,(]/.test(left))) return { unit, rest: rest.slice(alias.length - of.length, alias.length) + (left.startsWith('(') ? ' ' : '') + left };
+		return { unit, rest: left };
 	}
 	return undefined;
+}
+
+const CONTAINERS: readonly Unit[] = ['piece', 'can', 'packet', 'bottle', 'jar', 'bag'];
+const SIZE_UNITS: readonly Unit[] = ['g', 'kg', 'ml', 'cl', 'l', 'oz', 'lb'];
+
+/**
+ * « 1 boîte de 796 ml (28 oz) de tomates »: after a container, the size
+ * printed on it. It goes in `note`, where the checker allows one size and its
+ * equivalent in parentheses (E216).
+ */
+function containerSize(rest: string, lang: Lang): { size: string; rest: string } | undefined {
+	const de = rest.match(/^de\s+(?=[\d½¼¾⅓⅔⅛])/i);
+	if (!de) return undefined;
+	const text = rest.slice(de[0].length);
+	const lead = text.match(LEAD_RE);
+	const unit = lead && !lead[2] ? leadingUnit(lead[3], lang) : undefined;
+	if (!lead || !unit || !SIZE_UNITS.includes(unit.unit) || !toQuantity(lead[1])) return undefined;
+	let after = unit.rest;
+	const paren = after.match(/^\(([^()]*)\)\s*/);
+	if (paren) {
+		const inner = paren[1].match(LEAD_RE);
+		const innerUnit = inner && !inner[2] ? leadingUnit(inner[3], lang) : undefined;
+		if (!innerUnit || innerUnit.rest || !SIZE_UNITS.includes(innerUnit.unit)) return undefined;
+		after = after.slice(paren[0].length);
+	}
+	if (!/^(?:de |d['’])/i.test(after)) return undefined;
+	return { size: text.slice(0, text.length - after.length).trim(), rest: after };
 }
 
 /** A word folded for the measure-word test: no accents, no trailing dot, no plural s/x. */
@@ -402,6 +434,7 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 	const fallback: Ingredient = { name: `${text} [?]` };
 	const lead = text.match(LEAD_RE);
 	let it: Ingredient;
+	let size: string | undefined;
 	if (!lead) {
 		it = { name: text };
 	} else {
@@ -416,6 +449,11 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 		it = { name: '', qty, unit: u?.unit ?? 'piece' };
 		if (qtyMax) it.qtyMax = qtyMax;
 		rest = u ? u.rest : rest;
+		const sized = u && u.unit !== 'piece' && CONTAINERS.includes(u.unit) ? containerSize(rest, lang) : undefined;
+		if (sized) {
+			size = sized.size;
+			rest = sized.rest;
+		}
 		// "1 tasse (250 ml) de farine": the metric one goes in qty/unit, the other in alt.
 		const paren = rest.match(/^\(([^)]*)\)\s*(.*)$/);
 		if (paren) {
@@ -441,10 +479,11 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 	}
 	// A trailing "(…)" is a note; ", …" is the preparation.
 	const note = trailingNote(it.name);
+	if (note && size) return fallback;
 	if (note) {
 		it.name = note.name;
 		it.note = note.note;
-	}
+	} else if (size) it.note = size;
 	const comma = it.name.indexOf(',');
 	if (comma > 0) {
 		it.prep = it.name.slice(comma + 1).trim();
@@ -452,7 +491,7 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 	}
 	it.name = it.name.trim();
 	if (!it.name || findQtyUnit(it.name) || (it.prep !== undefined && !it.prep)) return fallback;
-	if (it.note && findQtyUnit(it.note) && it.unit && !['piece', 'can', 'packet', 'bottle', 'jar', 'bag'].includes(it.unit)) return fallback;
+	if (it.note && findQtyUnit(it.note) && it.unit && !CONTAINERS.includes(it.unit)) return fallback;
 	return it;
 }
 
