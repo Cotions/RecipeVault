@@ -1,0 +1,19 @@
+# systemd user unit for the installed RecipeVault (./bundle.sh --install).
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now recipevault
+#   loginctl enable-linger "$USER"      # keep it running when logged out
+
+[Unit]
+Description=RecipeVault — family recipe archive
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=__EXEC__
+Restart=on-failure
+RestartSec=5
+# The config is read from ~/.config/recipevault/config.json.
+
+[Install]
+WantedBy=default.target

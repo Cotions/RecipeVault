@@ -16,6 +16,11 @@ npm run test:e2e       # Playwright, against a throwaway copy of the fixture vau
 
 ## Running the app
 
+Short version, once a vault and a config exist (steps below): `./run.sh` starts
+the app from source, `./testapp.sh` starts a throwaway copy on port 3379
+(`--demo` for invented recipes), and `./bundle.sh --install` installs the
+`recipevault` command. See `docs/DEPLOY.md`, "The scripts".
+
 1. Create a vault (the only way one is created — a missing vault is a startup
    error, never an empty new one):
 

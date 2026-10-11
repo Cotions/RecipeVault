@@ -1,0 +1,50 @@
+#!/bin/bash
+# RecipeVault — the bundled app (./bundle.sh).
+#
+#   recipevault              start the app (the config's host and port)
+#   recipevault --open       start it, or find it running, and open the browser
+#   recipevault vault ...    the vault command (recipevault vault --help)
+#   recipevault --version
+#
+# Reads ~/.config/recipevault/config.json, as a source checkout does: run one or
+# the other, not both. Needs Node 24.7 or later; RECIPEVAULT_NODE names it when
+# it is not on the PATH (a service, an app menu entry).
+set -euo pipefail
+
+APP="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+NODE="${RECIPEVAULT_NODE:-node}"
+
+die() { printf 'recipevault: %s\n' "$*" >&2; exit 1; }
+
+OPEN=
+case "${1:-}" in
+  --version) cat "$APP/VERSION"; exit 0 ;;
+  # The comment block under the #! line, up to the first line that is not one.
+  --help|-h) awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
+  --open) OPEN=1 ;;
+  vault|"") ;;
+  *) die "unknown option: $1 (try --help)" ;;
+esac
+
+command -v "$NODE" &>/dev/null || die "node not found (Node 24.7 or later; set RECIPEVAULT_NODE to its path)"
+"$NODE" -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 24 || (a === 24 && b >= 7) ? 0 : 1)' \
+  || die "Node 24.7 or later is needed, $NODE is $("$NODE" -v)"
+
+if [ "${1:-}" = vault ]; then
+  shift
+  exec "$NODE" "$APP/bin/vault.js" "$@"
+fi
+
+export NODE_ENV=production
+if [ -n "$OPEN" ]; then
+  URL="$("$NODE" "$APP/bin/url.js")" || exit 1
+  PORT="${URL##*:}"
+  up() { (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; }
+  if up; then
+    xdg-open "$URL" &>/dev/null || echo "$URL"
+    exit 0
+  fi
+  # Once it answers; given up after 30 s (a config error has already been printed).
+  ( for _ in $(seq 60); do up && { xdg-open "$URL" &>/dev/null || true; exit 0; }; sleep 0.5; done ) &
+fi
+exec "$NODE" "$APP/bin/serve.js"

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=RecipeVault
+Comment=Family recipe archive
+Exec=__EXEC__ --open
+Icon=__ICON__
+Terminal=true
+Categories=Utility;
+Keywords=recettes;recipes;cuisine;vault;

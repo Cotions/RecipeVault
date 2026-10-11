@@ -102,6 +102,28 @@ journalctl --user -u recipevault -f     # logs
 After an app update: `git pull && npm ci && npm run build && systemctl --user restart recipevault`.
 Updating the app never touches the vault.
 
+### The scripts
+
+Four scripts at the repository root do the steps above (each has `--help`):
+
+| Script | What it does |
+| --- | --- |
+| `./run.sh` | Installs and builds when something changed, then starts the app on the real config. `--dev` is the Vite dev server (the real vault too), `--build` forces a rebuild, `--test` runs the checks. Refuses to start when the port already answers. |
+| `./testapp.sh` | A throwaway instance on port 3379, this machine only. It copies the vault to `<vault>-test/vault` (marked `.recipevault-test`; `--reset` takes a fresh copy), removes the copy's git remotes, and writes a config beside it with `"git_push": false` and a copy of `users.json`. With `bwrap` installed the real vault and `~/.config/recipevault` are read-only for it. `--demo` uses the invented corpus instead, `--status` shows the paths. |
+| `./bundle.sh` | Builds `dist/recipevault/`: the built app, `bin/`, `src/lib`, `src/cli`, the three docs the `vault` command reads and the runtime dependencies (no dev tools). Node is not in it. `--install` copies it to `~/.local/share/recipevault`, writes the `recipevault` command to `~/.local/bin` with the path of the `node` that built it, an app menu entry, and a systemd user unit (`packaging/recipevault.service`, not enabled; a unit not written by the script is left alone). `--uninstall` removes those and nothing else. |
+| `./release.sh v0.1.0` | Tags and pushes; `.github/workflows/release.yml` bundles that tag, runs `scripts/smoke_test.sh` on a fixture vault and publishes `recipevault-<tag>-linux-x86_64.tar.gz`. |
+
+The installed command: `recipevault` starts the app, `recipevault --open` also
+opens the browser (or only opens it when the app already runs),
+`recipevault vault …` is the `vault` command, `recipevault --version` the tag or
+commit it was built from. A source checkout and the installed copy read the same
+config and so open the same vault: run one or the other, not both. With the
+installed copy, an update is `git pull && ./bundle.sh --install`, then
+`systemctl --user restart recipevault`.
+
+A release holds the app only. No recipe, account or config is in the bundle:
+they live in the vault folder and in `~/.config/recipevault`.
+
 ## 4. Outside access and HTTPS: Tailscale
 
 ```sh

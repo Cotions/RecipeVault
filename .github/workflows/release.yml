@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and release (e.g. v0.1.0)"
+        required: true
+
+# The token only needs to read the repo; the release job alone may write.
+permissions:
+  contents: read
+
+jobs:
+  # Builds and tests with a read-only token: nothing npm installs here can
+  # publish anything.
+  build:
+    # 22.04 keeps the glibc the native modules need low, so the bundle runs on
+    # older distros too.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - name: Resolve the version
+        id: v
+        env:
+          # Never ${{ }} inside run: text: an env var cannot break out of quoting.
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]] || { echo "bad tag: $TAG"; exit 1; }
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: refs/tags/${{ steps.v.outputs.version }}
+          persist-credentials: false
+
+      # No cache: a release is built from what npm serves for the lockfile.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the bundle
+        env:
+          RECIPEVAULT_VERSION: ${{ steps.v.outputs.version }}
+        run: ./bundle.sh
+
+      # On an invented vault, with a HOME of its own.
+      - name: Smoke test the bundle
+        env:
+          SMOKE_VERSION: ${{ steps.v.outputs.version }}
+        run: scripts/smoke_test.sh ./dist/recipevault/recipevault
+
+      - name: Package
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          NAME="recipevault-${V}-linux-x86_64"
+          mkdir -p "release/$NAME"
+          cp -r dist/recipevault/. "release/$NAME/"
+          cp README.md docs/DEPLOY.md "release/$NAME/"
+          cp packaging/recipevault.svg packaging/RecipeVault.desktop packaging/recipevault.service "release/$NAME/"
+          tar -czf "release/${NAME}.tar.gz" -C release "$NAME"
+          rm -r "release/$NAME"
+          cd release
+          sha256sum "${NAME}.tar.gz" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Publishes what the build job made, and runs none of the repo's code.
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write        # create the release
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release
+          path: release
+
+      - name: Check the files
+        working-directory: release
+        run: sha256sum -c SHA256SUMS.txt
+
+      - name: Publish the release
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.build.outputs.version }}
+        run: |
+          cat > ../notes.md <<EOF
+          ## Install (Linux x86_64, Node 24.7 or later)
+
+          \`\`\`bash
+          curl -LO https://github.com/${GITHUB_REPOSITORY}/releases/download/${V}/recipevault-${V}-linux-x86_64.tar.gz
+          tar -xzf recipevault-${V}-linux-x86_64.tar.gz
+          ./recipevault-${V}-linux-x86_64/recipevault
+          \`\`\`
+
+          The folder carries the built app, the \`vault\` command (\`recipevault vault --help\`)
+          and their dependencies; Node itself is not in it. It holds no recipes: the app
+          reads \`~/.config/recipevault/config.json\`, which names your vault folder.
+          \`DEPLOY.md\` in the folder covers the config, accounts, running it as a service
+          and Tailscale.
+
+          Check your download against \`SHA256SUMS.txt\`:
+
+          \`\`\`bash
+          sha256sum -c --ignore-missing SHA256SUMS.txt
+          \`\`\`
+          EOF
+          gh release create "$V" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "RecipeVault $V" --notes-file ../notes.md --generate-notes \
+            "recipevault-${V}-linux-x86_64.tar.gz" SHA256SUMS.txt
