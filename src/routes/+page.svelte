@@ -30,6 +30,8 @@
 	let sheetOpen = $state(false);
 	let expanded = $state<Record<string, boolean>>({});
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	// A search still waiting when she leaves the page (typed, then clicked a recipe) must not pull her back here.
+	$effect(() => () => clearTimeout(timer));
 
 	$effect(() => {
 		// Back/forward: the box follows the URL, unless the person is typing.

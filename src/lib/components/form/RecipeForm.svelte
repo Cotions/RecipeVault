@@ -26,7 +26,7 @@
 	// is missing. One request saves; the toast offers "Annuler". The form state
 	// is kept on the device while she types (Q17 A); a stale save shows both
 	// versions side by side (Q18 A).
-	import { onMount, tick, untrack } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import ItemRow from './ItemRow.svelte';
 	import Marks from './Marks.svelte';
@@ -143,6 +143,12 @@
 		const d = loadDraft(localStorage, key) as FormDraft | undefined;
 		if (d && draftDiffers(d, initial)) foundDraft = d;
 		else decided = true;
+	});
+	// Leaving the form: no live check fires for it afterwards, and a chosen
+	// photo's preview (up to 25 MB) is let go rather than held until the tab closes.
+	onDestroy(() => {
+		clearTimeout(checkTimer);
+		if (photoPreview) URL.revokeObjectURL(photoPreview);
 	});
 
 	function resumeDraft() {

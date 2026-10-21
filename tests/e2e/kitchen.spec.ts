@@ -83,3 +83,33 @@ test('kitchen mode: Space on a focused button presses it; Alt+← is left to the
 	expect(prevented).toBe(false);
 	await expect(page.getByText('Étape 3 sur 7')).toBeVisible();
 });
+
+test('kitchen mode: a timer counts down and rings; an idle page does not rewrite its session', async ({ page }) => {
+	await page.clock.install();
+	await page.goto('/r/lasagna-bolognaise/cuisine');
+	await page.getByRole('button', { name: 'Commencer →' }).click();
+	await page.getByRole('button', { name: /Étape suivante/ }).click();
+	await page.getByRole('button', { name: /Étape suivante/ }).click();
+	await page.getByRole('button', { name: '⏱ 25 min' }).click();
+	await expect(page.getByRole('timer')).toHaveText(/^2[45]:\d\d$/);
+	await page.clock.runFor('10:00');
+	await expect(page.getByRole('timer')).toHaveText(/^1[45]:\d\d$/);
+
+	// Ticking twice a second, with nothing changed, writes nothing.
+	await page.evaluate(() => {
+		const w = window as unknown as { writes: number };
+		w.writes = 0;
+		const set = Storage.prototype.setItem;
+		Storage.prototype.setItem = function (...a: [string, string]) {
+			w.writes++;
+			return set.apply(this, a);
+		};
+	});
+	await page.clock.runFor(5000);
+	expect(await page.evaluate(() => (window as unknown as { writes: number }).writes)).toBe(0);
+
+	await page.clock.runFor('16:00');
+	await expect(page.getByRole('timer')).toHaveText('Terminé');
+	const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('rv-kitchen:lasagna-bolognaise')!));
+	expect(saved.timers[0].done).toBe(true);
+});
