@@ -24,6 +24,7 @@ test('history lists a save in words; going back and undoing it are new commits b
 	const saved = read();
 
 	await page.goto(`/r/${SLUG}`);
+	await page.getByTestId('recipe-actions').click();
 	await page.getByRole('link', { name: 'Historique' }).click();
 	await expect(page).toHaveURL(`/r/${SLUG}/historique`);
 	const versions = page.locator('.versions > li');

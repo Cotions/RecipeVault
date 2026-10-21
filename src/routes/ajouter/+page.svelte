@@ -10,6 +10,7 @@
 	import { page } from '$app/state';
 	import templateDoc from '../../../docs/AI-TEMPLATE.md?raw';
 	import { t } from '$lib/i18n';
+	import PageHead from '$lib/components/PageHead.svelte';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import RecipeForm from '$lib/components/form/RecipeForm.svelte';
 	import { draftKey, toForm } from '$lib/form';
@@ -438,10 +439,9 @@
 		/>
 	{/key}
 {:else}
-<div class="head">
-	<h1>{t.add.title}</h1>
-	<button class="btn" type="button" onclick={copyPrompt}>{t.add.copyPrompt}</button>
-</div>
+<PageHead title={t.add.title}>
+	{#snippet actions()}<button class="btn" type="button" onclick={copyPrompt}>{t.add.copyPrompt}</button>{/snippet}
+</PageHead>
 
 <form class="import" onsubmit={doImport}>
 	<label for="import-url">{t.add.importLabel}</label>
@@ -618,16 +618,6 @@
 {/if}
 
 <style>
-	.head {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 1rem;
-		flex-wrap: wrap;
-	}
-	h1 {
-		font-size: var(--step-3);
-	}
 	.import {
 		margin-top: 1rem;
 		max-width: 48rem;

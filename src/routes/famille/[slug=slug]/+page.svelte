@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t, familyLabel } from '$lib/i18n';
 	import { locale } from '$lib/prefs';
@@ -16,9 +17,7 @@
 
 <svelte:head><title>{name} — {t.families.title} — {t.app.name}</title></svelte:head>
 
-<p class="up"><a href="/familles">{t.families.title}</a></p>
-<h1>{name}</h1>
-<p class="count">{t.families.variants(d.variants.length)}</p>
+<PageHead title={name} count={t.families.variants(d.variants.length)} back={{ href: '/familles', label: t.families.title }} />
 
 {#if form?.message}
 	<p class="flash" class:error={!form.ok} role="status">{form.message}</p>
@@ -101,17 +100,6 @@
 {/if}
 
 <style>
-	.up {
-		margin: 0;
-		font-size: var(--step--1);
-	}
-	h1 {
-		font-size: var(--step-4);
-	}
-	.count {
-		color: var(--ink-soft);
-		margin: 0.25rem 0 1.25rem;
-	}
 	.flash {
 		padding: 0.6rem 1rem;
 		background: #e7f2ec;

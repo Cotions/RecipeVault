@@ -33,7 +33,8 @@ test('pairs on /doublons: compare, "Deux versions", "Même recette" with undo, "
 	expect(saved.ok()).toBe(true);
 
 	await page.goto('/');
-	await page.getByRole('navigation', { name: 'Principale' }).getByRole('link', { name: /^Doublons \(\d+\)$/ }).click();
+	await page.getByTestId('more').click();
+	await page.getByRole('link', { name: /^Doublons \(\d+\)$/ }).click();
 	await expect(page).toHaveURL('/doublons');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Doublons possibles');
 

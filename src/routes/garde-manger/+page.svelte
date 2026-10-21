@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -56,8 +57,7 @@
 
 <svelte:head><title>{t.pantry.title} — {t.app.name}</title></svelte:head>
 
-<h1>{t.pantry.title}</h1>
-<p class="meta">{t.pantry.intro}</p>
+<PageHead title={t.pantry.title} intro={t.pantry.intro} />
 
 {#if data.unknown}<p class="flash error" role="alert">{t.pantry.unknown(data.unknown)}</p>{/if}
 
@@ -145,10 +145,6 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-		margin: 0;
-	}
 	h2 {
 		font-size: var(--step-1);
 		margin: 1.5rem 0 0.2rem;

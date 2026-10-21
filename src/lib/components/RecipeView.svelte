@@ -31,6 +31,7 @@
 		itemLinks,
 		cost,
 		photoPrompt,
+		actions,
 		scaling = null,
 		subScale = null
 	}: {
@@ -54,6 +55,8 @@
 		cost?: Snippet<[number]>;
 		/** Recipe page: shown where the photo goes when there is none ("Ajouter une photo", plan 04 Q13 A). */
 		photoPrompt?: Snippet;
+		/** Recipe page: what can be done with it, at the top right of the head. */
+		actions?: Snippet;
 		/** vocab/scaling.yaml (plan 05): how amounts show at another factor; null shows the exact values. */
 		scaling?: ScalingRules | null;
 		/** Recipe page: the sub-recipes' yields and the conversions, so a sub-recipe's link carries the amount its line needs (Q5 A). */
@@ -203,7 +206,9 @@
 	}
 </script>
 
-<article class="recipe" lang={lang}>
+<article class="recipe" class:side={photo || photoPrompt || actions} lang={lang}>
+	{#if actions}<div class="acts no-print">{@render actions()}</div>{/if}
+	<div class="top">
 	<header class="head">
 		{#if recipe.family}
 			<p class="family">
@@ -247,7 +252,6 @@
 			<div><dt>{t.recipe.yield}</dt><dd><Marked text={yieldText} /></dd></div>
 		{/if}
 	</dl>
-	{@render cost?.(factor)}
 
 	{#if recipe.tags.length || recipe.season.length}
 		<ul class="tags" aria-label={t.recipe.tags}>
@@ -260,6 +264,7 @@
 			{/each}
 		</ul>
 	{/if}
+	</div>
 
 	{#if photo}
 		<figure class="photo">
@@ -270,7 +275,7 @@
 			{/if}
 		</figure>
 	{:else if photoPrompt}
-		<div class="photo no-print">{@render photoPrompt()}</div>
+		<div class="photo prompt no-print">{@render photoPrompt()}</div>
 	{/if}
 
 	<div class="columns">
@@ -355,6 +360,8 @@
 			{@html html}
 		</section>
 	</div>
+
+	{#if cost}<div class="cost-slot">{@render cost(factor)}</div>{/if}
 
 	{#if kinds.size}
 		<aside class="legend" aria-label={t.recipe.legend}>
@@ -453,17 +460,77 @@
 		color: var(--ink-soft);
 		border-style: dashed;
 	}
+	/* The page reads top to bottom on a phone: the actions, the head, the
+	   ingredients and steps, then the photo and the cost. On a wide screen the
+	   photo sits in a fixed box beside the head, the actions above it. */
+	.recipe {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas: 'acts' 'top' 'columns' 'photo' 'cost' 'legend';
+	}
+	.acts {
+		grid-area: acts;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+	.acts :global(form) {
+		display: contents;
+	}
+	.top {
+		grid-area: top;
+		min-width: 0;
+	}
+	.columns {
+		grid-area: columns;
+	}
+	.cost-slot {
+		grid-area: cost;
+		margin-top: 1.75rem;
+	}
+	.legend {
+		grid-area: legend;
+	}
 	.photo {
-		margin: 1.25rem 0 0;
+		grid-area: photo;
+		margin: 1.75rem 0 0;
+		aspect-ratio: 4 / 3;
+		max-width: 32rem;
+		overflow: hidden;
+		border-radius: var(--radius);
+	}
+	.photo.prompt {
+		aspect-ratio: auto;
+		overflow: visible;
+	}
+	@media (min-width: 56rem) {
+		.recipe.side {
+			grid-template-columns: minmax(0, 1fr) 17rem;
+			grid-template-rows: auto 1fr;
+			grid-template-areas: 'top acts' 'top photo' 'columns columns' 'cost cost' 'legend legend';
+			column-gap: 2.5rem;
+		}
+		.acts {
+			justify-content: flex-end;
+			margin-bottom: 0.75rem;
+		}
+		.photo {
+			margin: 0;
+			align-self: start;
+		}
 	}
 	.photo img {
 		display: block;
 		width: 100%;
-		max-height: 26rem;
+		height: 100%;
 		object-fit: cover;
-		border-radius: var(--radius);
 	}
 	.heic {
+		display: grid;
+		place-items: center;
+		height: 100%;
 		padding: 2rem 1rem;
 		text-align: center;
 		color: var(--ink-soft);
@@ -663,6 +730,9 @@
 		}
 		h1 {
 			font-size: 20pt;
+		}
+		.recipe {
+			display: block;
 		}
 		.photo,
 		.status {

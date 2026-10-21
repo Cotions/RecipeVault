@@ -5,6 +5,7 @@
 	import { t, familyLabel, form as tf } from '$lib/i18n';
 	import RecipeView from '$lib/components/RecipeView.svelte';
 	import CostLine from '$lib/components/CostLine.svelte';
+	import Menu from '$lib/components/Menu.svelte';
 	import PhotoUpload from '$lib/components/PhotoUpload.svelte';
 	import Marked from '$lib/components/Marked.svelte';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
@@ -90,32 +91,6 @@
 	<p class="flash no-print" class:error={!form.ok} role="status">{form.message}</p>
 {/if}
 
-<div class="actions no-print">
-	<a class="btn primary" href={kitchenHref}>{t.recipe.cookMode}</a>
-	{#if !data.broken}<a class="btn" href="/r/{data.recipe.slug}/modifier" data-testid="edit">{tf.edit}</a>{/if}
-	<button class="btn" type="button" onclick={() => window.print()}>{t.recipe.print}</button>
-	{#if data.recipe.status !== 'verified'}
-		<form method="POST" action="?/verify" use:enhance>
-			<input type="hidden" name="hash" value={data.file.hash} />
-			<button class="btn" type="submit" disabled={uncertain} title={uncertain ? t.recipe.verifyBlocked : t.recipe.verifyHelp}>{t.recipe.verify}</button>
-		</form>
-	{/if}
-	<form
-		method="POST"
-		action="?/remove"
-		use:enhance={({ cancel }) => {
-			if (!confirm(t.recipe.removeConfirm)) cancel();
-		}}
-	>
-		<input type="hidden" name="hash" value={data.file.hash} />
-		<button class="btn danger" type="submit">{t.recipe.remove}</button>
-	</form>
-	<a class="btn" href="/r/{data.recipe.slug}/historique">{t.history.link}</a>
-</div>
-{#if uncertain && data.recipe.status !== 'verified'}
-	<p class="hint no-print">{t.recipe.verifyBlocked}</p>
-{/if}
-
 <RecipeView
 	recipe={data.recipe}
 	body={data.body}
@@ -130,6 +105,32 @@
 >
 	{#snippet cost(factor: number)}
 		{#if data.cost}<CostLine cost={data.cost} {factor} money={data.money} />{/if}
+	{/snippet}
+	{#snippet actions()}
+		<a class="btn primary" href={kitchenHref}>{t.recipe.cookMode}</a>
+		{#if !data.broken}<a class="btn" href="/r/{data.recipe.slug}/modifier" data-testid="edit">{tf.edit}</a>{/if}
+		<Menu label={t.app.actions} testid="recipe-actions">
+			<button type="button" onclick={() => window.print()}>{t.recipe.print}</button>
+			<a href="/r/{data.recipe.slug}/historique">{t.history.link}</a>
+			{#if data.recipe.status !== 'verified'}
+				<form method="POST" action="?/verify" use:enhance>
+					<input type="hidden" name="hash" value={data.file.hash} />
+					<button type="submit" disabled={uncertain} title={uncertain ? t.recipe.verifyBlocked : t.recipe.verifyHelp}>{t.recipe.verify}</button>
+				</form>
+				{#if uncertain}<p class="note">{t.recipe.verifyBlocked}</p>{/if}
+			{/if}
+			<hr />
+			<form
+				method="POST"
+				action="?/remove"
+				use:enhance={({ cancel }) => {
+					if (!confirm(t.recipe.removeConfirm)) cancel();
+				}}
+			>
+				<input type="hidden" name="hash" value={data.file.hash} />
+				<button class="danger" type="submit">{t.recipe.remove}</button>
+			</form>
+		</Menu>
 	{/snippet}
 	{#snippet photoPrompt()}
 		{#if !data.broken}<PhotoUpload slug={data.recipe.slug} hash={data.file.hash} />{/if}
@@ -224,15 +225,6 @@
 	.flash.error {
 		background: #fbeceb;
 		border-left-color: var(--rule-red);
-	}
-	.actions {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		margin-bottom: 0.75rem;
-	}
-	.actions form {
-		display: contents;
 	}
 	.hint {
 		color: var(--ink-soft);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
 	import Marked from '$lib/components/Marked.svelte';
@@ -12,9 +13,9 @@
 	<title>{h.title} — {data.title} — {t.app.name}</title>
 </svelte:head>
 
-<p class="back"><a href="/r/{data.slug}">← {h.back}</a></p>
-<h1><span class="kicker">{h.title}</span> <Marked text={data.title} /></h1>
-<p class="intro">{h.intro}</p>
+<PageHead kicker={h.title} intro={h.intro} back={{ href: `/r/${data.slug}`, label: h.back }}>
+	{#snippet titleSnippet()}<Marked text={data.title} />{/snippet}
+</PageHead>
 
 {#if form?.message}
 	<div class="flash" class:error={!form.ok} role={form.ok ? 'status' : 'alert'}>
@@ -82,26 +83,6 @@
 {/if}
 
 <style>
-	.back {
-		margin: 0 0 0.5rem;
-	}
-	.back a {
-		display: inline-flex;
-		align-items: center;
-		min-height: 2.75rem;
-	}
-	h1 {
-		font-size: var(--step-3);
-		margin: 0;
-	}
-	.kicker {
-		display: block;
-		font-size: var(--step--1);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--ink-soft);
-		font-family: inherit;
-	}
 	.intro {
 		color: var(--ink-soft);
 		font-family: var(--serif);

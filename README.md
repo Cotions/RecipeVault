@@ -96,7 +96,7 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 | Path | What |
 |---|---|
 | `/` | browse and search: facets, sort, pagination; state in the URL |
-| `/r/<slug>` | a recipe: servings adjuster (the amount in the address, `?portions=` / `?fois=`; a free factor; tap an amount to scale by what you have), cost line with coverage, ingredient links, print view, Vérifié, Modifier, Historique, Supprimer, "Ajouter une photo", the raw file |
+| `/r/<slug>` | a recipe: servings adjuster (the amount in the address, `?portions=` / `?fois=`; a free factor; tap an amount to scale by what you have), cost line with coverage, ingredient links, Cuisiner and Modifier in sight, and Imprimer, Historique, Marquer vérifiée, Supprimer in the ⋯ menu, "Ajouter une photo", the raw file |
 | `/nouvelle`, `/r/<slug>/modifier` | the recipe form (signed in): ingredient and step rows, family picker, tags, source, times, photo; drafts kept in the browser, Annuler after a save |
 | `/r/<slug>/historique` | every version of a recipe, what changed in plain French, "Revenir à cette version" |
 | `/r/<slug>/cuisine` | kitchen mode: screen kept on, checklist, one step at a time, timers, offline; scaled amounts in the steps and sub-recipes at the amount the line needs |
@@ -110,7 +110,7 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 | `/doublons` | possible duplicates (nearly the same ingredients): two variants of one dish, the same recipe (one to the trash), or different recipes |
 | `/doublons/comparer?a=…&b=…` | two recipes side by side, every field where they differ |
 | `/corbeille` | the trash, with restore |
-| `/connexion` | sign in ("Garder la session ouverte" by default: a year, renewed on use); sign out from the header |
+| `/connexion` | sign in ("Garder la session ouverte" by default: a year, renewed on use); sign out from the header's « Plus » menu |
 
 ## The `vault` command
 

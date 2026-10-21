@@ -20,6 +20,11 @@ export const en: Strings = {
 			duplicates: (n: number) => `Duplicates (${n})`
 		},
 		skip: 'Skip to content',
+		/** The header's menu: the pages used less often, the account. */
+		more: 'More',
+		moreLabel: 'Other pages and account',
+		/** A page's ⋯ menu. */
+		actions: 'More actions',
 		navLabel: 'Main',
 		close: 'Close',
 		/** A name or a word quoted in a sentence, and the two marks alone (around a component). */
@@ -91,6 +96,7 @@ export const en: Strings = {
 	families: {
 		title: 'Variants',
 		intro: 'The variants of one dish, grouped, and what sets them apart.',
+		count: (n: number) => (n === 1 ? '1 group' : `${n} groups`),
 		variants: (n: number) => (n === 1 ? '1 variant' : `${n} variants`),
 		empty: 'No variants yet. A group is created when two recipes have the same title.',
 		diff: 'What sets them apart',
@@ -552,7 +558,7 @@ export const en: Strings = {
 		print: 'Print',
 		/** Device setting: method steps numbered instead of bullets, on screen and in print. */
 		numberSteps: 'Number the steps',
-		verify: 'Verified',
+		verify: 'Mark verified',
 		verifyHelp: 'Mark as checked against the original',
 		verifyBlocked: 'Settle the uncertain readings first ([?], [illisible]).',
 		verified: 'Recipe marked verified.',
@@ -580,7 +586,7 @@ export const en: Strings = {
 		refused: {
 			change: 'the change does not pass validation.',
 			markers: '[?] or [illisible] markers are still to be settled.',
-			verify: (why: string) => `“Verified” could not be saved; nothing has changed: ${why}`
+			verify: (why: string) => `the check could not be saved; nothing has changed: ${why}`
 		}
 	},
 	/** Dish photo upload (plan 04, Phase 6; Q12 A, Q13 A). */

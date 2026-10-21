@@ -4,6 +4,7 @@
 	import { t, tagLabel, familyLabel, form as tf } from '$lib/i18n';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import RecipeCard from '$lib/components/RecipeCard.svelte';
+	import PageHead from '$lib/components/PageHead.svelte';
 	import type { FacetName } from '$lib/server/index/query';
 	import type { PageProps } from './$types';
 
@@ -132,10 +133,27 @@
 	<title>{t.browse.title}</title>
 </svelte:head>
 
-<form class="search" role="search" onsubmit={(e) => (e.preventDefault(), search())}>
-	<label class="visually-hidden" for="search">{t.browse.searchLabel}</label>
-	<input id="search" type="search" name="q" placeholder={t.browse.search} autocomplete="off" bind:value={q} oninput={search} />
-</form>
+<PageHead title={t.browse.title} count={t.browse.count(r.total)} />
+
+<div class="searchbar">
+	<form class="search" role="search" onsubmit={(e) => (e.preventDefault(), search())}>
+		<label class="visually-hidden" for="search">{t.browse.searchLabel}</label>
+		<input id="search" type="search" name="q" placeholder={t.browse.search} autocomplete="off" bind:value={q} oninput={search} />
+	</form>
+	<label class="sort">
+		<span>{t.browse.sort}</span>
+		<select value={currentSort} onchange={(e) => sortTo(e.currentTarget.value)}>
+			{#each Object.entries(t.browse.sorts) as [value, text] (value)}
+				{#if value !== 'relevance' || data.params.q}
+					<option {value}>{text}</option>
+				{/if}
+			{/each}
+		</select>
+	</label>
+	<button class="btn filters-btn" type="button" onclick={() => (sheetOpen = true)}>
+		{t.browse.showFilters}{#if activeCount}&nbsp;({activeCount}){/if}
+	</button>
+</div>
 
 {#if data.problems.length}
 	<details class="problems">
@@ -195,24 +213,6 @@
 	</aside>
 
 	<section class="results" aria-live="polite">
-		<div class="toolbar">
-			<p class="count">{t.browse.count(r.total)}</p>
-			{#if data.user}<a class="btn primary new" href="/nouvelle" data-testid="new-recipe">{tf.nav}</a>{/if}
-			<button class="btn filters-btn" type="button" onclick={() => (sheetOpen = true)}>
-				{t.browse.showFilters}{#if activeCount}&nbsp;({activeCount}){/if}
-			</button>
-			<label class="sort">
-				<span>{t.browse.sort}</span>
-				<select value={currentSort} onchange={(e) => sortTo(e.currentTarget.value)}>
-					{#each Object.entries(t.browse.sorts) as [value, text] (value)}
-						{#if value !== 'relevance' || data.params.q}
-							<option {value}>{text}</option>
-						{/if}
-					{/each}
-				</select>
-			</label>
-		</div>
-
 		{#if r.items.length}
 			<ul class="cards">
 				{#each r.items as card (card.slug)}
@@ -235,6 +235,15 @@
 </div>
 
 <style>
+	.searchbar {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.5rem 1rem;
+	}
+	.search {
+		flex: 1 1 20rem;
+	}
 	.search input {
 		width: 100%;
 		font-size: var(--step-1);
@@ -368,18 +377,6 @@
 		.filters-btn {
 			display: inline-flex;
 		}
-	}
-	.toolbar {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 0.5rem 1rem;
-		margin-bottom: 0.75rem;
-	}
-	.count {
-		margin: 0;
-		font-weight: 700;
-		margin-right: auto;
 	}
 	.sort {
 		display: flex;

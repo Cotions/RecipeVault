@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	import { t, form as tf } from '$lib/i18n';
 	import Toast from '$lib/components/Toast.svelte';
+	import Menu from '$lib/components/Menu.svelte';
 	import { setPrefs } from '$lib/prefs';
 	import { setConversions } from '$lib/render/system';
 	import { setUnitWords } from '$lib/render/unitwords';
@@ -37,20 +38,25 @@
 	const kitchen = $derived(page.url.pathname.endsWith('/cuisine'));
 	const markdown = $derived(!!data?.user?.markdown);
 	const here = $derived(page.url.pathname + page.url.search);
+	// The pages read every day, always in sight.
 	const nav = $derived([
 		{ href: '/', label: t.app.nav.browse, match: (p: string) => p === '/' || p.startsWith('/r/') },
 		{ href: '/familles', label: t.app.nav.families, match: (p: string) => p.startsWith('/famille') },
 		{ href: '/ingredients', label: t.app.nav.ingredients, match: (p: string) => p.startsWith('/ingredients') },
-		{ href: '/garde-manger', label: t.app.nav.pantry, match: (p: string) => p === '/garde-manger' },
-		// The recipe form (plan 04, Phase 4), for anyone signed in.
-		...(data?.user ? [{ href: '/nouvelle', label: tf.nav, match: (p: string) => p === '/nouvelle' }] : []),
-		// The Markdown tools, for an account that asked for them (plan 04, Q2 B).
+		{ href: '/garde-manger', label: t.app.nav.pantry, match: (p: string) => p === '/garde-manger' }
+	]);
+	// The rest, in the header's « Plus » menu: the Markdown tools for an
+	// account that asked for them (plan 04, Q2 B), the trash, the account.
+	const more = $derived([
 		...(markdown ? [{ href: '/ajouter', label: t.app.nav.add, match: (p: string) => p === '/ajouter' }] : []),
 		...(markdown && data?.toResolve ? [{ href: '/resoudre', label: t.app.nav.queue(data.toResolve), match: (p: string) => p === '/resoudre' }] : []),
 		...(markdown && data?.pendingTags ? [{ href: '/etiquettes', label: t.app.nav.pendingTags(data.pendingTags), match: (p: string) => p === '/etiquettes' }] : []),
 		...(markdown && data?.duplicates ? [{ href: '/doublons', label: t.app.nav.duplicates(data.duplicates), match: (p: string) => p.startsWith('/doublons') }] : []),
 		{ href: '/corbeille', label: t.app.nav.trash, match: (p: string) => p === '/corbeille' }
 	]);
+	/** Things waiting in the Markdown tools, shown on the menu's button. */
+	const waiting = $derived(markdown ? (data?.toResolve ?? 0) + (data?.pendingTags ?? 0) + (data?.duplicates ?? 0) : 0);
+	const signIn = $derived(here === '/' ? '/connexion' : `/connexion?suite=${encodeURIComponent(here)}`);
 </script>
 
 <svelte:head>
@@ -72,14 +78,24 @@
 				{/each}
 			</nav>
 			<div class="account">
+				<!-- The recipe form (plan 04, Phase 4), for anyone signed in: the one action of every page. -->
 				{#if data?.user}
-					<a class="who" href="/compte" title={t.account.linkTitle} aria-current={page.url.pathname === '/compte' ? 'page' : undefined}>{data.user.name}</a>
-					<form method="POST" action="/connexion?/logout">
-						<button class="linkish" type="submit">{t.auth.signOut}</button>
-					</form>
+					<a class="btn primary new" href="/nouvelle" aria-current={page.url.pathname === '/nouvelle' ? 'page' : undefined}>{tf.nav}</a>
 				{:else if page.url.pathname !== '/connexion'}
-					<a href={here === '/' ? '/connexion' : `/connexion?suite=${encodeURIComponent(here)}`}>{t.auth.signIn}</a>
+					<a class="signin" href={signIn}>{t.auth.signIn}</a>
 				{/if}
+				<Menu label={t.app.moreLabel} text={t.app.more} badge={waiting} testid="more">
+					{#each more as item (item.href)}
+						<a href={item.href} aria-current={item.match(page.url.pathname) ? 'page' : undefined}>{item.label}</a>
+					{/each}
+					{#if data?.user}
+						<hr />
+						<a class="who" href="/compte" title={t.account.linkTitle} aria-current={page.url.pathname === '/compte' ? 'page' : undefined}>{data.user.name}</a>
+						<form method="POST" action="/connexion?/logout">
+							<button type="submit">{t.auth.signOut}</button>
+						</form>
+					{/if}
+				</Menu>
 			</div>
 		</div>
 	</header>
@@ -109,9 +125,9 @@
 	.bar {
 		max-width: 76rem;
 		margin: 0 auto;
-		padding: 0.6rem 1rem 0.5rem;
+		padding: 0.5rem 1rem;
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		flex-wrap: wrap;
 		gap: 0.25rem 1.5rem;
 	}
@@ -145,28 +161,32 @@
 	.account {
 		margin-left: auto;
 		display: flex;
-		align-items: baseline;
-		gap: 0.75rem;
-		font-size: 0.95rem;
+		align-items: center;
+		gap: 0.5rem;
 	}
-	.account form {
-		display: inline;
+	.new[aria-current='page'] {
+		box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ink);
 	}
-	.who {
-		color: var(--ink);
-		font-weight: 600;
-	}
-	.account a,
-	.linkish {
+	.signin {
 		color: var(--ink-soft);
-		font: inherit;
 		font-weight: 500;
-		background: none;
-		border: 0;
-		padding: 0.35rem 0;
-		cursor: pointer;
-		text-decoration: underline;
 		text-underline-offset: 0.2em;
+	}
+	/* Phone: the wordmark and the actions on the first line, the pages under them. */
+	@media (max-width: 40rem) {
+		.bar {
+			gap: 0.25rem 0.75rem;
+		}
+		nav {
+			order: 3;
+			flex-basis: 100%;
+			overflow-x: auto;
+			flex-wrap: nowrap;
+			scrollbar-width: none;
+		}
+		nav a {
+			white-space: nowrap;
+		}
 	}
 	main {
 		max-width: 76rem;

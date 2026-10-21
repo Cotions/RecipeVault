@@ -469,7 +469,7 @@ kept in the browser's `localStorage`. The rules are `INGREDIENTS.md`,
 
 Files mean last-write-wins, which silently eats an edit. Cheap guard: every
 edit carries the hash of the file it was based on — the paste box's
-"Remplacer", the "Vérifié" button, delete, a family label — and the save refuses when the file
+"Remplacer", the « Marquer vérifiée » action, delete, a family label — and the save refuses when the file
 on disk no longer has that hash. (A hash rather than `updated`: `updated` is a
 date, too coarse to see two edits on the same day.) Two users at this scale will
 rarely collide, but the one time they do it should not be silent.
@@ -509,7 +509,7 @@ Conveniences:
 - `status` → set by the app on every paste, never taken from the file: an AI file
   is never auto-`verified`. `needs-review` if any `[?]`, `[?: …]` or
   `[illisible]` remains (W605), otherwise `draft`. `verified` is set only by a
-  person, with the "Vérifié" button on the recipe page — a one-field edit
+  person, with « Marquer vérifiée » in the recipe page's ⋯ menu — a one-field edit
   through the normal save path, committed as `verify: <title>`, refused while an
   uncertain marker remains. A **form edit** (plan 04, Q14 A) keeps the
   recipe's status instead — `verified` stays `verified` — except that a

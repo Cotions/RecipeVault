@@ -37,7 +37,7 @@
 			{/if}
 		</p>
 		{#if unpriced.length || priced.length}
-			<details class="detail" open={!cost.enough && unpriced.length > 0}>
+			<details class="detail">
 				<summary>{unpriced.length ? t.cost.unpriced(unpriced.length) : t.cost.label}</summary>
 				<p class="help">{t.cost.unpricedHelp}</p>
 				<ul>

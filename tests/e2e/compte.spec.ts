@@ -29,6 +29,7 @@ test('language, measures and a unit word are the account’s own', async ({ page
 		await page.goto(RECIPE);
 		await expect(page.locator('.recipe')).toContainText('2 tasses de farine');
 
+		await page.getByTestId('more').click();
 		await page.locator('header .who').click();
 		await page.getByLabel('Langue').selectOption('en');
 		await page.getByLabel('Métrique').check();
