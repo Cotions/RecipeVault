@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { t, form as tf } from '$lib/i18n';
 	import Toast from '$lib/components/Toast.svelte';
@@ -18,13 +19,17 @@
 
 	// What the signed-in person chose (language, measuring system, own unit
 	// words), installed before anything renders. A page already shown does not
-	// follow a change (signing in, saving /compte): it is loaded again.
+	// follow a change (signing in, saving /compte): it is loaded again. In the
+	// browser only: the server serves several people at once, so the hook
+	// answers per request there (module state would leak to the next one).
 	// svelte-ignore state_referenced_locally
 	const shownFor = JSON.stringify(data?.prefs ?? null);
-	// svelte-ignore state_referenced_locally
-	setPrefs(data?.prefs);
-	// svelte-ignore state_referenced_locally
-	setConversions(data?.conversions);
+	if (browser) {
+		// svelte-ignore state_referenced_locally
+		setPrefs(data?.prefs);
+		// svelte-ignore state_referenced_locally
+		setConversions(data?.conversions);
+	}
 	$effect(() => {
 		if (JSON.stringify(data?.prefs ?? null) !== shownFor) location.reload();
 	});

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { json, redirect, type Handle, type ServerInit } from '@sveltejs/kit';
 import { t } from '$lib/i18n';
-import { setPrefsSource, type Prefs } from '$lib/prefs';
+import { DEFAULT_PREFS, setPrefsSource, type Prefs } from '$lib/prefs';
 import { getApp, startApp } from '$lib/server/app';
 import { currentUser, guard } from '$lib/server/auth';
 import { hostAllowed } from '$lib/server/hosts';
@@ -48,7 +48,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		response.headers.set('X-Frame-Options', 'DENY');
 		return response;
 	};
-	return event.locals.user ? serving.run(event.locals.user.prefs, run) : run();
+	// Signed out too: the defaults, never whatever another request left behind.
+	return serving.run(event.locals.user?.prefs ?? DEFAULT_PREFS, run);
 };
 
 /** Everything settled before the page is made: the answer when the request stops here, else who is asking. */

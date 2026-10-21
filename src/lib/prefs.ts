@@ -88,14 +88,14 @@ export function setPrefs(p: Prefs | null | undefined): void {
 	installed = p ?? DEFAULT_PREFS;
 }
 
-/** Server: who answers for the request being served. Without an answer, the installed ones. */
+/** Server: who answers for the request being served. Without an answer (outside a request), the defaults. */
 export function setPrefsSource(fn: (() => Prefs | undefined) | undefined): void {
 	source = fn;
 }
 
 /** The preferences in use. */
 export function prefs(): Prefs {
-	return source?.() ?? installed;
+	return source ? (source() ?? DEFAULT_PREFS) : installed;
 }
 
 /** The language of the interface. */

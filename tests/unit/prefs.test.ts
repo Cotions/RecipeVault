@@ -53,15 +53,20 @@ describe('prefs', () => {
 		expect(storedPrefs({ ...DEFAULT_PREFS, system: 'imperial', words: { stalk: ['tige', 'tiges'] } })).toEqual({ system: 'imperial', words: { stalk: ['tige', 'tiges'] } });
 	});
 
-	it('answers for the request being served, else for what is installed', () => {
+	it('answers for the request being served; in the browser, for what is installed', () => {
 		expect(prefs()).toBe(DEFAULT_PREFS);
 		setPrefs(account({ lang: 'en' }));
 		expect(locale()).toBe('en');
 		let serving: Prefs | undefined = account({ lang: 'fr' });
 		setPrefsSource(() => serving);
 		expect(locale()).toBe('fr');
-		serving = undefined;
-		expect(locale()).toBe('en');
+	});
+
+	it('on the server, a request with no answer gets the defaults, never what another one installed', () => {
+		setPrefs(account({ lang: 'en', system: 'metric' }));
+		setPrefsSource(() => undefined);
+		expect(prefs()).toBe(DEFAULT_PREFS);
+		expect(locale()).toBe('fr');
 	});
 });
 
