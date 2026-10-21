@@ -66,7 +66,8 @@ test('signed in, a write is the signed-in person’s commit', async ({ page, bas
 	expect(r.status()).toBe(200);
 	expect(lastCommit()).toBe(`add: Galettes de l’essai|${owner.name}|${owner.email}`);
 	await page.goto('/r/galettes-de-l-essai');
-	await page.getByRole('button', { name: 'Vérifié' }).click();
+	await page.getByTestId('recipe-actions').click();
+	await page.getByRole('button', { name: 'Marquer vérifiée' }).click();
 	await expect(page.getByText('Recette marquée vérifiée.')).toBeVisible();
 	expect(lastCommit()).toBe(`verify: Galettes de l’essai|${owner.name}|${owner.email}`);
 });

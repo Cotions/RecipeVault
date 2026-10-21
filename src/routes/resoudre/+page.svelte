@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
 	import { queueRowId } from '$lib/render/links';
@@ -13,8 +14,7 @@
 
 <svelte:head><title>{t.queue.title} — {t.app.name}</title></svelte:head>
 
-<h1>{t.queue.title}</h1>
-<p class="intro">{t.queue.intro}</p>
+<PageHead title={t.queue.title} intro={t.queue.intro} />
 
 {#if data.gone && !form?.message}
 	<p class="flash" role="status">{t.queue.gone}</p>
@@ -169,9 +169,6 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-	}
 	.intro {
 		color: var(--ink-soft);
 		font-family: var(--serif);

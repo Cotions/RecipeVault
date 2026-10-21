@@ -64,6 +64,7 @@ test('a slug collision is saved under the suffixed slug', async ({ page }) => {
 test('delete goes to the trash, restore brings it back', async ({ page }) => {
 	await page.goto('/r/salade-de-chou');
 	page.once('dialog', (d) => d.accept());
+	await page.getByTestId('recipe-actions').click();
 	await page.getByRole('button', { name: 'Supprimer' }).click();
 	await expect(page).toHaveURL(/\/corbeille/);
 	await expect(page.locator('.list')).toContainText('Salade de chou crémeuse');
@@ -76,7 +77,8 @@ test('delete goes to the trash, restore brings it back', async ({ page }) => {
 
 test('verify a recipe with no uncertain reading', async ({ page }) => {
 	await page.goto('/r/crepes');
-	await page.getByRole('button', { name: 'Vérifié' }).click();
+	await page.getByTestId('recipe-actions').click();
+	await page.getByRole('button', { name: 'Marquer vérifiée' }).click();
 	await expect(page.getByText('Recette marquée vérifiée.')).toBeVisible();
 	await expect(page.locator('.badge')).toHaveText('Vérifiée');
 });

@@ -24,7 +24,8 @@ test('pending tags are settled on /etiquettes: new tag, alias, removal — one c
 	expect(saved.ok()).toBe(true);
 
 	await page.goto('/');
-	const link = page.getByRole('navigation', { name: 'Principale' }).getByRole('link', { name: /^Étiquettes \(\d+\)$/ });
+	await page.getByTestId('more').click();
+	const link = page.getByRole('link', { name: /^Étiquettes \(\d+\)$/ });
 	await link.click();
 	await expect(page).toHaveURL('/etiquettes');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Étiquettes en attente');

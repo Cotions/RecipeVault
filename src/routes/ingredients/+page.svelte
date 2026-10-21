@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
@@ -80,9 +81,7 @@
 
 <svelte:head><title>{t.ingredients.title} — {t.app.name}</title></svelte:head>
 
-<h1>{t.ingredients.title}</h1>
-<p class="intro">{t.ingredients.intro}</p>
-<p class="count">{t.ingredients.count(data.total, data.priced)}</p>
+<PageHead title={t.ingredients.title} count={t.ingredients.count(data.total, data.priced)} intro={t.ingredients.intro} />
 
 {#if form?.message}
 	<p class="flash" class:error={!form.ok} role={form.ok ? 'status' : 'alert'}>{form.message}</p>
@@ -227,9 +226,6 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-	}
 	.intro {
 		color: var(--ink-soft);
 		font-family: var(--serif);

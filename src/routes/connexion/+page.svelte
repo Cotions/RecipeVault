@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
 	import type { PageProps } from './$types';
@@ -9,7 +10,7 @@
 
 <svelte:head><title>{t.auth.title} — {t.app.name}</title></svelte:head>
 
-<h1>{t.auth.title}</h1>
+<PageHead title={t.auth.title} />
 
 {#if data.signedIn}
 	<p class="intro">{t.auth.signedIn(data.signedIn)}</p>
@@ -53,9 +54,6 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-	}
 	.intro {
 		color: var(--ink-soft);
 		font-family: var(--serif);

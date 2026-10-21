@@ -17,7 +17,8 @@ test('the top row of the queue becomes a new ingredient; the recipes using it lo
 	expect(before).toBeGreaterThan(0);
 
 	await page.goto('/resoudre');
-	const nav = page.getByRole('navigation', { name: 'Principale' }).getByRole('link', { name: /À relier/ });
+	// In the header's « Plus » menu, closed: read without opening it.
+	const nav = page.getByTestId('more').locator('..').getByRole('link', { name: /À relier/, includeHidden: true });
 	const n = Number((await nav.textContent())!.match(/\((\d+)\)/)![1]);
 	const top = page.locator('li.row').first();
 	await expect(top.locator('h2')).toHaveText('feuilles de lasagne');

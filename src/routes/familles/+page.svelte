@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { t, familyLabel } from '$lib/i18n';
 	import type { PageProps } from './$types';
 
@@ -7,8 +8,7 @@
 
 <svelte:head><title>{t.families.title} — {t.app.name}</title></svelte:head>
 
-<h1>{t.families.title}</h1>
-<p class="intro">{t.families.intro}</p>
+<PageHead title={t.families.title} count={t.families.count(data.families.length)} intro={t.families.intro} />
 
 {#if data.families.length}
 	<ul class="list">
@@ -24,9 +24,6 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-	}
 	.intro {
 		color: var(--ink-soft);
 		font-family: var(--serif);
@@ -39,10 +36,14 @@
 		margin: 0;
 		background: var(--card);
 		border-top: 3px solid var(--rule-red);
-		max-width: 40rem;
+		/* Alphabetical down each column: a wide screen shows the whole list. */
+		columns: 3 18rem;
+		column-gap: 0;
 	}
 	.list li {
+		break-inside: avoid;
 		display: flex;
+		gap: 1rem;
 		justify-content: space-between;
 		align-items: baseline;
 		padding: 0.7rem 1rem;

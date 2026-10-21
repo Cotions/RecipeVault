@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Two recipes of a possible duplicate side by side, read-only (plan 05,
 	// Phase 7): the form's stale-compare table, every field where they differ.
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { form as f, t } from '$lib/i18n';
 	import Marked from '$lib/components/Marked.svelte';
 	import type { PageProps } from './$types';
@@ -16,9 +17,7 @@
 
 <svelte:head><title>{s.compareTitle} — {t.app.name}</title></svelte:head>
 
-<p><a class="back" href="/doublons">← {s.back}</a></p>
-<h1>{s.compareTitle}</h1>
-<p class="help">{onlyTitle ? s.compareSame : s.compareHelp}</p>
+<PageHead title={s.compareTitle} intro={onlyTitle ? s.compareSame : s.compareHelp} back={{ href: '/doublons', label: s.back }} />
 
 <div class="wrap">
 	<table data-testid="compare">
@@ -42,18 +41,6 @@
 </div>
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-	}
-	.back {
-		display: inline-flex;
-		align-items: center;
-		min-height: 44px;
-	}
-	.help {
-		color: var(--ink-soft);
-		margin: 0.3rem 0 0.75rem;
-	}
 	.wrap {
 		overflow-x: auto;
 		max-width: 60rem;

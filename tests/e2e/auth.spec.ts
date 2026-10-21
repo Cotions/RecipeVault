@@ -31,8 +31,9 @@ test('sign in, the name shows, the Markdown tools stay hidden for her, sign out'
 	await page.getByRole('button', { name: 'Se connecter' }).click();
 	await expect(page).toHaveURL(new RegExp(`${href}$`));
 	await expect(page.locator('header .who')).toHaveText(cook.name);
-	const nav = page.getByRole('navigation', { name: 'Principale' });
-	await expect(nav.getByRole('link', { name: 'Ajouter' })).toHaveCount(0);
+	await page.getByTestId('more').click();
+	await expect(page.getByRole('link', { name: 'Corbeille' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Ajouter' })).toHaveCount(0);
 	await expect(page.getByText('Voir le fichier')).toHaveCount(0);
 	const cookie = (await page.context().cookies()).find((c) => c.name === 'rv_session');
 	expect(cookie).toMatchObject({ httpOnly: true, sameSite: 'Lax', secure: false });

@@ -8,6 +8,7 @@
 	import { unitLabel } from '$lib/render/ingredient';
 	import { ingredientHref, ingredientRowHref, queueHref } from '$lib/render/links';
 	import type { NameRule } from '$lib/ingredients/types';
+	import PageHead from '$lib/components/PageHead.svelte';
 	import Marked from '$lib/components/Marked.svelte';
 	import type { Unit } from '$lib/vault/types';
 	import type { PageProps } from './$types';
@@ -35,21 +36,22 @@
 	const merged = $derived(page.url.searchParams.get('fusion'));
 	const weightRows = $derived([...Object.entries(e.weights).map(([unit, g]) => ({ unit, g: dec(g) })), { unit: '', g: '' }, { unit: '', g: '' }]);
 	let mergeInto = $state('');
+	/** The recipes that use it, a dozen at first: a staple is in most of the vault. */
+	const USES_SHOWN = 12;
+	let allUses = $state(false);
+	const uses = $derived(allUses ? data.uses : data.uses.slice(0, USES_SHOWN));
 	const mergeName = $derived(data.entries.find((x) => x.slug === mergeInto || x.name === mergeInto)?.name ?? mergeInto);
 </script>
 
 <svelte:head><title>{data.name} — {t.ingredients.title} — {t.app.name}</title></svelte:head>
 
-<p class="back no-print"><a href="/ingredients">← {t.ingredient.back}</a></p>
-
-<header class="head">
-	<h1>{data.name}</h1>
-	<p class="meta">
+<PageHead title={data.name} back={{ href: '/ingredients', label: t.ingredient.back }}>
+	{#snippet meta()}
 		<code>{e.slug}</code> · {t.category[e.category] ?? e.category}
 		{#if e.staple}<span class="tag">{t.ingredient.staple}</span>{/if}
 		{#if e.auGout}<span class="tag">{t.ingredient.auGout}</span>{/if}
-	</p>
-</header>
+	{/snippet}
+</PageHead>
 
 {#if form?.message}
 	<p class="flash" class:error={!form.ok} role={form.ok ? 'status' : 'alert'}>{form.message}</p>
@@ -199,7 +201,7 @@
 			{/if}
 		{/if}
 		<ol class="uses">
-			{#each data.uses as r (r.slug)}
+			{#each uses as r (r.slug)}
 				<li>
 					<a href="/r/{r.slug}"><Marked text={r.title} /></a>
 					{#if r.option}
@@ -211,6 +213,11 @@
 				</li>
 			{/each}
 		</ol>
+		{#if data.uses.length > USES_SHOWN}
+			<button class="btn quiet more" type="button" aria-expanded={allUses} onclick={() => (allUses = !allUses)}>
+				{allUses ? t.browse.less : t.browse.more(data.uses.length - USES_SHOWN)}
+			</button>
+		{/if}
 	{/if}
 </section>
 
@@ -335,14 +342,6 @@
 <p class="soft file">{t.ingredient.file(data.path)}</p>
 
 <style>
-	.back {
-		margin: 0 0 0.5rem;
-		font-size: var(--step--1);
-	}
-	h1 {
-		font-size: var(--step-3);
-		margin: 0;
-	}
 	h2 {
 		font-size: var(--step-1);
 		margin: 0 0 0.5rem;
@@ -351,7 +350,6 @@
 		font-size: var(--step-0);
 		margin: 1rem 0 0.3rem;
 	}
-	.meta,
 	.soft {
 		color: var(--ink-soft);
 	}
@@ -491,6 +489,9 @@
 	}
 	.uses li {
 		margin: 0.15rem 0;
+	}
+	.more {
+		margin-top: 0.5rem;
 	}
 	.amt {
 		font-weight: 600;

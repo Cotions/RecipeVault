@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { t } from '$lib/i18n';
 	import { DEFAULT_PREFS, LANGS, UNIT_SYSTEMS, WORD_MAX } from '$lib/prefs';
 	import { UNITS, type Lang } from '$lib/vault/types';
@@ -16,8 +17,7 @@
 
 <svelte:head><title>{t.account.title} — {t.app.name}</title></svelte:head>
 
-<h1>{t.account.title}</h1>
-<p class="intro">{t.account.intro}</p>
+<PageHead title={t.account.title} intro={t.account.intro} />
 
 {#if form?.message}
 	<p class="flash error" role="alert">{form.message}</p>
@@ -89,22 +89,12 @@
 </form>
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-	}
 	h2,
 	legend {
 		font-size: var(--step-1);
 		font-weight: 700;
 		margin: 0;
 		padding: 0;
-	}
-	.intro {
-		color: var(--ink-soft);
-		font-family: var(--serif);
-		font-size: var(--step-1);
-		margin: 0.25rem 0 1.25rem;
-		max-width: var(--measure);
 	}
 	.prefs {
 		display: grid;

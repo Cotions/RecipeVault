@@ -2,6 +2,7 @@
 	// Possible duplicates (plan 05, Phase 7): pairs of recipes with nearly the
 	// same ingredients, most similar first, 20 a page; three ways to settle a
 	// pair, each one commit, each undoable from the message that follows it.
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
 	import { slugify } from '$lib/vault/slug';
@@ -22,8 +23,7 @@
 
 <svelte:head><title>{s.title} — {t.app.name}</title></svelte:head>
 
-<h1>{s.title}</h1>
-<p class="intro">{s.intro}</p>
+<PageHead title={s.title} count={data.pairs.length ? s.count(data.total) : null} intro={s.intro} />
 
 {#if form?.message}
 	<div class="flash" class:error={!form.ok} role="status" data-testid="flash">
@@ -48,7 +48,6 @@
 {#if !data.pairs.length}
 	<p class="empty">{s.empty}</p>
 {:else}
-	<p class="count">{s.count(data.total)}</p>
 	<ul class="pairs">
 		{#each data.pairs as p (p.a.slug + ' ' + p.b.slug)}
 			{@const oneFamily = !!p.a.family && p.a.family === p.b.family}
@@ -83,7 +82,7 @@
 					{#if p.onlyA.length}<dt>{s.only(p.a.title)}</dt><dd>{p.onlyA.join(', ')}</dd>{/if}
 					{#if p.onlyB.length}<dt>{s.only(p.b.title)}</dt><dd>{p.onlyB.join(', ')}</dd>{/if}
 				</dl>
-				<p><a class="compare" href="/doublons/comparer?a={p.a.slug}&b={p.b.slug}">{s.compare}</a></p>
+				<p class="cmp"><a class="compare" href="/doublons/comparer?a={p.a.slug}&b={p.b.slug}">{s.compare}</a></p>
 
 				<div class="actions">
 					<details name="pair-{id}">
@@ -165,16 +164,7 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-4);
-	}
-	.intro {
-		color: var(--ink-soft);
-		max-width: var(--measure);
-		margin: 0.4rem 0 1.25rem;
-	}
-	.empty,
-	.count {
+	.empty {
 		color: var(--ink-soft);
 	}
 	.flash {
@@ -198,7 +188,7 @@
 		margin: 0;
 		display: grid;
 		gap: 1rem;
-		max-width: 44rem;
+		max-width: 64rem;
 	}
 	.card {
 		background: var(--card);
@@ -261,9 +251,40 @@
 	}
 	.actions {
 		display: grid;
+		align-content: start;
 		gap: 0.25rem;
 		border-top: 1px solid var(--line);
 		padding-top: 0.5rem;
+	}
+	/* On a wide screen the three decisions sit in a column of their own,
+	   beside the two recipes they are about. */
+	@media (min-width: 56rem) {
+		.card {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 18rem;
+			grid-template-rows: auto auto auto 1fr;
+			grid-template-areas: 'head acts' 'sides acts' 'elements acts' 'cmp acts';
+			column-gap: 1.5rem;
+		}
+		header {
+			grid-area: head;
+		}
+		.sides {
+			grid-area: sides;
+		}
+		.elements {
+			grid-area: elements;
+		}
+		.cmp {
+			grid-area: cmp;
+			margin: 0;
+		}
+		.actions {
+			grid-area: acts;
+			border-top: 0;
+			border-left: 1px solid var(--line);
+			padding: 0 0 0 1.25rem;
+		}
 	}
 	summary {
 		cursor: pointer;

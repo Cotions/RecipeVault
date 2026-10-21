@@ -306,6 +306,31 @@ over plain HTTP it silently does nothing — one more reason for the reverse pro
 with a certificate, or reaching the app through Tailscale, which provides HTTPS
 names.
 
+## Page layout
+
+Desktop first (1280–1440 wide), the phone a check that nothing breaks — except
+the recipe page and kitchen mode, which are read on a phone at the counter.
+
+- **One page head.** Every page opens with the same head (`PageHead.svelte`): a
+  way back when it sits under another page, the title, its count beside it, the
+  page's actions on the right, the intro under it.
+- **Primary action out, the rest in ⋯.** A page shows its one or two main
+  actions as buttons; the secondary ones go in a ⋯ menu (`Menu.svelte`, a
+  `<details>`, so it works without JavaScript). The header keeps the four
+  places one goes to every day (Recettes, Variantes, Ingrédients,
+  Garde-manger) and « Nouvelle recette »; the work queues (À relier,
+  Étiquettes, Doublons), Ajouter, Corbeille and the account sit in « Plus »,
+  with a dot when a queue has something waiting.
+- **The recipe page is the calmest page.** Ingredients and steps come first.
+  Cuisiner and Modifier stay in sight; Imprimer, Historique, « Marquer
+  vérifiée » and Supprimer are in the ⋯ menu. The photo sits in a fixed 4:3 box
+  beside the head on a wide screen and after the steps on a phone; the cost
+  line comes after the steps, its detail closed.
+- **Long lists are capped.** A list that can run to a hundred rows (the
+  recipes using an ingredient) shows a dozen and a « n de plus » button.
+- **Images in fixed boxes.** A photo never sets the height of what is around
+  it: fixed aspect boxes, `object-fit: cover`.
+
 ## Bilingual handling
 
 Recipes will be a mix of French and English. Decisions:
@@ -361,7 +386,7 @@ Browse, search, filter, sort. Family pages with the variant diff table. Recipe
 page. Print view (she will want paper in the kitchen). Mobile first. Plus the
 paste box with validation and the fix-request block, and `vault sync`. Kitchen
 mode — see its section above. Also: web import (schema.org JSON-LD), the
-"Vérifié" button (an AI file is never auto-verified), soft delete and the
+« Marquer vérifiée » action (an AI file is never auto-verified), soft delete and the
 trash, a codes-only paste log with `vault stats`, and an offline service worker
 for kitchen mode. The UI is in French, all strings in `src/lib/i18n/fr.ts`.
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
 	import { locale } from '$lib/prefs';
@@ -10,8 +11,7 @@
 
 <svelte:head><title>{t.trash.title} — {t.app.name}</title></svelte:head>
 
-<h1>{t.trash.title}</h1>
-<p class="intro">{t.trash.intro}</p>
+<PageHead title={t.trash.title} intro={t.trash.intro} />
 
 {#if data.deleted}
 	<p class="flash" role="status">{t.recipe.removed}</p>
@@ -46,9 +46,6 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-3);
-	}
 	.intro {
 		color: var(--ink-soft);
 		font-family: var(--serif);

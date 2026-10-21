@@ -602,13 +602,22 @@
 	h1 {
 		font-size: 2rem;
 	}
+	/* A reminder of the dish, not a picture to look at: a fixed band, low on
+	   a phone so the ingredients stay in sight. */
 	.photo {
 		display: block;
 		width: 100%;
+		aspect-ratio: 16 / 9;
 		max-height: 12rem;
 		object-fit: cover;
 		border-radius: 6px;
 		margin-bottom: 1rem;
+	}
+	@media (max-width: 40rem) {
+		.photo {
+			aspect-ratio: 4 / 1;
+			max-height: 6rem;
+		}
 	}
 	h2 {
 		font-family: var(--sans);

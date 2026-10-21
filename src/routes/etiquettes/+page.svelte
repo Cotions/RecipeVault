@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t, tagLabel } from '$lib/i18n';
 	import Marked from '$lib/components/Marked.svelte';
@@ -12,8 +13,7 @@
 
 <svelte:head><title>{s.title} — {t.app.name}</title></svelte:head>
 
-<h1>{s.title}</h1>
-<p class="intro">{s.intro}</p>
+<PageHead title={s.title} intro={s.intro} />
 
 {#if form?.message}
 	<p class="flash" class:error={!form.ok} role="status">{form.message}</p>
@@ -103,14 +103,6 @@
 {/if}
 
 <style>
-	h1 {
-		font-size: var(--step-4);
-	}
-	.intro {
-		color: var(--ink-soft);
-		max-width: var(--measure);
-		margin: 0.4rem 0 1.25rem;
-	}
 	.empty {
 		color: var(--ink-soft);
 	}

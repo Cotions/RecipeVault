@@ -19,6 +19,11 @@ export const fr = {
 			duplicates: (n: number) => `Doublons (${n})`
 		},
 		skip: 'Aller au contenu',
+		/** The header's menu: the pages used less often, the account. */
+		more: 'Plus',
+		moreLabel: 'Autres pages et compte',
+		/** A page's ⋯ menu. */
+		actions: 'Autres actions',
 		navLabel: 'Principale',
 		close: 'Fermer',
 		/** A name or a word quoted in a sentence, and the two marks alone (around a component). */
@@ -90,6 +95,7 @@ export const fr = {
 	families: {
 		title: 'Variantes',
 		intro: 'Les variantes d’un même plat, regroupées, et ce qui les distingue.',
+		count: (n: number) => (n === 1 ? '1 groupe' : `${n} groupes`),
 		variants: (n: number) => (n === 1 ? '1 variante' : `${n} variantes`),
 		empty: 'Aucune variante pour l’instant. Un groupe se crée quand deux recettes portent le même titre.',
 		diff: 'Ce qui les distingue',
@@ -551,7 +557,7 @@ export const fr = {
 		print: 'Imprimer',
 		/** Device setting: method steps numbered instead of bullets, on screen and in print. */
 		numberSteps: 'Numéroter les étapes',
-		verify: 'Vérifié',
+		verify: 'Marquer vérifiée',
 		verifyHelp: 'Marquer comme relue contre l’original',
 		verifyBlocked: 'Réglez d’abord les lectures incertaines ([?], [illisible]).',
 		verified: 'Recette marquée vérifiée.',
@@ -579,7 +585,7 @@ export const fr = {
 		refused: {
 			change: 'la modification ne passe pas la validation.',
 			markers: 'des marqueurs [?] ou [illisible] restent à régler.',
-			verify: (why: string) => `« Vérifié » n’a pas pu être enregistré ; rien n’a changé : ${why}`
+			verify: (why: string) => `la vérification n’a pas pu être enregistrée ; rien n’a changé : ${why}`
 		}
 	},
 	/** Dish photo upload (plan 04, Phase 6; Q12 A, Q13 A). */
