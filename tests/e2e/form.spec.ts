@@ -204,9 +204,9 @@ test('the family picker offers a new family only when none is close', async ({ p
 	await page.goto('/nouvelle');
 	await page.getByTestId('family-search').fill('Lasagnaa');
 	await expect(page.getByRole('option', { name: /Lasagna/ })).toBeVisible();
-	await expect(page.getByRole('option', { name: /Nouvelle famille/ })).toHaveCount(0);
+	await expect(page.getByRole('option', { name: /Nouveau groupe/ })).toHaveCount(0);
 	await page.getByTestId('family-search').fill('Pouding inventé');
-	await expect(page.getByRole('option', { name: 'Nouvelle famille « Pouding inventé »' })).toBeVisible();
+	await expect(page.getByRole('option', { name: 'Nouveau groupe « Pouding inventé »' })).toBeVisible();
 	await page.evaluate(() => localStorage.clear());
 });
 
@@ -326,7 +326,7 @@ test('the draft banner holds the form until she answers; the draft keeps a new f
 	await row(page, 0, '1', 'lb', 'bœuf haché');
 	const fam = `Pâté inventé ${test.info().project.name}`;
 	await page.getByTestId('family-search').fill(fam);
-	await page.getByRole('option', { name: `Nouvelle famille « ${fam} »` }).click();
+	await page.getByRole('option', { name: `Nouveau groupe « ${fam} »` }).click();
 	await page.locator('#variant').fill('du brouillon');
 	await page.locator('#time-prep-m').fill('20');
 	await page.getByRole('button', { name: 'Ajouter « à »' }).first().click();
@@ -387,7 +387,7 @@ test('"En faire deux versions": the same title twice makes a family of both, in 
 	await row(page, 0, '1', 'cup', 'cassonade');
 	const offer = page.getByTestId('same-title');
 	await expect(offer).toBeVisible();
-	await offer.getByRole('button', { name: 'En faire deux versions d’une famille' }).click();
+	await offer.getByRole('button', { name: 'En faire deux variantes du même plat' }).click();
 	await expect(page.getByTestId('pair')).toBeVisible();
 	await expect(page.getByTestId('family-name')).toHaveText(t);
 	// Both variants are required before Save.

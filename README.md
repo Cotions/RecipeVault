@@ -1,9 +1,10 @@
 # RecipeVault
 
-Self-hosted family recipe archive. Recipes are Markdown files with YAML
-frontmatter in a private vault folder; this repository holds only the app, the
-docs, and invented test fixtures. Start with `PLANNING.md`; the file format and
-its rules are in `docs/`.
+Self-hosted recipe archive: recipes from cards, clippings, books, websites and
+photos, digitized so they are easy to find and read. Recipes are Markdown files
+with YAML frontmatter in a private vault folder; this repository holds only the
+app, the docs, and invented test fixtures. Start with `PLANNING.md`; the file
+format and its rules are in `docs/`.
 
 ## Setup
 
@@ -56,7 +57,7 @@ the app from source, `./testapp.sh` starts a throwaway copy on port 3379
 
    ```sh
    npx vault user add moi --name "Votre Nom" --email you@example.com --markdown
-   npx vault user add maman --name "Son Nom"
+   npx vault user add alex --name "Alex"
    ```
 
    `--markdown` shows that person the paste box, "Voir le fichier", the
@@ -99,17 +100,17 @@ Service, Tailscale and backups: `docs/DEPLOY.md`.
 | `/nouvelle`, `/r/<slug>/modifier` | the recipe form (signed in): ingredient and step rows, family picker, tags, source, times, photo; drafts kept in the browser, Annuler after a save |
 | `/r/<slug>/historique` | every version of a recipe, what changed in plain French, "Revenir à cette version" |
 | `/r/<slug>/cuisine` | kitchen mode: screen kept on, checklist, one step at a time, timers, offline; scaled amounts in the steps and sub-recipes at the amount the line needs |
-| `/familles`, `/famille/<slug>` | families and the variant diff table |
+| `/familles`, `/famille/<slug>` | « Variantes »: groups of variants of one dish (`family:` in the files) and their diff table |
 | `/ingredients` | the ingredient registry with current prices; inline price entry, sorted by what to price first |
 | `/ingredients/<slug>` | one ingredient: names, prices and their history, the recipes using it by quantity, substitutes, drifting names; edit and "Fusionner dans…" |
 | `/resoudre` | the resolve queue: ingredient names not linked to the registry, most frequent first; link, create, remove an alias, add a rule |
 | `/garde-manger` | pantry search: what can I make with what I have — ready, with a substitution, almost, ideas |
 | `/ajouter` | the paste box: live checks, fix-request block, web import |
 | `/etiquettes` | pending tags: make one a new tag with its label, map it to an existing tag, or remove it |
-| `/doublons` | possible duplicates (nearly the same ingredients): two versions of one recipe, the same recipe (one to the trash), or different recipes |
+| `/doublons` | possible duplicates (nearly the same ingredients): two variants of one dish, the same recipe (one to the trash), or different recipes |
 | `/doublons/comparer?a=…&b=…` | two recipes side by side, every field where they differ |
 | `/corbeille` | the trash, with restore |
-| `/connexion` | sign in ("Rester connectée" by default: a year, renewed on use); sign out from the header |
+| `/connexion` | sign in ("Garder la session ouverte" by default: a year, renewed on use); sign out from the header |
 
 ## The `vault` command
 

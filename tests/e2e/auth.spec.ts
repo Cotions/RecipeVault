@@ -20,7 +20,7 @@ test('sign in, the name shows, the Markdown tools stay hidden for her, sign out'
 	await page.goto(href!);
 	await page.getByRole('link', { name: 'Se connecter' }).click();
 	await expect(page).toHaveURL(new RegExp(`/connexion\\?suite=${encodeURIComponent(href!).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
-	await expect(page.getByLabel('Rester connectée sur cet appareil')).toBeChecked();
+	await expect(page.getByLabel('Garder la session ouverte sur cet appareil')).toBeChecked();
 
 	await page.getByLabel('Identifiant').fill(cook.login);
 	await page.getByLabel('Mot de passe').fill('pas le bon');

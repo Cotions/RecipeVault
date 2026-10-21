@@ -113,8 +113,10 @@ extracted_by: hand                   # free text, not checked: hand | ai | web �
 
 Every `source` field is optional, `type` included: a source whose kind is not
 evident has no `type`, and the app shows it as of unknown type. When `type` is
-present it must be one of the six values (`E106`). `url` is a full web address
-starting with `http://` or `https://` (`E114`).
+present it must be one of the six values (`E106`). `family` there means a
+recipe from someone the owner knows, not a book or a site; the interface labels
+it « Recette personnelle » ("Personal recipe"), the value stays `family`.
+`url` is a full web address starting with `http://` or `https://` (`E114`).
 
 Only `schema`, `title` and `ingredients` are required; `slug` is derived from the title when
 absent. Omit keys rather than leaving them blank — an absent key is cleaner to
@@ -286,6 +288,7 @@ Rules:
 
 ## Family pages
 
-Generated, not written. For each distinct `family` the app produces a page listing
+Shown as « Variantes » in the interface (`VOCAB.md`, "Families"); the key stays
+`family`. Generated, not written. For each distinct `family` the app produces a page listing
 every variant plus a diff table — the ingredients unique to each variant and the
 differing times. Now exact, because ingredients are structured.

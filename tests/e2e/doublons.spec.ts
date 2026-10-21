@@ -46,12 +46,12 @@ test('pairs on /doublons: compare, "Deux versions", "Même recette" with undo, "
 	await page.getByRole('link', { name: /Retour aux doublons/ }).click();
 
 	// "Deux versions": both in one new family, one commit.
-	await abricots.getByText('Deux versions de la même recette').click();
-	await expect(abricots.getByLabel('Famille', { exact: true })).toHaveValue('abricots-au-four');
-	await abricots.getByLabel('Nom de la version « Abricots au four »').fill('au four');
-	await abricots.getByLabel('Nom de la version « Abricots rôtis de tante Zoé »').fill('de tante Zoé');
-	await abricots.getByRole('button', { name: 'En faire deux versions' }).click();
-	await expect(page.getByTestId('flash')).toContainText('versions de la famille « abricots-au-four »');
+	await abricots.getByText('Deux variantes du même plat').click();
+	await expect(abricots.getByLabel('Groupe de variantes', { exact: true })).toHaveValue('abricots-au-four');
+	await abricots.getByLabel('Ce qui distingue « Abricots au four »').fill('au four');
+	await abricots.getByLabel('Ce qui distingue « Abricots rôtis de tante Zoé »').fill('de tante Zoé');
+	await abricots.getByRole('button', { name: 'En faire deux variantes' }).click();
+	await expect(page.getByTestId('flash')).toContainText('sont maintenant des variantes de « abricots-au-four »');
 	expect(git('log', '-1', '--format=%s|%an')).toBe('edit: Abricots au four; edit: Abricots rôtis de tante Zoé|Proprio Inventé');
 	expect(git('show', '--name-only', '--format=', 'HEAD').split('\n').sort()).toEqual([
 		'recipes/abricots-au-four.md',
@@ -62,7 +62,7 @@ test('pairs on /doublons: compare, "Deux versions", "Même recette" with undo, "
 	// Identical ingredients in one family: still listed (Q16 C), without the offer.
 	const versions = abricots.locator('details').first();
 	if (!(await versions.evaluate((d) => (d as HTMLDetailsElement).open))) await versions.locator('summary').click();
-	await expect(abricots.getByText('Déjà dans la même famille')).toBeVisible();
+	await expect(abricots.getByText('Déjà variantes du même plat')).toBeVisible();
 
 	// "Même recette": the other to the trash, then "Annuler".
 	const avoine = page.locator('li.card[data-pair="barres-a-l-avoine-de-lise barres-avoine"]');

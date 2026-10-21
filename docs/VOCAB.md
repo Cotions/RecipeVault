@@ -118,6 +118,16 @@ quebecois: { fr: Québécois }
 
 ## Families
 
+**In the interface, « Variantes ».** `family` is the data name — the
+frontmatter key, `vocab/families.yaml`, the `/famille/<slug>` and `/familles`
+addresses, the `?famille=` filter — and stays so: existing vaults load
+unchanged. What a person sees calls a family a group of variants: the nav item
+and the pages are « Variantes » (« Lasagnes — 6 variantes »), the form's picker
+is « Variante de », the paste box offers « Regrouper en variantes » (English:
+"Variants", "Variant of"). A recipe's `## Variantes` body section (small
+changes to one recipe, `RECIPE-SCHEMA.md`) is a different thing that shares the
+word.
+
 Families are user-created, so they cannot be a fixed list — but they are exactly
 where drift hurts most (`lasagna` vs `lasagne` vs `lasagnes` splits one family into
 three). Handling:
@@ -143,20 +153,20 @@ family without a label shows its slug with hyphens as spaces and a capital
 (`pate-chinois` → "Pate chinois"). The seed is empty (`{}`); a family exists as
 soon as a recipe names it, label or not.
 
-**Setting a label (P1).** On `/famille/<slug>`, "Changer le nom de la famille"
+**Setting a label (P1).** On `/famille/<slug>`, "Changer le nom du groupe"
 sets the French label; an empty field removes it (and the entry once it holds
 no label). The write goes through the same guarantees as a recipe save
-(`DATA-FLOW.md`, "Family labels"). The paste box's "Mettre en famille" writes
+(`DATA-FLOW.md`, "Family labels"). The paste box's "Regrouper en variantes" writes
 `family`/`variant` into the new recipe and the vault recipe it was offered
 with, in one commit (issue #13); it does not write a label — naming the family
 is a separate, later step on the family page.
 
 **The form (plan 04, Q10 A).** The family picker searches the labels and slugs
-(accents and case folded) and offers "Nouvelle famille « … »" only when no
+(accents and case folded) and offers "Nouveau groupe « … »" only when no
 family is within two edits (W502's distance) and none matches exactly. A new
 family's French label is her words as typed, written to `families.yaml` in the
 recipe's own commit — only when the family has no label yet, never over one.
-W608's "En faire deux versions" sets `family`/`variant` on both recipes in one
+W608's "En faire deux variantes du même plat" sets `family`/`variant` on both recipes in one
 commit. English
 labels (`en`) are kept when present but not edited by the app until there is
 an English UI.

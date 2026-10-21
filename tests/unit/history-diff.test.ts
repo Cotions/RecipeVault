@@ -12,7 +12,7 @@ const diff = (a: string, b: string) => describeChanges(diffVersions(parseVersion
 describe('diffVersions', () => {
 	it('names the fields that changed, never the Markdown', () => {
 		expect(diff(base(), base('servings: 4\noven: { temp: 350, unit: F }\n'))).toEqual(['Modifié : four, portions']);
-		expect(diff(base(), base('family: galettes\nvariant: fines\n'))).toEqual(['Modifié : famille, variante']);
+		expect(diff(base(), base('family: galettes\nvariant: fines\n'))).toEqual(['Modifié : groupe de variantes, variante']);
 	});
 
 	it('ingredients added, removed and changed, by name', () => {
