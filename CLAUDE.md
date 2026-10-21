@@ -1,8 +1,9 @@
 # RecipeVault
 
-Self-hosted family recipe archive. Recipes are Markdown files with YAML
-frontmatter in a private vault folder; this repository holds only the app, docs,
-and invented test fixtures.
+Self-hosted recipe archive: recipes from cards, clippings, books, websites and
+photos, digitized so they are easy to find and read. Recipes are Markdown files
+with YAML frontmatter in a private vault folder; this repository holds only the
+app, docs, and invented test fixtures.
 
 ## Privacy — read before anything else
 

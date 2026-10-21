@@ -33,11 +33,11 @@ test('"Mettre en famille" from the paste box puts both recipes in the family, on
 	await page.goto('/ajouter');
 	await paste(page, fenced('Figues en carrés de Paulette', '', FIGUES));
 	await expect(page.getByTestId('close-recipes')).toContainText('Carrés aux figues de Gisèle');
-	await page.getByLabel('C’est une autre version du même plat : la mettre dans une famille ?').check();
-	await page.getByLabel('Famille', { exact: true }).fill('carres-aux-figues');
-	await page.getByLabel('Version', { exact: true }).fill('de Paulette');
-	await page.getByLabel('Version de « Carrés aux figues de Gisèle »').fill('de Gisèle');
-	await expect(page.getByText('« Carrés aux figues de Gisèle » est mise dans la même famille, dans le même enregistrement.')).toBeVisible();
+	await page.getByLabel('C’est une autre variante du même plat : les regrouper ?').check();
+	await page.getByLabel('Groupe de variantes', { exact: true }).fill('carres-aux-figues');
+	await page.getByLabel('Variante', { exact: true }).fill('de Paulette');
+	await page.getByLabel('Ce qui distingue « Carrés aux figues de Gisèle »').fill('de Gisèle');
+	await expect(page.getByText('« Carrés aux figues de Gisèle » est regroupée avec celle-ci, dans le même enregistrement.')).toBeVisible();
 	await page.getByRole('button', { name: /Enregistrer/ }).click();
 	await expect(page.locator('.toast')).toContainText('Recette enregistrée');
 
@@ -59,9 +59,9 @@ test('"Mettre en famille" refused when the other recipe changed: nothing saved, 
 	await page.goto('/ajouter');
 	await paste(page, fenced('Bouchées gingembre de Rita', '', lines('gingembre confit', 'dattes hachées', 'sirop de riz brun', 'zeste de lime')));
 	await expect(page.getByTestId('close-recipes')).toBeVisible();
-	await page.getByLabel('C’est une autre version du même plat : la mettre dans une famille ?').check();
-	await page.getByLabel('Version', { exact: true }).fill('de Rita');
-	await page.getByLabel('Version de « Bouchées aux dattes et gingembre »').fill('originale');
+	await page.getByLabel('C’est une autre variante du même plat : les regrouper ?').check();
+	await page.getByLabel('Variante', { exact: true }).fill('de Rita');
+	await page.getByLabel('Ce qui distingue « Bouchées aux dattes et gingembre »').fill('originale');
 	// Someone edits the other recipe meanwhile.
 	const head = git('rev-parse', 'HEAD');
 	const path = `${VAULT}/recipes/bouchees-aux-dattes-et-gingembre.md`;

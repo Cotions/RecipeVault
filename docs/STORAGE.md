@@ -296,7 +296,7 @@ mode `0600`:
 
 ```json
 { "users": [
-  { "login": "maman", "name": "Son Nom", "hash": "$argon2id$v=19$m=65536,t=3,p=1$…$…" },
+  { "login": "alex", "name": "Alex", "hash": "$argon2id$v=19$m=65536,t=3,p=1$…$…" },
   { "login": "moi", "name": "Votre Nom", "email": "you@example.com", "markdown": true, "hash": "…" }
 ] }
 ```

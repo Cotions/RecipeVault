@@ -54,7 +54,7 @@ the only judge on save. Several fences in one paste are saved in one commit; fil
 fail stay in the box. A collision (`E103`) is settled inline: "Remplacer" (an
 edit, with the hash guard below) or the suffixed slug. Two files in one paste with the same new slug: the first
 is saved, only the later one waits for that choice. A same title (`W608`)
-offers "Mettre en famille": `family`/`variant` on the new file and on the vault
+offers "Regrouper en variantes": `family`/`variant` on the new file and on the vault
 recipe of the same title, each with its version name, in the same commit
 (`add: <title>; edit: <other title>`), guarded by the other file's hash as the
 check read it — a changed, deleted or broken other recipe, the same version
@@ -231,7 +231,7 @@ deleted), and a path created by a rename goes on under its old name.
   created, `--follow` also looks for a file it could have been *copied* from
   (git turns on `--find-copies-harder` to follow) and, if one is similar
   enough, goes on in that other recipe's history — a variant made from
-  another recipe (the W608 "En faire deux versions" pair) would list the other
+  another recipe (the W608 "En faire deux variantes du même plat" pair) would list the other
   recipe's versions as its own. The index counts a copy as a creation: the
   history of a recipe starts where that recipe began. Renames (the source
   removed in the same commit) are followed as before.
@@ -295,7 +295,7 @@ its actions need a session, and "Doublons (N)" shows in the nav for an account
 with the Markdown tools while N > 0. Each action is one commit by the
 signed-in person, and its message offers "Annuler":
 
-- "Deux versions de la même recette": `family`/`variant` set on both recipes
+- "Deux variantes du même plat": `family`/`variant` set on both recipes
   (and the family's label in `vocab/families.yaml` when it has none), one
   commit `edit: <a>; edit: <b>`, hash-guarded on both files, each result
   checked before anything is written. Undone by the history's undo.
@@ -398,7 +398,7 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
   amount. The recipe page rewrites it as she taps (a navigation that replaces
   the history entry, so the entry Back returns to holds the amount; no load
   reads the address, so nothing is fetched), so a reload, the back button, a
-  bookmark or a link sent to a sibling shows the same amounts; a recipe opened
+  bookmark or a link sent to someone else shows the same amounts; a recipe opened
   fresh shows the card's. Kitchen mode's « Retour » link carries the amount
   cooked there. A value that does not
   read (`1e9`, `0x10`, a sign) or lies outside the file's `factor` cap (×0.1 to
@@ -857,7 +857,7 @@ The form (`/nouvelle`, `/r/<slug>/modifier`) always shows amounts as written:
 what it saves is the card. The amount a tap scales against (plan 05, Q8 B) is
 the written one too.
 
-Sign-in (`/connexion`): login and password; "Rester connectée sur cet appareil",
+Sign-in (`/connexion`): login and password; "Garder la session ouverte sur cet appareil",
 checked by default, gives a cookie of one year renewed on use (at most once a
 day), unchecked a browser-session cookie (a day on the server, renewed on use).
 The same answer, after the same argon2id work, for an unknown login and a wrong

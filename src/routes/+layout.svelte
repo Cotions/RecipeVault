@@ -56,6 +56,7 @@
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<meta name="theme-color" content="#1c2a42" />
+	<meta name="description" content={t.app.description} />
 </svelte:head>
 
 {#if kitchen}

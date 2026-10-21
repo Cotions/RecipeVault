@@ -58,10 +58,10 @@ One per person, created on the server by the owner (nobody signs up in the app):
 
 ```sh
 npx vault user add moi --name "Votre Nom" --email you@example.com --markdown
-npx vault user add maman --name "Son Nom"       # the password is asked twice, never an argument
+npx vault user add alex --name "Alex"            # the password is asked twice, never an argument
 npx vault user list
-npx vault user passwd maman                     # also signs her out on every device
-npx vault user remove maman
+npx vault user passwd alex                      # also signs them out on every device
+npx vault user remove alex
 ```
 
 They go to `users.json` next to the config file (mode 0600; never in the vault,

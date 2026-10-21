@@ -207,7 +207,7 @@ describe('"Deux versions"', () => {
 				label: ''
 			}).catch((x) => x);
 			expect(e).toBeInstanceOf(DuplicateError);
-			expect(e.message).toMatch(/^les deux versions n’ont pas pu être enregistrées ; rien n’a changé/);
+			expect(e.message).toMatch(/^les deux variantes n’ont pas pu être enregistrées ; rien n’a changé/);
 		} finally {
 			rmSync(join(v.dir, '.git/index.lock'), { force: true });
 		}

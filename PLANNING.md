@@ -1,12 +1,13 @@
 # RecipeVault — Planning
 
-Status: P1 (read app), P1.5 (ingredients) and P2 (her write path) built — see
+Status: P1 (read app), P1.5 (ingredients) and P2 (the form write path) built — see
 Phases. Last updated 2026-09-28.
 
 ## Goal
 
-Digitize mother's paper recipe collection (scattered around the house) into a
-durable, searchable, browsable archive. 500 to 5000 recipes.
+Archive and digitize a recipe collection — paper cards, clippings, cookbooks,
+websites, photos — into a durable, self-hosted archive where every recipe is
+easy to find and easy to read. 500 to 5000 recipes.
 
 Input workflow, kept deliberately simple: photograph a paper recipe, give the
 photo to any chat AI (ChatGPT free tier, Claude, anything) along with the prompt
@@ -15,10 +16,11 @@ checks it, saves it, displays it. If the file is not compliant, the app produces
 copy-paste error block to send back to the same chat. **Photos of the old recipes
 never enter the app** — they stay on the user's side.
 
-Two users, different needs:
-- **Mother** (retired, non-technical): browses, cooks from it, and **adds and
-  edits her own recipes**. Never sees markdown.
-- **Me**: bulk input, corrections, maintenance. Happy with raw markdown.
+Two kinds of user, different needs (the docs say "she" and "her form" for the
+first, from when the plan was written around one person):
+- **Main user** (non-technical): browses, cooks from it, and **adds and edits
+  recipes** through a form. Never sees markdown.
+- **Maintainer**: bulk input, corrections, maintenance. Happy with raw markdown.
 
 ## Decisions settled
 
@@ -31,7 +33,7 @@ Two users, different needs:
 | Stack | SvelteKit + better-sqlite3 + FTS5 |
 | Volume | 500–5000 recipes |
 | Language | Mixed French and English |
-| Her access | Full read and write, via a form UI |
+| Main user's access | Full read and write, via a form UI |
 | Ingredient lines | Structured in frontmatter, not prose |
 | Ingredients | First-class objects in `ingredients/<slug>.md` |
 | Cost tracking | Yes — price per ingredient pack, cost computed per recipe |
@@ -39,8 +41,9 @@ Two users, different needs:
 ### Why own build, not Mealie
 
 1. **Variant families.** Core to the vision: "lasagna, all types" — bolognaise,
-   courgette, végétarienne, Mamie's version — grouped, with a view of *what
-   differs*. Mealie has a flat recipe list and tags; tags tell you two recipes
+   courgette, végétarienne, the one from the old card — grouped, with a view of
+   *what differs*. (The data key is `family`; the UI calls a family's page
+   « Variantes ».) Mealie has a flat recipe list and tags; tags tell you two recipes
    share a word, not that they are siblings.
 2. **Data outlives the app.** Plain `.md` files: readable in 20 years, greppable,
    diffable, no server needed to read a recipe. Mealie's truth lives in its
@@ -53,7 +56,7 @@ Given up: meal planner, shopping list, ingredient scaling, URL import — all
 already built in Mealie. Accepted; some are cheap to add later.
 
 Mealie stays a fallback. MD is the truth, so a sync script could push into it if
-its features ever outweigh the loss of the family model.
+its features ever outweigh the loss of the variant (family) model.
 
 ### Why SvelteKit + SQLite
 
@@ -510,7 +513,7 @@ Decision:
   the GitHub copy exists.
 - `cache/` is excluded from the backup; `vault sync` rebuilds it.
 - 3-2-1: the live copy, a local second copy (external disk or NAS), one offsite
-  (cloud bucket, or a disk at a sibling's house).
+  (cloud bucket, or a disk kept at another address).
 - A scheduled restore test. A backup never restored is a hope, not a backup.
 
 **Sub-recipes.** Pâte brisée in forty tartes should not be forty copies. An
@@ -533,12 +536,13 @@ path only when a site lacks the markup. Goes in P1 alongside the paste box.
 
 ### Tier 2 — noted, later
 
-- **Family cookbook export.** Siblings will want a copy. PDF book of a selection:
-  a family, a tag, "Mamie Jeanne's recipes". The print view does most of this.
-- **Cook log and her own notes.** "Made 2026-10-12, too salty, less sel next time."
+- **Cookbook export / PDF of a selection.** A printable book of a selection:
+  a group of variants, a tag, one source or author. The print view does most of
+  this.
+- **Cook log and personal notes.** "Made 2026-10-12, too salty, less sel next time."
   A `log` list in frontmatter: date, rating, note. Gives "last made" and "never
   made" sorts for free.
-- **Duplicate detection by ingredient set.** Titles lie — "Lasagnes de maman" and
+- **Duplicate detection by ingredient set.** Titles lie — "Lasagnes du dimanche" and
   "Lasagnes bolo" can be one recipe. Structured ingredients make Jaccard similarity
   on ingredient sets trivial. Flag pairs above ~0.8. **Built** (plan 05): weighted
   Jaccard (rare ingredients weigh more, the weights from the vault itself),
@@ -559,7 +563,7 @@ path only when a site lacks the markup. Goes in P1 alongside the paste box.
 - **Nutrition.** Needs per-ingredient nutrition data and reliable gram weights for
   every unit. Large effort, and not what this archive is for.
 - **Multi-shop price comparison.** A different app.
-- **Public sharing / social features.** Private family archive.
+- **Public sharing / social features.** A private, self-hosted archive.
 - **Shopping list.** Declined by the owner (2026-09-29): no list built from
   chosen recipes, no whole-pack shopping cost, no aggregation across recipes.
   Consumed cost and pantry search cover what is needed.

@@ -8,10 +8,10 @@ const lastCommit = () => execFileSync('git', ['log', '-1', '--format=%s'], { cwd
 
 async function setLabel(page: import('@playwright/test').Page, label: string) {
 	await page.goto('/famille/lasagna');
-	await page.getByText('Changer le nom de la famille').click();
+	await page.getByText('Changer le nom du groupe').click();
 	await page.getByLabel('Nom affiché').fill(label);
 	await page.getByRole('button', { name: 'Enregistrer le nom' }).click();
-	await expect(page.locator('.flash')).toHaveText('Nom de la famille enregistré.');
+	await expect(page.locator('.flash')).toHaveText('Nom du groupe enregistré.');
 }
 
 test('a family gets a display name, saved to the vault and shown everywhere', async ({ page }) => {

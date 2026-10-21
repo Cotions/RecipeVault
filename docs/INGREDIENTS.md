@@ -373,7 +373,7 @@ rows: ~50 ms to build, ~3–5 ms per search after that.
 
 ## Duplicates — same ingredients, another title
 
-Titles lie: *Lasagnes de maman* and *Lasagnes bolo* can be one card pasted
+Titles lie: *Lasagnes du dimanche* and *Lasagnes bolo* can be one card pasted
 twice. The title checks (`W503`, `W608`) cannot see it; the ingredient set can
 (`PLANNING.md`, Tier 2; plan 05, Phase 5). Code:
 `src/lib/ingredients/similar.ts` (pure), `src/lib/server/index/similar.ts` (the
