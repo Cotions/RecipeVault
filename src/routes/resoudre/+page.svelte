@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import { queueRowId } from '$lib/render/links';
 	import type { PageProps } from './$types';
 
@@ -40,14 +40,14 @@
 				</div>
 				{#if row.forms.length > 1}
 					<p class="forms">
-						{#each row.forms as f, i (f.name)}{i ? ' · ' : ''}« {f.name} » ({f.count}){/each}
+						{#each row.forms as f, i (f.name)}{i ? ' · ' : ''}{t.queue.form(f.name, f.count)}{/each}
 					</p>
 				{/if}
 
 				{#if row.ambiguous}
 					<p class="warn">{t.queue.ambiguous}</p>
 					{#if row.ruleClash.length}
-						<p class="warn" data-rule-clash>{t.queue.ruleClash(row.ruleClash.map((s) => `« ${row.candidates.find((c) => c.slug === s)?.name ?? s} »`).join(' et de '))}</p>
+						<p class="warn" data-rule-clash>{t.queue.ruleClash(row.ruleClash.map((s) => row.candidates.find((c) => c.slug === s)?.name ?? s))}</p>
 					{/if}
 					<h3>{t.queue.owners}</h3>
 					<ul class="cands">

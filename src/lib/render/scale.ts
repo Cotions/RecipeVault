@@ -244,11 +244,15 @@ const plainOf = (exact: number[], unit: Unit | undefined): Scaled => ({ values: 
  * the rules show it (docs/VOCAB.md, "Scaling"): the ladder within the written
  * unit's family, the unit's fractions or metric steps, `≈` beyond `approx`.
  * Factor 1 and no rules give the exact values, flagged `plain`. A missing unit
- * is a bare count.
+ * is a bare count. `always` rounds at factor 1 too: an amount converted to
+ * another measuring system (./system.ts) is no longer the card's; without
+ * rules it shows as a short decimal.
  */
-export function scaleValues(values: number[], unit: Unit | undefined, factor: number, rules: ScalingRules | null | undefined): Scaled {
+export function scaleValues(values: number[], unit: Unit | undefined, factor: number, rules: ScalingRules | null | undefined, always = false): Scaled {
 	const exact = values.map((v) => v * factor);
-	if (factor === 1 || !rules || exact.some((x) => !(x > 0) || !Number.isFinite(x))) return plainOf(exact, unit);
+	if (exact.some((x) => !(x > 0) || !Number.isFinite(x))) return plainOf(exact, unit);
+	if (always && !rules) return { values: exact.map(decimal), unit, approx: false, decimal: true, moved: false, plain: false };
+	if ((factor === 1 && !always) || !rules) return plainOf(exact, unit);
 	const written: Unit = unit ?? 'piece';
 	const chain = chainOf(written, rules);
 	const at = chain.findIndex((c) => c.unit === written);

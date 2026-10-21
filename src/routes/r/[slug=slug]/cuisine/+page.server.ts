@@ -4,7 +4,7 @@ import { getRecipe } from '$lib/server/index/query';
 import { loadSubRecipes, photoView, referencedSlugs } from '$lib/server/pages';
 import { loadConversions, loadNormalize, loadScaling } from '$lib/server/vocab';
 import { titles } from '$lib/server/index/query';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ params }) => {

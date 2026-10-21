@@ -3,7 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import { codeText } from '$lib/i18n/diagnostics';
 	import { formatMoney, formatPack, packDefaults } from '$lib/render/money';
 	import { ingredientHref } from '$lib/render/links';

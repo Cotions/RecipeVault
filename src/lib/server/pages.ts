@@ -2,7 +2,7 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Ingredient, Recipe } from '../vault/types';
+import type { Ingredient, Recipe, Unit } from '../vault/types';
 import type { App } from './app';
 import { familyDiff, getRecipe, titles as titlesOf, usedBy, type RecipeDetail } from './index/query';
 import { currentFile } from './save';
@@ -93,6 +93,8 @@ export interface IngredientLink {
 	item?: string;
 	/** The lookup key, when unresolved or ambiguous: its row in the resolve queue. */
 	key?: string;
+	/** Grams for one of a unit, from the ingredient's entry: a counted amount shows its weight to an account that reads in a measuring system. */
+	weights?: Partial<Record<Unit, number>>;
 }
 
 /** How each line of a recipe resolved, from the index (`ingredients.item`). */
@@ -103,9 +105,19 @@ export function ingredientLinks(app: App, slug: string): Record<number, Ingredie
 		key: string;
 		resolution: string;
 	}[];
+	const entry = app.ctx.db.prepare('SELECT entry_json FROM registry WHERE slug = ?').pluck();
+	const known = new Map<string, IngredientLink['weights']>();
+	const weightsOf = (item: string) => {
+		if (!known.has(item)) {
+			const json = entry.get(item) as string | undefined;
+			const weights = json ? (JSON.parse(json) as { weights?: IngredientLink['weights'] }).weights : undefined;
+			known.set(item, weights && Object.keys(weights).length ? weights : undefined);
+		}
+		return known.get(item);
+	};
 	const out: Record<number, IngredientLink> = {};
 	for (const r of rows) {
-		if (r.item) out[r.position] = { item: r.item };
+		if (r.item) out[r.position] = { item: r.item, ...(weightsOf(r.item) ? { weights: weightsOf(r.item) } : {}) };
 		else if (r.resolution === 'none' || r.resolution === 'ambiguous') out[r.position] = { key: r.key };
 	}
 	return out;

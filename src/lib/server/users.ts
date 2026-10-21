@@ -2,16 +2,19 @@
 // `users.json` lives next to the config file, never inside the vault: the
 // vault is pushed to GitHub and a password hash has no business there.
 //
-//   { "users": [{ "login", "name", "email"?, "markdown"?, "hash" }] }
+//   { "users": [{ "login", "name", "email"?, "markdown"?, "prefs"?, "hash" }] }
 //
 // `hash` is argon2id through node:crypto (Node ≥ 24.7, no dependency), as a
 // PHC string that carries its own parameters, so they can be raised later
 // without invalidating the older hashes. `markdown: true` shows the Markdown
 // tools (paste box, "Voir le fichier", resolve queue) to that person (Q2 B).
+// `prefs` is what that person chose on /compte: language, measuring system,
+// their own unit words (../prefs.ts); absent means the defaults.
 
 import { argon2, createHash, randomBytes, timingSafeEqual, type Argon2Parameters } from 'node:crypto';
 import { chmodSync, existsSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, isAbsolute, basename } from 'node:path';
+import { storedPrefs, type Prefs, type StoredPrefs } from '../prefs';
 import type { GitAuthor } from './config';
 
 export const USERS_FILE = 'users.json';
@@ -22,6 +25,8 @@ export interface User {
 	email?: string;
 	/** Shows the Markdown tools (Q2 B); the server allows every write to every account either way. */
 	markdown?: boolean;
+	/** Language, measuring system, own unit words (../prefs.ts). Read through `parsePrefs`: a hand edit never breaks sign-in. */
+	prefs?: StoredPrefs;
 	/** argon2id PHC string. */
 	hash: string;
 }
@@ -187,6 +192,17 @@ export async function setPassword(file: string, login: string, password: string)
 	const u = users.find((x) => x.login === normalizeLogin(login));
 	if (!u) throw new UsersError(`no account "${login}"`);
 	u.hash = await hashPassword(password);
+	writeUsers(file, users);
+}
+
+/** Store what an account chose on /compte; the defaults store nothing. */
+export function setUserPrefs(file: string, login: string, prefs: Prefs): void {
+	const users = loadUsers(file);
+	const user = users.find((u) => u.login === normalizeLogin(login));
+	if (!user) throw new UsersError(`no account "${login}"`);
+	const stored = storedPrefs(prefs);
+	if (stored) user.prefs = stored;
+	else delete user.prefs;
 	writeUsers(file, users);
 }
 

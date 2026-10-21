@@ -150,6 +150,8 @@ const fs = require('fs');
 const [live, out, vault, port] = process.argv.slice(2);
 const c = JSON.parse(fs.readFileSync(live, 'utf8'));
 Object.assign(c, { vault_directory: vault, port: Number(port), host: '127.0.0.1', git_push: false });
+// Or the live app's Tailscale address would be re-pointed at this instance.
+delete c.tailscale_https_port;
 fs.writeFileSync(out, JSON.stringify(c, null, 2) + '\n');
 JS
 # Accounts live beside the config: a copy, so yours work here and a change made here stays here.

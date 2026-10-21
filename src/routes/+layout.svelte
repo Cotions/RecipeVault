@@ -2,8 +2,10 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
-	import { t, form as tf } from '$lib/i18n/fr';
+	import { t, form as tf } from '$lib/i18n';
 	import Toast from '$lib/components/Toast.svelte';
+	import { setPrefs } from '$lib/prefs';
+	import { setConversions } from '$lib/render/system';
 	import { setUnitWords } from '$lib/render/unitwords';
 
 	let { children, data } = $props();
@@ -13,6 +15,19 @@
 	// svelte-ignore state_referenced_locally
 	setUnitWords(data?.unitWords);
 	$effect.pre(() => setUnitWords(data?.unitWords));
+
+	// What the signed-in person chose (language, measuring system, own unit
+	// words), installed before anything renders. A page already shown does not
+	// follow a change (signing in, saving /compte): it is loaded again.
+	// svelte-ignore state_referenced_locally
+	const shownFor = JSON.stringify(data?.prefs ?? null);
+	// svelte-ignore state_referenced_locally
+	setPrefs(data?.prefs);
+	// svelte-ignore state_referenced_locally
+	setConversions(data?.conversions);
+	$effect(() => {
+		if (JSON.stringify(data?.prefs ?? null) !== shownFor) location.reload();
+	});
 
 	const kitchen = $derived(page.url.pathname.endsWith('/cuisine'));
 	const markdown = $derived(!!data?.user?.markdown);
@@ -45,14 +60,14 @@
 	<header class="site no-print">
 		<div class="bar">
 			<a class="wordmark" href="/">{t.app.name}</a>
-			<nav aria-label="Principale">
+			<nav aria-label={t.app.navLabel}>
 				{#each nav as item (item.href)}
 					<a href={item.href} aria-current={item.match(page.url.pathname) ? 'page' : undefined}>{item.label}</a>
 				{/each}
 			</nav>
 			<div class="account">
 				{#if data?.user}
-					<span class="who" title={t.auth.signedInAs}>{data.user.name}</span>
+					<a class="who" href="/compte" title={t.account.linkTitle} aria-current={page.url.pathname === '/compte' ? 'page' : undefined}>{data.user.name}</a>
 					<form method="POST" action="/connexion?/logout">
 						<button class="linkish" type="submit">{t.auth.signOut}</button>
 					</form>

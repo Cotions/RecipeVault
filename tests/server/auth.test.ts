@@ -22,6 +22,7 @@ import {
 	THROTTLE,
 	type Auth
 } from '../../src/lib/server/auth';
+import { parsePrefs } from '../../src/lib/prefs';
 import { BROWSER_SESSION_MS, PERSISTENT_MS, SessionStore } from '../../src/lib/server/sessions';
 import {
 	addUser,
@@ -32,6 +33,7 @@ import {
 	passwordStamp,
 	removeUser,
 	setPassword,
+	setUserPrefs,
 	UserStore,
 	UsersError,
 	usersPath,
@@ -111,6 +113,32 @@ describe('users.json', () => {
 		expect(store.get('CAMILLE')?.name).toBe('Camille Inventée');
 		removeUser(file, 'camille');
 		expect(store.get('camille')).toBeUndefined();
+	});
+});
+
+describe('account preferences', () => {
+	it('are stored with the account, only what differs from the defaults; the password is untouched', async () => {
+		const file = join(dir, 'users.json');
+		await addUser(file, { login: 'camille', name: 'Camille Inventée', password: 'camille-mot-de-passe' });
+		const hash = loadUsers(file)[0].hash;
+		setUserPrefs(file, 'Camille', parsePrefs({ lang: 'en', system: 'metric', words: { stalk: ['tige', 'tiges'], cup: '' } }));
+		expect(loadUsers(file)[0]).toEqual({ login: 'camille', name: 'Camille Inventée', hash, prefs: { lang: 'en', system: 'metric', words: { stalk: ['tige', 'tiges'] } } });
+		expect(statSync(file).mode & 0o777).toBe(0o600);
+		// Back to French, as written: the language stays, as a choice made.
+		setUserPrefs(file, 'camille', parsePrefs({ lang: 'fr' }));
+		expect(loadUsers(file)[0]).toEqual({ login: 'camille', name: 'Camille Inventée', hash, prefs: { lang: 'fr' } });
+		setUserPrefs(file, 'camille', parsePrefs({}));
+		expect(loadUsers(file)[0]).toEqual({ login: 'camille', name: 'Camille Inventée', hash });
+		expect(() => setUserPrefs(file, 'personne', parsePrefs({}))).toThrow(UsersError);
+	});
+
+	it('a hand edit that makes no sense reads as the defaults, and the account still loads', async () => {
+		const file = join(dir, 'users.json');
+		await addUser(file, { login: 'camille', name: 'Camille Inventée', password: 'camille-mot-de-passe' });
+		const users = loadUsers(file) as unknown as Record<string, unknown>[];
+		users[0].prefs = { lang: 'tlh', system: 7, words: 'non' };
+		writeFileSync(file, JSON.stringify({ users }));
+		expect(parsePrefs(new UserStore(file).get('camille')!.prefs)).toEqual({ lang: 'fr', system: 'written', words: {}, account: false });
 	});
 });
 
@@ -312,6 +340,7 @@ describe('addresses, redirects, the guard', () => {
 	});
 
 	it('reads are open; any other method needs a session; /connexion is the exception', () => {
+		expect(guard('GET', new URL('http://x/compte'), false)).toEqual({ login: '/connexion?suite=%2Fcompte' });
 		const u = (p: string) => new URL(`http://127.0.0.1${p}`);
 		expect(guard('GET', u('/r/tarte'), false)).toBe('pass');
 		expect(guard('GET', u('/resoudre'), false)).toBe('pass');

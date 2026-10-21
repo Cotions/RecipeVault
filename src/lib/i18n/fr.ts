@@ -1,5 +1,6 @@
-// Every UI string, in French (plan 02, decision 5). One module so English can
-// be added later as a sibling file; no i18n library.
+// Every UI string, in French (plan 02, decision 5): the reference, whose shape
+// en.ts must have. Pages import `t` from ./index.ts, which answers in the
+// language of the person being served; no i18n library.
 
 export const fr = {
 	app: {
@@ -15,7 +16,12 @@ export const fr = {
 			pendingTags: (n: number) => `Étiquettes (${n})`,
 			duplicates: (n: number) => `Doublons (${n})`
 		},
-		skip: 'Aller au contenu'
+		skip: 'Aller au contenu',
+		navLabel: 'Principale',
+		close: 'Fermer',
+		/** A name or a word quoted in a sentence, and the two marks alone (around a component). */
+		quote: (s: string) => `« ${s} »`,
+		quotes: ['« ', ' »']
 	},
 	status: {
 		draft: 'Brouillon',
@@ -71,7 +77,8 @@ export const fr = {
 		prev: 'Précédentes',
 		next: 'Suivantes',
 		page: (p: number, n: number) => `Page ${p} sur ${n}`,
-		problems: (n: number) => (n === 1 ? '1 fichier du coffre ne passe pas la validation' : `${n} fichiers du coffre ne passent pas la validation`)
+		problems: (n: number) => (n === 1 ? '1 fichier du coffre ne passe pas la validation' : `${n} fichiers du coffre ne passent pas la validation`),
+		pages: 'Pages'
 	},
 	card: {
 		servings: (a: number, b?: number | null) => (b ? `${a} à ${b} portions` : `${a} portion${a > 1 ? 's' : ''}`),
@@ -96,7 +103,16 @@ export const fr = {
 		labelHelp: (slug: string) =>
 			`Le nom montré partout pour cette famille. Les recettes gardent l’identifiant « ${slug} ». Laissez vide pour revenir au nom tiré de l’identifiant.`,
 		labelSave: 'Enregistrer le nom',
-		labelSaved: 'Nom de la famille enregistré.'
+		labelSaved: 'Nom de la famille enregistré.',
+		/** In the comparison table, for a screen reader. */
+		yes: 'oui',
+		no: 'non',
+		refused: {
+			slug: 'nom de famille invalide.',
+			notNames: (file: string) => `${file} n’est pas une liste de noms ; corrigez-le d’abord.`,
+			changed: 'les noms de familles ont changé depuis l’ouverture de la page ; rechargez-la.',
+			commit: (why: string) => `le nom n’a pas pu être enregistré (git) ; rien n’a changé : ${why}`
+		}
 	},
 	/** Pending tags, /etiquettes (plan 04, Phase 8; Q11 B). */
 	pendingTags: {
@@ -104,7 +120,7 @@ export const fr = {
 		intro: 'Des étiquettes écrites dans des recettes mais absentes du vocabulaire. Elles restent utilisables ; décidez pour chacune : en faire une étiquette, la relier à une étiquette existante, ou la retirer des recettes.',
 		empty: 'Aucune étiquette en attente : toutes les étiquettes des recettes sont dans le vocabulaire.',
 		recipes: (n: number) => (n === 1 ? '1 recette' : `${n} recettes`),
-		written: 'Écrite',
+		written: (forms: string[]) => `Écrite : ${forms.map((f) => `« ${f} »`).join(', ')}`,
 		broken: 'fichier en erreur',
 		suggestion: (label: string) => `Proche de « ${label} »`,
 		accept: 'Nouvelle étiquette',
@@ -122,7 +138,23 @@ export const fr = {
 		dropSave: (n: number) => (n === 1 ? 'Retirer de la recette' : `Retirer des ${n} recettes`),
 		accepted: (label: string) => `« ${label} » est maintenant une étiquette du vocabulaire.`,
 		mapped: (tag: string, label: string) => `« ${tag} » est reliée à « ${label} ».`,
-		dropped: (tag: string, n: number) => `« ${tag} » a été retirée de ${n === 1 ? '1 recette' : `${n} recettes`}.`
+		dropped: (tag: string, n: number) => `« ${tag} » a été retirée de ${n === 1 ? '1 recette' : `${n} recettes`}.`,
+		refused: {
+			notTags: (file: string) => `${file} n’est pas une liste d’étiquettes ; corrigez-le d’abord.`,
+			edit: (file: string) => `${file} n’a pas pu être modifié proprement ; rien n’a changé.`,
+			notPending: 'cette étiquette n’est plus en attente ; rechargez la page.',
+			write: (why: string) => `le vocabulaire n’a pas pu être écrit ; rien n’a changé : ${why}`,
+			commit: (why: string) => `le vocabulaire n’a pas pu être enregistré (git) ; rien n’a changé : ${why}`,
+			changed: 'le vocabulaire a changé depuis l’ouverture de la page ; rechargez-la.',
+			noSlug: 'cette étiquette n’a aucune lettre ou chiffre dont faire un identifiant ; reliez-la à une étiquette existante ou retirez-la.',
+			known: (slug: string) => `« ${slug} » est déjà dans le vocabulaire ; utilisez « C’est comme… ».`,
+			pick: 'choisissez une étiquette du vocabulaire.',
+			moreRecipes: 'd’autres recettes portent cette étiquette depuis l’ouverture de la page ; rechargez-la.',
+			recipeChanged: 'une des recettes a changé depuis l’ouverture de la page ; rechargez-la.',
+			recipeInvalid: (slug: string) => `la recette « ${slug} » ne passe pas la validation ; faites-la corriger d’abord.`,
+			recipesWrite: (why: string) => `les recettes n’ont pas pu être écrites ; rien n’a changé : ${why}`,
+			recipesCommit: (why: string) => `les recettes n’ont pas pu être enregistrées (git) ; rien n’a changé : ${why}`
+		}
 	},
 	duplicates: {
 		title: 'Doublons possibles',
@@ -168,7 +200,21 @@ export const fr = {
 		compareTitle: 'Comparer deux recettes',
 		compareHelp: 'Chaque ligne où elles diffèrent ; le reste est pareil.',
 		compareSame: 'Les deux recettes sont identiques, au titre près.',
-		back: 'Retour aux doublons'
+		back: 'Retour aux doublons',
+		refused: {
+			notPairs: (file: string) => `${file} n’est pas une liste de paires ; corrigez-le d’abord.`,
+			edit: (file: string) => `${file} n’a pas pu être modifié sans rien perdre ; corrigez-le à la main.`,
+			commit: (why: string) => `le choix n’a pas pu être enregistré (git) ; rien n’a changé : ${why}`,
+			pair: 'paire invalide.',
+			changed: 'la liste a changé depuis l’ouverture de la page ; rechargez-la.',
+			family: 'choisissez un nom de famille.',
+			variants: 'nommez chacune des deux versions.',
+			sameVariant: 'donnez deux noms de version différents.',
+			versions: (why: string) => `les deux versions n’ont pas pu être enregistrées ; rien n’a changé : ${why}`,
+			used: (titles: string[]) =>
+				`cette recette sert de sous-recette dans ${titles.map((x) => `« ${x} »`).join(', ')} ; gardez-la plutôt, ou changez d’abord ces recettes.`,
+			trash: 'la recette n’a pas pu être mise à la corbeille ; rien n’a changé.'
+		}
 	},
 	queue: {
 		title: 'Ingrédients à relier',
@@ -177,8 +223,10 @@ export const fr = {
 		count: (n: number, r: number) => `${n} fois dans ${r === 1 ? '1 recette' : `${r} recettes`}`,
 		recipes: 'Voir les recettes',
 		ambiguous: 'Ce nom appartient à plusieurs ingrédients : il reste non relié tant qu’il n’en garde qu’un.',
-		ruleClash: (names: string) =>
-			`Les règles de ${names} valent toutes deux sur certaines lignes. Une règle passe avant un nom : relier ce nom ou créer un ingrédient n’y changerait rien. Retirez le nom (et sa règle) de l’un d’eux, ou rendez leurs conditions distinctes.`,
+		ruleClash: (names: string[]) =>
+			`Les règles de ${names.map((n) => `« ${n} »`).join(' et de ')} valent toutes deux sur certaines lignes. Une règle passe avant un nom : relier ce nom ou créer un ingrédient n’y changerait rien. Retirez le nom (et sa règle) de l’un d’eux, ou rendez leurs conditions distinctes.`,
+		/** A name as written and how many times. */
+		form: (name: string, count: number) => `« ${name} » (${count})`,
 		suggestions: 'Suggestions',
 		none: 'Aucun ingrédient proche.',
 		thisOne: 'C’est ça',
@@ -209,7 +257,22 @@ export const fr = {
 			`Règle ajoutée : « ${form} » va à ${name} ${n === 1 ? 'sur 1 ligne' : `sur ${n} lignes`} qui la remplissent.`,
 		more: (n: number) => `${n} autres noms plus bas dans la liste.`,
 		gone: 'Ce nom est déjà relié au registre : il n’est plus dans la liste.',
-		lang: { fr: 'recettes en français', en: 'recettes en anglais' } as Record<string, string>
+		lang: { fr: 'recettes en français', en: 'recettes en anglais' } as Record<string, string>,
+		refused: {
+			ruleClash: (form: string, names: string[]) =>
+				`« ${form} » reste ambigu : les règles de ${names.join(' et de ')} valent toutes deux sur certaines lignes, et une règle passe avant un nom. Un nouveau nom n’y changerait rien ; retirez ce nom (et sa règle) de l’un d’eux, ou rendez leurs conditions distinctes.`,
+			commit: (why: string) => `l’ingrédient n’a pas pu être enregistré (git) ; rien n’a changé : ${why}`,
+			/** `codes`: the checker's codes, empty when the file does not read at all. */
+			invalid: (codes: string) => `l’ingrédient ne passerait pas la validation (${codes || 'illisible'}).`,
+			slug: 'identifiant d’ingrédient invalide.',
+			changed: (slug: string) => `l’ingrédient ${slug} a changé depuis l’ouverture de la page ; rechargez-la.`,
+			linked: 'ce nom est déjà relié ; rechargez la page.',
+			newSlug: 'identifiant invalide : lettres minuscules sans accents, chiffres et traits d’union.',
+			exists: (slug: string) => `l’ingrédient ${slug} existe déjà ; reliez le nom à celui-ci, ou choisissez un autre identifiant.`,
+			notAName: (slug: string) => `ce nom n’est plus un nom de ${slug} ; rechargez la page.`,
+			noCondition: 'choisissez au moins une condition : une unité, un mot ou la langue.',
+			sameRule: (slug: string) => `${slug} a déjà cette règle.`
+		}
 	},
 	ingredients: {
 		title: 'Ingrédients',
@@ -251,6 +314,18 @@ export const fr = {
 		emptyRegistry: 'Le registre est vide. Les ingrédients se créent depuis la page « À relier ».',
 		problems: (n: number) => (n === 1 ? '1 problème dans prices.csv' : `${n} problèmes dans prices.csv`),
 		line: (n: number) => `Ligne ${n}`,
+		refused: {
+			amount: 'le montant doit être un nombre plus grand que zéro.',
+			packQty: 'le format doit être un nombre plus grand que zéro.',
+			packUnit: 'choisissez l’unité du format.',
+			date: 'la date doit s’écrire AAAA-MM-JJ.',
+			header: (missing: string[]) =>
+				`la première ligne de prices.csv n’est pas un en-tête lisible (il manque ${missing.join(', ')}) ; corrigez-la d’abord. Rien n’a été écrit.`,
+			column: (missing: string[]) => `prices.csv n’a pas de colonne ${missing.join(' ni ')} : ajoutez-la à l’en-tête, ou laissez ce champ vide. Rien n’a été écrit.`,
+			line: 'la ligne ne se relirait pas telle que saisie avec l’en-tête de prices.csv ; vérifiez le fichier. Rien n’a été écrit.',
+			write: (why: string) => `prices.csv n’a pas pu être écrit ; rien n’a changé : ${why}`,
+			commit: (why: string) => `le prix n’a pas pu être enregistré (git) ; rien n’a changé : ${why}`
+		},
 		unit: {
 			g: 'g',
 			kg: 'kg',
@@ -296,11 +371,10 @@ export const fr = {
 		addNameSubmit: 'Ajouter',
 		nameAdded: (name: string) => `Nom « ${name} » ajouté. Les recettes qui l’écrivent sont maintenant reliées.`,
 		rules: 'Selon l’unité ou la préparation',
-		rule: (names: string, cond: string) => `« ${names} » quand ${cond}`,
+		rule: (names: string[], cond: string[]) => `« ${names.join(' », « ')} » quand ${cond.join(' et ')}`,
 		ruleLang: (lang: string) => `dans les recettes en ${lang === 'en' ? 'anglais' : 'français'}`,
-		ruleUnit: (units: string) => `l’unité est ${units}`,
-		ruleWords: (words: string) => `la préparation dit ${words}`,
-		and: ' et ',
+		ruleUnit: (units: string[]) => `l’unité est ${units.join(' ou ')}`,
+		ruleWords: (words: string[]) => `la préparation dit ${words.map((w) => `« ${w} »`).join(' ou ')}`,
 		facts: 'Mesures',
 		defaultUnit: 'Unité de référence',
 		defaultUnitHelp: 'Pour additionner les quantités des recettes et comme unité proposée pour un prix.',
@@ -317,7 +391,8 @@ export const fr = {
 		history: 'Historique des prix',
 		historyCols: { date: 'Date', price: 'Prix', shop: 'Magasin', change: 'Variation' } as Record<string, string>,
 		foreign: (cur: string) => `en ${cur} : affiché, pas compté dans les coûts`,
-		change: (pct: string) => pct,
+		/** `pct`: signed, without the sign of percent (`+12`). */
+		change: (pct: string) => `${pct} %`,
 		same: 'stable',
 		recipes: (n: number) => (n === 0 ? 'Aucune recette ne l’emploie.' : n === 1 ? 'Employé dans 1 recette' : `Employé dans ${n} recettes`),
 		byAmount: (unit: string) => `Triées par quantité employée, en ${unit}. Les quantités qui ne se convertissent pas viennent ensuite.`,
@@ -366,7 +441,24 @@ export const fr = {
 		merged: (from: string, into: string) => `« ${from} » a été fusionné dans ${into}.`,
 		problems: 'Problèmes dans le fichier',
 		broken: 'Le fichier de cet ingrédient ne passe plus la validation. La page montre la dernière version valide.',
-		file: (path: string) => `Fichier : ${path}`
+		file: (path: string) => `Fichier : ${path}`,
+		refused: {
+			noName: 'gardez au moins un nom.',
+			density: 'la densité doit être un nombre plus grand que zéro (grammes par millilitre).',
+			weightUnit: 'choisissez l’unité de chaque poids.',
+			weight: (unit: string) => `le poids d’une unité (${unit}) doit être un nombre de grammes plus grand que zéro.`,
+			substitute: (slugs: string) => `substitut inconnu : ${slugs}.`,
+			allergen: (names: string) => `allergène hors de la liste : ${names}.`,
+			unchanged: 'rien n’a changé.',
+			nameMissing: 'écrivez le nom à ajouter.',
+			lang: 'langue inconnue.',
+			self: 'choisissez un autre ingrédient que celui-ci.',
+			prices: (slug: string, n: number) =>
+				`${slug} a ${n === 1 ? '1 prix' : `${n} prix`} dans prices.csv ; le fichier des prix ne se réécrit pas. Fusionnez à la main ou gardez les deux ingrédients.`,
+			overrides: (slug: string, recipes: string) => `des recettes nomment ${slug} dans « item: » (${recipes}) ; corrigez-les d’abord.`,
+			bought: (slug: string, recipes: string) =>
+				`des recettes achètent ${slug} au lieu de le faire (« recipe: ${slug} » avec « buy_instead: true » : ${recipes}) ; sans l’ingrédient ${slug}, ces lignes perdraient leur prix et leur place au garde-manger. Corrigez-les d’abord.`
+		}
 	},
 	/** Pantry search, /garde-manger (plan 03, Phase 7). */
 	pantry: {
@@ -472,7 +564,21 @@ export const fr = {
 		broken: 'Le fichier de cette recette ne passe plus la validation. La page montre la dernière version valide.',
 		photo: 'Photo du plat',
 		heic: 'Photo HEIC : aperçu indisponible dans le navigateur.',
-		notFound: 'Cette recette n’existe pas ou a été supprimée.'
+		notFound: 'Cette recette n’existe pas ou a été supprimée.',
+		tags: 'Étiquettes',
+		servingsRange: (lo: string, hi: string) => `${lo}\u00a0à\u00a0${hi}`,
+		/** What hovering a marker says ([?], [?: …], [illisible], [+]). */
+		marker: {
+			uncertain: 'Lecture incertaine',
+			'uncertain-alt': 'Lecture incertaine, autre lecture possible :',
+			illegible: 'Illisible sur l’original',
+			added: 'Ajouté à la transcription, absent de l’original'
+		},
+		refused: {
+			change: 'la modification ne passe pas la validation.',
+			markers: 'des marqueurs [?] ou [illisible] restent à régler.',
+			verify: (why: string) => `« Vérifié » n’a pas pu être enregistré ; rien n’a changé : ${why}`
+		}
 	},
 	/** Dish photo upload (plan 04, Phase 6; Q12 A, Q13 A). */
 	photo: {
@@ -484,7 +590,14 @@ export const fr = {
 		removed: 'Photo retirée. Le fichier reste dans le coffre.',
 		tooBig: (mb: number) => `Cette photo dépasse ${mb} Mo. Choisissez-en une plus petite.`,
 		failed: 'La photo n’a pas pu être ajoutée ; rien n’a changé.',
-		offline: 'Pas de connexion : la photo n’a pas été envoyée.'
+		offline: 'Pas de connexion : la photo n’a pas été envoyée.',
+		refused: {
+			none: 'aucune photo reçue.',
+			empty: 'le fichier est vide.',
+			tooBig: (mb: number) => `la photo dépasse ${mb} Mo.`,
+			type: 'ce fichier n’est pas une photo (JPEG, PNG, WebP, AVIF ou HEIC).',
+			unreadable: 'cette photo n’a pas pu être lue ; elle est peut-être abîmée.'
+		}
 	},
 	/** The cost line on the recipe page (plan 03, Phase 5). */
 	cost: {
@@ -553,6 +666,7 @@ export const fr = {
 		outOfRange: (min: string, max: string) => `Entre × ${min} et × ${max}.`,
 		factorShown: (f: string) => `recette × ${f}`,
 		/** Q6 B: the scaled value shown after an amount written in a step. */
+		stepSystemTitle: 'Dans vos mesures ; la carte dit ce qui précède la flèche',
 		stepAmountTitle: (f: string) => `Quantité pour la recette × ${f} ; la carte dit ce qui précède la flèche`,
 		/** Q6: when the factor is not 1, above the method and on the kitchen step. */
 		stepNotice: (f: string) => `Recette × ${f} : les temps, la température du four et la taille du moule restent ceux de la recette de base.`,
@@ -584,6 +698,9 @@ export const fr = {
 		fixBlock: 'Copier la demande de correction',
 		fixCopied: 'Demande copiée. Collez-la dans la conversation avec l’IA.',
 		preview: 'Aperçu',
+		edit: 'Relire et modifier',
+		editHelp: 'Ouvre la recette dans un formulaire, une case par champ, sans toucher au texte.',
+		editBlocked: 'Pour l’ouvrir dans le formulaire, faites d’abord corriger les erreurs par l’IA (« Copier la demande de correction »).',
 		saved: (n: number) => (n === 1 ? 'Recette enregistrée :' : `${n} recettes enregistrées :`),
 		collision: (slug: string) => `Une recette « ${slug} » existe déjà.`,
 		collisionTrash: (slug: string) => `« ${slug} » est dans la corbeille ; ce nom ne sera pas réutilisé.`,
@@ -616,7 +733,21 @@ export const fr = {
 		import: 'Importer',
 		importing: 'Import…',
 		imported: 'Recette importée dans la zone ci-dessous : relisez-la, puis enregistrez.',
-		recipeN: (i: number) => `Recette ${i}`
+		recipeN: (i: number) => `Recette ${i}`,
+		importRefused: {
+			url: 'adresse invalide',
+			scheme: 'seules les adresses http et https sont acceptées',
+			credentials: 'adresse avec identifiants refusée',
+			private: 'adresse locale ou privée refusée',
+			redirects: 'trop de redirections',
+			timeout: 'délai dépassé (10 s)',
+			status: (status: number) => `le site a répondu ${status}`,
+			notHtml: 'la page n’est pas du HTML',
+			tooBig: 'page trop volumineuse (plus de 5 Mo)',
+			read: (why: string) => `lecture impossible : ${why}`,
+			connect: (why: string) => `connexion impossible : ${why}`,
+			noRecipe: 'aucune recette structurée (JSON-LD) sur cette page. Faites une capture de la page et passez par l’IA avec le prompt.'
+		}
 	},
 	diagnostics: {
 		technical: 'Détail technique',
@@ -626,6 +757,7 @@ export const fr = {
 	},
 	/** Sign-in and the nav's account entries (plan 04, Phase 1). */
 	auth: {
+		required: 'Connexion requise.',
 		title: 'Connexion',
 		intro: 'Tout le monde peut lire les recettes. Pour en ajouter, en modifier ou en supprimer, connectez-vous : chaque changement est noté à votre nom.',
 		login: 'Identifiant',
@@ -639,6 +771,34 @@ export const fr = {
 		signedIn: (name: string) => `Session ouverte : ${name}.`,
 		signedInAs: 'Session de',
 		noAccount: 'Pas encore de compte ? Le propriétaire en crée un avec « vault user add ».'
+	},
+	/** /compte: what one account chooses for itself (lib/prefs.ts). */
+	account: {
+		title: 'Mon compte',
+		linkTitle: 'Mon compte : langue et mesures',
+		intro: 'Ces choix sont les vôtres : ils vous suivent sur tous vos appareils. Ils ne changent rien pour les autres, ni aux recettes.',
+		lang: 'Langue',
+		langHelp: 'La langue des menus, des boutons et des messages. Les recettes restent dans la langue où elles sont écrites.',
+		langs: { fr: 'Français', en: 'English' } as Record<string, string>,
+		system: 'Mesures',
+		systemHelp: 'Comment les quantités s’affichent. La recette garde toujours ce qui est écrit sur la carte.',
+		systems: { written: 'Comme sur la recette', metric: 'Métrique', imperial: 'Tasses et cuillères' } as Record<string, string>,
+		systemHints: {
+			written: 'Rien n’est converti.',
+			metric: 'Millilitres et grammes : 1 tasse devient 250 ml, 1 lb devient 454 g.',
+			imperial: 'Tasses, cuillères, livres et onces : 250 ml devient 1 tasse.'
+		} as Record<string, string>,
+		systemNote: 'Ce qui se compte (une gousse, une branche, une boîte) ne se convertit pas. Quand le poids de l’ingrédient est connu, il s’affiche à côté : 2 branches (≈ 80 g).',
+		words: 'Vos mots pour les unités',
+		wordsHelp: 'Un mot ne vous dit rien ? Écrivez le vôtre : il remplace le mot habituel, pour vous seulement. Laissez vide pour garder le mot habituel.',
+		unit: 'Mot habituel',
+		one: 'Votre mot',
+		many: 'Au pluriel',
+		oneFor: (word: string) => `Votre mot pour « ${word} »`,
+		manyFor: (word: string) => `Votre mot au pluriel pour « ${word} »`,
+		save: 'Enregistrer',
+		saved: 'C’est enregistré.',
+		failed: 'Les choix n’ont pas pu être enregistrés. Réessayez.'
 	},
 	/** Undo and the per-recipe history (plan 04, Phase 7; Q16 A). */
 	history: {
@@ -712,7 +872,10 @@ export const fr = {
 			verified: 'Marquée vérifiée',
 			unverified: 'N’est plus marquée vérifiée',
 			markersConfirmed: (n: number) => (n > 1 ? `${n} lectures incertaines réglées` : 'Une lecture incertaine réglée'),
-			markersAdded: (n: number) => (n > 1 ? `${n} lectures incertaines ajoutées` : 'Une lecture incertaine ajoutée')
+			markersAdded: (n: number) => (n > 1 ? `${n} lectures incertaines ajoutées` : 'Une lecture incertaine ajoutée'),
+			/** Names in a line, and what sits between two changes of one line. */
+			list: (names: string[]) => names.map((x) => `« ${x} »`).join(', '),
+			join: ' ; '
 		}
 	},
 	trash: {
@@ -722,12 +885,31 @@ export const fr = {
 		deleted: 'supprimée le',
 		restore: 'Restaurer',
 		taken: 'Nom repris par une autre recette',
-		restored: 'Recette restaurée.'
+		restored: 'Recette restaurée.',
+		refused: {
+			exists: (path: string) => `${path} existe déjà`,
+			remove: (why: string) => `la suppression n’a pas pu être enregistrée (git) ; rien n’a changé : ${why}`,
+			notHere: (slug: string) => `${slug} n’est pas dans la corbeille`,
+			taken: (slug: string) => `le nom ${slug} est déjà repris par une autre recette`,
+			restore: (why: string) => `la restauration n’a pas pu être enregistrée (git) ; rien n’a changé : ${why}`
+		}
 	},
 	error: {
 		notFound: 'Page introuvable.',
 		generic: 'Une erreur est survenue.',
-		home: 'Retour aux recettes'
+		home: 'Retour aux recettes',
+		/** Refusals several pages share, shown in the page's message line. */
+		recipeGone: 'cette recette n’existe plus.',
+		fileChanged: 'le fichier a changé depuis l’ouverture de la page ; rechargez-la.',
+		fileInvalid: 'le fichier ne passe pas la validation.',
+		yaml: (file: string) => `${file} ne se lit pas (YAML) ; corrigez-le d’abord.`,
+		unreadable: (file: string, why: string) => `${file} ne se lit pas ; corrigez-le d’abord (${why}).`,
+		write: (why: string) => `le fichier n’a pas pu être écrit ; rien n’a changé : ${why}`,
+		labelTooLong: (max: number) => `le nom est trop long (${max} caractères au plus).`,
+		category: 'choisissez une catégorie.',
+		unit: (units: string) => `unité inconnue : ${units}.`,
+		noIngredient: (slug: string) => `l’ingrédient ${slug} n’existe pas.`,
+		nameTaken: (name: string, slug: string) => `« ${name} » est déjà un nom de ${slug}.`
 	},
 	/** The recipe form (plan 04, Phases 4–5): `/nouvelle`, `/r/<slug>/modifier`. */
 	form: {
@@ -737,6 +919,10 @@ export const fr = {
 		edit: 'Modifier',
 		required: 'obligatoire',
 		cancel: 'Quitter sans enregistrer',
+		/** A pasted recipe opened from the paste box ("Relire et modifier"). */
+		pasteTitle: 'Relire la recette',
+		pasteLead: 'Tout est rempli d’après le texte collé. Corrigez ce qu’il faut, case par case, puis touchez « Enregistrer ».',
+		backToPaste: 'Revenir aux recettes collées',
 		save: 'Enregistrer',
 		saving: 'Enregistrement…',
 		toComplete: 'Pour enregistrer :',
@@ -938,6 +1124,7 @@ export const fr = {
 		draftResume: 'Reprendre le brouillon',
 		draftDiscard: 'Repartir de la recette',
 		draftDiscardNew: 'Repartir de zéro',
+		draftDiscardPaste: 'Repartir du texte collé',
 
 		saved: 'Recette enregistrée.',
 		unchanged: 'Rien n’a changé : il n’y avait rien à enregistrer.',
@@ -974,14 +1161,19 @@ export const fr = {
 			variants: 'Variantes',
 			alternatives: 'Remplacements',
 			photo: 'Photo'
+		},
+		/** The words inside a compared line. */
+		compared: {
+			range: (a: string, b: string) => `${a} à ${b}`,
+			toTaste: 'au goût',
+			optional: 'facultatif',
+			time: { prep: 'prép.', cook: 'cuisson', rest: 'repos', total: 'total' },
+			page: (p: string) => `p. ${p}`
 		}
 	}
 };
 
 export type Strings = typeof fr;
-export const t = fr;
-/** The form's strings (`t.form`), imported as `f` by the form's components. */
-export const form = fr.form;
 
 /**
  * A tag's display name: its label from vocab/tag-labels.yaml, else the tag

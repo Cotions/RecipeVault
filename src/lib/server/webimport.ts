@@ -20,6 +20,7 @@ import { slugify } from '../vault/slug';
 import type { Ingredient, Lang, Quantity, Recipe, Unit } from '../vault/types';
 import { EXTRACTED_BY, UNIT_ALIASES, findQtyUnit, unitForAlias } from '../vault/vocab';
 import { UNITS } from '../vault/types';
+import { t } from '../i18n';
 import { canonicalTag, type VaultVocab } from './vocab';
 
 export class ImportError extends Error {}
@@ -125,13 +126,13 @@ export function checkUrl(raw: string): URL {
 	try {
 		url = new URL(raw.trim());
 	} catch {
-		throw new ImportError('adresse invalide');
+		throw new ImportError(t.add.importRefused.url);
 	}
-	if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ImportError('seules les adresses http et https sont acceptées');
-	if (url.username || url.password) throw new ImportError('adresse avec identifiants refusée');
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ImportError(t.add.importRefused.scheme);
+	if (url.username || url.password) throw new ImportError(t.add.importRefused.credentials);
 	const host = url.hostname.replace(/^\[|\]$/g, '');
-	if (isIP(host) && isBlockedAddress(host)) throw new ImportError('adresse locale ou privée refusée');
-	if (/^localhost$|\.localhost$|\.local$|\.internal$/i.test(host)) throw new ImportError('adresse locale ou privée refusée');
+	if (isIP(host) && isBlockedAddress(host)) throw new ImportError(t.add.importRefused.private);
+	if (/^localhost$|\.localhost$|\.local$|\.internal$/i.test(host)) throw new ImportError(t.add.importRefused.private);
 	return url;
 }
 
@@ -157,7 +158,7 @@ export async function fetchPage(raw: string, opts: FetchOptions = {}): Promise<{
 		}
 		return { url: url.href, html: res.body! };
 	}
-	throw new ImportError('trop de redirections');
+	throw new ImportError(t.add.importRefused.redirects);
 }
 
 /**
@@ -170,7 +171,7 @@ function request(url: URL, deadline: number, maxBytes: number, allowPrivate: boo
 	return new Promise((resolve, reject) => {
 		let stream: Readable | undefined;
 		const timer = setTimeout(() => {
-			const e = new ImportError('délai dépassé (10 s)');
+			const e = new ImportError(t.add.importRefused.timeout);
 			stream?.destroy();
 			req.destroy(e);
 			reject(e);
@@ -203,16 +204,16 @@ function request(url: URL, deadline: number, maxBytes: number, allowPrivate: boo
 				}
 				if (status < 200 || status >= 300) {
 					res.resume();
-					return reject(new ImportError(`le site a répondu ${status}`));
+					return reject(new ImportError(t.add.importRefused.status(status)));
 				}
 				const type = String(res.headers['content-type'] ?? '');
 				if (type && !/html|xml/i.test(type)) {
 					res.resume();
-					return reject(new ImportError('la page n’est pas du HTML'));
+					return reject(new ImportError(t.add.importRefused.notHtml));
 				}
 				if (Number(res.headers['content-length'] ?? 0) > maxBytes) {
 					res.destroy();
-					return reject(new ImportError('page trop volumineuse (plus de 5 Mo)'));
+					return reject(new ImportError(t.add.importRefused.tooBig));
 				}
 				const enc = String(res.headers['content-encoding'] ?? '').toLowerCase();
 				let body: Readable = res;
@@ -227,18 +228,18 @@ function request(url: URL, deadline: number, maxBytes: number, allowPrivate: boo
 					if (size > maxBytes) {
 						req.destroy();
 						body.destroy();
-						reject(new ImportError('page trop volumineuse (plus de 5 Mo)'));
+						reject(new ImportError(t.add.importRefused.tooBig));
 						return;
 					}
 					chunks.push(c);
 				});
 				body.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf8') }));
-				body.on('error', (e) => reject(new ImportError(`lecture impossible : ${e.message}`)));
+				body.on('error', (e) => reject(new ImportError(t.add.importRefused.read(e.message))));
 			}
 		);
-		req.on('timeout', () => req.destroy(new ImportError('délai dépassé (10 s)')));
+		req.on('timeout', () => req.destroy(new ImportError(t.add.importRefused.timeout)));
 		req.on('error', (e: NodeJS.ErrnoException) =>
-			reject(e instanceof ImportError ? e : new ImportError(e.code === 'EBLOCKED' ? 'adresse locale ou privée refusée' : `connexion impossible : ${e.message}`))
+			reject(e instanceof ImportError ? e : new ImportError(e.code === 'EBLOCKED' ? t.add.importRefused.private : t.add.importRefused.connect(e.message)))
 		);
 		req.end();
 	});
@@ -616,7 +617,7 @@ export async function importUrl(raw: string, vocab: VaultVocab, opts: FetchOptio
 	const { url, html } = await fetchPage(raw, opts);
 	const recipes = findRecipes(html);
 	if (!recipes.length)
-		throw new ImportError('aucune recette structurée (JSON-LD) sur cette page. Faites une capture de la page et passez par l’IA avec le prompt.');
+		throw new ImportError(t.add.importRefused.noRecipe);
 	const lang = openTags(html, 'html').next().value?.attrs.match(/\blang=["']?([a-zA-Z-]+)/i)?.[1];
 	return recipeFromJsonLd(recipes[0], url, lang, vocab);
 }

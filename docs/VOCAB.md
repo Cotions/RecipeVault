@@ -463,6 +463,40 @@ volume on purpose: a pinch of salt and one of saffron are priced only through
 the ingredient's `weights`. Mass to volume always needs the ingredient's
 `density`; it is never taken from this file.
 
+## Measuring systems
+
+An account may read amounts in a measuring system (`DATA-FLOW.md`, "Account
+preferences"). Only the page changes; the file keeps the card's amount.
+
+- **As written** (default): nothing is converted.
+- **Metric**: `cup`, `tbsp`, `tsp`, `qt`, `pint` show in `ml`; `lb`, `oz` in
+  `g`. `ml`, `cl`, `l`, `g`, `kg` stay as written.
+- **Imperial** ("cups and spoons"): `ml`, `cl`, `l` show in the largest of
+  `cup` (from a quarter cup), `tbsp` (from one) and `tsp`; `g`, `kg` in `lb`
+  (from one pound) or `oz`. `cup`, `tbsp`, `tsp`, `qt`, `pint`, `lb`, `oz` stay
+  as written.
+
+The factors are the Conversions above, the same the cost uses (a cup is
+250 ml), so a vault that changes them changes both. A converted amount is then
+rounded exactly as a scaled one is (Scaling, below): metric steps, the unit's
+fractions, the ladder (`1000 ml` → `1 L`, `3 c. à thé` → `1 c. à table`), `≈`
+beyond 2 %. Without `scaling.yaml` it shows as a short decimal. Conversion and
+scaling compose: the written amount is converted, multiplied, then rounded once.
+
+What is never converted: a unit with no factor (`pinch`, `drop`), and every
+counted or container unit (`piece`, `clove`, `stalk`, `can`…) — a stalk has no
+volume. When the line's ingredient is linked to an entry whose `weights` gives
+the grams of one such unit, the weight shows beside the amount, always marked:
+`2 branches (≈ 80 g)`, in ounces or pounds for imperial. Nothing is guessed
+without that entry, and mass is never turned into volume (no `density` here: a
+cook who reads metric still measures flour by the cup the card gives, in ml).
+
+A card that gives both measures (`1 tasse (250 ml)`) shows first the one in
+the account's system, the other in parentheses, as written.
+
+Amounts written inside a step's text get the converted amount beside them, the
+way a scaled recipe shows them (plan 05, Q6 B): the original always stays.
+
 ## Scaling
 
 The seed of `vocab/scaling.yaml` (plan 05, Q2–Q4, Q8): how a recipe read at

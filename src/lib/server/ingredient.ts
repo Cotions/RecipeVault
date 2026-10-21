@@ -12,6 +12,7 @@ import { CATEGORIES, displayName, NAME_LANGS, type Category, type RegistryEntry 
 import { measure, noteSize, packsOf, type Conversions } from '../ingredients/units';
 import { SLUG_RE } from '../vault/slug';
 import { UNITS, type Lang, type Recipe, type Unit } from '../vault/types';
+import { t } from '../i18n';
 import type { VaultContext } from './context';
 import type { FileWrite } from './files';
 import type { DB } from './index/db';
@@ -239,7 +240,7 @@ export const formNumber = (s: string) => {
 };
 
 function editError(slug: string, e: unknown): never {
-	if (e instanceof IngredientEditError) throw new IngredientError(`${ingredientPath(slug)} ne se lit pas ; corrigez-le d’abord (${e.message}).`);
+	if (e instanceof IngredientEditError) throw new IngredientError(t.error.unreadable(ingredientPath(slug), e.message));
 	throw e;
 }
 
@@ -253,29 +254,29 @@ export function editEntry(ctx: VaultContext, slug: string, hash: string, input: 
 	return ctx.lock.run(async () => {
 		const vocab = loadVocab(ctx.paths.vocab);
 		const file = current(ctx, slug, hash);
-		if (!(CATEGORIES as readonly string[]).includes(input.category)) throw new IngredientError('choisissez une catégorie.');
-		if (input.defaultUnit && !(UNITS as readonly string[]).includes(input.defaultUnit)) throw new IngredientError(`unité inconnue : ${input.defaultUnit}.`);
+		if (!(CATEGORIES as readonly string[]).includes(input.category)) throw new IngredientError(t.error.category);
+		if (input.defaultUnit && !(UNITS as readonly string[]).includes(input.defaultUnit)) throw new IngredientError(t.error.unit(input.defaultUnit));
 		const names = Object.fromEntries(NAME_LANGS.map((l) => [l, [...new Set(input.names[l].map((n) => n.replace(/\s+/g, ' ').trim()).filter(Boolean))]])) as Record<Lang, string[]>;
-		if (!names.fr.length && !names.en.length) throw new IngredientError('gardez au moins un nom.');
+		if (!names.fr.length && !names.en.length) throw new IngredientError(t.ingredient.refused.noName);
 		let density: number | null = null;
 		if (input.density.trim()) {
 			density = formNumber(input.density);
-			if (!(density > 0)) throw new IngredientError('la densité doit être un nombre plus grand que zéro (grammes par millilitre).');
+			if (!(density > 0)) throw new IngredientError(t.ingredient.refused.density);
 		}
 		const weights: Partial<Record<Unit, number>> = {};
 		for (const w of input.weights) {
 			if (!w.unit && !w.grams.trim()) continue;
-			if (!(UNITS as readonly string[]).includes(w.unit)) throw new IngredientError('choisissez l’unité de chaque poids.');
+			if (!(UNITS as readonly string[]).includes(w.unit)) throw new IngredientError(t.ingredient.refused.weightUnit);
 			const g = formNumber(w.grams);
-			if (!(g > 0)) throw new IngredientError(`le poids d’une unité (${w.unit}) doit être un nombre de grammes plus grand que zéro.`);
+			if (!(g > 0)) throw new IngredientError(t.ingredient.refused.weight(w.unit));
 			weights[w.unit as Unit] = g;
 		}
 		const substitutes = [...new Set(input.substitutes.map((s) => s.trim()).filter(Boolean))];
 		const bad = substitutes.filter((s) => !SLUG_RE.test(s) || s === slug || !ctx.db.prepare('SELECT 1 FROM registry WHERE slug = ?').get(s));
-		if (bad.length) throw new IngredientError(`substitut inconnu : ${bad.join(', ')}.`);
+		if (bad.length) throw new IngredientError(t.ingredient.refused.substitute(bad.join(', ')));
 		const allergens = [...new Set(input.allergens)];
 		const unknown = vocab.allergens.size ? allergens.filter((a) => !vocab.allergens.has(a)) : [];
-		if (unknown.length) throw new IngredientError(`allergène hors de la liste : ${unknown.join(', ')}.`);
+		if (unknown.length) throw new IngredientError(t.ingredient.refused.allergen(unknown.join(', ')));
 		const patch: EntryPatch = {
 			names,
 			category: input.category as Category,
@@ -293,7 +294,7 @@ export function editEntry(ctx: VaultContext, slug: string, hash: string, input: 
 		} catch (e) {
 			editError(slug, e);
 		}
-		if (text === file.text) throw new IngredientError('rien n’a changé.');
+		if (text === file.text) throw new IngredientError(t.ingredient.refused.unchanged);
 		checked(text, slug, vocab);
 		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: edit ${slug}`) };
 	});
@@ -304,8 +305,8 @@ export function addAlias(ctx: VaultContext, slug: string, hash: string, lang: La
 	return ctx.lock.run(async () => {
 		const vocab = loadVocab(ctx.paths.vocab);
 		const form = name.replace(/\s+/g, ' ').trim();
-		if (!form) throw new IngredientError('écrivez le nom à ajouter.');
-		if (!(NAME_LANGS as readonly string[]).includes(lang)) throw new IngredientError('langue inconnue.');
+		if (!form) throw new IngredientError(t.ingredient.refused.nameMissing);
+		if (!(NAME_LANGS as readonly string[]).includes(lang)) throw new IngredientError(t.ingredient.refused.lang);
 		const file = current(ctx, slug, hash);
 		let text: string;
 		try {
@@ -313,7 +314,7 @@ export function addAlias(ctx: VaultContext, slug: string, hash: string, lang: La
 		} catch (e) {
 			editError(slug, e);
 		}
-		if (text === file.text) throw new IngredientError(`« ${form} » est déjà un nom de ${slug}.`);
+		if (text === file.text) throw new IngredientError(t.error.nameTaken(form, slug));
 		checked(text, slug, vocab);
 		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} + "${form}"`) };
 	});
@@ -332,25 +333,19 @@ export function addAlias(ctx: VaultContext, slug: string, hash: string, lang: La
 export function mergeEntry(ctx: VaultContext, from: string, into: string, fromHash: string, intoHash?: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
 		const vocab = loadVocab(ctx.paths.vocab);
-		if (from === into) throw new IngredientError('choisissez un autre ingrédient que celui-ci.');
+		if (from === into) throw new IngredientError(t.ingredient.refused.self);
 		const a = current(ctx, from, fromHash);
 		const b = current(ctx, into, intoHash);
 		const prices = ctx.db.prepare('SELECT count(*) FROM prices WHERE ingredient = ?').pluck().get(from) as number;
-		if (prices)
-			throw new IngredientError(
-				`${from} a ${prices === 1 ? '1 prix' : `${prices} prix`} dans prices.csv ; le fichier des prix ne se réécrit pas. Fusionnez à la main ou gardez les deux ingrédients.`
-			);
+		if (prices) throw new IngredientError(t.ingredient.refused.prices(from, prices));
 		const overrides = ctx.db
 			.prepare(`SELECT slug FROM ingredients WHERE resolution = 'override' AND item = ? UNION SELECT slug FROM ingredient_or WHERE resolution = 'override' AND item = ? ORDER BY 1`)
 			.pluck()
 			.all(from, from) as string[];
-		if (overrides.length) throw new IngredientError(`des recettes nomment ${from} dans « item: » (${overrides.join(', ')}) ; corrigez-les d’abord.`);
+		if (overrides.length) throw new IngredientError(t.ingredient.refused.overrides(from, overrides.join(', ')));
 		// A sub-recipe line bought instead counts through the entry of its slug (cost, pantry).
 		const bought = ctx.db.prepare('SELECT DISTINCT slug FROM ingredients WHERE recipe = ? AND buy_instead = 1 ORDER BY 1').pluck().all(from) as string[];
-		if (bought.length)
-			throw new IngredientError(
-				`des recettes achètent ${from} au lieu de le faire (« recipe: ${from} » avec « buy_instead: true » : ${bought.join(', ')}) ; sans l’ingrédient ${from}, ces lignes perdraient leur prix et leur place au garde-manger. Corrigez-les d’abord.`
-			);
+		if (bought.length) throw new IngredientError(t.ingredient.refused.bought(from, bought.join(', ')));
 		const absorbed = checked(a.text, from, vocab);
 		const target = checked(b.text, into, vocab);
 

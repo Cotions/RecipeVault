@@ -35,6 +35,17 @@ describe('config', () => {
 		expect(load().port).toBe(3370);
 	});
 
+	it('reads tailscale_https_port, and refuses one that is not a port or is the app\'s own', () => {
+		write('repo/config.json', { vault_directory: vault });
+		expect(load().tailscaleHttpsPort).toBeUndefined();
+		write('repo/config.json', { vault_directory: vault, tailscale_https_port: 8443 });
+		expect(load().tailscaleHttpsPort).toBe(8443);
+		write('repo/config.json', { vault_directory: vault, tailscale_https_port: '8443' });
+		expect(() => load()).toThrow(/tailscale_https_port" must be a port/);
+		write('repo/config.json', { vault_directory: vault, port: 3370, tailscale_https_port: 3370 });
+		expect(() => load()).toThrow(/must differ from the app's port/);
+	});
+
 	it('refuses a missing config, a missing or non-existent vault_directory, a folder that is not a vault', () => {
 		expect(() => load()).toThrow(ConfigError);
 		write('repo/config.json', {});

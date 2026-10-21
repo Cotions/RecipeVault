@@ -3,7 +3,7 @@
 
 import type { Block, Draft, FormRecipe, Mark } from '../../form';
 import { sameForm } from '../../form/draft';
-import { form as f } from '../../i18n/fr';
+import { form as f } from '../../i18n';
 import { explain } from '../../i18n/diagnostics';
 
 /**

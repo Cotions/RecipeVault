@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t, familyLabel } from '$lib/i18n/fr';
+	import { t, familyLabel } from '$lib/i18n';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();

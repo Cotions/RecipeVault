@@ -20,6 +20,7 @@ import { stripMarkers } from '../vault/markers';
 import { normTitle } from '../vault/rules/batch';
 import { withinDistance } from '../vault/normalize';
 import type { Diagnostic, Recipe } from '../vault/types';
+import { t } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { cleanLabel, FAMILIES_FILE, familiesFile, FamilyLabelError, LABEL_MAX, withLabel } from './families';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
@@ -320,12 +321,12 @@ const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** The file as it will be written, checked: it must read back as exactly `pairs`. */
 function distinctText(cur: string, pairs: [string, string][]): string {
 	const { problem } = readDistinct(cur);
-	if (problem === 'yaml') throw new DuplicateError(`${DISTINCT_FILE} ne se lit pas (YAML) ; corrigez-le d’abord.`);
-	if (problem === 'not-a-list') throw new DuplicateError(`${DISTINCT_FILE} n’est pas une liste de paires ; corrigez-le d’abord.`);
+	if (problem === 'yaml') throw new DuplicateError(t.error.yaml(DISTINCT_FILE));
+	if (problem === 'not-a-list') throw new DuplicateError(t.duplicates.refused.notPairs(DISTINCT_FILE));
 	const next = withPairs(cur, pairs);
 	const back = parseDistinct(next).map(([a, b]) => pairKey(a, b));
 	const want = new Set(pairs.map(([a, b]) => pairKey(a, b)));
-	if (back.length !== want.size || back.some((k) => !want.has(k))) throw new DuplicateError(`${DISTINCT_FILE} n’a pas pu être modifié sans rien perdre ; corrigez-le à la main.`);
+	if (back.length !== want.size || back.some((k) => !want.has(k))) throw new DuplicateError(t.duplicates.refused.edit(DISTINCT_FILE));
 	return next;
 }
 
@@ -336,7 +337,7 @@ async function commitDistinct(ctx: VaultContext, text: string, message: string):
 	} catch (e) {
 		if (!(e instanceof FileWriteError)) throw e;
 		throw new DuplicateError(
-			e.stage === 'write' ? `le fichier n’a pas pu être écrit ; rien n’a changé : ${e.message}` : `le choix n’a pas pu être enregistré (git) ; rien n’a changé : ${e.message}`
+			e.stage === 'write' ? t.error.write(e.message) : t.duplicates.refused.commit(e.message)
 		);
 	}
 	committed(ctx);
@@ -350,10 +351,10 @@ async function commitDistinct(ctx: VaultContext, text: string, message: string):
  */
 export function dismissPair(ctx: VaultContext, x: string, y: string, expectedHash: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
-		if (!SLUG_RE.test(x) || !SLUG_RE.test(y) || x === y) throw new DuplicateError('paire invalide.');
+		if (!SLUG_RE.test(x) || !SLUG_RE.test(y) || x === y) throw new DuplicateError(t.duplicates.refused.pair);
 		const [a, b] = x < y ? [x, y] : [y, x];
 		const cur = readVaultFile(ctx, DISTINCT_FILE);
-		if (cur.hash !== expectedHash) throw new DuplicateError('la liste a changé depuis l’ouverture de la page ; rechargez-la.');
+		if (cur.hash !== expectedHash) throw new DuplicateError(t.duplicates.refused.changed);
 		const pairs = parseDistinct(cur.text);
 		if (pairs.some((p) => p[0] === a && p[1] === b)) return {};
 		const text = distinctText(cur.text, [...pairs, [a, b]]);
@@ -393,16 +394,16 @@ export interface VersionsRequest {
 export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { today?: string } = {}): Promise<{ commit?: string; family: string; edited: string[] }> {
 	return ctx.lock.run(async () => {
 		const family = slugify(req.family);
-		if (!family || !SLUG_RE.test(family)) throw new DuplicateError('choisissez un nom de famille.');
+		if (!family || !SLUG_RE.test(family)) throw new DuplicateError(t.duplicates.refused.family);
 		// Written as she typed it, markers kept (`de matante [?: Rita]`); compared as read.
 		const [va, vb] = [req.a.variant.trim(), req.b.variant.trim()];
 		const [ra, rb] = [stripMarkers(va).trim(), stripMarkers(vb).trim()];
-		if (!ra || !rb) throw new DuplicateError('nommez chacune des deux versions.');
-		if (ra === rb) throw new DuplicateError('donnez deux noms de version différents.');
-		if (req.a.slug === req.b.slug) throw new DuplicateError('paire invalide.');
+		if (!ra || !rb) throw new DuplicateError(t.duplicates.refused.variants);
+		if (ra === rb) throw new DuplicateError(t.duplicates.refused.sameVariant);
+		if (req.a.slug === req.b.slug) throw new DuplicateError(t.duplicates.refused.pair);
 		const files: FileWrite[] = [];
 		const label = cleanLabel(req.label ?? '');
-		if (label.length > LABEL_MAX) throw new DuplicateError(`le nom est trop long (${LABEL_MAX} caractères au plus).`);
+		if (label.length > LABEL_MAX) throw new DuplicateError(t.error.labelTooLong(LABEL_MAX));
 		if (label && !loadVocab(ctx.paths.vocab).families.get(family)?.fr) {
 			try {
 				const fam = familiesFile(ctx);
@@ -432,7 +433,7 @@ export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { to
 		} catch (e) {
 			if (e instanceof EditError) throw new DuplicateError(e.message);
 			// A failed write or commit: the save path's English reason, after her sentence (as the other refusals).
-			if (e instanceof SaveError) throw new DuplicateError(`les deux versions n’ont pas pu être enregistrées ; rien n’a changé : ${e.message}`);
+			if (e instanceof SaveError) throw new DuplicateError(t.duplicates.refused.versions(e.message));
 			throw e;
 		}
 	});
@@ -447,14 +448,11 @@ export function pairVersions(ctx: VaultContext, req: VersionsRequest, opts: { to
  */
 export async function sameRecipe(ctx: VaultContext, drop: string, hash: string): Promise<{ commit?: string }> {
 	const users = usedBy(ctx.db, drop).filter((u) => u.slug !== drop);
-	if (users.length)
-		throw new DuplicateError(
-			`cette recette sert de sous-recette dans ${users.map((u) => `« ${stripMarkers(u.title)} »`).join(', ')} ; gardez-la plutôt, ou changez d’abord ces recettes.`
-		);
+	if (users.length) throw new DuplicateError(t.duplicates.refused.used(users.map((u) => stripMarkers(u.title))));
 	try {
 		return await remove(ctx, drop, hash);
 	} catch (e) {
-		if (e instanceof TrashError) throw new DuplicateError(e.reason === 'stale' ? e.message : e.reason === 'gone' ? 'cette recette n’existe plus.' : 'la recette n’a pas pu être mise à la corbeille ; rien n’a changé.');
+		if (e instanceof TrashError) throw new DuplicateError(e.reason === 'stale' ? e.message : e.reason === 'gone' ? t.error.recipeGone : t.duplicates.refused.trash);
 		throw e;
 	}
 }

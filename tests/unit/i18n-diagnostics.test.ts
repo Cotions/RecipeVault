@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { codeText, explain, placeOf } from '../../src/lib/i18n/diagnostics';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { FORM_HINT_CODES } from '../../src/lib/form/hints';
+import { codeText, explain, fixerText, formHintText, placeOf } from '../../src/lib/i18n/diagnostics';
+import { DEFAULT_PREFS, setPrefs } from '../../src/lib/prefs';
 import { CODE_FIXERS } from '../../src/lib/vault/codes';
 import { parseRecipe } from '../../src/lib/vault/parse';
 
@@ -106,5 +108,51 @@ describe('placeOf', () => {
 		expect(placeOf('ingredients[0].items[0].name', { frontmatter: { ingredients: [{ items: [{ name: long }] }] } })).toBe(
 			`Ingrédients, groupe 1, ligne 1 « ${'x'.repeat(39)}… » : nom`
 		);
+	});
+});
+
+describe('in English', () => {
+	const french = { ...codeText };
+	const frenchHints = Object.fromEntries(FORM_HINT_CODES.map((c) => [c, formHintText[c]({ word: 'x', value: 'y', suggestion: 'z' })]));
+
+	beforeEach(() => setPrefs({ ...DEFAULT_PREFS, lang: 'en' }));
+	afterEach(() => setPrefs(null));
+
+	it('has an English text for every registered code', () => {
+		expect(Object.keys(CODE_FIXERS).filter((c) => !codeText[c] || codeText[c] === french[c])).toEqual([]);
+		for (const [code, text] of Object.entries(codeText)) {
+			expect(text.length, code).toBeGreaterThan(15);
+			expect(text.length, code).toBeLessThan(200);
+			expect(text, code).not.toMatch(/[«»]| [:;?!]/);
+			expect(text.normalize('NFC'), code).toBe(text);
+		}
+	});
+
+	it('falls back for an unknown code, and says who settles one', () => {
+		expect(explain('X999')).toMatch(/technical detail/);
+		expect(explain('E201')).toMatch(/tablespoon → tbsp/);
+		expect(fixerText.ai).toMatch(/fix request/);
+	});
+
+	it('has an English hint for every code the form maps', () => {
+		for (const code of FORM_HINT_CODES) {
+			const text = formHintText[code]({ word: 'x', value: 'y', suggestion: 'z' });
+			expect(text, code).toBeTruthy();
+			expect(text, code).not.toBe(frenchHints[code]);
+			expect(text, code).not.toMatch(/[«»]/);
+		}
+	});
+
+	it('says a place in English, with no space before the colon', () => {
+		const parsed = parseRecipe(FILE);
+		expect(placeOf('ingredients[0].items[3].unit')).toBe('Ingredients, group 1, line 4: unit');
+		expect(placeOf('ingredients[0].items[1].or[0].unit', parsed)).toBe('Ingredients, group “Pâte”, line 2 “beurre”, choice 1 “margarine”: unit');
+		expect(placeOf('ingredients[0].items[1].alt.qty')).toBe('Ingredients, group 1, line 2, other measure: quantity');
+		expect(placeOf('body.steps[4]')).toBe('Method, step 5');
+		expect(placeOf('body.sections[1]', parsed)).toBe('Section “Notes”');
+		expect(placeOf('source.title')).toBe('Source: title');
+		expect(placeOf('season[1]')).toBe('Season, no. 2');
+		expect(placeOf('source.editeur')).toBe('Source: field “editeur”');
+		expect(placeOf('allergens')).toBe('Field “allergens”');
 	});
 });

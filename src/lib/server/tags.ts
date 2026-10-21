@@ -24,7 +24,7 @@ import { suggestTag, tagFor } from '../vault/rules/vaultvocab';
 import { serialize } from '../vault/serialize';
 import { pendingKey } from '../vault/tagstatus';
 import type { Recipe } from '../vault/types';
-import { tagLabel } from '../i18n/fr';
+import { t, tagLabel } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { cleanLabel, FamilyLabelError, LABEL_MAX, withLabel } from './families';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
@@ -193,9 +193,9 @@ function flowScalar(s: string, plain: boolean): string {
 function readTags(text: string): Record<string, unknown> {
 	if (!text.trim()) return {};
 	const doc = parseDocument(text, { version: '1.2' });
-	if (doc.errors.length) throw new TagError(`${TAGS_FILE} ne se lit pas (YAML) ; corrigez-le d’abord.`);
+	if (doc.errors.length) throw new TagError(t.error.yaml(TAGS_FILE));
 	const data = doc.toJS() ?? {};
-	if (typeof data !== 'object' || Array.isArray(data)) throw new TagError(`${TAGS_FILE} n’est pas une liste d’étiquettes ; corrigez-le d’abord.`);
+	if (typeof data !== 'object' || Array.isArray(data)) throw new TagError(t.pendingTags.refused.notTags(TAGS_FILE));
 	return data as Record<string, unknown>;
 }
 
@@ -247,7 +247,7 @@ export function withAliases(text: string, canonical: string, aliases: string[]):
 	node.flow = true;
 	root.set(canonical, node);
 	const out = doc.toString({ lineWidth: 0, flowCollectionPadding: false });
-	if (!reads(out, expected)) throw new TagError(`${TAGS_FILE} n’a pas pu être modifié proprement ; rien n’a changé.`);
+	if (!reads(out, expected)) throw new TagError(t.pendingTags.refused.edit(TAGS_FILE));
 	return out;
 }
 
@@ -256,7 +256,7 @@ export function withAliases(text: string, canonical: string, aliases: string[]):
 /** The pending tag as the index has it now, or a TagError when it was settled meanwhile. */
 function stillPending(ctx: VaultContext, key: string): PendingTag {
 	const p = pendingTags(ctx).find((t) => t.tag === key);
-	if (!p) throw new TagError('cette étiquette n’est plus en attente ; rechargez la page.');
+	if (!p) throw new TagError(t.pendingTags.refused.notPending);
 	return p;
 }
 
@@ -280,11 +280,7 @@ async function commitVocab(ctx: VaultContext, writes: FileWrite[], message: stri
 		commit = await writeAndCommit(ctx, writes, message);
 	} catch (e) {
 		if (!(e instanceof FileWriteError)) throw e;
-		throw new TagError(
-			e.stage === 'write'
-				? `le vocabulaire n’a pas pu être écrit ; rien n’a changé : ${e.message}`
-				: `le vocabulaire n’a pas pu être enregistré (git) ; rien n’a changé : ${e.message}`
-		);
+		throw new TagError(e.stage === 'write' ? t.pendingTags.refused.write(e.message) : t.pendingTags.refused.commit(e.message));
 	}
 	try {
 		retag(ctx.db, loadVocab(ctx.paths.vocab), tagsHash(ctx.paths.vocab));
@@ -296,7 +292,7 @@ async function commitVocab(ctx: VaultContext, writes: FileWrite[], message: stri
 }
 
 function guard(ctx: VaultContext, version: string): { tags: string; labels: string } {
-	if (tagsVersion(ctx) !== version) throw new TagError('le vocabulaire a changé depuis l’ouverture de la page ; rechargez-la.');
+	if (tagsVersion(ctx) !== version) throw new TagError(t.pendingTags.refused.changed);
 	return { tags: readVaultFile(ctx, TAGS_FILE).text, labels: readVaultFile(ctx, TAG_LABELS_FILE).text };
 }
 
@@ -310,11 +306,11 @@ export function acceptTag(ctx: VaultContext, key: string, label: string, version
 		const files = guard(ctx, version);
 		const pending = stillPending(ctx, key);
 		const slug = pending.slug;
-		if (!SLUG_RE.test(slug)) throw new TagError('cette étiquette n’a aucune lettre ou chiffre dont faire un identifiant ; reliez-la à une étiquette existante ou retirez-la.');
+		if (!SLUG_RE.test(slug)) throw new TagError(t.pendingTags.refused.noSlug);
 		const vocab = loadVocab(ctx.paths.vocab);
-		if (vocab.tags.has(slug)) throw new TagError(`« ${slug} » est déjà dans le vocabulaire ; utilisez « C’est comme… ».`);
+		if (vocab.tags.has(slug)) throw new TagError(t.pendingTags.refused.known(slug));
 		const clean = cleanLabel(label);
-		if (clean.length > LABEL_MAX) throw new TagError(`le nom est trop long (${LABEL_MAX} caractères au plus).`);
+		if (clean.length > LABEL_MAX) throw new TagError(t.error.labelTooLong(LABEL_MAX));
 		const writes: FileWrite[] = [{ rel: TAGS_FILE, text: withAliases(files.tags, slug, aliasesFor(vocab.tags, slug, pending.forms)) }];
 		if (clean) {
 			try {
@@ -338,7 +334,7 @@ export function mapTag(ctx: VaultContext, key: string, canonical: string, versio
 		const files = guard(ctx, version);
 		const pending = stillPending(ctx, key);
 		const data = readTags(files.tags);
-		if (!Object.hasOwn(data, canonical)) throw new TagError('choisissez une étiquette du vocabulaire.');
+		if (!Object.hasOwn(data, canonical)) throw new TagError(t.pendingTags.refused.pick);
 		const vocab = loadVocab(ctx.paths.vocab);
 		const aliases = aliasesFor(vocab.tags, canonical, pending.forms);
 		if (!aliases.length) return {};
@@ -363,17 +359,17 @@ export function dropTag(
 	return ctx.lock.run(async () => {
 		const pending = stillPending(ctx, key);
 		const slugs = pending.recipes.map((r) => r.slug).sort();
-		if (!same(slugs, Object.keys(seen).sort())) throw new TagError('d’autres recettes portent cette étiquette depuis l’ouverture de la page ; rechargez-la.');
+		if (!same(slugs, Object.keys(seen).sort())) throw new TagError(t.pendingTags.refused.moreRecipes);
 		const vocab = loadVocab(ctx.paths.vocab);
 		const writes: { slug: string; title: string; text: string }[] = [];
 		for (const slug of slugs) {
 			const cur = currentFile(ctx, slug);
-			if (!cur) throw new TagError('une des recettes a changé depuis l’ouverture de la page ; rechargez-la.');
+			if (!cur) throw new TagError(t.pendingTags.refused.recipeChanged);
 			// A broken file first: the index keeps its last good hash, so the
 			// hash guard would send her to reload forever (plan 04, Q3 A).
 			const file = checkFile(cur.text);
-			if (!file.recipe || hasErrors(file.diagnostics)) throw new TagError(`la recette « ${slug} » ne passe pas la validation ; faites-la corriger d’abord.`);
-			if (cur.hash !== seen[slug]) throw new TagError('une des recettes a changé depuis l’ouverture de la page ; rechargez-la.');
+			if (!file.recipe || hasErrors(file.diagnostics)) throw new TagError(t.pendingTags.refused.recipeInvalid(slug));
+			if (cur.hash !== seen[slug]) throw new TagError(t.pendingTags.refused.recipeChanged);
 			const tags = file.recipe.tags.filter((t) => !(pendingKey(t) === key && !tagFor(vocab.tags, t)));
 			if (tags.length === file.recipe.tags.length) continue;
 			const final: Recipe = { ...file.recipe, tags, updated: opts.today ?? localDate() };
@@ -387,9 +383,7 @@ export function dropTag(
 		} catch (e) {
 			if (!(e instanceof FileWriteError)) throw e;
 			throw new TagError(
-				e.stage === 'write'
-					? `les recettes n’ont pas pu être écrites ; rien n’a changé : ${e.message}`
-					: `les recettes n’ont pas pu être enregistrées (git) ; rien n’a changé : ${e.message}`
+				e.stage === 'write' ? t.pendingTags.refused.recipesWrite(e.message) : t.pendingTags.refused.recipesCommit(e.message)
 			);
 		}
 		try {

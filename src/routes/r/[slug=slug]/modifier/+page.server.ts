@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import { getApp } from '$lib/server/app';
 import { openForm } from '$lib/server/formsave';
 import { formPageData } from '$lib/server/formpage';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { PageServerLoad } from './$types';
 
 // Edit a recipe (plan 04, Phase 4): the form opened from the file on disk,

@@ -21,6 +21,8 @@ export interface Config {
 	gitPush: boolean;
 	/** Extra host names the app is reached on, besides the defaults (see hosts.ts). */
 	hosts: string[];
+	/** The tailnet HTTPS port `tailscale serve` gives the app at startup (reach.ts); undefined: Tailscale is left alone. */
+	tailscaleHttpsPort?: number;
 	/** ISO 4217 code of the prices used for cost (plan 03, decision 2). */
 	currency: string;
 	/** BCP 47 locale for money formatting. */
@@ -95,6 +97,11 @@ export function loadConfig(opts: ConfigEnv = {}): Config {
 	const hosts = raw.hosts ?? [];
 	if (!Array.isArray(hosts) || hosts.some((h) => typeof h !== 'string' || !h.trim()))
 		throw new ConfigError(`${file}: "hosts" must be a list of host names, like ["recettes.example.lan"].`);
+	const tailscaleHttpsPort = raw.tailscale_https_port;
+	if (tailscaleHttpsPort !== undefined && (typeof tailscaleHttpsPort !== 'number' || !Number.isInteger(tailscaleHttpsPort) || tailscaleHttpsPort < 1 || tailscaleHttpsPort > 65535))
+		throw new ConfigError(`${file}: "tailscale_https_port" must be a port number, like 8443.`);
+	// The app holds its own port on the tailnet address too: Tailscale could not listen there.
+	if (tailscaleHttpsPort === port) throw new ConfigError(`${file}: "tailscale_https_port" must differ from the app's port (${port}).`);
 	const currency = raw.currency === undefined ? DEFAULT_CURRENCY : raw.currency;
 	if (typeof currency !== 'string' || !/^[A-Za-z]{3}$/.test(currency)) throw new ConfigError(`${file}: "currency" must be a three-letter code, like "CAD".`);
 	const locale = raw.locale === undefined ? DEFAULT_LOCALE : raw.locale;
@@ -110,6 +117,7 @@ export function loadConfig(opts: ConfigEnv = {}): Config {
 		gitAuthor,
 		gitPush: raw.git_push !== false,
 		hosts: hosts as string[],
+		tailscaleHttpsPort: tailscaleHttpsPort as number | undefined,
 		currency: currency.toUpperCase(),
 		locale,
 		shops: (shops as string[]).map((s) => s.trim())

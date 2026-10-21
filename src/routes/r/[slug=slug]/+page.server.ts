@@ -3,7 +3,7 @@ import { getApp, writeContext } from '$lib/server/app';
 import { loadRecipePage } from '$lib/server/pages';
 import { verify, VerifyError } from '$lib/server/save';
 import { remove, TrashError } from '$lib/server/trash';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ params }) => {

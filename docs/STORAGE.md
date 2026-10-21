@@ -288,8 +288,11 @@ nothing else.
 
 **Decided (plan 04, Phase 1).** `users.json` is found next to whichever config
 file was read (`dirname(config)/users.json`); the app and `vault user` refuse to
-use one inside the vault folder. Written by `vault user add | passwd | remove`
-only, atomically (temp file + rename), mode `0600`:
+use one inside the vault folder. Written by `vault user add | passwd | remove`,
+and by the app when a person saves `/compte` (their `prefs`: language,
+measuring system, own unit words — `DATA-FLOW.md`, "Account preferences"; the
+language once chosen, otherwise only what differs from the defaults), atomically (temp file + rename),
+mode `0600`:
 
 ```json
 { "users": [

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import Marked from '$lib/components/Marked.svelte';
 	import type { PageProps } from './$types';
 

@@ -2,7 +2,7 @@
 	// One checker diagnostic for a person: the French explanation and place,
 	// who settles it, and the checker's own English message behind "Détail
 	// technique" (it carries the specifics: the values, the suggested fix).
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import { explain, fixerText, placeOf, type PlaceContext } from '$lib/i18n/diagnostics';
 	import { fixerOf } from '$lib/vault/codes';
 

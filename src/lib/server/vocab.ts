@@ -13,6 +13,7 @@ import { seedVocab } from './vault';
 import { parseNormalizeVocab, type NormalizeVocab } from '../ingredients/normalize';
 import { parseConversions, type Conversions } from '../ingredients/units';
 import { parseScaling, type ScalingRules } from '../render/scale';
+import { setConversions } from '../render/system';
 import { parseUnitWords, setUnitWords, type UnitWords } from '../render/unitwords';
 
 export interface VaultVocab {
@@ -108,6 +109,8 @@ export function loadUnitWords(vocabDir: string): UnitWords {
 export function installUnitWords(vocabDir: string): UnitWords {
 	const words = loadUnitWords(vocabDir);
 	setUnitWords(words);
+	// With them, the factors an account's measuring system converts by (render/system.ts).
+	setConversions(loadConversions(vocabDir));
 	return words;
 }
 

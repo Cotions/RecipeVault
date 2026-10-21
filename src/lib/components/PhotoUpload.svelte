@@ -5,7 +5,7 @@
 	// out, it is a link to the sign-in page instead (writes need a session).
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 
 	let { slug, hash, label = t.photo.add }: { slug: string; hash: string; label?: string } = $props();
 

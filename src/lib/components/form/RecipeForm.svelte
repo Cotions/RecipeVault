@@ -17,6 +17,15 @@
 		/** The recipe's photo (an edit). */
 		photo: { thumb: string | null } | null;
 	}
+
+	/** A pasted file opened in the form from the paste box ("Relire et modifier"): a new recipe, its own draft slot. */
+	export interface FromPaste {
+		draftKey: string;
+		/** Back to the pasted recipes, nothing saved (the draft stays). */
+		onback: () => void;
+		/** Saved: the paste box takes the file out and goes on; true when that is back to the other pasted recipes. */
+		onsaved: (slug: string) => Promise<boolean>;
+	}
 </script>
 
 <script lang="ts">
@@ -59,14 +68,16 @@
 		type TextKind,
 		type TextSection
 	} from '$lib/form';
-	import { t, familyLabel, form as f } from '$lib/i18n/fr';
+	import { t, familyLabel, form as f } from '$lib/i18n';
 	import { formHintText } from '$lib/i18n/diagnostics';
+	import { locale } from '$lib/prefs';
 	import { toast } from '$lib/toast.svelte';
 	import { unitLabel } from '$lib/render/ingredient';
 	import { SOURCE_TYPES, SEASONS } from '$lib/vault/vocab';
 	import { slugify } from '$lib/vault/slug';
+	import { stripMarkers } from '$lib/vault/markers';
 
-	let { data }: { data: FormPageData } = $props();
+	let { data, paste }: { data: FormPageData; paste?: FromPaste } = $props();
 
 	const TEXT_KINDS: TextKind[] = ['notes', 'variants', 'alternatives'];
 	const TAPS = [
@@ -89,7 +100,8 @@
 
 	// The page's data is read once: the form is hers from here on.
 	const slug = untrack(() => data.slug);
-	const key = draftKey(slug ?? undefined);
+	const from = untrack(() => paste);
+	const key = from?.draftKey ?? draftKey(slug ?? undefined);
 	let form = $state(prepare(untrack(() => data.form)));
 	let base = $state(untrack(() => (data.slug && data.hash ? { slug: data.slug, hash: data.hash } : undefined)));
 	let initial = untrack(() => $state.snapshot(form)) as FormRecipe;
@@ -119,7 +131,7 @@
 	const method = $derived(form.sections.find((s) => s.kind === 'method') as MethodSection | undefined);
 	const textSection = (k: TextKind) => form.sections.find((s) => s.kind === k) as TextSection;
 	const units = untrack(() => data.units);
-	const unitName = (u: Unit) => (u === 'piece' ? f.piece : unitLabel(u, 1, 'fr'));
+	const unitName = (u: Unit) => (u === 'piece' ? f.piece : unitLabel(u, 1, locale()));
 	const recipeBlock = (field: string) => blockOn(blocks, 'recipe', field);
 	/** The French line under a field of the recipe itself (the first of `fields` blocked). */
 	const recipeErr = (...fields: string[]) => blockText(fields.map(recipeBlock).find(Boolean));
@@ -378,11 +390,17 @@
 					clearTimeout(draftTimer);
 					clearDraft(localStorage, key);
 					dropPhoto();
-					await goto(`/r/${r.slug}`, { invalidateAll: true });
-					if (photo.error) toast.show({ text: f.photoFailed(photo.error), error: true });
+					const title = stripMarkers(form.title);
+					let listed = false;
+					if (from) listed = await from.onsaved(r.slug);
+					else await goto(`/r/${r.slug}`, { invalidateAll: true });
+					// Back among the other pasted recipes: the toast links the one saved.
+					const link = listed ? { link: { href: `/r/${r.slug}`, label: title } } : {};
+					if (photo.error) toast.show({ text: f.photoFailed(photo.error), error: true, ...link });
 					else
 						toast.show({
 							text: commits.length ? f.saved : f.unchanged,
+							...link,
 							...(commits.length ? { action: { label: f.undo, run: () => undoSave(r.slug, commits) } } : {})
 						});
 					return;
@@ -429,7 +447,7 @@
 		stale = null;
 	}
 
-	const when = (ms: number) => new Date(ms).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' });
+	const when = (ms: number) => new Date(ms).toLocaleString(`${locale()}-CA`, { dateStyle: 'medium', timeStyle: 'short' });
 </script>
 
 <!-- The keydown only stops implicit submission; it adds no interaction. -->
@@ -443,14 +461,20 @@
 		if (blocksImplicitSubmit(e.key, e.target as HTMLElement & { type?: string })) e.preventDefault();
 	}}
 >
-	<h1>{slug ? f.editTitle : f.newTitle}</h1>
+	{#if from}
+		<button type="button" class="btn quiet back" onclick={from.onback} data-testid="back-to-paste">← {f.backToPaste}</button>
+		<h1>{f.pasteTitle}</h1>
+		<p class="lead" data-testid="paste-lead">{f.pasteLead}</p>
+	{:else}
+		<h1>{slug ? f.editTitle : f.newTitle}</h1>
+	{/if}
 
 	{#if foundDraft}
 		<div class="banner" role="status" data-testid="draft-banner">
 			<p>{f.draftFound(when(foundDraft.at))}</p>
 			<div class="acts">
 				<button type="button" class="btn primary" onclick={resumeDraft}>{f.draftResume}</button>
-				<button type="button" class="btn" onclick={discardDraft}>{slug ? f.draftDiscard : f.draftDiscardNew}</button>
+				<button type="button" class="btn" onclick={discardDraft}>{from ? f.draftDiscardPaste : slug ? f.draftDiscard : f.draftDiscardNew}</button>
 			</div>
 		</div>
 	{/if}
@@ -855,7 +879,11 @@
 			{/if}
 		</div>
 		<div class="acts">
-			<a class="btn quiet" href={slug ? `/r/${slug}` : '/'}>{f.cancel}</a>
+			{#if from}
+				<button type="button" class="btn quiet" onclick={from.onback}>{f.backToPaste}</button>
+			{:else}
+				<a class="btn quiet" href={slug ? `/r/${slug}` : '/'}>{f.cancel}</a>
+			{/if}
 			<button type="submit" class="btn primary" disabled={!!reasons.length || saving} aria-busy={saving} data-testid="save">{saving ? f.saving : f.save}</button>
 		</div>
 	</div>
@@ -871,6 +899,13 @@
 	h1 {
 		font-size: var(--step-3);
 		margin-bottom: 0.75rem;
+	}
+	.back {
+		margin-bottom: 0.5rem;
+	}
+	.lead {
+		margin: -0.25rem 0 1rem;
+		color: var(--ink-soft);
 	}
 	h2 {
 		font-size: var(--step-2);

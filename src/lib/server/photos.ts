@@ -18,6 +18,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { t } from '../i18n';
 import type { VaultContext } from './context';
 import type { VaultPaths } from './vault';
 import { EditError, editRecipeLocked, localDate, type SaveOptions } from './save';
@@ -93,10 +94,10 @@ function deriveOne(input: Buffer, v: Variant): Promise<Buffer> {
 
 /** Check an upload: size and type. Returns its type; throws a PhotoError naming the refusal in French. */
 export function checkUpload(bytes: Uint8Array): PhotoType {
-	if (!bytes.length) throw new PhotoError('empty', 'le fichier est vide.');
-	if (bytes.length > PHOTO_MAX_BYTES) throw new PhotoError('too-big', `la photo dépasse ${PHOTO_MAX_BYTES / 1024 / 1024} Mo.`);
+	if (!bytes.length) throw new PhotoError('empty', t.photo.refused.empty);
+	if (bytes.length > PHOTO_MAX_BYTES) throw new PhotoError('too-big', t.photo.refused.tooBig(PHOTO_MAX_BYTES / 1024 / 1024));
 	const type = sniffPhoto(bytes);
-	if (!type) throw new PhotoError('type', 'ce fichier n’est pas une photo (JPEG, PNG, WebP, AVIF ou HEIC).');
+	if (!type) throw new PhotoError('type', t.photo.refused.type);
 	return type;
 }
 
@@ -196,7 +197,7 @@ export interface PhotoResult {
  * new original. The previous original stays on disk (never deleted by an edit).
  */
 export async function addPhoto(ctx: VaultContext, slug: string, hash: string, bytes: Buffer, opts: SaveOptions = {}): Promise<PhotoResult> {
-	if (!SLUG_RE.test(slug)) throw new PhotoError('gone', 'cette recette n’existe plus.');
+	if (!SLUG_RE.test(slug)) throw new PhotoError('gone', t.error.recipeGone);
 	const type = checkUpload(bytes);
 	// Decode before taking the lock: the slow part, and the proof the file is an image.
 	let copies: Record<Variant, Buffer> | undefined;
@@ -204,7 +205,7 @@ export async function addPhoto(ctx: VaultContext, slug: string, hash: string, by
 		try {
 			copies = await deriveCopies(bytes);
 		} catch {
-			throw new PhotoError('unreadable', 'cette photo n’a pas pu être lue ; elle est peut-être abîmée.');
+			throw new PhotoError('unreadable', t.photo.refused.unreadable);
 		}
 	}
 	const result = await ctx.lock.run(async () => {

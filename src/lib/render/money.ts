@@ -1,6 +1,7 @@
 // Money and pack sizes for display (plan 03, decision 2): the currency and
 // the locale come from the config, never from this code. Browser-safe.
 
+import { locale } from '../prefs';
 import type { Unit } from '../vault/types';
 import { unitWord } from './unitwords';
 
@@ -21,10 +22,11 @@ export function formatMoney(amount: number, m: Money): string {
 	return f.format(amount);
 }
 
-/** A pack size as printed on the pack, in decimals: `400 g`, `2,5 kg`, `6 pièces`, `1 boîte`. */
+/** A pack size as printed on the pack, in decimals and in the person's language: `400 g`, `2,5 kg`, `6 pièces`, `1 boîte`. */
 export function formatPack(qty: number, unit: Unit): string {
-	const word = unitWord(unit, qty, 'fr');
-	return `${String(Number(qty.toFixed(3))).replace('.', ',')} ${word}`;
+	const lang = locale();
+	const n = String(Number(qty.toFixed(3)));
+	return `${lang === 'fr' ? n.replace('.', ',') : n} ${unitWord(unit, qty, lang)}`;
 }
 
 /**

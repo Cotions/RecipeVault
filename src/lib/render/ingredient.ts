@@ -4,8 +4,11 @@
 
 import type { Alt, Ingredient, Lang, Unit } from '../vault/types';
 import { formatNumber } from './fraction';
+import { UNIT_CLASS_OF } from '../ingredients/types';
+import { prefs } from '../prefs';
 import { formatScaledNumber, scaleValues, type ScalingRules } from './scale';
-import { unitLabel } from './unitwords';
+import { inSystem, isNative } from './system';
+import { unitLabel, wordLang } from './unitwords';
 
 // The unit words are the vault's (vocab/unit-labels.yaml, ./unitwords.ts).
 export { unitLabel } from './unitwords';
@@ -27,18 +30,46 @@ export interface AmountOptions {
 	lang: Lang;
 	/** vocab/scaling.yaml (plan 05): how amounts show at a factor other than 1. Without it, the exact value, as before. */
 	rules?: ScalingRules | null;
+	/** Never converted to the account's measuring system: the form, the amount a tap scales against. */
+	asWritten?: boolean;
+	/** Grams for one of the line's unit, from the ingredient's entry: a counted amount then shows its weight too. */
+	gramsPerUnit?: number;
 }
 
 type Amounted = { qty?: { value: number }; qtyMax?: { value: number }; unit?: Unit };
 
 /** An amount as shown: its text and whether it is rounded (`≈`, shown apart). */
-export function amountView(q: Amounted, { factor = 1, lang, rules }: AmountOptions): { text: string; approx: boolean } {
+export function amountView(q: Amounted, { factor = 1, lang: recipeLang, rules, asWritten }: AmountOptions): { text: string; approx: boolean } {
 	if (!q.qty) return { text: '', approx: false };
-	const s = scaleValues(q.qtyMax ? [q.qty.value, q.qtyMax.value] : [q.qty.value], q.unit, factor, rules);
+	const lang = wordLang(recipeLang);
+	const written = q.qtyMax ? [q.qty.value, q.qtyMax.value] : [q.qty.value];
+	// The account's measuring system (./system.ts): converted, then rounded as a scaled amount is.
+	const own = asWritten ? undefined : inSystem(written, q.unit, prefs().system);
+	const s = own ? scaleValues(own.values, own.unit, factor, rules, true) : scaleValues(written, q.unit, factor, rules);
 	const fmt = (v: number) => (s.plain ? formatNumber(v, lang) : formatScaledNumber(v, s.decimal, lang));
 	const nums = s.values.map(fmt).join(lang === 'fr' ? ' à ' : '–');
 	const unit = s.unit ? unitLabel(s.unit, s.values.at(-1)!, lang) : '';
 	return { text: unit ? `${nums} ${unit}` : nums, approx: s.approx };
+}
+
+/**
+ * The weight of a counted amount (`2 branches` → `≈ 80 g`), for an account
+ * that reads in a measuring system and an ingredient whose entry gives the
+ * weight of one. Empty otherwise: a weight is never guessed.
+ */
+function weightText(it: Amounted, opts: AmountOptions): string {
+	const system = prefs().system;
+	if (!it.qty || !opts.gramsPerUnit || opts.asWritten || system === 'written') return '';
+	const cls = UNIT_CLASS_OF[it.unit ?? 'piece'];
+	if (cls === 'mass' || cls === 'volume') return '';
+	const ends = (it.qtyMax ? [it.qty.value, it.qtyMax.value] : [it.qty.value]).map((v) => v * opts.gramsPerUnit!);
+	const own = inSystem(ends, 'g', system) ?? { values: ends, unit: 'g' as const };
+	const s = scaleValues(own.values, own.unit, opts.factor ?? 1, opts.rules, true);
+	if (s.plain) return '';
+	const lang = wordLang(opts.lang);
+	const nums = s.values.map((v) => formatScaledNumber(v, s.decimal, lang)).join(lang === 'fr' ? ' à ' : '–');
+	// One clove's weight is an average: always marked.
+	return `${APPROX} ${nums} ${unitLabel(s.unit!, s.values.at(-1)!, lang)}`;
 }
 
 /** "2 à 3 c. à table", "1 ½ tasse", "3" (pieces), "≈ 1 ½" — empty when there is no qty. */
@@ -70,8 +101,9 @@ const WORDS = {
 	en: { or: 'or', toTaste: 'to taste', optional: 'optional', buy: 'or buy:', ready: 'store-bought' }
 };
 
+// The card's second measure shows as the card has it, whatever the measuring system.
 function altText(alt: Alt, opts: AmountOptions): string {
-	return formatAmount(alt, opts);
+	return formatAmount(alt, { ...opts, asWritten: true });
 }
 
 /**
@@ -83,6 +115,13 @@ export function ingredientParts(it: Ingredient, opts: AmountOptions): Part[] {
 	const { lang } = opts;
 	const w = WORDS[lang];
 	const parts: Part[] = [];
+	// The other measure a card gives (`1 tasse (250 ml)`) comes first when it is
+	// the one in the account's measuring system.
+	const system = opts.asWritten ? 'written' : prefs().system;
+	if (it.alt && it.unit && it.alt.unit && !isNative(it.unit, system) && isNative(it.alt.unit, system)) {
+		const { alt, ...rest } = it;
+		it = { ...rest, qty: alt.qty, qtyMax: alt.qtyMax, unit: alt.unit, alt: { qty: it.qty!, qtyMax: it.qtyMax, unit: it.unit } } as Ingredient;
+	}
 	const amount = amountView(it, opts);
 	if (amount.text) {
 		if (amount.approx) parts.push({ kind: 'approx', text: `${APPROX} ` });
@@ -97,8 +136,11 @@ export function ingredientParts(it: Ingredient, opts: AmountOptions): Part[] {
 			const text = ` (${altText(it.alt, opts)})`;
 			parts.push(tappable && it.alt.qty.value > 0 ? { kind: 'muted', text, base: { value: it.alt.qty.value, unit: it.alt.unit } } : { kind: 'muted', text });
 		}
+		const weight = weightText(it, opts);
+		if (weight) parts.push({ kind: 'muted', text: ` (${weight})` });
 		// French measures take "de": 500 g de farine, 2 gousses d’ail; pieces do not: 3 oignons.
-		const joiner = lang === 'fr' && it.unit && it.unit !== 'piece' ? ` ${de(it.name)}` : ' ';
+		// Only when the unit's word is French too: `2 cups farine`, not `2 cups de farine`.
+		const joiner = lang === 'fr' && wordLang(lang) === 'fr' && it.unit && it.unit !== 'piece' ? ` ${de(it.name)}` : ' ';
 		parts.push({ kind: 'text', text: joiner });
 	}
 	parts.push(it.recipe ? { kind: 'name', text: it.name, recipe: it.recipe, line: it } : { kind: 'name', text: it.name });

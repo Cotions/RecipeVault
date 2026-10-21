@@ -5,7 +5,7 @@
 // the page could compute it in the browser too.
 
 import { toForm, type FormItem, type FormRecipe, type FormSection } from '../form/model';
-import { t, tagLabel } from '../i18n/fr';
+import { t, tagLabel } from '../i18n';
 import { checkFile } from '../vault/check';
 import { stripMarkers } from '../vault/markers';
 import type { Recipe } from '../vault/types';
@@ -197,9 +197,7 @@ export function diffVersions(before: Parsed | null, after: Parsed | null, textCh
 	return out;
 }
 
-const list = (xs: string[]) => xs.map((x) => `« ${x} »`).join(', ');
-
-/** One plain French line per change. `tagName` names a tag as written (its label, `tagNamer`); else the tag itself. */
+/** One plain line per change, in the person's language. `tagName` names a tag as written (its label, `tagNamer`); else the tag itself. */
 export function describeChange(c: Change, tagName: (tag: string) => string = (x) => tagLabel(x)): string {
 	const h = t.history.change;
 	switch (c.kind) {
@@ -224,26 +222,26 @@ export function describeChange(c: Change, tagName: (tag: string) => string = (x)
 		case 'tags':
 			return [c.added.length ? h.tagsAdded(c.added.map(tagName).join(', ')) : '', c.removed.length ? h.tagsRemoved(c.removed.map(tagName).join(', ')) : '']
 				.filter(Boolean)
-				.join(' ; ');
+				.join(h.join);
 		case 'ingredients':
 			return [
-				c.added.length ? h.ingredientsAdded(c.added.length, list(c.added)) : '',
-				c.removed.length ? h.ingredientsRemoved(c.removed.length, list(c.removed)) : '',
-				c.changed.length ? h.ingredientsChanged(c.changed.length, list(c.changed)) : ''
+				c.added.length ? h.ingredientsAdded(c.added.length, h.list(c.added)) : '',
+				c.removed.length ? h.ingredientsRemoved(c.removed.length, h.list(c.removed)) : '',
+				c.changed.length ? h.ingredientsChanged(c.changed.length, h.list(c.changed)) : ''
 			]
 				.filter(Boolean)
-				.join(' ; ');
+				.join(h.join);
 		case 'steps':
 			if (c.reordered) return h.stepsReordered;
 			return [c.added ? h.stepsAdded(c.added) : '', c.removed ? h.stepsRemoved(c.removed) : '', c.changed ? h.stepsChanged(c.changed) : '']
 				.filter(Boolean)
-				.join(' ; ');
+				.join(h.join);
 		case 'photo':
 			return h.photo[c.action];
 		case 'verified':
 			return c.now ? h.verified : h.unverified;
 		case 'markers':
-			return [c.confirmed ? h.markersConfirmed(c.confirmed) : '', c.added ? h.markersAdded(c.added) : ''].filter(Boolean).join(' ; ');
+			return [c.confirmed ? h.markersConfirmed(c.confirmed) : '', c.added ? h.markersAdded(c.added) : ''].filter(Boolean).join(h.join);
 	}
 }
 

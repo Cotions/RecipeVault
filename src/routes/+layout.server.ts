@@ -2,7 +2,7 @@ import { getApp } from '$lib/server/app';
 import { duplicateCount } from '$lib/server/duplicates';
 import { queueCount } from '$lib/server/queue';
 import { pendingTagCount, tagLabels } from '$lib/server/tags';
-import { loadUnitWords } from '$lib/server/vocab';
+import { loadConversions, loadUnitWords } from '$lib/server/vocab';
 import type { LayoutServerLoad } from './$types';
 
 // The nav's "À relier (N)" entry (plan 03, Phase 3) and "Étiquettes (N)"
@@ -11,12 +11,17 @@ import type { LayoutServerLoad } from './$types';
 // (plan 04, Q2 B). Tag labels (vocab/tag-labels.yaml) for every page that
 // shows a tag. The signed-in person: name and that preference, never the
 // email or anything else from users.json. The unit words
-// (vocab/unit-labels.yaml, plan 05) for every page that shows an amount.
+// (vocab/unit-labels.yaml, plan 05) for every page that shows an amount, and
+// what that person chose on /compte (lib/prefs.ts): the language, the
+// measuring system (with the vault's conversions it needs) and their own unit
+// words. Signed out: null, the defaults.
 export const load: LayoutServerLoad = ({ locals }) => ({
 	toResolve: queueCount(getApp().ctx.db),
 	pendingTags: pendingTagCount(getApp().ctx.db),
 	duplicates: locals.user?.markdown ? duplicateCount(getApp().ctx) : 0,
 	tagLabels: tagLabels(getApp().ctx),
 	unitWords: loadUnitWords(getApp().ctx.paths.vocab),
+	conversions: locals.user && locals.user.prefs.system !== 'written' ? loadConversions(getApp().ctx.paths.vocab) : null,
+	prefs: locals.user?.prefs ?? null,
 	user: locals.user ? { login: locals.user.login, name: locals.user.name, markdown: !!locals.user.markdown } : null
 });

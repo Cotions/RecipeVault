@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 
-	// SvelteKit's own messages are English status texts; ours (error(404, '…')) are French and kept.
+	// SvelteKit's own messages are English status texts; ours (error(404, '…')) are in the person's language and kept.
 	const DEFAULTS = new Set(['Not Found', 'Internal Error', 'Method Not Allowed', 'Forbidden', 'Bad Request']);
 	const raw = $derived(page.error?.message ?? '');
 	const message = $derived(raw && !DEFAULTS.has(raw) ? raw : page.status === 404 ? t.error.notFound : t.error.generic);

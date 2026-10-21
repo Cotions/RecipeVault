@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { t, familyLabel } from '$lib/i18n/fr';
+	import { t, familyLabel } from '$lib/i18n';
+	import { locale } from '$lib/prefs';
 	import { formatSeconds } from '$lib/render/duration';
 	import Marked from '$lib/components/Marked.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -69,7 +70,7 @@
 			</thead>
 			<tbody>
 				{#if d.differs.total_s}
-					<tr class="fact"><th scope="row">{t.families.totalTime}</th>{#each d.variants as v (v.slug)}<td>{v.total_s ? formatSeconds(v.total_s) : '—'}</td>{/each}</tr>
+					<tr class="fact"><th scope="row">{t.families.totalTime}</th>{#each d.variants as v (v.slug)}<td>{v.total_s ? formatSeconds(v.total_s, locale()) : '—'}</td>{/each}</tr>
 				{/if}
 				{#if d.differs.servings}
 					<tr class="fact"><th scope="row">{t.families.servings}</th>{#each d.variants as v (v.slug)}<td>{v.servings ?? '—'}{#if v.servings_max}–{v.servings_max}{/if}</td>{/each}</tr>
@@ -84,7 +85,7 @@
 					<tr>
 						<th scope="row"><Marked text={row.label} /></th>
 						{#each d.variants as v (v.slug)}
-							<td class:yes={row.in.includes(v.slug)}>{#if row.in.includes(v.slug)}<span aria-label="oui">●</span>{:else}<span class="visually-hidden">non</span>{/if}</td>
+							<td class:yes={row.in.includes(v.slug)}>{#if row.in.includes(v.slug)}<span aria-label={t.families.yes}>●</span>{:else}<span class="visually-hidden">{t.families.no}</span>{/if}</td>
 						{/each}
 					</tr>
 				{/each}

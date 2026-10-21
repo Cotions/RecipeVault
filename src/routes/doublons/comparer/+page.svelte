@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Two recipes of a possible duplicate side by side, read-only (plan 05,
 	// Phase 7): the form's stale-compare table, every field where they differ.
-	import { form as f, t } from '$lib/i18n/fr';
+	import { form as f, t } from '$lib/i18n';
 	import Marked from '$lib/components/Marked.svelte';
 	import type { PageProps } from './$types';
 

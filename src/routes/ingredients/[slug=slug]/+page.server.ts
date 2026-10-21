@@ -6,7 +6,7 @@ import { ingredientPath } from '$lib/server/registry';
 import { loadVocab } from '$lib/server/vocab';
 import { CATEGORIES, NAME_LANGS } from '$lib/ingredients/types';
 import { UNITS, type Lang } from '$lib/vault/types';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ params }) => {

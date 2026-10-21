@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import { ingredientParts, type ScaleBase } from '$lib/render/ingredient';
 	import type { ScalingRules } from '$lib/render/scale';
 	import { ingredientHref, queueHref } from '$lib/render/links';
-	import type { Ingredient, Lang } from '$lib/vault/types';
+	import type { Ingredient, Lang, Unit } from '$lib/vault/types';
 	import Marked from './Marked.svelte';
 
 	let {
@@ -25,12 +25,12 @@
 		lang: Lang;
 		titles?: Record<string, string>;
 		/** How the line resolved (recipe page only): the name links to its entry, or is marked not linked. */
-		link?: { item?: string; key?: string };
+		link?: { item?: string; key?: string; weights?: Partial<Record<Unit, number>> };
 		/** Recipe page: a sub-recipe's link at the amount this line needs (plan 05, Q5 A); else its page as written. */
 		subHref?: (line: Ingredient) => string;
 	} = $props();
 
-	const parts = $derived(ingredientParts(item, { factor, lang, rules }));
+	const parts = $derived(ingredientParts(item, { factor, lang, rules, gramsPerUnit: link?.weights?.[item.unit ?? 'piece'] }));
 </script>
 
 {#each parts as p, i (i)}{#if p.kind === 'approx'}<abbr class="approx" title={t.scaling.approxTitle}>{p.text.trim()}</abbr>{' '}{:else if p.kind === 'amount'}{#if onscale && p.base}<button type="button" class="amount tap" title={t.scaling.tapTitle} onclick={() => onscale(p.base!)}>{p.text}</button>{:else}<span class="amount">{p.text}</span>{/if}{:else if p.kind === 'name'}{#if p.recipe && titles[p.recipe]}<a
