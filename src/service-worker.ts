@@ -19,6 +19,8 @@ const sw = self as unknown as ServiceWorkerGlobalScope;
 const SHELL = `shell-${version}`;
 const KITCHEN = `kitchen-${version}`;
 const ASSETS = [...build, ...files];
+/** Looked up on every request: a set, not a scan of the asset list. */
+const SHELL_PATHS = new Set(ASSETS);
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
@@ -83,7 +85,7 @@ sw.addEventListener('fetch', (event) => {
 	const url = new URL(req.url);
 	if (url.origin !== sw.location.origin) return;
 
-	if (ASSETS.includes(url.pathname)) {
+	if (SHELL_PATHS.has(url.pathname)) {
 		event.respondWith(caches.match(url.pathname).then((hit) => hit ?? fetch(req)));
 		return;
 	}

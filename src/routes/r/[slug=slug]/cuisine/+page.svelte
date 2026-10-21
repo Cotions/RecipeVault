@@ -138,11 +138,15 @@
 	// --- screen stays on ------------------------------------------------------
 
 	let lock: WakeLockSentinel | null = null;
+	/** Left kitchen mode: a wake lock granted after that is released at once, or the screen stays on elsewhere in the app. */
+	let gone = false;
 	async function keepAwake() {
 		if (document.visibilityState !== 'visible') return;
 		try {
 			if (!('wakeLock' in navigator)) throw new Error('unsupported');
-			lock = await navigator.wakeLock.request('screen');
+			const got = await navigator.wakeLock.request('screen');
+			if (gone) got.release().catch(() => {});
+			else lock = got;
 		} catch {
 			if (!localStorage.getItem('rv-wakelock-notice')) notice = true;
 		}
@@ -186,15 +190,11 @@
 	let tickHandle: ReturnType<typeof setInterval> | undefined;
 	function tick() {
 		now = Date.now();
-		let rang = false;
-		timers = timers.map((x) => {
-			if (!x.done && x.end <= now) {
-				rang = true;
-				return { ...x, done: true };
-			}
-			return x;
-		});
-		if (rang) ring();
+		// Only a timer that rings changes the list: reassigning it on every tick
+		// would rewrite the saved session (localStorage) twice a second.
+		if (!timers.some((x) => !x.done && x.end <= now)) return;
+		timers = timers.map((x) => (!x.done && x.end <= now ? { ...x, done: true } : x));
+		ring();
 	}
 
 	// --- navigation -----------------------------------------------------------
@@ -296,8 +296,12 @@
 		return () => document.removeEventListener('visibilitychange', vis);
 	});
 	onDestroy(() => {
+		gone = true;
 		clearInterval(tickHandle);
 		lock?.release().catch(() => {});
+		// Browsers cap live audio contexts: one per kitchen visit would pile up over a long session.
+		audio?.close().catch(() => {});
+		audio = null;
 	});
 
 	const current = $derived(step >= 0 && step < steps.length ? steps[step] : null);
