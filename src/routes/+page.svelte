@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { t, tagLabel, familyLabel, form as tf } from '$lib/i18n/fr';
+	import { t, tagLabel, familyLabel, form as tf } from '$lib/i18n';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import RecipeCard from '$lib/components/RecipeCard.svelte';
 	import type { FacetName } from '$lib/server/index/query';
@@ -220,7 +220,7 @@
 				{/each}
 			</ul>
 			{#if r.pages > 1}
-				<nav class="pager" aria-label="Pages">
+				<nav class="pager" aria-label={t.browse.pages}>
 					{#if r.page > 1}<a class="btn" href={pageHref(r.page - 1)}>{t.browse.prev}</a>{:else}<span></span>{/if}
 					<span>{t.browse.page(r.page, r.pages)}</span>
 					{#if r.page < r.pages}<a class="btn" href={pageHref(r.page + 1)}>{t.browse.next}</a>{:else}<span></span>{/if}

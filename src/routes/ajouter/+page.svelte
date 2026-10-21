@@ -2,11 +2,17 @@
 	// The paste box: the owner's main tool, built for speed. Paste, see it
 	// valid, Ctrl+Enter, next. Live checks run in the browser; the server
 	// re-checks with the vault (collisions, sub-recipes, same titles) and is the
-	// only judge on save.
+	// only judge on save. "Relire et modifier" opens one pasted file in the
+	// recipe form, on this page (`?recette=N`), for whoever would rather not
+	// touch the text.
 	import { onMount, tick, untrack } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import templateDoc from '../../../docs/AI-TEMPLATE.md?raw';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import RecipeView from '$lib/components/RecipeView.svelte';
+	import RecipeForm from '$lib/components/form/RecipeForm.svelte';
+	import { draftKey, toForm } from '$lib/form';
 	import Marked from '$lib/components/Marked.svelte';
 	import DiagnosticItem from '$lib/components/DiagnosticItem.svelte';
 	import { checkBatch, checkFile, hasErrors } from '$lib/vault/check';
@@ -137,6 +143,8 @@
 		firstFree: boolean;
 		/** The file as parsed, to name the places of its diagnostics. */
 		parsed: ReturnType<typeof parseRecipe>;
+		/** The file checked on its own, when it passes (Q3 A): what the form opens. */
+		alone?: { recipe: NonNullable<ReturnType<typeof checkFile>['recipe']>; body: NonNullable<ReturnType<typeof checkFile>['body']> };
 	}
 
 	/** The choice for a file, when it still fits its collision. */
@@ -162,7 +170,8 @@
 			const fm = parsed.frontmatter;
 			// A batch error (E103 between two pasted files) withholds the batch's
 			// recipe; the file's own is enough here, as every error left still blocks.
-			const recipe = local.files[i].recipe ?? checkFile(f).recipe;
+			const own = checkFile(f);
+			const recipe = local.files[i].recipe ?? own.recipe;
 			const title = recipe?.title ?? (typeof fm?.title === 'string' ? fm.title : t.add.recipeN(i + 1));
 			// E103 is settled by a choice here, not by the AI.
 			const blocking = diagnostics.filter((d) => d.severity === 'error' && !(d.code === 'E103' && mode));
@@ -177,10 +186,72 @@
 				server: s,
 				mode,
 				firstFree,
-				parsed
+				parsed,
+				alone: own.recipe && own.body && !hasErrors(own.diagnostics) ? { recipe: own.recipe, body: own.body } : undefined
 			};
 		})
 	);
+
+	// --- one pasted file in the form ("Relire et modifier") ----------------------
+
+	/**
+	 * The file open in the form: `?recette=N` (from 1), when that file opens.
+	 * A clash with the vault or inside the paste needs no choice there: the
+	 * form gives a new recipe the first free slug of its title.
+	 */
+	const editing = $derived.by(() => {
+		const n = Number(page.url.searchParams.get('recette'));
+		const v = Number.isInteger(n) && n > 0 ? views[n - 1] : undefined;
+		return v?.alone ? { view: v, form: toForm(v.alone.recipe, v.alone.body) } : null;
+	});
+	/** Whether the form was opened from the list in this visit, so "back" can be the browser's own. */
+	let pushed = false;
+
+	function openInForm(v: FileView) {
+		pushed = true;
+		goto(`/ajouter?recette=${v.index + 1}`);
+	}
+
+	function backToList() {
+		if (pushed) history.back();
+		else goto('/ajouter', { replaceState: true });
+	}
+
+	/** Saved from the form: the file leaves the paste; back to the others (true), or to the recipe when it was the last. */
+	async function savedFromForm(v: FileView, slug: string): Promise<boolean> {
+		const rest = files.map((_, i) => i).filter((i) => i !== v.index);
+		savedTitles = [...savedTitles, v.title];
+		pushed = false;
+		if (!rest.length) {
+			keep('');
+			await goto(`/r/${slug}`, { invalidateAll: true });
+			return false;
+		}
+		await goto('/ajouter', { replaceState: true, invalidateAll: true });
+		keepOnly(rest, staleFiles);
+		recheck++;
+		return true;
+	}
+
+	// --- the paste kept in this tab -------------------------------------------------
+
+	// Until it is saved or emptied, the paste stays in this tab (sessionStorage):
+	// a tablet that reloads a tab left in the background, or a trip to the form
+	// and back, loses nothing. Never sent anywhere.
+	const KEPT = 'recipevault:collage';
+	function keep(value: string) {
+		try {
+			if (value.trim()) sessionStorage.setItem(KEPT, value);
+			else sessionStorage.removeItem(KEPT);
+		} catch {
+			// disabled storage: the box works, only without the safety net
+		}
+	}
+	let restored = false;
+	$effect(() => {
+		const value = text;
+		if (restored) keep(value);
+	});
 
 	const needAi = $derived(views.filter((v) => aiErrors(v.diagnostics).length > 0));
 	const canSave = $derived(views.length > 0 && views.some((v) => v.ok) && !saving);
@@ -339,11 +410,34 @@
 	/** The vault recipe "Mettre en famille" puts in the family too; none when she replaces a recipe. */
 	const pairOf = (v: FileView) => (v.mode === 'replace' ? undefined : v.server?.pairWith);
 
-	onMount(() => box?.focus());
+	onMount(() => {
+		try {
+			const kept = sessionStorage.getItem(KEPT);
+			if (kept && !text) text = kept;
+		} catch {
+			// nothing kept
+		}
+		restored = true;
+		box?.focus();
+		// `?recette=N` with nothing to open (a new tab, a file since fixed away): the list,
+		// and no address that would open the form under a later paste.
+		tick().then(() => {
+			if (page.url.searchParams.has('recette') && !editing) goto('/ajouter', { replaceState: true });
+		});
+	});
 </script>
 
 <svelte:head><title>{t.add.title}</title></svelte:head>
 
+{#if editing}
+	{@const v = editing.view}
+	{#key v.key}
+		<RecipeForm
+			data={{ ...data, form: editing.form, slug: null, hash: null, photo: null }}
+			paste={{ draftKey: draftKey(`:collage:${v.key}`), onback: backToList, onsaved: (slug) => savedFromForm(v, slug) }}
+		/>
+	{/key}
+{:else}
 <div class="head">
 	<h1>{t.add.title}</h1>
 	<button class="btn" type="button" onclick={copyPrompt}>{t.add.copyPrompt}</button>
@@ -402,6 +496,16 @@
 			<span class="state" class:okay={v.ok}>{v.ok ? t.add.valid : t.add.invalid}</span>
 		</header>
 
+		<!-- "Replace" stays a paste box choice: the form opens a pasted file as a new recipe. -->
+		{#if v.alone && v.mode !== 'replace'}
+			<div class="edit">
+				<button class="btn" type="button" onclick={() => openInForm(v)} data-testid="edit-in-form">✎ {t.add.edit}</button>
+				<span>{t.add.editHelp}</span>
+			</div>
+		{:else if !v.alone}
+			<p class="edit-blocked" data-testid="edit-blocked">{t.add.editBlocked}</p>
+		{/if}
+
 		{#if staleFiles.has(v.key)}
 			<p class="warn" data-testid="stale">{staleFiles.get(v.key)}</p>
 		{/if}
@@ -436,7 +540,7 @@
 			<!-- W505 inside the paste: an earlier file of this paste, not saved yet, named by its place. -->
 			<p class="choice" data-testid="close-batch">
 				{t.add.close}
-				{#each inBatch as c, i (c.index)}{i ? ', ' : ' '}{t.add.batchFile(c.index + 1)} (« <Marked text={c.title} /> »){/each}.
+				{#each inBatch as c, i (c.index)}{i ? ', ' : ' '}{t.add.batchFile(c.index + 1)} ({t.app.quotes[0]}<Marked text={c.title} />{t.app.quotes[1]}){/each}.
 				{t.add.batchCloseHint}
 			</p>
 		{/if}
@@ -501,6 +605,7 @@
 		{/if}
 	</section>
 {/each}
+{/if}
 
 {#if toast}
 	<div class="toast" class:error={toast.error} role="status">
@@ -660,6 +765,25 @@
 		flex-direction: column;
 		font-size: var(--step--1);
 		font-weight: 600;
+	}
+	.edit {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.9rem;
+		margin-top: 0.6rem;
+	}
+	.edit .btn {
+		min-height: 2.75rem;
+		font-weight: 700;
+	}
+	.edit span,
+	.edit-blocked {
+		color: var(--ink-soft);
+		font-size: var(--step--1);
+	}
+	.edit-blocked {
+		margin: 0.6rem 0 0;
 	}
 	.diag {
 		margin-top: 0.75rem;

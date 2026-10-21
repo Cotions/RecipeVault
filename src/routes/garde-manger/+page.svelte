@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import { ingredientHref } from '$lib/render/links';
 	import Marked from '$lib/components/Marked.svelte';
 	import type { PageProps } from './$types';

@@ -2,7 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { getApp, writeContext } from '$lib/server/app';
 import { familiesFile, FamilyLabelError, LABEL_MAX, setFamilyLabel } from '$lib/server/families';
 import { familyDiff } from '$lib/server/index/query';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ params }) => {

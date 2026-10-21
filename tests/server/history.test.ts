@@ -14,7 +14,7 @@ import { currentFile, save } from '../../src/lib/server/save';
 import { remove, restore } from '../../src/lib/server/trash';
 import { openForm } from '../../src/lib/server/formsave';
 import { syncVault } from '../../src/lib/server/index/sync';
-import { t } from '../../src/lib/i18n/fr';
+import { t } from '../../src/lib/i18n';
 import { match as isSlug } from '../../src/params/slug';
 import { AUTHOR, fixtureVault, recipe, type TempVault } from '../helpers/vault';
 

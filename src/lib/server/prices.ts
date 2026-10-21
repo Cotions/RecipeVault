@@ -19,6 +19,7 @@ import {
 } from '../ingredients/prices';
 import { SLUG_RE } from '../vault/slug';
 import { UNITS, type Unit } from '../vault/types';
+import { t } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit } from './files';
 import { getMeta, setMeta, sha256 } from './index/build';
@@ -143,13 +144,13 @@ export interface NewPrice {
 export function appendPrice(ctx: VaultContext, input: NewPrice): Promise<{ commit?: string; row: PriceRow }> {
 	return ctx.lock.run(async () => {
 		const slug = input.ingredient.trim();
-		if (!SLUG_RE.test(slug) || !ctx.db.prepare('SELECT 1 FROM registry WHERE slug = ?').get(slug)) throw new PriceError(`l’ingrédient ${slug} n’existe pas.`);
-		if (!Number.isFinite(input.amount) || input.amount <= 0) throw new PriceError('le montant doit être un nombre plus grand que zéro.');
-		if (!Number.isFinite(input.packQty) || input.packQty <= 0) throw new PriceError('le format doit être un nombre plus grand que zéro.');
-		if (!(UNITS as readonly string[]).includes(input.packUnit)) throw new PriceError('choisissez l’unité du format.');
+		if (!SLUG_RE.test(slug) || !ctx.db.prepare('SELECT 1 FROM registry WHERE slug = ?').get(slug)) throw new PriceError(t.error.noIngredient(slug));
+		if (!Number.isFinite(input.amount) || input.amount <= 0) throw new PriceError(t.ingredients.refused.amount);
+		if (!Number.isFinite(input.packQty) || input.packQty <= 0) throw new PriceError(t.ingredients.refused.packQty);
+		if (!(UNITS as readonly string[]).includes(input.packUnit)) throw new PriceError(t.ingredients.refused.packUnit);
 		const date = input.date?.trim() || today();
 		const clean = (s = '') => s.replace(/[\r\n]+/g, ' ').trim();
-		if (!validDate(date)) throw new PriceError('la date doit s’écrire AAAA-MM-JJ.');
+		if (!validDate(date)) throw new PriceError(t.ingredients.refused.date);
 		const row: Omit<PriceRow, 'line'> = {
 			date,
 			ingredient: slug,
@@ -166,24 +167,15 @@ export function appendPrice(ctx: VaultContext, input: NewPrice): Promise<{ commi
 			text = appendPriceLine(file.text, row);
 		} catch (e) {
 			if (!(e instanceof PriceFileError)) throw e;
-			throw new PriceError(
-				e.reason === 'header'
-					? `la première ligne de prices.csv n’est pas un en-tête lisible (il manque ${e.columns.join(', ')}) ; corrigez-la d’abord. Rien n’a été écrit.`
-					: e.reason === 'column'
-						? `prices.csv n’a pas de colonne ${e.columns.join(' ni ')} : ajoutez-la à l’en-tête, ou laissez ce champ vide. Rien n’a été écrit.`
-						: `la ligne ne se relirait pas telle que saisie avec l’en-tête de prices.csv ; vérifiez le fichier. Rien n’a été écrit.`
-			);
+			const r = t.ingredients.refused;
+			throw new PriceError(e.reason === 'header' ? r.header(e.columns) : e.reason === 'column' ? r.column(e.columns) : r.line);
 		}
 		let commit: string | undefined;
 		try {
 			commit = await writeAndCommit(ctx, [{ rel: PRICES_FILE, text }], `price: ${slug} ${csvNumber(row.amount)} / ${csvNumber(row.packQty)} ${row.packUnit}`);
 		} catch (e) {
 			if (!(e instanceof FileWriteError)) throw e;
-			throw new PriceError(
-				e.stage === 'write'
-					? `prices.csv n’a pas pu être écrit ; rien n’a changé : ${e.message}`
-					: `le prix n’a pas pu être enregistré (git) ; rien n’a changé : ${e.message}`
-			);
+			throw new PriceError(e.stage === 'write' ? t.ingredients.refused.write(e.message) : t.ingredients.refused.commit(e.message));
 		}
 		try {
 			ctx.db.transaction(() => syncPrices(ctx.db, ctx.paths, ctx.currency))();

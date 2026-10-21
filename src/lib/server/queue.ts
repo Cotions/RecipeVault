@@ -12,6 +12,7 @@ import { CATEGORIES, UNIT_CLASSES, type Category, type NameRule, type RegistryEn
 import { stripMarkers } from '../vault/markers';
 import { SLUG_RE } from '../vault/slug';
 import { UNITS, type Lang } from '../vault/types';
+import { t } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
 import type { DB } from './index/db';
@@ -135,10 +136,7 @@ function rowOf(db: DB, key: string): Group | undefined {
 function refuseRuleClash(db: DB, vocab: VaultVocab, row: Group): void {
 	const clash = ruleClash(db, getResolver(db, vocab), row.key);
 	if (clash.length)
-		throw new QueueError(
-			`« ${row.forms[0].name} » reste ambigu : les règles de ${clash.join(' et de ')} valent toutes deux sur certaines lignes, et une règle passe avant un nom. ` +
-				`Un nouveau nom n’y changerait rien ; retirez ce nom (et sa règle) de l’un d’eux, ou rendez leurs conditions distinctes.`
-		);
+		throw new QueueError(t.queue.refused.ruleClash(row.forms[0].name, clash));
 }
 
 /**
@@ -152,11 +150,7 @@ export async function commitEntries(ctx: VaultContext, vocab: VaultVocab, writes
 		commit = await writeAndCommit(ctx, writes, message);
 	} catch (e) {
 		if (!(e instanceof FileWriteError)) throw e;
-		throw new QueueError(
-			e.stage === 'write'
-				? `le fichier n’a pas pu être écrit ; rien n’a changé : ${e.message}`
-				: `l’ingrédient n’a pas pu être enregistré (git) ; rien n’a changé : ${e.message}`
-		);
+		throw new QueueError(e.stage === 'write' ? t.error.write(e.message) : t.queue.refused.commit(e.message));
 	}
 	try {
 		ctx.db.transaction(() => {
@@ -173,16 +167,16 @@ export async function commitEntries(ctx: VaultContext, vocab: VaultVocab, writes
 export function checked(text: string, slug: string, vocab: VaultVocab): RegistryEntry {
 	const r = parseIngredient(text, { fileStem: slug, allergens: vocab.allergens.size ? new Set(vocab.allergens.keys()) : undefined });
 	const errors = r.diagnostics.filter((d) => d.severity === 'error');
-	if (!r.entry || errors.length) throw new QueueError(`l’ingrédient ne passerait pas la validation (${errors.map((d) => d.code).join(', ') || 'illisible'}).`);
+	if (!r.entry || errors.length) throw new QueueError(t.queue.refused.invalid(errors.map((d) => d.code).join(', ')));
 	return r.entry;
 }
 
 /** An entry file as on disk, refused when missing or changed since `hash` (when given). */
 export function current(ctx: VaultContext, slug: string, hash: string | undefined) {
-	if (!SLUG_RE.test(slug)) throw new QueueError('identifiant d’ingrédient invalide.');
+	if (!SLUG_RE.test(slug)) throw new QueueError(t.queue.refused.slug);
 	const file = readVaultFile(ctx, ingredientPath(slug));
-	if (!file.hash) throw new QueueError(`l’ingrédient ${slug} n’existe pas.`);
-	if (hash !== undefined && file.hash !== hash) throw new QueueError(`l’ingrédient ${slug} a changé depuis l’ouverture de la page ; rechargez-la.`);
+	if (!file.hash) throw new QueueError(t.error.noIngredient(slug));
+	if (hash !== undefined && file.hash !== hash) throw new QueueError(t.queue.refused.changed(slug));
 	return file;
 }
 
@@ -195,7 +189,7 @@ export function linkKey(ctx: VaultContext, key: string, slug: string, hash?: str
 	return ctx.lock.run(async () => {
 		const vocab = loadVocab(ctx.paths.vocab);
 		const row = rowOf(ctx.db, key);
-		if (!row) throw new QueueError('ce nom est déjà relié ; rechargez la page.');
+		if (!row) throw new QueueError(t.queue.refused.linked);
 		refuseRuleClash(ctx.db, vocab, row);
 		const file = current(ctx, slug, hash);
 		const form = row.forms[0].name;
@@ -203,9 +197,9 @@ export function linkKey(ctx: VaultContext, key: string, slug: string, hash?: str
 		try {
 			text = withName(file.text, row.lang, form);
 		} catch (e) {
-			throw new QueueError(`${ingredientPath(slug)} ne se lit pas ; corrigez-le d’abord (${(e as IngredientEditError).message}).`);
+			throw new QueueError(t.error.unreadable(ingredientPath(slug), (e as IngredientEditError).message));
 		}
-		if (text === file.text) throw new QueueError(`« ${form} » est déjà un nom de ${slug}.`);
+		if (text === file.text) throw new QueueError(t.error.nameTaken(form, slug));
 		checked(text, slug, vocab);
 		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} + "${form}"`) };
 	});
@@ -222,12 +216,12 @@ export function createFromKey(ctx: VaultContext, key: string, input: NewIngredie
 	return ctx.lock.run(async () => {
 		const vocab = loadVocab(ctx.paths.vocab);
 		const row = rowOf(ctx.db, key);
-		if (!row) throw new QueueError('ce nom est déjà relié ; rechargez la page.');
+		if (!row) throw new QueueError(t.queue.refused.linked);
 		refuseRuleClash(ctx.db, vocab, row);
 		const slug = input.slug.trim();
-		if (!SLUG_RE.test(slug)) throw new QueueError('identifiant invalide : lettres minuscules sans accents, chiffres et traits d’union.');
-		if (!(CATEGORIES as readonly string[]).includes(input.category)) throw new QueueError('choisissez une catégorie.');
-		if (readVaultFile(ctx, ingredientPath(slug)).hash) throw new QueueError(`l’ingrédient ${slug} existe déjà ; reliez le nom à celui-ci, ou choisissez un autre identifiant.`);
+		if (!SLUG_RE.test(slug)) throw new QueueError(t.queue.refused.newSlug);
+		if (!(CATEGORIES as readonly string[]).includes(input.category)) throw new QueueError(t.error.category);
+		if (readVaultFile(ctx, ingredientPath(slug)).hash) throw new QueueError(t.queue.refused.exists(slug));
 		const form = row.forms[0].name;
 		const text = serializeIngredient({
 			slug,
@@ -262,9 +256,9 @@ export function unlinkKey(ctx: VaultContext, key: string, slug: string, hash: st
 		try {
 			text = withoutRuleNames(withoutKey(file.text, key), (k) => resolver.ruleNameReaches(k, key, lang));
 		} catch (e) {
-			throw new QueueError(`${ingredientPath(slug)} ne se lit pas ; corrigez-le d’abord (${(e as IngredientEditError).message}).`);
+			throw new QueueError(t.error.unreadable(ingredientPath(slug), (e as IngredientEditError).message));
 		}
-		if (text === file.text) throw new QueueError(`ce nom n’est plus un nom de ${slug} ; rechargez la page.`);
+		if (text === file.text) throw new QueueError(t.queue.refused.notAName(slug));
 		checked(text, slug, vocab);
 		const names = ctx.db.prepare('SELECT name FROM ingredient_names WHERE slug = ? AND key = ?').pluck().all(slug, key) as string[];
 		return { commit: await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} - "${names[0] ?? row?.forms[0].name ?? key}"`) };
@@ -290,13 +284,13 @@ export function addRule(ctx: VaultContext, key: string, slug: string, input: Rul
 	return ctx.lock.run(async () => {
 		const vocab = loadVocab(ctx.paths.vocab);
 		const row = rowOf(ctx.db, key);
-		if (!row) throw new QueueError('ce nom est déjà relié ; rechargez la page.');
+		if (!row) throw new QueueError(t.queue.refused.linked);
 		const known = new Set<string>([...UNITS, ...Object.keys(UNIT_CLASSES)]);
 		const unit = [...new Set((input.unit ?? []).map((u) => u.trim()).filter(Boolean))];
 		const bad = unit.filter((u) => !known.has(u));
-		if (bad.length) throw new QueueError(`unité inconnue : ${bad.join(', ')}.`);
+		if (bad.length) throw new QueueError(t.error.unit(bad.join(', ')));
 		const words = [...new Set((input.words ?? []).map((w) => w.replace(/\s+/g, ' ').trim()).filter(Boolean))];
-		if (!unit.length && !words.length && !input.sameLang) throw new QueueError('choisissez au moins une condition : une unité, un mot ou la langue.');
+		if (!unit.length && !words.length && !input.sameLang) throw new QueueError(t.queue.refused.noCondition);
 		const form = row.forms[0].name;
 		const rule: NameRule = { names: [form], ...(input.sameLang ? { lang: row.lang } : {}), ...(unit.length ? { unit } : {}), ...(words.length ? { words } : {}) };
 		const file = current(ctx, slug, hash);
@@ -304,9 +298,9 @@ export function addRule(ctx: VaultContext, key: string, slug: string, input: Rul
 		try {
 			text = withRule(file.text, rule);
 		} catch (e) {
-			throw new QueueError(`${ingredientPath(slug)} ne se lit pas ; corrigez-le d’abord (${(e as IngredientEditError).message}).`);
+			throw new QueueError(t.error.unreadable(ingredientPath(slug), (e as IngredientEditError).message));
 		}
-		if (text === file.text) throw new QueueError(`${slug} a déjà cette règle.`);
+		if (text === file.text) throw new QueueError(t.queue.refused.sameRule(slug));
 		checked(text, slug, vocab);
 		const before = row.count;
 		const cond = [rule.lang && `lang: ${rule.lang}`, unit.length && `unit: ${unit.join(', ')}`, words.length && `words: ${words.join(', ')}`].filter(Boolean).join('; ');

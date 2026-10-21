@@ -6,9 +6,10 @@
 //   → { file, placeholder, commit }
 // DELETE application/json: { slug, hash } → { commit }   ("Retirer la photo")
 // Refusals: 400 (no file), 409 (the recipe changed or is gone, or fails the checker),
-// 413 (too big), 415 (not a photo, or unreadable) — each with a French `message`.
+// 413 (too big), 415 (not a photo, or unreadable) — each with a `message` in the person's language.
 
 import { error, json } from '@sveltejs/kit';
+import { t } from '$lib/i18n';
 import { writeContext } from '$lib/server/app';
 import { addPhoto, PHOTO_MAX_BYTES, PhotoError, removePhoto } from '$lib/server/photos';
 import { SaveError } from '$lib/server/save';
@@ -26,14 +27,14 @@ function refused(e: unknown) {
 export const POST: RequestHandler = async ({ request, locals }) => {
 	// Refuse on the declared length before reading a body far over the cap (multipart overhead allowed for).
 	const declared = Number(request.headers.get('content-length') ?? 0);
-	if (declared > PHOTO_MAX_BYTES + 64 * 1024) return refused(new PhotoError('too-big', `la photo dépasse ${PHOTO_MAX_BYTES / 1024 / 1024} Mo.`));
+	if (declared > PHOTO_MAX_BYTES + 64 * 1024) return refused(new PhotoError('too-big', t.photo.refused.tooBig(PHOTO_MAX_BYTES / 1024 / 1024)));
 	const form = await request.formData().catch(() => null);
 	if (!form) error(400, 'multipart/form-data: slug, hash, photo');
 	const slug = String(form.get('slug') ?? '');
 	const hash = String(form.get('hash') ?? '');
 	const photo = form.get('photo');
 	if (!SLUG_RE.test(slug) || !/^[0-9a-f]{64}$/.test(hash)) error(400, 'slug, hash');
-	if (!(photo instanceof File)) return refused(new PhotoError('empty', 'aucune photo reçue.'));
+	if (!(photo instanceof File)) return refused(new PhotoError('empty', t.photo.refused.none));
 	try {
 		const r = await addPhoto(writeContext(locals.user), slug, hash, Buffer.from(await photo.arrayBuffer()));
 		return json(r);

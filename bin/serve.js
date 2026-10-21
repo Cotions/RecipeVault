@@ -12,6 +12,9 @@ try {
 	// adapter-node refuses bodies over 512 KB by default; a phone photo is up to
 	// 25 MB (plan 04, Q12 A), plus the multipart envelope. /api/photo enforces the cap itself.
 	process.env.BODY_SIZE_LIMIT ??= '26M';
+	// Where to reach it: this machine, the home network, Tailscale (set up here when the config asks).
+	const { announce } = await import('../src/lib/server/reach.ts');
+	announce(config);
 } catch (e) {
 	console.error(`recipevault: ${e instanceof ConfigError ? e.message : e}`);
 	process.exit(1);

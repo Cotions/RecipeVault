@@ -46,8 +46,10 @@ the app from source, `./testapp.sh` starts a throwaway copy on port 3379
 
    `RECIPEVAULT_PORT` overrides the port. `currency` (default `CAD`) is the
    currency prices are costed in, `locale` (default `fr-CA`) formats money, and
-   `shops` adds shop names to the ones suggested when entering a price. See
-   `docs/DEPLOY.md`.
+   `shops` adds shop names to the ones suggested when entering a price.
+   Add `"tailscale_https_port": 8443` to reach the app from outside through
+   Tailscale; at startup it prints its home network and Tailscale addresses.
+   See `docs/DEPLOY.md`.
 
 3. Accounts (next to the config, in `users.json`; never in the vault). Reading
    needs none; every change does, and is committed under that person's name:

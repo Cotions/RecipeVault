@@ -12,7 +12,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { t } from '../i18n/fr';
+import { t } from '../i18n';
 import { checkBatch } from '../vault/check';
 import { committed, type VaultContext } from './context';
 import { checkOptions } from './checkopts';

@@ -67,6 +67,24 @@ file names the earlier one by its place ("le fichier n° 1 de ce collage"),
 with no offer, as neither is saved yet. The fix-request block holds only `ai`
 codes.
 
+**Relire et modifier.** Each pasted file that passes the checker on its own
+(Q3 A, as `/r/<slug>/modifier`) offers "Relire et modifier": the file opens in
+her form ("Her form", below) on the paste page itself, at `/ajouter?recette=N`,
+built by `toForm` in the browser — nothing to read in Markdown, YAML or marker
+syntax, the same fields as on a phone or a tablet. It is a new recipe: its slug
+comes from its title, the first free `-N`, so a clash with the vault or inside
+the paste needs no choice there; "Remplacer" stays a paste box choice, and a
+file with "Remplacer" chosen does not offer the form. Its draft has a slot of
+its own per pasted file (`:collage:<slug>#<rank>`), offered back when the same
+recipe is opened again ("Repartir du texte collé" drops it). Save goes through
+the form's own save (`POST /api/form/save`); the file then leaves the paste and
+she is back among the other pasted recipes, the toast linking the one saved
+with "Annuler" — or on the recipe page when it was the last. A file with errors
+says to have the AI fix it first. Until it is saved or emptied, the paste is
+kept in the tab (`sessionStorage`, never sent anywhere), so a tablet that
+reloads a tab left in the background, or a trip to the form and back, loses
+nothing.
+
 **Web import.** A URL typed above the box is fetched by the server — `http`/`https`
 only, 10 s for the whole fetch (redirects and body included, not only while
 idle), 5 MB, redirects re-checked, and never a host resolving to a private,
@@ -799,6 +817,45 @@ Every write then commits as the signed-in person (`withAuthor(ctx, user)`,
 author and committer both); the CLI and the watcher's `edit (external)`
 commits keep `git_author`. Rights are the same for every account (Q2 B); the
 per-account `markdown` preference only shows or hides the Markdown tools.
+
+### Account preferences
+
+**Decided (2026-10-11).** Each account chooses three things for itself on
+`/compte` (the name in the header links there), stored under `prefs` in its
+`users.json` entry (`STORAGE.md` §Accounts) and nowhere in the vault. They
+change what that person is shown, never a file:
+
+- **Language** (`lang`: `fr`, `en`; default `fr`): every menu, button, message
+  and checker explanation (`src/lib/i18n/fr.ts`, `en.ts`, `diagnostics.ts`).
+  A recipe's own text — title, ingredient names, steps, « au goût » — stays in
+  the language it was written in. Addresses stay French (`/ajouter`).
+- **Measures** (`system`: `written`, `metric`, `imperial`; default `written`):
+  the measuring system amounts are shown in (`VOCAB.md`, "Measuring systems").
+- **Unit words** (`words`: per canonical unit, `[singular, plural]`): the
+  account's own word for a unit, shown instead of the vault's
+  (`vocab/unit-labels.yaml`): *c. à soupe* for `tbsp`, *tige* for `stalk`. At
+  most 30 characters; an empty box keeps the usual word.
+
+Once an account has saved `/compte`, its language is a choice made (stored
+even when French), and a unit shows its word in that language whatever the
+recipe's: an English reader sees `2 cups farine` on a French card, and the
+French `de` joins the name only when the unit word is French too. Signed out,
+or before any choice: French, amounts as written, each recipe's units in its
+own language, as before — nothing changes for an account that chose nothing.
+
+The strings and the amounts read the preferences from one place
+(`src/lib/prefs.ts`). The server serves several accounts at once, so the hook
+runs each request inside its account's preferences (`AsyncLocalStorage`); the
+browser installs them once, from the root layout's data, before anything
+renders, and loads the page again when they change (sign-in, saving `/compte`)
+rather than re-rendering half of it. `/compte` posts a plain form for the same
+reason. Signed out, `/compte` sends to `/connexion`. Anything unknown in
+`prefs` (a hand edit, an older version) reads as the default, never as an
+error: preferences cannot keep anyone from signing in.
+
+The form (`/nouvelle`, `/r/<slug>/modifier`) always shows amounts as written:
+what it saves is the card. The amount a tap scales against (plan 05, Q8 B) is
+the written one too.
 
 Sign-in (`/connexion`): login and password; "Rester connectée sur cet appareil",
 checked by default, gives a cookie of one year renewed on use (at most once a

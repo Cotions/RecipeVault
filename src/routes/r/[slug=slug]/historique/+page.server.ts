@@ -1,14 +1,17 @@
 import { error, fail } from '@sveltejs/kit';
 import { getApp, writeContext } from '$lib/server/app';
 import { HistoryError, recipeHistory, restoreVersion, undoCommit } from '$lib/server/history';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
+import { locale } from '$lib/prefs';
 import type { Actions, PageServerLoad } from './$types';
 
-const when = new Intl.DateTimeFormat('fr-CA', { dateStyle: 'long', timeStyle: 'short' });
+/** Per request: the date reads in the person's language. */
+const dated = () => new Intl.DateTimeFormat(`${locale()}-CA`, { dateStyle: 'long', timeStyle: 'short' });
 
 export const load: PageServerLoad = async ({ params }) => {
 	const h = await recipeHistory(getApp().ctx, params.slug);
 	if (h.where === 'none' && !h.versions.length) error(404, t.recipe.notFound);
+	const when = dated();
 	return {
 		slug: h.slug,
 		where: h.where,

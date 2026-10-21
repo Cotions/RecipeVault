@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
+	import { locale } from '$lib/prefs';
 	import { codeText } from '$lib/i18n/diagnostics';
 	import { formatMoney, formatPack } from '$lib/render/money';
 	import { unitLabel } from '$lib/render/ingredient';
@@ -15,26 +16,24 @@
 
 	const e = $derived(data.entry);
 	const keep = () => async ({ update }: { update: (o?: { reset?: boolean }) => Promise<void> }) => update({ reset: false });
-	const u = (unit: string, n = 1) => (t.ingredients.unit[unit] && n < 2 ? t.ingredients.unit[unit] : unitLabel(unit as Unit, n, 'fr'));
-	/** Three significant digits, decimal comma. */
-	const num = (x: number) => String(Number(x.toPrecision(3))).replace('.', ',');
+	const u = (unit: string, n = 1) => (t.ingredients.unit[unit] && n < 2 ? t.ingredients.unit[unit] : unitLabel(unit as Unit, n, locale()));
+	/** A number as the interface's language writes it: a decimal comma in French. */
+	const dec = (x: number) => (locale() === 'fr' ? String(x).replace('.', ',') : String(x));
+	/** Three significant digits. */
+	const num = (x: number) => dec(Number(x.toPrecision(3)));
 	const amount = (x: number) => (data.unit ? `${num(x)} ${u(data.unit, x)}` : num(x));
-	const pct = (x: number) => (Math.abs(x) < 0.005 ? t.ingredient.same : `${x > 0 ? '+' : '−'}${Math.round(Math.abs(x) * 100)} %`);
+	const pct = (x: number) => (Math.abs(x) < 0.005 ? t.ingredient.same : t.ingredient.change(`${x > 0 ? '+' : '−'}${Math.round(Math.abs(x) * 100)}`));
 	const money = (a: number, currency: string) => formatMoney(a, { currency, locale: data.money.locale });
 	const written = (w: { qty: string; value: number | null; unit: string | null; toTaste: boolean; optional: boolean }) =>
 		[w.qty ? `${w.qty}${w.unit ? ` ${u(w.unit, w.value ?? 1)}` : ''}` : w.toTaste ? t.ingredient.toTaste : w.unit ? u(w.unit) : t.ingredient.noQty, w.optional ? t.ingredient.optional : '']
 			.filter(Boolean)
 			.join(', ');
 	function ruleText(r: NameRule): string {
-		const c = [
-			r.lang && t.ingredient.ruleLang(r.lang),
-			r.unit && t.ingredient.ruleUnit(r.unit.map((x) => t.queue.ruleClass[x] ?? u(x)).join(' ou ')),
-			r.words && t.ingredient.ruleWords(r.words.map((w) => `« ${w} »`).join(' ou '))
-		].filter(Boolean);
-		return t.ingredient.rule(r.names.join(' », « '), c.join(t.ingredient.and));
+		const c = [r.lang && t.ingredient.ruleLang(r.lang), r.unit && t.ingredient.ruleUnit(r.unit.map((x) => t.queue.ruleClass[x] ?? u(x))), r.words && t.ingredient.ruleWords(r.words)];
+		return t.ingredient.rule(r.names, c.filter((x): x is string => !!x));
 	}
 	const merged = $derived(page.url.searchParams.get('fusion'));
-	const weightRows = $derived([...Object.entries(e.weights).map(([unit, g]) => ({ unit, g: String(g).replace('.', ',') })), { unit: '', g: '' }, { unit: '', g: '' }]);
+	const weightRows = $derived([...Object.entries(e.weights).map(([unit, g]) => ({ unit, g: dec(g) })), { unit: '', g: '' }, { unit: '', g: '' }]);
 	let mergeInto = $state('');
 	const mergeName = $derived(data.entries.find((x) => x.slug === mergeInto || x.name === mergeInto)?.name ?? mergeInto);
 </script>
@@ -222,8 +221,8 @@
 		<ul class="drift">
 			{#each data.drift as d (d.key)}
 				<li>
-					<span class="form">« {d.forms[0].name} »</span>
-					<span class="soft">{t.queue.count(d.count, d.recipes)}{#if d.forms.length > 1} · {d.forms.slice(1).map((f) => `« ${f.name} »`).join(', ')}{/if}</span>
+					<span class="form">{t.app.quote(d.forms[0].name)}</span>
+					<span class="soft">{t.queue.count(d.count, d.recipes)}{#if d.forms.length > 1} · {d.forms.slice(1).map((f) => t.app.quote(f.name)).join(', ')}{/if}</span>
 					{#if d.ambiguous}
 						<span class="soft">({t.ingredient.driftAmbiguous})</span>
 						<a href={queueHref(d.key)}>{t.ingredient.driftQueue}</a>
@@ -275,7 +274,7 @@
 				</label>
 				<label>
 					{t.ingredient.densityField}
-					<input name="density" inputmode="decimal" size="6" autocomplete="off" value={e.density !== undefined ? String(e.density).replace('.', ',') : ''} />
+					<input name="density" inputmode="decimal" size="6" autocomplete="off" value={e.density !== undefined ? dec(e.density) : ''} />
 				</label>
 			</div>
 			<label class="check"><input type="checkbox" name="staple" checked={e.staple} /> {t.ingredient.stapleField}</label>

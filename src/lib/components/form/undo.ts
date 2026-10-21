@@ -4,7 +4,7 @@
 // undone, the toast then offers "Rétablir" (undo the undo).
 
 import { goto, invalidateAll } from '$app/navigation';
-import { t, form as f } from '$lib/i18n/fr';
+import { t, form as f } from '$lib/i18n';
 import { toast } from '$lib/toast.svelte';
 
 type Undone = { ok: true; action: 'undone' | 'trashed' | 'untrashed'; commit: string | null } | { ok: false; message: string };

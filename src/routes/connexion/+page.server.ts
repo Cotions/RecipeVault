@@ -4,7 +4,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { getApp } from '$lib/server/app';
 import { clientAddress, endSession, safeNext, signIn, startSession, SESSION_COOKIE } from '$lib/server/auth';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ url, locals }) => ({

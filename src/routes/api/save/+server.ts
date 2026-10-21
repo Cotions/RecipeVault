@@ -3,7 +3,7 @@ import { getApp, writeContext } from '$lib/server/app';
 import { savePaste, type Unsent } from '$lib/server/paste';
 import { SaveError, type SaveFile } from '$lib/server/save';
 import { SLUG_RE } from '$lib/vault/slug';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { RequestHandler } from './$types';
 
 /** Recipes per save, sent and held back alike. */

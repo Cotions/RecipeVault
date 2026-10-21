@@ -2,7 +2,8 @@
 	// A recipe as read: used by the recipe page and, identically, by the paste
 	// box preview. Quantities rescale with the servings adjuster, in print too.
 	import { onMount, type Snippet } from 'svelte';
-	import { t, tagLabel, familyLabel } from '$lib/i18n/fr';
+	import { t, tagLabel, familyLabel } from '$lib/i18n';
+	import { locale, prefs } from '$lib/prefs';
 	import { formatDurationValue, formatSeconds } from '$lib/render/duration';
 	import { formatAmount, type ScaleBase } from '$lib/render/ingredient';
 	import { renderMarkdown } from '$lib/render/markdown';
@@ -13,7 +14,7 @@
 	import { parseBody } from '$lib/vault/body';
 	import { findMarkers } from '$lib/vault/markers';
 	import { loadStepStyle, setNumbered, stepStyle } from '$lib/stepstyle.svelte';
-	import type { Ingredient, Recipe } from '$lib/vault/types';
+	import type { Ingredient, Recipe, Unit } from '$lib/vault/types';
 	import IngredientLine from './IngredientLine.svelte';
 	import Marked from './Marked.svelte';
 	import StatusBadge from './StatusBadge.svelte';
@@ -48,7 +49,7 @@
 		/** The scaling factor (plan 05): the page keeps it in its address (Q1 A). */
 		factor?: number;
 		/** Recipe page: how each line resolved, by position across groups. */
-		itemLinks?: Record<number, { item?: string; key?: string }>;
+		itemLinks?: Record<number, { item?: string; key?: string; weights?: Partial<Record<Unit, number>> }>;
 		/** Recipe page: the cost line, given the current scaling factor. */
 		cost?: Snippet<[number]>;
 		/** Recipe page: shown where the photo goes when there is none ("Ajouter une photo", plan 04 Q13 A). */
@@ -85,7 +86,7 @@
 	/** A typed factor or amount → the factor, or an error line. */
 	function checked(n: number | undefined): number | string {
 		if (n === undefined) return t.scaling.unreadable;
-		return capFactor(n, scaling) ?? t.scaling.outOfRange(formatNumber(cap.min, 'fr'), formatNumber(cap.max, 'fr'));
+		return capFactor(n, scaling) ?? t.scaling.outOfRange(formatNumber(cap.min, locale()), formatNumber(cap.max, locale()));
 	}
 	function applyHave(e: SubmitEvent) {
 		e.preventDefault();
@@ -117,7 +118,14 @@
 	/** The position of each group's first line across groups, as the index numbers them. */
 	const offsets = $derived(recipe.ingredients.reduce<number[]>((a, g, i) => (a.push(i ? a[i - 1] + recipe.ingredients[i - 1].items.length : 0), a), []));
 	/** Q6 B: at another amount, each measure in a step gets its scaled value beside it. */
-	const stepScale = $derived(factor === 1 ? undefined : { factor, lang, rules: scaling, title: t.scaling.stepAmountTitle(formatNumber(factor, 'fr')) });
+	// At factor 1 too for an account that reads in a measuring system: a step's « 1 tasse » shows its `250 ml`.
+	const stepScale = $derived(
+		factor === 1
+			? prefs().system === 'written'
+				? undefined
+				: { factor, lang, rules: scaling, title: t.scaling.stepSystemTitle }
+			: { factor, lang, rules: scaling, title: t.scaling.stepAmountTitle(formatNumber(factor, locale())) }
+	);
 	const html = $derived(renderMarkdown(body, { resolve: (s) => titles[s], numbered: stepStyle.numbered, scale: stepScale }));
 	const steps = $derived(parseBody(body).body.steps);
 	const hasSteps = $derived(steps.length > 0);
@@ -230,7 +238,7 @@
 			<div>
 				<dt>{t.recipe.servings}</dt>
 				<dd>
-					{shownServings.lo}{#if shownServings.hi}&nbsp;à&nbsp;{shownServings.hi}{/if}{#if servingsMarkers}&nbsp;<Marked text={servingsMarkers} />{/if}
+					{shownServings.hi ? t.recipe.servingsRange(shownServings.lo, shownServings.hi) : shownServings.lo}{#if servingsMarkers}&nbsp;<Marked text={servingsMarkers} />{/if}
 					{#if recipe.servingsNote}<span class="conv"><Marked text={recipe.servingsNote} /></span>{/if}
 				</dd>
 			</div>
@@ -242,7 +250,7 @@
 	{@render cost?.(factor)}
 
 	{#if recipe.tags.length || recipe.season.length}
-		<ul class="tags" aria-label="Étiquettes">
+		<ul class="tags" aria-label={t.recipe.tags}>
 			{#each recipe.tags as tag, i (tag)}
 				{@const view = tagViews?.[i] ?? { key: tag, label: tagLabel(tag) }}
 				<li>{#if links}<a href="/?tag={encodeURIComponent(view.key)}">{view.label}</a>{:else}{view.label}{/if}</li>
@@ -292,7 +300,7 @@
 					{/if}
 				</div>
 				{#if factor !== 1}
-					<p class="scaled" class:print-only={!recipe.servings || wholeServings}>{t.scaling.factorShown(formatNumber(factor, 'fr'))}</p>
+					<p class="scaled" class:print-only={!recipe.servings || wholeServings}>{t.scaling.factorShown(formatNumber(factor, locale()))}</p>
 				{/if}
 			</div>
 			{#if askFactor}
@@ -320,7 +328,7 @@
 								<IngredientLine {item} {factor} {lang} {titles} rules={scaling} {subHref} link={itemLinks?.[offsets[gi] + ii]} onscale={interactive ? (b) => ask(key, b) : undefined} />
 								{#if asking?.key === key}
 									<form class="ask no-print" onsubmit={applyHave}>
-										<label>{t.scaling.have(formatAmount({ qty: { value: asking.base.value }, unit: asking.base.unit }, { lang }))} <input inputmode="decimal" autocomplete="off" size="5" bind:value={haveText} use:focus /></label>
+										<label>{t.scaling.have(formatAmount({ qty: { value: asking.base.value }, unit: asking.base.unit }, { lang, asWritten: true }))} <input inputmode="decimal" autocomplete="off" size="5" bind:value={haveText} use:focus /></label>
 										<button class="btn primary" type="submit">{t.scaling.apply}</button>
 										<button class="btn quiet" type="button" onclick={() => (asking = null)}>{t.scaling.cancel}</button>
 										{#if haveError}<p class="err" role="alert">{haveError}</p>{/if}
@@ -341,7 +349,7 @@
 				</label>
 			{/if}
 			{#if factor !== 1 && (hasSteps || oven || times.length)}
-				<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, 'fr'))}{#if stepHasAmount}{' '}{t.scaling.arrowNotice}{/if}</p>
+				<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, locale()))}{#if stepHasAmount}{' '}{t.scaling.arrowNotice}{/if}</p>
 			{/if}
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -- markdown-it with html: false -->
 			{@html html}

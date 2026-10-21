@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 
 	let { status, broken = false }: { status: string | null | undefined; broken?: boolean } = $props();
 </script>

@@ -3,7 +3,7 @@ import { getApp, writeContext } from '$lib/server/app';
 import { dismissPair, DuplicateError, duplicatePage, pairVersions, sameRecipe, undismissPair } from '$lib/server/duplicates';
 import { HistoryError, undoCommit } from '$lib/server/history';
 import { LABEL_MAX } from '$lib/server/families';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 // Possible duplicates (plan 05, Phase 7; Q12 B, Q13 B, Q15 A): readable by

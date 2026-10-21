@@ -3,7 +3,7 @@ import { getApp } from '$lib/server/app';
 import { openForm } from '$lib/server/formsave';
 import { compareForms } from '$lib/form/compare';
 import { stripMarkers } from '$lib/vault/markers';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { PageServerLoad } from './$types';
 
 // Two recipes of a pair side by side (plan 05, Phase 7): the form's stale

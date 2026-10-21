@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { t, tagLabel } from '$lib/i18n/fr';
+	import { t, tagLabel } from '$lib/i18n';
 	import Marked from '$lib/components/Marked.svelte';
 	import type { PageProps } from './$types';
 
@@ -31,7 +31,7 @@
 					<span class="count">{s.recipes(n)}</span>
 				</header>
 				{#if p.forms.length > 1}
-					<p class="meta">{s.written} : {p.forms.map((f) => `« ${f} »`).join(', ')}</p>
+					<p class="meta">{s.written(p.forms)}</p>
 				{/if}
 				{#if p.suggestion}
 					<p class="meta near">{s.suggestion(labelOf(p.suggestion))}</p>

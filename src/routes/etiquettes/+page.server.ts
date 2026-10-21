@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { getApp, writeContext } from '$lib/server/app';
 import { acceptTag, canonicalTags, dropTag, LABEL_MAX, mapTag, pendingTags, TagError, tagsVersion } from '$lib/server/tags';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 // Pending tags (plan 04, Phase 8; Q11 B). Shown in the nav to an account with

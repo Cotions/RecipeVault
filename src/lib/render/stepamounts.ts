@@ -6,14 +6,18 @@
 // durations and pan sizes (`9 x 13 po`) use no recipe unit and are never
 // found. Only measures (mass and volume) are read: a count in a step is more
 // often a shape than an amount (« couper en 8 tranches », « en 2 abaisses »).
+// The same for an account that reads in a measuring system (./system.ts): a
+// step's « 1 tasse » shows its `250 ml` beside it, at factor 1 too.
 // Browser-safe.
 
 import { sizeNumber } from '../ingredients/units';
 import { UNIT_CLASS_OF } from '../ingredients/types';
 import { findAllQtyUnits, unitForAlias } from '../vault/vocab';
 import type { Lang, Unit } from '../vault/types';
+import { prefs } from '../prefs';
 import { amountView } from './ingredient';
 import type { ScalingRules } from './scale';
+import { inSystem } from './system';
 
 export interface StepAmount {
 	/** Offsets of the amount as written (a range from its first number). */
@@ -54,11 +58,13 @@ const SPOON_REST = /^\s*(?:(?:à|a)(?![\p{L}\p{N}])|th[ée]|table|soupe|caf[ée]
 const TRAILING_FRACTION = /^\s+(\d+\/\d+|[½¼¾⅓⅔⅛])(?![\p{L}\p{N}/])/u;
 
 /**
- * Every measure written in a step, with its value at `factor`. Nothing at
- * factor 1: the step shows as written.
+ * Every measure written in a step, with its value at `factor`, in the
+ * account's measuring system. Nothing at factor 1 for an amount the system
+ * leaves alone: the step shows as written.
  */
 export function stepAmounts(text: string, { factor, lang, rules }: StepScale): StepAmount[] {
-	if (factor === 1 || !(factor > 0)) return [];
+	const system = prefs().system;
+	if (!(factor > 0) || (factor === 1 && system === 'written')) return [];
 	const out: StepAmount[] = [];
 	const matches = findAllQtyUnits(text);
 	for (const [i, m] of matches.entries()) {
@@ -72,6 +78,7 @@ export function stepAmounts(text: string, { factor, lang, rules }: StepScale): S
 		if (cls !== 'mass' && cls !== 'volume') continue;
 		let value = sizeNumber(m.qty);
 		if (value === undefined || !(value > 0)) continue;
+		if (factor === 1 && !inSystem([value], unit, system)) continue;
 		let end = m.end;
 		const tail = TRAILING_FRACTION.exec(text.slice(m.end));
 		if (tail && /^\d+$/.test(m.qty)) {

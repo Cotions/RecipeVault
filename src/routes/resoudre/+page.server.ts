@@ -4,7 +4,7 @@ import { loadVocab } from '$lib/server/vocab';
 import { addRule, createFromKey, linkKey, QueueError, resolveQueue, unlinkKey } from '$lib/server/queue';
 import { proposeSlug } from '$lib/ingredients/registry';
 import { CATEGORIES, UNIT_CLASSES } from '$lib/ingredients/types';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 const LIMIT = 30;

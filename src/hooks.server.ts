@@ -1,4 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { json, redirect, type Handle, type ServerInit } from '@sveltejs/kit';
+import { t } from '$lib/i18n';
+import { DEFAULT_PREFS, setPrefsSource, type Prefs } from '$lib/prefs';
 import { getApp, startApp } from '$lib/server/app';
 import { currentUser, guard } from '$lib/server/auth';
 import { hostAllowed } from '$lib/server/hosts';
@@ -15,6 +18,11 @@ export const init: ServerInit = async () => {
 	}
 };
 
+// Several requests are served at once, each for its own account: the strings
+// and the amounts ask here whose preferences apply (lib/prefs.ts).
+const serving = new AsyncLocalStorage<Prefs>();
+setPrefsSource(() => serving.getStore());
+
 const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** CSRF: a browser's writing request must come from a page on the host it targets (already checked against the allowed hosts). */
@@ -30,6 +38,22 @@ function crossSite(request: Request): boolean {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+	const answer = await check(event);
+	if (answer) return answer;
+	const lang = event.locals.user?.prefs.lang ?? 'fr';
+	const run = async () => {
+		const response = await resolve(event, { transformPageChunk: ({ html }) => html.replace('%lang%', `${lang}-CA`) });
+		response.headers.set('X-Content-Type-Options', 'nosniff');
+		response.headers.set('Referrer-Policy', 'same-origin');
+		response.headers.set('X-Frame-Options', 'DENY');
+		return response;
+	};
+	// Signed out too: the defaults, never whatever another request left behind.
+	return serving.run(event.locals.user?.prefs ?? DEFAULT_PREFS, run);
+};
+
+/** Everything settled before the page is made: the answer when the request stops here, else who is asking. */
+async function check(event: Parameters<Handle>[0]['event']): Promise<Response | undefined> {
 	// DNS rebinding: refuse any request, reads included, for a host name the app is not served on.
 	if (!hostAllowed(event.request.headers.get('host'), getApp().config.hosts))
 		return new Response('Unknown host: add it to "hosts" in the RecipeVault config.', { status: 421 });
@@ -41,14 +65,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const app = getApp();
 	event.locals.user = currentUser(app.auth, event.cookies, event.request.headers);
 	const g = guard(event.request.method, event.url, !!event.locals.user);
-	if (g === 'unauthorized') return json({ message: 'Connexion requise.' }, { status: 401 });
+	if (g === 'unauthorized') return json({ message: t.auth.required }, { status: 401 });
 	if (g !== 'pass') redirect(303, g.login);
 	// The unit words (vocab/unit-labels.yaml) for loads and actions that format
 	// units: the root layout sets them only when it renders.
 	installUnitWords(app.ctx.paths.vocab);
-	const response = await resolve(event);
-	response.headers.set('X-Content-Type-Options', 'nosniff');
-	response.headers.set('Referrer-Policy', 'same-origin');
-	response.headers.set('X-Frame-Options', 'DENY');
-	return response;
-};
+	return undefined;
+}

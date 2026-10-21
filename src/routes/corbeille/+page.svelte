@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
+	import { locale } from '$lib/prefs';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
-	const date = (iso: string) => new Date(iso).toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' });
+	const date = (iso: string) => new Date(iso).toLocaleDateString(`${locale()}-CA`, { day: 'numeric', month: 'long', year: 'numeric' });
 </script>
 
 <svelte:head><title>{t.trash.title} — {t.app.name}</title></svelte:head>

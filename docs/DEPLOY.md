@@ -19,6 +19,7 @@ guards against accidents — the network stays the real boundary. See
   "git_author": { "name": "Your Name", "email": "you@example.com" },
   "git_push": true,
   "hosts": ["recettes.maison.lan"],
+  "tailscale_https_port": 8443,
   "currency": "CAD",
   "locale": "fr-CA",
   "shops": ["Épicerie du coin"]
@@ -45,6 +46,9 @@ the page answers `421 Unknown host`.
 suggested when entering a price, after the shops already in `prices.csv`
 (plan 03, decision 2: none of this is in the code).
 
+`tailscale_https_port` (optional) makes the app set up its own Tailscale HTTPS
+address at startup (step 4). Without it the app leaves Tailscale alone.
+
 `host: "127.0.0.1"` keeps the app off the LAN entirely, reachable only through
 Tailscale (step 4) — the stricter choice.
 
@@ -68,6 +72,10 @@ the paste box, "Voir le fichier", the resolve queue and the pending-tags count
 to flip `--markdown` later: remove and add the account, or edit the file.
 Without any account the app still serves every page, but nobody can save (it
 says so at startup).
+
+Each person then sets their own language (French or English), measuring system
+and unit words in the app, on `/compte` (their name, top right). These land in
+`users.json` under `prefs`; the vault is not touched.
 
 ## 2. Build and run
 
@@ -126,11 +134,36 @@ they live in the vault folder and in `~/.config/recipevault`.
 
 ## 4. Outside access and HTTPS: Tailscale
 
-```sh
-tailscale serve --bg https / http://localhost:3370
+With `"tailscale_https_port": 8443` in the config, the app does this itself at
+every start, and prints where it is reached:
+
+```
+recipevault: this machine  http://localhost:3370
+recipevault: home network  http://192.168.1.20:3370
+recipevault: Tailscale     https://<machine>.<tailnet>.ts.net:8443
 ```
 
-This gives the app an HTTPS name on the tailnet (`https://<machine>.<tailnet>.ts.net`).
+On the home wifi, any device opens the `home network` address. Away from home,
+a device with Tailscale opens the `Tailscale` one. What the app runs is
+
+```sh
+tailscale serve --bg --https=8443 http://127.0.0.1:3370
+```
+
+(by hand, once, does the same: the setting survives a reboot). It needs
+Tailscale connected, MagicDNS and HTTPS certificates enabled on the tailnet,
+and the right to change serve settings without `sudo`
+(`sudo tailscale set --operator=$USER`, once). When any of that is missing the
+app starts anyway and the `Tailscale` line says why.
+
+The port is the tailnet's, not the app's, and must differ from `port`. `443`
+gives an address without a port, but one machine has one `443`: a port that
+already serves another app is left alone, and the line says so — pick another.
+The app never removes a serve setting; `tailscale serve --https=8443 off` does.
+`./testapp.sh` drops the key from its copy of the config, so a test instance
+never takes the address over.
+
+This gives the app an HTTPS name on the tailnet (`https://<machine>.<tailnet>.ts.net:8443`).
 HTTPS is what makes the Wake Lock API work, so kitchen mode keeps the screen on;
 over plain `http://` on the LAN the screen may lock (kitchen mode says so once).
 Install Tailscale on the phone and tablet used in the kitchen.

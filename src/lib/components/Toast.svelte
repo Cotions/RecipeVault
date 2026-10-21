@@ -1,6 +1,7 @@
 <script lang="ts">
 	// The app's toast (src/lib/toast.svelte.ts): a status line with at most one
 	// action ("Annuler", "Rétablir") and a link. Rendered once, by the layout.
+	import { t as strings } from '$lib/i18n';
 	import { toast } from '$lib/toast.svelte';
 
 	let busy = $state(false);
@@ -26,7 +27,7 @@
 			{#if t.action}
 				<button type="button" class="act" disabled={busy} onclick={run}>{t.action.label}</button>
 			{/if}
-			<button type="button" class="close" aria-label="Fermer" onclick={() => toast.close()}>✕</button>
+			<button type="button" class="close" aria-label={strings.app.close} onclick={() => toast.close()}>✕</button>
 		</div>
 	{/if}
 </div>

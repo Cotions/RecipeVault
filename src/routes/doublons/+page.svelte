@@ -3,7 +3,7 @@
 	// same ingredients, most similar first, 20 a page; three ways to settle a
 	// pair, each one commit, each undoable from the message that follows it.
 	import { enhance } from '$app/forms';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import { slugify } from '$lib/vault/slug';
 	import Marked from '$lib/components/Marked.svelte';
 	import type { PageProps } from './$types';

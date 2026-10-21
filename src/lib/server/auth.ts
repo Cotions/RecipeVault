@@ -13,6 +13,7 @@
 import type { Cookies } from '@sveltejs/kit';
 import type { SessionStore } from './sessions';
 import { decoyHash, gitAuthorOf, passwordStamp, verifyPassword, type PublicUser, type UserStore } from './users';
+import { parsePrefs, type Prefs } from '../prefs';
 import type { GitAuthor } from './config';
 
 export const SESSION_COOKIE = 'rv_session';
@@ -110,8 +111,10 @@ export interface Auth {
 	throttle: Throttle;
 }
 
-export interface SignedIn extends PublicUser {
+export interface SignedIn extends Omit<PublicUser, 'prefs'> {
 	author: GitAuthor;
+	/** What this account chose (../prefs.ts), defaults filled in. */
+	prefs: Prefs;
 }
 
 export type SignInResult = { ok: true; user: SignedIn } | { ok: false; reason: 'bad' } | { ok: false; reason: 'throttled'; wait: number };
@@ -121,7 +124,8 @@ const publicOf = (u: PublicUser & { hash?: string }): SignedIn => ({
 	name: u.name,
 	...(u.email ? { email: u.email } : {}),
 	...(u.markdown ? { markdown: true } : {}),
-	author: gitAuthorOf(u)
+	author: gitAuthorOf(u),
+	prefs: parsePrefs(u.prefs)
 });
 
 /**
@@ -181,7 +185,7 @@ export function endSession(auth: Auth, cookies: Cookies, headers: Headers): void
 const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** Pages that exist only to write: signed out, they send to /connexion instead of showing a form that cannot save. */
-const WRITE_PAGES = [/^\/ajouter\/?$/, /^\/nouvelle\/?$/, /^\/r\/[^/]+\/modifier\/?$/];
+const WRITE_PAGES = [/^\/ajouter\/?$/, /^\/nouvelle\/?$/, /^\/r\/[^/]+\/modifier\/?$/, /^\/compte\/?$/];
 
 export type Guard = 'pass' | { login: string } | 'unauthorized';
 

@@ -28,7 +28,7 @@ import { classifyTag } from '../../src/lib/vault/tagstatus';
 import type { App } from '../../src/lib/server/app';
 import { loadRecipePage } from '../../src/lib/server/pages';
 import { seedVault, writeMissingTagLabels } from '../../src/lib/server/seed';
-import { tagLabel } from '../../src/lib/i18n/fr';
+import { tagLabel } from '../../src/lib/i18n';
 import { recipe, tempVault, VOCAB_DOC, type TempVault } from '../helpers/vault';
 
 const CAMILLE = { name: 'Camille Inventée', email: 'camille@recipevault.invalid' };

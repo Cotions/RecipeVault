@@ -1,6 +1,8 @@
 // A stale save side by side (plan 04, Q18 A): her version and the other one,
 // field by field, as plain lines she can read — never the file. Browser-safe.
 
+import { t } from '../i18n';
+import { locale } from '../prefs';
 import { unitLabel } from '../render/ingredient';
 import { hideMarkers } from './markers';
 import type { FormDuration } from './duration';
@@ -29,11 +31,14 @@ export interface CompareRow {
 	theirs: string;
 }
 
+/** The words of a compared line, in the person's language. */
+const c = () => t.form.compared;
+
 function item(it: FormItem): string {
-	const amount = it.qty + (it.qtyMax ? ` à ${it.qtyMax}` : '');
-	const unit = it.unit ? unitLabel(it.unit, 2, 'fr') : '';
+	const amount = it.qtyMax ? c().range(it.qty, it.qtyMax) : it.qty;
+	const unit = it.unit ? unitLabel(it.unit, 2, locale()) : '';
 	const parts = [amount, unit, it.name].filter(Boolean).join(' ');
-	return [parts, it.prep, it.note].filter(Boolean).join(', ') + (it.toTaste ? ' (au goût)' : '') + (it.optional ? ' (facultatif)' : '');
+	return [parts, it.prep, it.note].filter(Boolean).join(', ') + (it.toTaste ? ` (${c().toTaste})` : '') + (it.optional ? ` (${c().optional})` : '');
 }
 
 function items(f: FormRecipe): string[] {
@@ -54,28 +59,22 @@ function dur(d: FormDuration): string {
 	const one = (h: number | null, m: number | null) => [h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ');
 	const a = one(d.hours, d.minutes);
 	const b = one(d.maxHours, d.maxMinutes);
-	return a && b ? `${a} à ${b}` : a;
+	return a && b ? c().range(a, b) : a;
 }
 
-function times(f: FormRecipe): string {
-	const t = f.times;
-	return [
-		['prép.', t.prep],
-		['cuisson', t.cook],
-		['repos', t.rest],
-		['total', t.total]
-	]
-		.map(([k, d]) => (dur(d as FormDuration) ? `${k} ${dur(d as FormDuration)}` : ''))
+function times(r: FormRecipe): string {
+	return (['prep', 'cook', 'rest', 'total'] as const)
+		.map((k) => (dur(r.times[k]) ? `${c().time[k]} ${dur(r.times[k])}` : ''))
 		.filter(Boolean)
 		.join(', ');
 }
 
-const oven = (f: FormRecipe) => (f.oven.temp ? `${f.oven.temp}${f.oven.tempMax ? ` à ${f.oven.tempMax}` : ''} °${f.oven.unit}` : '');
-const servings = (f: FormRecipe) =>
-	[f.servings + (f.servingsMax ? ` à ${f.servingsMax}` : ''), f.servingsNote, f.yield.kind === 'text' ? f.yield.text : f.yield.kind === 'amount' ? [f.yield.qty, f.yield.unit && unitLabel(f.yield.unit, 2, 'fr'), f.yield.note].filter(Boolean).join(' ') : '']
+const oven = (r: FormRecipe) => (r.oven.temp ? `${r.oven.tempMax ? c().range(r.oven.temp, r.oven.tempMax) : r.oven.temp} °${r.oven.unit}` : '');
+const servings = (r: FormRecipe) =>
+	[r.servingsMax ? c().range(r.servings, r.servingsMax) : r.servings, r.servingsNote, r.yield.kind === 'text' ? r.yield.text : r.yield.kind === 'amount' ? [r.yield.qty, r.yield.unit && unitLabel(r.yield.unit, 2, locale()), r.yield.note].filter(Boolean).join(' ') : '']
 		.filter((s) => s.trim())
 		.join(', ');
-const source = (f: FormRecipe) => [f.source.author, f.source.title, f.source.page && `p. ${f.source.page}`, f.source.url, f.source.note].filter(Boolean).join(', ');
+const source = (r: FormRecipe) => [r.source.author, r.source.title, r.source.page && c().page(r.source.page), r.source.url, r.source.note].filter(Boolean).join(', ');
 
 /** Every field where the two versions differ, in form order. Empty: they hold the same. */
 export function compareForms(mine: FormRecipe, theirs: FormRecipe): CompareRow[] {

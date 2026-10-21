@@ -9,7 +9,8 @@
 	import QtyInput from './QtyInput.svelte';
 	import Suggest, { type Option } from './Suggest.svelte';
 	import { applyNameHint, blockOn, nameHint, newItem, setToTaste, type Block, type FormHint, type FormItem } from '$lib/form';
-	import { form as f } from '$lib/i18n/fr';
+	import { form as f } from '$lib/i18n';
+	import { locale } from '$lib/prefs';
 	import { formHintText } from '$lib/i18n/diagnostics';
 	import { blockText } from './formui';
 	import { unitLabel } from '$lib/render/ingredient';
@@ -62,7 +63,7 @@
 
 	const hint = $derived(nameHint(item.name, words));
 	const b = (field: string) => blockOn(blocks, item.id, field);
-	const unitName = (u: Unit) => (u === 'piece' ? f.piece : unitLabel(u, 1, 'fr'));
+	const unitName = (u: Unit) => (u === 'piece' ? f.piece : unitLabel(u, 1, locale()));
 	/**
 	 * The name as it stood when she last left the field (or picked a suggestion).
 	 * "Pas encore relié" (W303 / W305) waits for it: not under every half-typed

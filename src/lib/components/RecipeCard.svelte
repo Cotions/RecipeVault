@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { t, familyLabel } from '$lib/i18n/fr';
+	import { t, familyLabel } from '$lib/i18n';
+	import { locale } from '$lib/prefs';
 	import { formatSeconds } from '$lib/render/duration';
 	import { photoSrc } from '$lib/render/media';
 	import type { Card } from '$lib/server/index/query';
@@ -18,7 +19,7 @@
 		{/if}
 	</a>
 	<p class="meta">
-		{#if card.total_s}<span>{formatSeconds(card.total_s)}</span>{/if}
+		{#if card.total_s}<span>{formatSeconds(card.total_s, locale())}</span>{/if}
 		{#if card.servings}<span>{t.card.servings(card.servings, card.servings_max)}</span>{/if}
 		{#if card.status !== 'draft' || card.broken}<StatusBadge status={card.status} broken={card.broken} />{/if}
 	</p>

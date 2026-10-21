@@ -2,7 +2,7 @@
 	// The cost line under the servings (plan 03, Phase 5; docs/INGREDIENTS.md,
 	// "Partial pricing"). Totals come at the base servings; the total follows
 	// the servings adjuster, the cost per serving does not change. Not printed.
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
 	import { ingredientHref, queueHref } from '$lib/render/links';
 	import { formatMoney, type Money } from '$lib/render/money';
 	import type { CostView } from '$lib/ingredients/cost';

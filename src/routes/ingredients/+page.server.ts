@@ -6,7 +6,7 @@ import { today } from '$lib/ingredients/prices';
 import { CATEGORIES } from '$lib/ingredients/types';
 import { UNITS } from '$lib/vault/types';
 import { formatMoney, formatPack } from '$lib/render/money';
-import { t } from '$lib/i18n/fr';
+import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
 const yesNo = (v: string | null) => (v === 'oui' ? true : v === 'non' ? false : undefined);

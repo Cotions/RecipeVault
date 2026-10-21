@@ -6,7 +6,11 @@
 // here (`setUnitWords`) before any page renders; the formatting functions
 // (`unitLabel`, and through it ingredient lines, money, the form) read them
 // from here. One vault per server, so one set of words per process.
+//
+// An account may have its own word for a unit, and reads every unit in its own
+// language (../prefs.ts): both are applied here, over the vault's words.
 
+import { prefs } from '../prefs';
 import { UNITS, type Lang, type Unit } from '../vault/types';
 
 /** Per unit, per language: [singular, plural]. */
@@ -67,10 +71,23 @@ export function unitLabel(unit: Unit, amount: number, lang: Lang): string {
 /**
  * The unit word wherever a count needs one, `piece` included (a price's pack
  * size: `6 pièces`). A unit without a word in the vault shows its code.
+ * The account's own word comes first; signed in, `lang` gives way to the
+ * account's language (`wordLang`).
  */
 export function unitWord(unit: Unit, amount: number, lang: Lang): string {
-	const f = current[unit]?.[lang];
+	const l = wordLang(lang);
+	const f = prefs().words[unit] ?? current[unit]?.[l];
 	if (!f) return unit;
-	const plural = lang === 'fr' ? amount >= 2 : amount > 1;
+	const plural = l === 'fr' ? amount >= 2 : amount > 1;
 	return plural ? f[1] : f[0];
+}
+
+/**
+ * The language unit words and amounts show in: the account's once it chose
+ * one (an English reader sees `2 cups` on a French card), else `lang`, the
+ * recipe's.
+ */
+export function wordLang(lang: Lang): Lang {
+	const p = prefs();
+	return p.account ? p.lang : lang;
 }

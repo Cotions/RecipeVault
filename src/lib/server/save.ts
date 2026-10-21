@@ -15,6 +15,7 @@ import { serialize } from '../vault/serialize';
 import { isSlug, SLUG_RE } from '../vault/slug';
 import type { Diagnostic, Recipe } from '../vault/types';
 import type { VaultEntry } from '../vault/rules/batch';
+import { t } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { FileWriteError, writeAndCommit, type FileWrite } from './files';
 import { refreshFamilies, sha256 } from './index/build';
@@ -413,10 +414,10 @@ export async function editRecipeLocked(
 	opts: SaveOptions = {}
 ): Promise<{ commit?: string; indexError?: string }> {
 	const cur = currentFile(ctx, slug);
-	if (!cur) throw new EditError('gone', 'cette recette n’existe plus.');
-	if (cur.hash !== hash) throw new EditError('stale', 'le fichier a changé depuis l’ouverture de la page ; rechargez-la.');
+	if (!cur) throw new EditError('gone', t.error.recipeGone);
+	if (cur.hash !== hash) throw new EditError('stale', t.error.fileChanged);
 	const file = checkFile(cur.text);
-	if (!file.recipe || hasErrors(file.diagnostics)) throw new EditError('invalid', 'le fichier ne passe pas la validation.');
+	if (!file.recipe || hasErrors(file.diagnostics)) throw new EditError('invalid', t.error.fileInvalid);
 	const final: Recipe = { ...change({ ...file.recipe }), slug, updated: opts.today ?? localDate() };
 	return writeCommitIndex(ctx, [{ slug, title: final.title, text: serialize(final, file.body!), created: false, verb: 'edit' }]);
 }
@@ -436,16 +437,16 @@ export async function editRecipesLocked(
 	const ready: Ready[] = [];
 	for (const e of edits) {
 		const cur = currentFile(ctx, e.slug);
-		if (!cur) throw new EditError('gone', 'cette recette n’existe plus.');
-		if (cur.hash !== e.hash) throw new EditError('stale', 'le fichier a changé depuis l’ouverture de la page ; rechargez-la.');
+		if (!cur) throw new EditError('gone', t.error.recipeGone);
+		if (cur.hash !== e.hash) throw new EditError('stale', t.error.fileChanged);
 		const file = checkFile(cur.text);
-		if (!file.recipe || hasErrors(file.diagnostics)) throw new EditError('invalid', 'le fichier ne passe pas la validation.');
+		if (!file.recipe || hasErrors(file.diagnostics)) throw new EditError('invalid', t.error.fileInvalid);
 		const changed = e.change({ ...file.recipe });
 		const text = serialize({ ...changed, slug: e.slug, updated: file.recipe.updated }, file.body!);
 		if (text === serialize({ ...file.recipe, slug: e.slug }, file.body!)) continue;
 		const final: Recipe = { ...changed, slug: e.slug, updated: opts.today ?? localDate() };
 		const out = serialize(final, file.body!);
-		if (hasErrors(checkFile(out).diagnostics)) throw new EditError('invalid', 'la modification ne passe pas la validation.');
+		if (hasErrors(checkFile(out).diagnostics)) throw new EditError('invalid', t.recipe.refused.change);
 		ready.push({ slug: e.slug, title: final.title, text: out, created: false, verb: 'edit' });
 	}
 	if (!ready.length) return {};
@@ -463,18 +464,18 @@ export class VerifyError extends Error {}
 export function verify(ctx: VaultContext, slug: string, hash: string, opts: SaveOptions = {}): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
 		const cur = currentFile(ctx, slug);
-		if (!cur) throw new VerifyError('cette recette n’existe plus.');
-		if (cur.hash !== hash) throw new VerifyError('le fichier a changé depuis l’ouverture de la page ; rechargez-la.');
+		if (!cur) throw new VerifyError(t.error.recipeGone);
+		if (cur.hash !== hash) throw new VerifyError(t.error.fileChanged);
 		const file = checkFile(cur.text);
-		if (!file.recipe || hasErrors(file.diagnostics)) throw new VerifyError('le fichier ne passe pas la validation.');
-		if (statusFor(file.recipe) === 'needs-review') throw new VerifyError('des marqueurs [?] ou [illisible] restent à régler.');
+		if (!file.recipe || hasErrors(file.diagnostics)) throw new VerifyError(t.error.fileInvalid);
+		if (statusFor(file.recipe) === 'needs-review') throw new VerifyError(t.recipe.refused.markers);
 		const final: Recipe = { ...file.recipe, status: 'verified', updated: opts.today ?? localDate() };
 		const ready: Ready = { slug, title: final.title, text: serialize(final, file.body!), created: false, verb: 'verify' };
 		try {
 			return await writeCommitIndex(ctx, [ready]);
 		} catch (e) {
 			// A failed write or commit (put back already): the page's refusal, not a 500.
-			if (e instanceof SaveError) throw new VerifyError(`« Vérifié » n’a pas pu être enregistré ; rien n’a changé : ${e.message}`);
+			if (e instanceof SaveError) throw new VerifyError(t.recipe.refused.verify(e.message));
 			throw e;
 		}
 	});

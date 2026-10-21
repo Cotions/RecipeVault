@@ -7,6 +7,7 @@
 
 import { isMap, isScalar, parseDocument, type Document } from 'yaml';
 import { normalizeText } from '../vault/normalize';
+import { t } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit } from './files';
 import { refreshFamilies } from './index/build';
@@ -39,11 +40,11 @@ export function cleanLabel(label: string): string {
 export function withLabel(text: string, slug: string, label: string, file = FAMILIES_FILE): string {
 	// Typed as a plain Document: nodes are added below.
 	const doc = parseDocument(text, { version: '1.2' }) as unknown as Document;
-	if (doc.errors.length) throw new FamilyLabelError(`${file} ne se lit pas (YAML) ; corrigez-le d’abord.`);
+	if (doc.errors.length) throw new FamilyLabelError(t.error.yaml(file));
 	if (doc.contents === null || (isScalar(doc.contents) && (doc.contents.value === null || doc.contents.value === '')))
 		doc.contents = doc.createNode({});
 	const root = doc.contents;
-	if (!isMap(root)) throw new FamilyLabelError(`${file} n’est pas une liste de noms ; corrigez-le d’abord.`);
+	if (!isMap(root)) throw new FamilyLabelError(t.families.refused.notNames(file));
 	root.flow = false;
 	const entry = root.get(slug, true);
 	if (isMap(entry)) {
@@ -67,11 +68,11 @@ export function withLabel(text: string, slug: string, label: string, file = FAMI
  */
 export function setFamilyLabel(ctx: VaultContext, slug: string, label: string, expectedHash: string): Promise<{ commit?: string }> {
 	return ctx.lock.run(async () => {
-		if (!SLUG_RE.test(slug)) throw new FamilyLabelError('nom de famille invalide.');
+		if (!SLUG_RE.test(slug)) throw new FamilyLabelError(t.families.refused.slug);
 		const clean = cleanLabel(label);
-		if (clean.length > LABEL_MAX) throw new FamilyLabelError(`le nom est trop long (${LABEL_MAX} caractères au plus).`);
+		if (clean.length > LABEL_MAX) throw new FamilyLabelError(t.error.labelTooLong(LABEL_MAX));
 		const cur = familiesFile(ctx);
-		if (cur.hash !== expectedHash) throw new FamilyLabelError('les noms de familles ont changé depuis l’ouverture de la page ; rechargez-la.');
+		if (cur.hash !== expectedHash) throw new FamilyLabelError(t.families.refused.changed);
 		const next = withLabel(cur.text, slug, clean);
 		if (next === cur.text) return {};
 
@@ -82,9 +83,7 @@ export function setFamilyLabel(ctx: VaultContext, slug: string, label: string, e
 		} catch (e) {
 			if (!(e instanceof FileWriteError)) throw e;
 			throw new FamilyLabelError(
-				e.stage === 'write'
-					? `le fichier n’a pas pu être écrit ; rien n’a changé : ${e.message}`
-					: `le nom n’a pas pu être enregistré (git) ; rien n’a changé : ${e.message}`
+				e.stage === 'write' ? t.error.write(e.message) : t.families.refused.commit(e.message)
 			);
 		}
 		try {

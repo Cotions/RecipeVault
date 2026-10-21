@@ -3,6 +3,7 @@
 // markers and turns [[slug]] wikilinks into recipe links (dead ones stay text).
 
 import markdownIt, { type MarkdownIt, type StateCore, type StateInline, type Token } from 'markdown-it';
+import { t, type Strings } from '../i18n';
 import { headingKind } from '../vault/vocab';
 import type { SectionKind } from '../vault/types';
 import { stepAmounts, type StepScale } from './stepamounts';
@@ -32,16 +33,15 @@ function escape(s: string): string {
 	return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-export const MARKER_TITLES = {
-	uncertain: 'Lecture incertaine',
-	'uncertain-alt': 'Lecture incertaine, autre lecture possible :',
-	illegible: 'Illisible sur l’original',
-	added: 'Ajouté à la transcription, absent de l’original'
-};
+type MarkerTitle = keyof Strings['recipe']['marker'];
 
-export function markerHtml(kind: keyof typeof MARKER_TITLES, text: string, alternative?: string): string {
-	const title = alternative ? `${MARKER_TITLES[kind]} ${alternative}` : MARKER_TITLES[kind];
-	return `<mark class="mk mk-${kind}" title="${escape(title)}">${escape(text)}</mark>`;
+/** What hovering a marker says, in the person's language; `alternative` is the other reading of `[?: …]`. */
+export function markerTitle(kind: MarkerTitle, alternative?: string): string {
+	return alternative ? `${t.recipe.marker[kind]} ${alternative}` : t.recipe.marker[kind];
+}
+
+export function markerHtml(kind: MarkerTitle, text: string, alternative?: string): string {
+	return `<mark class="mk mk-${kind}" title="${escape(markerTitle(kind, alternative))}">${escape(text)}</mark>`;
 }
 
 /**

@@ -6,7 +6,8 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
-	import { t } from '$lib/i18n/fr';
+	import { t } from '$lib/i18n';
+	import { locale, prefs } from '$lib/prefs';
 	import IngredientLine from '$lib/components/IngredientLine.svelte';
 	import Marked from '$lib/components/Marked.svelte';
 	import { parseBody } from '$lib/vault/body';
@@ -238,7 +239,8 @@
 
 	/** Q6 B: at another amount, each measure in a step gets its scaled value beside it. */
 	function stepScale(f: number, stepLang: Recipe['lang']) {
-		return f === 1 ? undefined : { factor: f, lang: stepLang, rules: data.scaling, title: t.scaling.stepAmountTitle(formatNumber(f, 'fr')) };
+		if (f === 1) return prefs().system === 'written' ? undefined : { factor: f, lang: stepLang, rules: data.scaling, title: t.scaling.stepSystemTitle };
+		return { factor: f, lang: stepLang, rules: data.scaling, title: t.scaling.stepAmountTitle(formatNumber(f, locale())) };
 	}
 
 	const length = (seconds: number) => timerLength(seconds, (s) => formatSeconds(s, lang));
@@ -327,7 +329,7 @@
 		{#if open[key]}
 			{@const sv = subView(item, sub.recipe, at)}
 			<div class="sub">
-				<p class="subtitle"><Marked text={sub.recipe.title} />{#if sv.scaled}{' '}<span class="subscale">{t.scaling.subScaled(formatNumber(sv.factor, 'fr'))}</span>{/if}</p>
+				<p class="subtitle"><Marked text={sub.recipe.title} />{#if sv.scaled}{' '}<span class="subscale">{t.scaling.subScaled(formatNumber(sv.factor, locale()))}</span>{/if}</p>
 				{#if sv.whole !== undefined}<p class="subwhole">{t.scaling.subWhole(sv.whole)}</p>{/if}
 				<ul>
 					{#each sub.recipe.ingredients.flatMap((sg) => sg.items) as si, sk (sk)}
@@ -416,7 +418,7 @@
 				<p class="count">
 					{t.kitchen.step(step + 1, steps.length)}{#if current?.subheading}{` · ${current.subheading}`}{/if}
 				</p>
-				{#if factor !== 1}<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, 'fr'))}{#if pieces(current!.text).some((p) => 'html' in p && p.html.includes('class="step-scaled"'))}{' '}{t.scaling.arrowNotice}{/if}</p>{/if}
+				{#if factor !== 1}<p class="scale-notice" role="note">{t.scaling.stepNotice(formatNumber(factor, locale()))}{#if pieces(current!.text).some((p) => 'html' in p && p.html.includes('class="step-scaled"'))}{' '}{t.scaling.arrowNotice}{/if}</p>{/if}
 				{#if step > 0}<p class="ghost prev">{plainText(steps[step - 1].text, (s) => data.titles[s])}</p>{/if}
 				<p class="now">
 					{#each pieces(current!.text) as p, i (i)}
