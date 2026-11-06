@@ -1,6 +1,5 @@
 <script lang="ts">
 	import '../app.css';
-	import favicon from '$lib/assets/favicon.svg';
 	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { t, form as tf } from '$lib/i18n';
@@ -60,7 +59,8 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<!-- A file, not an import: Vite would inline it as a 3.5 kB data URL in every page; a file is fetched once and cached. -->
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 	<meta name="theme-color" content="#1c2a42" />
 	<meta name="description" content={t.app.description} />
 </svelte:head>

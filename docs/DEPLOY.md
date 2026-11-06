@@ -188,6 +188,14 @@ sites to the browser: sign in once on each. The password crosses the LAN in
 clear over plain HTTP — prefer the Tailscale name on devices that have
 Tailscale.
 
+**Compression is the app's own.** Away from home every byte crosses the phone's
+data or a slow uplink, and `tailscale serve` compresses nothing. The build's
+static files are precompressed (`.br`, `.gz`); pages, page data and the API's
+JSON are compressed per request (`src/lib/server/compress.ts`: Brotli, or gzip
+for a browser without it). The proxy passes the browser's `Accept-Encoding` on
+and the encoded body back untouched. A proxy that compresses by itself is
+harmless too: it finds the body already encoded.
+
 The throttle on failed sign-ins counts per address; behind `tailscale serve`
 the socket address is always loopback, so the app takes the device's address
 from `X-Forwarded-For`, and believes that header only from loopback. Don't put

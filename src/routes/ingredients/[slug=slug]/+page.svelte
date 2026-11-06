@@ -40,7 +40,9 @@
 	const USES_SHOWN = 12;
 	let allUses = $state(false);
 	const uses = $derived(allUses ? data.uses : data.uses.slice(0, USES_SHOWN));
-	const mergeName = $derived(data.entries.find((x) => x.slug === mergeInto || x.name === mergeInto)?.name ?? mergeInto);
+	/** Every other entry: the layout sends the whole registry once (+layout.server.ts). */
+	const others = $derived(data.entries.filter((x) => x.slug !== e.slug));
+	const mergeName = $derived(others.find((x) => x.slug === mergeInto || x.name === mergeInto)?.name ?? mergeInto);
 </script>
 
 <svelte:head><title>{data.name} — {t.ingredients.title} — {t.app.name}</title></svelte:head>
@@ -336,7 +338,7 @@
 </details>
 
 <datalist id="entries">
-	{#each data.entries as x (x.slug)}<option value={x.slug}>{x.name}</option>{/each}
+	{#each others as x (x.slug)}<option value={x.slug}>{x.name}</option>{/each}
 </datalist>
 
 <p class="soft file">{t.ingredient.file(data.path)}</p>

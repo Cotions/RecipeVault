@@ -6,8 +6,8 @@ import { remove, TrashError } from '$lib/server/trash';
 import { t } from '$lib/i18n';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = ({ params }) => {
-	const data = loadRecipePage(getApp(), params.slug);
+export const load: PageServerLoad = ({ params, locals }) => {
+	const data = loadRecipePage(getApp(), params.slug, { markdown: !!locals.user?.markdown });
 	if (!data) error(404, t.recipe.notFound);
 	return data;
 };

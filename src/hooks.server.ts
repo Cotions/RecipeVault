@@ -4,6 +4,7 @@ import { t } from '$lib/i18n';
 import { DEFAULT_PREFS, setPrefsSource, type Prefs } from '$lib/prefs';
 import { getApp, startApp } from '$lib/server/app';
 import { currentUser, guard } from '$lib/server/auth';
+import { compress } from '$lib/server/compress';
 import { hostAllowed } from '$lib/server/hosts';
 import { installUnitWords } from '$lib/server/vocab';
 import { match as isSlug } from './params/slug';
@@ -46,7 +47,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		response.headers.set('X-Content-Type-Options', 'nosniff');
 		response.headers.set('Referrer-Policy', 'same-origin');
 		response.headers.set('X-Frame-Options', 'DENY');
-		return response;
+		// Pages and data go out compressed (lib/server/compress.ts); a load's own fetch to the app reads them raw.
+		return event.isSubRequest ? response : compress(event.request, response);
 	};
 	// Signed out too: the defaults, never whatever another request left behind.
 	return serving.run(event.locals.user?.prefs ?? DEFAULT_PREFS, run);

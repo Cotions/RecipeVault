@@ -31,7 +31,11 @@ sw.addEventListener('install', (event) => {
 	);
 });
 
-/** Carry the kitchen pages of an older build over to this one, fetched fresh; offline, they are lost with it. */
+/**
+ * Carry the kitchen pages of an older build over to this one, fetched fresh;
+ * offline, they are lost with it. A photo does not depend on the build (its
+ * copy is the same WebP): it is moved over as it is, never downloaded again.
+ */
 async function migrateKitchen(old: string) {
 	const from = await caches.open(old);
 	const to = await caches.open(KITCHEN);
@@ -39,6 +43,13 @@ async function migrateKitchen(old: string) {
 	await Promise.all(
 		reqs.map(async (r) => {
 			try {
+				if (isDisplayPhoto(new URL(r.url))) {
+					const kept = await from.match(r);
+					if (kept) {
+						await to.put(r.url, kept);
+						return;
+					}
+				}
 				const res = await fetch(r.url, { credentials: 'same-origin' });
 				if (res.ok) await to.put(r.url, res);
 			} catch {
