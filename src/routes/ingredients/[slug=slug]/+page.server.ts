@@ -17,8 +17,6 @@ export const load: PageServerLoad = ({ params }) => {
 	return {
 		...view,
 		path: ingredientPath(params.slug),
-		entries: app.ctx.db.prepare('SELECT slug, name FROM registry WHERE slug <> ? ORDER BY name').all(params.slug) as { slug: string; name: string }[],
-		allergenList: [...vocab.allergens].map(([slug, l]) => ({ slug, label: l.fr ?? slug })),
 		categories: [...CATEGORIES],
 		units: [...UNITS],
 		money: { currency: app.config.currency, locale: app.config.locale }

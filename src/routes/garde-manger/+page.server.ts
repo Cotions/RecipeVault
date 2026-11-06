@@ -63,8 +63,6 @@ export const load: PageServerLoad = ({ url }) => {
 
 	const entries = db.prepare('SELECT slug, name FROM registry ORDER BY name').all() as { slug: string; name: string }[];
 	const names = new Map(entries.map((e) => [e.slug, e.name]));
-	const aliases = db.prepare('SELECT DISTINCT name FROM ingredient_names ORDER BY name').pluck().all() as string[];
-	const allergenList = [...vocab().allergens].map(([slug, l]) => ({ slug, label: l.fr ?? slug }));
 
 	const t0 = performance.now();
 	const results = lists.have.length || lists.must.length ? pantryQuery(db, { have: lists.have, must: lists.must, avoid: lists.avoid, allergens, assumeStaples: assume }) : [];
@@ -88,8 +86,6 @@ export const load: PageServerLoad = ({ url }) => {
 		names: Object.fromEntries(
 			[...new Set(tiers.flatMap((t) => t.results.flatMap((r) => [...r.missing.flat(), ...r.swaps.flatMap((s) => [s.missing, s.with])])))].map((s) => [s, names.get(s) ?? s])
 		),
-		aliases,
-		allergenList,
 		ms
 	};
 };
