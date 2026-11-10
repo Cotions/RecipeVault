@@ -9,9 +9,14 @@ an afterthought.
 
 ## The fix-request block
 
-When a paste fails validation, the app shows exactly one thing prominently: a
-copy button producing a block designed to be pasted straight back into the AI chat
-that produced the bad file.
+When a paste fails validation, the app offers a copy button producing a block
+designed to be pasted straight back into the AI chat that produced the bad file.
+It sits once, right under the errors of the first file that needs it (it
+covers every such file of the paste). A value from a closed list
+(`E201`, `W501`) can also be replaced in place from its problem, and a few
+mechanical mistakes (`E002`, `E101`, `E110`, `E204`, `W401`, `E301`) fixed in one
+tap ("Quick fixes in the paste box", below); the block is then the second path, and covers what is
+still wrong when it is copied.
 
 ```text
 RECIPEVAULT — FILE REJECTED
@@ -239,21 +244,219 @@ them.
 `fix` stay English: they are written for the AI (the fix-request block) and the
 developer (`vault check`), and both keep them. Wherever the app lists
 diagnostics — the paste box, the banner of a recipe whose file stopped
-passing, the home page list of files that fail — each one shows:
+passing, the home page list of files that fail (the owner's only: an account
+without the Markdown tools is not shown it) — each one shows:
 
-- a short plain-French explanation of the code, for a non-technical cook
+- one sentence that leads: where, as a cook would say it, then what is wrong
+  and what to do — "**Sirop, 2e ingrédient (eau)** : cette unité n'est pas
+  dans la liste des unités…" (`placeHuman`: the group's name, left out for a
+  single unnamed group, the ingredient's rank and name; the field is left to
+  the sentence; other paths are named as `placeOf` names them, "Temps :
+  cuisson", "Méthode, étape 5");
+- the value it is about, as written, highlighted in the sentence when the path
+  ends on one (« poignée »), unless the place or the sentence already quotes it;
+- the sentence is the code's plain-French explanation, for a non-technical cook
   (`src/lib/i18n/diagnostics.ts`, one entry per code; a test fails on a code
-  without one, so **adding a code also means writing its French line**);
-- its place in French, from the path: `ingredients[0].items[3].unit` →
-  "Ingrédients, groupe 1, ligne 4 « farine » : unité", `body.steps[4]` →
-  "Méthode, étape 5". Group, ingredient and section names come from the parsed
-  file when there is one, else positions;
-- in the paste box, who settles it: `app` codes "se règlent ici" (the
-  collision and family choices, or nothing to do), `ai` codes go through the
-  fix-request block;
-- the English `message` and `fix`, with the raw path, behind a "Détail
-  technique" disclosure, because they carry the specifics (the value found, the
-  corrected entry).
+  without one, so **adding a code also means writing its French line**). It
+  says what is wrong and what to do. Two cases say more than the code's line:
+  an `E201` value the alias table knows (`VOCAB.md`, units) is not unknown to
+  a Québécois cook, so it leads with the plain thing, never "inconnue":
+  "Unité « tasse » : écrivez cup ; l'app affichera « tasse »." — the rule is
+  unchanged, files hold unit codes; the sentences are short, what to write
+  first (`E204` « Quantité illisible : écrivez 2, 1 1/2 ou 2/3 (1.5, pas
+  1,5). »); and in the
+  paste box a `W501` reads "Nouvelle étiquette « Erable » : elle sera
+  ajoutée." (pending, `VOCAB.md`, "Tags"), or, when the recipe's own text
+  writes the word with accents, "Étiquette « Erable » inconnue — vouliez-vous
+  « Érable » ?", or, with a known tag within the near-miss distance,
+  "L'étiquette « desertt » n'est pas dans la liste. Vouliez-vous dire
+  « Dessert » ?". The place is its own line above the sentence;
+- behind « Détails pour le dépannage », for the owner and the docs: in the
+  paste box one such disclosure per file, closed, at the foot of its problems
+  and listing all of them (UI council: no code on the rows); on a recipe page
+  and the home page one per problem. It holds the code (stable, so it can be
+  looked up here, never on the row or the disclosure itself), the full place from the path
+  (`ingredients[0].items[3].unit` → "Ingrédients, groupe 1, ligne 4 « farine »
+  : unité", `body.steps[4]` → "Méthode, étape 5"; group, ingredient and
+  section names come from the parsed file when there is one, else positions),
+  the raw path, then how to correct it: on a French account a French hint per
+  code (`FIX_FR` in `src/lib/i18n/diagnostics.ts`, a test requires one for
+  every code, never the word "frontmatter") and the names the English message
+  and fix cite, in code ("Dans la fiche : `servings`"); on an English account
+  the English `message` and `fix`. The English text itself is the AI's and
+  `vault check`'s, unchanged.
+
+In the paste box an unknown unit written on several lines of one file is one
+problem, said once with "N fois dans cette recette" and its other places
+("Aussi : Pâte, 2e ingrédient (sucre) ; …"); the error count stays per line.
+The count beside Save and in "Erreurs (N)" is the number of problems listed,
+no more and no less (display only; the checker's output is unchanged):
+- an `E203` on an item whose quantity also has an `E204` (`qty: 1 1/2 tasse`,
+  no `unit`) is one problem, shown and counted once as the `E204` — splitting
+  the value settles both;
+- an `E103` settled in the page (overwrite or suffix chosen) leaves the list
+  and the count; the choice itself reads « Réglé : elle sera enregistrée comme
+  … »;
+- the problems found in `E002`'s realigned text (below) are listed as error
+  rows marked « à revérifier » and counted.
+Who settles a code is not said per problem: a quick fix is offered where the
+app can settle it, and the one "Copier la demande de correction" under the
+errors covers the `ai` codes.
+
+In the paste box, a problem whose place is found in the pasted text
+(`src/lib/vault/locate.ts`: a frontmatter value, or the deepest part of its
+path that exists; a section heading, a step's first words) can be selected in
+the box — best effort, nothing when the path cannot be followed: an error
+has a visible "Montrer dans le texte" button under its line (on one row with
+its quick fix, the fix first; "Autre unité…" under that row), a one-line
+remark is itself the button. An error row leads with its plain sentence (what
+is wrong and what to do); where it is follows on one small secondary line.
+Two or more `W303`/`W305` remarks (« pas
+encore relié »: nothing to do before the save) fold into one row, « N
+ingrédients à relier plus tard », the lines inside it. With no step read, the
+summary says « 3 lignes hors Préparation » (the lines `W401`'s fix would make
+steps), never « 0 étape ». Errors are listed open. On a first validation
+with errors (a paste, an import, a "Coller" — not while she types in the box)
+the box scrolls to the first error's line, and every error's line is marked in
+the box's margin (a red bar and a light band; decoration, each error keeps its
+button). Warnings and notes are "remarques", one line
+each (the explanation's first sentence and the place; the code and the rest of
+it in the file's « Détails pour le dépannage »): one is shown open, more wait behind their count ("2
+remarques"). The count of errors beside Save is a link to the first one: it is
+scrolled clear of the save bar, its quick fix focused when it has one.
+
+**Quick fixes in the paste box.** A value from a closed list can be replaced in
+the pasted text, in place, from its problem; the text is then checked again
+like any edit. Two codes qualify:
+
+- `E201` (the vault's units). When the alias table gives one unit, one primary
+  button, « Écrire cup » (« Écrire cup partout (3) » when the same unit is on
+  several lines: all of them at once), and under it a small link-like
+  disclosure « Autre unité… » holding the list, nothing chosen in it. Else the
+  list, none preselected: "Remplacer « poignée » par : [liste] Remplacer"
+  ("Remplacer partout (3)" / "Seulement ici" for several lines).
+- `W501` (an unknown tag), one pattern for every tag: « Utiliser « … » » only
+  for the same word — its accents as the recipe's own text writes it (`erable`,
+  « sirop d'érable » → « Érable », still a new tag), else a known tag that is
+  the same word but for its ending or a typo of it (`preselectTag`,
+  `src/lib/vault/tagmatch.ts`, the rule /etiquettes preselects with; computed by
+  /api/check, where a tag naming a registry ingredient is matched on its
+  ending only, so a food is never offered a course: « pain » is never « Plat
+  principal » through its alias « main »). The wider two-edit `suggestTag` is
+  no longer offered here. « Garder « … » » is always there; the remark says
+  the tag is kept as written and « elle attendra dans Étiquettes », and once
+  kept, « ✓ « pain » gardée : elle attendra dans Étiquettes ». Nothing about
+  the file changes: a kept tag is saved as written and is pending, as before.
+
+A tag
+that differs from a known tag or alias by accents, case or spaces only is that
+tag — the lookup folds both sides — so it raises no `W501` at all, and the
+paste preview shows it under the vault's label (`Quebecois` → « Québécois »). A
+quick fix is offered only when the diagnostic's path names one scalar exactly
+(`scalarAt` in `src/lib/vault/locate.ts`: the whole path, never the deepest
+part that exists) and the box's offsets hold (the text is already NFC and LF);
+the new value is written plain when YAML reads it back as itself, else quoted.
+More codes get a one-tap fix that edits the text (`src/lib/vault/quickfix.ts`).
+Each is offered only when checking the edited text again shows the problem
+gone and no error that was not there before; otherwise nothing is offered:
+
+- `E002` (bad indent): the problem names the line of the box ("Ligne 9 du
+  texte", the line in the pasted text, fence included), says whether it is one
+  space too far or short against its neighbours, and shows that line and the
+  one before it with a caret under the first character; "Montrer dans le
+  texte" selects the line. "Réaligner la ligne N" moves it to the indent of a
+  neighbouring line of its kind (a list item under a list item, a key under its
+  sibling keys), trying the error's line and the lines either side, and only
+  an indent after which the whole frontmatter reads. A YAML error stops the
+  reading, so other problems may be hidden: when a realignment exists the page
+  checks the realigned text — a full, real check, not a partial parse — and
+  lists what it finds right under the `E002`, as ordinary error rows marked
+  « à revérifier » (« Et 2 autres erreurs, listées ci-dessous « à revérifier »
+  » under the `E002`), counted in the errors since Save stays closed until they
+  are fixed too (a display choice, not a rule change): all problems in one
+  wave. A row « à revérifier » keeps its one-tap fix (a unit alias, a split,
+  the version, the steps' heading), computed in the realigned text: one tap
+  realigns the line and makes that fix. With no realignment it says only that
+  other problems may appear once this one is fixed.
+- `E106` on `source.type` (a type not in the list): the row reads « Type de
+  provenance « card » inconnu : lequel est-ce ? » and offers one button per
+  allowed type, its code and its name, « Écrire family (recette personnelle) »
+  … « Écrire invented (inventée) » (`sourceTypeFixes`): she knows the card, the
+  app does not guess. A `source` that is not a mapping gets no button.
+- `E109` (a time not in the duration format): « Écrire 40m » when the value
+  reads one way only (`suggestDuration`, the form's reader of « 40 min »,
+  « 1 h 15 », « 2 heures », « 45-50 minutes »), with no words after the time
+  (« 30 min de repos » is left to her or the AI; `durationFix`).
+- `E101`: "Titre : [____] Ajouter", prefilled from the first body heading that
+  is not a section name (often the title written again), else the first line
+  of prose (not over 80 characters); written after `schema:`, quoted when YAML
+  needs it. Enter in the field adds it (as Enter in the unit list of an `E201`
+  replaces); Ctrl/Cmd+Entrée anywhere in the page is Save.
+- `E110`: "Ajouter la version" writes `schema: 3` first (or fills an empty
+  `schema:`); a version present but unknown is never replaced.
+- `E204`: "Séparer en 1 1/2 + tasse" when the value is a quantity then words
+  the vocabulary reads as one unit (a code or an alias), and the item has no
+  other unit: the quantity stays, the unit is written as its code.
+- `E210`: "Séparer en 500 ml + lait" when the name alone holds one amount the
+  vocabulary reads (`500 ml de lait`, `beurre : 2 c. à table`) and the item has
+  no `qty` or `unit`: the amount goes to `qty`/`unit`, the name keeps the rest
+  (a leading « de »/« d' »/« of » and stray punctuation dropped, a `[?]` kept).
+- `W401`, and `E301` when the only heading is not a section (the title again):
+  "Ranger ces N lignes dans Préparation" writes `## Préparation`
+  (`## Instructions` in English) above the first list line, N being the steps
+  it then makes. A file with no error and no step read shows this `W401` open,
+  above Save and out of the remarks, and Save reads « Enregistrer sans étapes »
+  (saving without steps stays allowed: a warning, never blocking).
+- `W302`: "Séparer en beurre + fondu" when the name's first or last word is a
+  preparation word: the name keeps the rest, the word goes to `prep` (before an
+  existing `prep`, comma-separated). After a comma, the whole tail moves when
+  every word in it is a preparation word or a joiner (*et*, *ou*, *puis*, *and*,
+  *or*, *then*): *pommes de terre, cuites et pilées* splits as *pommes de terre*
+  + *cuites et pilées*, never leaving *cuites et* in the name; a tail with any
+  other word (*sel, poivre moulu*) keeps the plain reading. One word list for every line, French and
+  English words together (`VOCAB.md`, "Preparation words"): *butter softened*
+  is flagged as *large eggs beaten* is.
+- `E207` on a plain-string item (`- 1 1/2 tasse de lait`): the row says
+  « cette ligne n'est pas découpée en quantité, unité et nom », not « pas de
+  nom », and offers "Lire comme : 1 ½ tasse · lait" — the line read by the
+  reader of the form's « Coller une liste » (`src/lib/form/lineparse.ts`),
+  written as a `{ qty, unit, name }` entry, only when that reader reads it
+  whole (nothing guessed). With two or more such lines that all read, the
+  first row also offers « Lire les N lignes » (one tap, all of them). Other
+  `E207` (a map with no `name`) keep « Un ingrédient n'a pas de nom ».
+- `W401` / `W403` with lines that look like steps written another way
+  (`Étape 1 : …`, `1 - …`, `1.Mélanger`, a list indented 4 spaces, which
+  Markdown reads as code): when no step is read and the numbered ones run 1,
+  2, 3…, the open row above Save names the first such line (« Ligne 14 du
+  texte », the line quoted; « Montrer dans le texte » selects it) and offers
+  « En faire N étapes »: each line written `N. …` at the margin, the method
+  heading added when there is none. That row shows even while errors wait
+  (it does not sink among the remarks). Codes and levels unchanged (a
+  warning, Save stays open as « Enregistrer sans étapes » once the errors
+  are fixed).
+
+Every one-tap fix (these, and a unit or a tag replaced) leaves its row, and
+one line at the top of the file's result says them all, « ✓ 2 corrections
+faites — Unité écrite : cup. · Annuler la dernière » (the last one's words
+hidden on a phone; a screen reader hears each). « Annuler la dernière » puts
+the text back as it was before the last tap — only while nothing else has
+changed the text since, else the line stays without it. No message at the
+bottom: nothing covers the save bar. The line goes with the save or an empty
+box.
+
+A W305 (a name resembling a registry ingredient) names the registry's
+ingredient ("ressemble à « huile végétale »"), not its slug — only when the
+two look alike to a reader: some word of each starts with the same letter and
+shares three letters in a row (`looksAlike`, `src/lib/vault/quickfix.ts`). A
+candidate sharing only an ending (« beurre » and « saindoux » share no start)
+is not named; the remark says only that the name is not linked to the
+registry yet. An ambiguous name (several entries) names them all. It has no
+"Relier" before the recipe is saved: linking goes through the resolve queue,
+which holds only saved recipes; after the save it is in "À relier".
+
+No other code gets one: their fix needs the source card or a judgment, so the
+fix-request block stays their path — and stays offered beside every quick fix,
+as the way to have the AI redo the whole file.
 
 Her form UI never shows any of this. Codes and fix-request blocks exist for the
 paste path. Separate `qty`, `unit`, `name`, `note`, `prep` inputs prevent most
@@ -271,7 +474,11 @@ Warnings reach the form as hints, never blocking (plan 04, Q9 A): `W302`,
 `W304` and `W607` live in the browser on the name field, each with its one-tap
 fix (move the word to *préparation*, the note or *marque*); `W501`, `W502`,
 `W503`/`W608`, `W505`, `W303`/`W305`, `W306` and `W605` from the server check the form
-runs while she types (`DATA-FLOW.md`, "Her form"). Their French texts are a
+runs while she types (`DATA-FLOW.md`, "Her form"). A `W305` whose candidates hold exactly
+one ingredient with a name one edit away (two from eight letters, five letters
+at least, first letter kept: `typoOf`) carries that name as its `suggestion`:
+the form asks « Vouliez-vous dire « … » ? » with a one-tap « Oui » (`nearName`,
+`src/lib/form/hints.ts`). Their French texts are a
 second table beside the codes' own, `formHintText` in
 `src/lib/i18n/diagnostics.ts`, with a test requiring an entry for every code
 the form maps (`FORM_HINT_CODES`).

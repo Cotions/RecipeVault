@@ -9,8 +9,18 @@ export function file(title: string, extra = '', ing = '      - { qty: 1, unit: c
 	return `---\nschema: 3\ntitle: ${title}\n${extra}source: { type: invented }\nservings: 4\ningredients:\n  - items:\n${ing}\nextracted_by: ai\n---\n\n## Préparation\n\n1. Mélanger.\n2. Cuire 20 min.\n`;
 }
 
-/** Paste into the box the way a person does (one input event). */
+/**
+ * Put a text in the box, replacing what is there (not typed: the box stays
+ * free to fold, as after a paste). A box folded to its summary is opened
+ * first, as a person would ("Modifier le texte").
+ */
 export async function paste(page: Page, text: string) {
 	const box = page.getByLabel('Réponse de l’IA');
+	if (!(await box.isVisible())) await page.getByRole('button', { name: 'Modifier le texte' }).click();
 	await box.fill(text);
+}
+
+/** After `goto`: the page has hydrated, so a first tap or file input reaches its handler. */
+export async function ready(page: Page) {
+	await page.locator('html[data-ready]').waitFor({ state: 'attached' });
 }

@@ -43,7 +43,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (answer) return answer;
 	const lang = event.locals.user?.prefs.lang ?? 'fr';
 	const run = async () => {
-		const response = await resolve(event, { transformPageChunk: ({ html }) => html.replace('%lang%', `${lang}-CA`) });
+		const response = await resolve(event, {
+			transformPageChunk: ({ html }) => html.replace('%lang%', `${lang}-CA`),
+			// The serif's regular and bold (titles, steps) load with the page, not after the first paint: no swap under the reader's eye.
+			preload: ({ type, path }) => type === 'js' || type === 'css' || (type === 'font' && /charis-sil-latin-(400|700)-normal/.test(path))
+		});
 		response.headers.set('X-Content-Type-Options', 'nosniff');
 		response.headers.set('Referrer-Policy', 'same-origin');
 		response.headers.set('X-Frame-Options', 'DENY');

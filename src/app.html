@@ -4,6 +4,39 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<!-- The cook chip's place in the header (CookChip.svelte), taken before the first
+		     paint: the chip is read from this device's storage, so without this the header
+		     would grow once the page is up. Same rules as lib/kitchensession.ts `readCook`
+		     and `cookUp` (tests/unit/cookflag.test.ts keeps them in step). -->
+		<script nonce="%sveltekit.nonce%">
+			(function () {
+				try {
+					var now = Date.now(), n = 0, timer = false, top = null;
+					for (var i = 0; i < localStorage.length; i++) {
+						var k = localStorage.key(i);
+						if (!k || k.indexOf('rv-kitchen:') !== 0) continue;
+						var s = null;
+						try {
+							s = JSON.parse(localStorage.getItem(k));
+						} catch (e) {}
+						if (!s || typeof s !== 'object' || typeof s.at !== 'number' || now - s.at >= 432e5) continue;
+						var on = (Array.isArray(s.timers) ? s.timers : []).filter(function (x) {
+							if (!x || typeof x !== 'object' || typeof x.end !== 'number' || typeof x.step !== 'number') return false;
+							return !(x.done || (x.left === undefined && x.end <= now)) || (!x.seen && now - x.end < 18e5);
+						}).length;
+						var step = false;
+						if (typeof s.n === 'number' && typeof s.step === 'number' && s.step < s.n)
+							step = s.step >= 0 || (typeof s.last === 'number' && s.last > 0 && s.last < s.n) || (Array.isArray(s.ticks) && s.ticks.length > 0);
+						if (!on && !step) continue;
+						n++;
+						if (on) timer = true;
+						else if (!top || s.at > top.at) top = { slug: k.slice(11), at: s.at };
+					}
+					if (timer || (top && location.pathname !== '/r/' + top.slug && localStorage.getItem('rv-cookchip-hidden') !== top.slug + '@' + top.at))
+						document.documentElement.dataset.cook = n > 1 ? 'n' : '1';
+				} catch (e) {}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

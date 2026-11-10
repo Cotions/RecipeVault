@@ -268,32 +268,213 @@ away, and not touching the screen much.
 
 - **Screen stays on.** Wake Lock API while kitchen mode is open. Without this the
   screen locks mid-recipe and she has to unlock with dirty hands — the single most
-  annoying failure, and the reason this is a mode rather than a font size.
+  annoying failure, and the reason this is a mode rather than a font size. The
+  header always says which it is, worded as a state, after a reload too: « ☀
+  Écran gardé allumé » (the sun green; « Écran allumé » on a phone) while the
+  screen is kept on, a tap lets it sleep; « ☀̸ L'écran peut s'éteindre ·
+  Réactiver » (a crossed-out sun; « · Garder allumé » when she let it sleep or
+  it was never on) while it is not, a tap asks again; a 44 px target. On a
+  phone only the sun and the action fit, the state is the sun, the words at
+  14 px at least (under 400 px wide « ← Quitter » keeps only its arrow, named
+  for screen readers, so they fit); from 64rem the whole sentence. While the first request is
+  still out, nothing shows for 1.5 s (a grant usually comes sooner). A refusal is asked again on her first tap (some browsers
+  want one), on every later tap while it is off, and when the page comes back
+  into view. Where it still cannot be kept on (plain HTTP, a refusal) there is
+  no toggle, and only the header's crossed-out sun and its words say so — no
+  note repeats it (UI round 1: a second message for the same state, near the
+  step buttons, read as noise). The sun is named for what a tap does (« … · Réactiver », shown as a tooltip on hover or focus), and opens the reason
+  (HTTPS and Tailscale, or the browser's refusal) and « Réessayer ». Nothing
+  under her finger moves when the screen's state changes: the indicator sits
+  before the amount and grows into the header's free space (the amount and ⋯
+  keep their place), its reason hangs from the header's right edge, and the
+  answer to a request made by a tap (the crossed-out sun) waits
+  for that tap's click (600 ms at most, for a swipe), or the click would land
+  on what just appeared.
 - **Big type.** Readable at arm's length. Nothing else on screen — no navigation,
-  no sidebar, no tags.
-- **Ingredients first, as a checklist.** Tap to tick off while gathering. Grouped
+  no sidebar, no tags. « Taille du texte » in the ⋯ menu (A− / A+, 85 % to
+  150 %) scales the step text and its ingredient chips, remembered on the device.
+- **Ingredients first, as a checklist.** Tap to tick off while gathering — the
+  whole row is the target, 48 px tall at least, and the box itself is a 48 px
+  target with a visible square of about 28 px (24 px at least). Grouped
   as in the recipe (sauce, béchamel, montage). Ticks stay on the device
   (`localStorage`) and are never sent to the server.
-- **One step at a time.** Current step large, previous and next dimmed. Large
-  tap zones: right half of the screen advances, left half goes back — no small
-  buttons to hit. Swipe works too.
+- **One step at a time.** Current step large; the previous and next steps
+  around it (« Avant », « Ensuite ») in the body ink at reading size (18 px),
+  two lines at most, their labels (« Avant : », « Pour cette étape »,
+  « Ensuite : », a group's « Garniture ») in sentence case, 15 px semibold — small
+  capitals read as a form (UI round 1). On a wide screen the step
+  is larger (about 49 px at 1366 px, 60 px at most) and sits in the upper part
+  of its pane, a little below the top, with its chips and the steps around it
+  (dead centre left a band of empty paper above it). The space above it is
+  measured on the window, not the pane, so a timer strip
+  appearing does not move the step; it gives way only to a step too long to
+  fit under it, and a longer one still scrolls.
+  Large tap zones: right half of the screen advances, left half goes
+  back — no small buttons to hit. Under the step, two big buttons; on step 1 of
+  a wide screen there is nothing before it, so « Étape suivante » takes the
+  whole row (a phone has « ← Ingrédients » there; later, its back button is
+  the arrow over the word « Précédente »). A swipe left or right
+  (over 60 px, more across than down) moves a step too. On the last step the big
+  button reads « Terminé ✓ »: « Bon appétit ! », then back to the recipe by
+  itself after a moment — not while a timer is still on, and not if she taps
+  « Recommencer ». A finished cook is not resumed.
+- **Phone: two halves, a wide screen: side by side.** On a phone the checklist
+  and the steps are two tabs at the top (« Ingrédients 3/12 · Étapes 2/7 »),
+  with a big « Commencer » (or « Reprendre à l’étape n ») at the bottom of the
+  checklist; going back to the checklist remembers the step. The phone header
+  is one row (← Quitter, the screen, the amount, ⋯); the recipe's name
+  heads the checklist and the step instead (no second « Ingrédients » heading
+  under the tab that says it). The recipe's photo — as often the card as the
+  dish — is a small thumbnail button (« Voir la photo ») beside the name, or
+  beside « Ingrédients » on a wide screen, never a cropped band: tapped, it
+  opens full screen, fitted; a tap zooms to 2.5× around that spot (it then
+  scrolls; pinch zoom works too), another fits it again; « Fermer », Escape
+  or the backdrop close it. From 1024 px wide (a tablet across,
+  a laptop) the checklist sits on the left (about a third) and the steps on the
+  right from the start, with no « Commencer » gate. The checklist folds to a
+  narrow rail (« Ingrédients (12) », remembered on the device) so the step text
+  gets the width.
 - **Step's ingredients shown with the step.** "Ajouter l'ail, puis le bœuf" shows
-  `2 gousses ail · 500 g bœuf haché` underneath, so she never scrolls back to the
-  list. Matched by ingredient name appearing in the step text; best-effort, and a
-  miss just shows nothing.
+  `2 gousses ail` `500 g bœuf haché` as small chips over the instruction
+  (« Pour cette étape »), so on a phone she never flips back to the
+  ingredients tab. Matched by ingredient name appearing in the step text
+  (singular or plural by the vault's rule; a long name by its head noun:
+  « l'eau » is the « eau bouillante » line); a group's name (« la garniture »)
+  stands for the group — its lines when it has three or fewer, else one chip
+  « Garniture (tout) »; a generic word stands for the lines of its kind (« la
+  viande » → porc, bœuf, veau; « les épices »; « une abaisse » → the pastry;
+  « saler, poivrer »; « les pâtes » → the pasta); a name in two groups (butter
+  in the syrup and the batter) goes with the group the step otherwise works
+  in. A line's other names count as its name (the aliases of its registry
+  entry, unless another line has that name as its own; a long alias by its
+  head noun too, unless that is a generic word: « le piment » finds the
+  « poivron vert » line, « la viande » is not narrowed to one line by an
+  alias « viande à hamburger »), a word in « -é/-ée/-és/-ées » is a word of
+  its own, never one letter off a noun (« plat beurré » does not light
+  « beurre », « pâte sucrée » not « sucre »), and a line the
+  registry does not know — often a typo on the card (« oigon ») — is found by
+  a step word one letter off its head noun (five letters at least, same first
+  letter: « l'oignon »). A doneness clause is not a use: « jusqu'à ce que la
+  pâte soit dorée » (« until … ») names nothing, so a « Cuire … » step has no
+  chips for it. What an earlier step made is shown as that step's product:
+  a step that names a kind (« la viande ») a line of which was already used
+  in an earlier step, inside a named group of more than one line, or that
+  says « le mélange », « la préparation », « l'appareil » after steps that
+  worked in a named group, gets that group's chip (« Garniture (tout) »),
+  not the one raw line (`matchSteps`). A partial list is worse than none: when the step names
+  something the list cannot account for (« le reste », « les ingrédients secs »,
+  « les fines herbes » with none in the list, or a food left over: « l'oignon »
+  with no line for it), the chips are labelled « Mentionnés »
+  instead, with « Tous les ingrédients → » under them (or alone), and the wide
+  screen's checklist marks nothing. The matcher is `src/lib/render/steps.ts`
+  (unit-tested with invented steps). On a wide screen with the
+  checklist open, the step's lines are marked in the checklist itself (bold, a
+  red bar on the card's cream, the rest in a softer ink that stays readable, full ink again
+  under the pointer or keyboard, scrolled into sight) instead of the chips: the
+  same lines twice on one screen would be two places to read, and the list is
+  where she ticks them. With the checklist folded to its rail, the chips come back.
 - **Servings adjuster at the top,** before starting. Quantities rescale everywhere,
   including in the per-step ingredient lines. Free, because quantities are
   structured. Built in plan 05: amounts a cook can measure, sub-recipes at
   the amount the line needs, amounts written in steps shown scaled beside the
   original (`DATA-FLOW.md`, "Scaling").
 - **Timers.** Durations in step text (`25 min`, `1 h`) become tappable. Several can
-  run at once, each labelled with its step, visible at the top, with an alarm
-  sound when done. Survives the screen changing steps.
+  run at once, in a strip over the step buttons (in the steps column on a wide
+  screen, so the checklist beside it is never covered; over « Commencer » on
+  the phone's checklist), in the flow: the step pane ends above it, so the
+  step text scrolls clear of it, never under it. On a wide screen the strip
+  holds the timers of the other steps only: a timer shows once, inline on its
+  own step (below), and in the strip from every other step. Each is one row,
+  « Étape 1 · 59:45 » (digits 26 px on a phone, 30 px wide, tabular), a thin
+  line across its top that drains, then Pause (▶ Reprendre while paused) and
+  ✕ Arrêter, each a 44 px square named with its step for screen readers; the
+  label and time go back to that step. On a phone three or more collapse to
+  one line « ⏱ 3 minuteurs · 12:30 » that opens them all. Once it rings its
+  row turns red, « Terminé », and its buttons are « +1 min » and Arrêter.
+  The strip is there only while a timer it shows is on, and starting one
+  moves neither the step text nor the step buttons. On « Étape suivante » the
+  new step's instruction is brought into sight (scrolled to, if the recap and
+  chips over it would push it under the strip), and kept in sight when the
+  strip grows. A duration in a step reads as a button: ▶ in a disc
+  before it (⏱ while its timer runs). Until she has started a timer once on
+  this device, a step with a duration has a one-line caption under it
+  (« ↑ Touchez la durée pour lancer un minuteur ») and a ring goes out from
+  the duration three times (none with reduced motion), on two visits at most. An alarm sounds when one is done. Survives the screen
+  changing steps. A finished timer turns red (« Terminé », a slow pulse, none
+  with reduced motion), stays until stopped, and rings again every 20 s for
+  three minutes; « +1 min » on it starts a new minute. A range (« 35 à 40
+  min ») runs to its upper bound, the safe end for a cake or a roast: its
+  chip reads « 39:12 · 35–40 », and at the lower bound it does not ring but
+  calls once, softly (one low beep, a short buzz): the chip turns the
+  highlight colour, « Vérifier », and its controls open with « 35 min :
+  vérifier la cuisson ». She stops it if it is done, or lets it run. The sound
+  needs the tap that started the timer (browsers block audio otherwise): after
+  a reload, a timer that finishes only shows and vibrates where allowed. A
+  timer that finished before this visit (a reload, a return) neither pulses
+  nor rings: it reads « Minuteur terminé il y a 12 min » (its row « Terminé
+  il y a 12 min ») with « Relancer » (its whole length again) and « Effacer ».
+  The current step's own timer shows only there, large under the step text
+  (« ⏱ 38:55 », with « 35–40 min » or « En pause » beside it), never over
+  it, with Pause / Reprendre, « +1 min » and « Arrêter » (red and first once
+  it rings); the strip does not repeat it (UI round 1: the same timer twice
+  on one screen). At another amount, « × 2 · temps et four inchangés »
+  says on one line, under the step count, that times, the oven and the pans
+  are not scaled — on step 1 and on a step that names a time, a temperature
+  or a pan, not on every step (`src/lib/render/stepnote.ts`). On
+  a wide screen the space above the step is held while that countdown comes
+  or goes, so the step does not move. Other recipes' timers on this device
+  sit in the same strip as dashed chips (« Tourtière 38:55 ↗ ») that open
+  that recipe's kitchen mode at the timer's step, and ring there too.
 - **Sub-recipes inline.** A step using pâte brisée can expand the pastry recipe in
   place instead of navigating away — and a sub-recipe's own sub-recipes inside
   it, each at the amount its line needs (`DATA-FLOW.md`, "Scaling").
 - **Resumes where she left off** if the tab reloads or the phone switches apps —
-  current step and running timers kept in local storage.
+  current step and running timers kept in local storage, silently. A session
+  untouched for 12 hours is a new cook. On any restore, one small line under
+  the step header says so, in the flow — « Repris à l'étape 3 · 12 portions ·
+  Recommencer » — and fades after 5 s (not while she points at it or has
+  focus in it) or at her first move; its room stays, so the step does not
+  move when it goes. Nothing fixed covers « Ensuite » or the step (UI round 1:
+  a toast there did).
+  Opened from a recipe page where she set another amount, the cook goes on at
+  that amount, step, ticks and timers kept, and the line says both (« 16
+  portions (avant : 10) »; plan 05, "The address and a resume"). A
+  finished cook with a timer still on (« Terminé » with the cake in the oven)
+  is resumed at its last step until the timer is stopped. « Recommencer »
+  is in the ⋯ menu, the resumed line and « Bon appétit » — not beside the
+  step count: the step area is a tap zone (right half: next), and a button
+  there turned a tap meant for « next » into a restart. It stops the timers,
+  so while one runs a line under the header asks first (« Un minuteur en
+  marche · Recommencer quand même · Annuler »), from any of its places. Done,
+  one line says so for 4 s (« Cuisine recommencée »); a second tap leaves the
+  same fresh cook. The « Étapes » tab always counts out of the total (« 0/4 »). The session also saves the step count
+  and the recipe's title, for the cook chip.
+- **The cook follows her around the app.** While a session on this device has
+  a timer on, or a step to resume, every page's header carries one compact
+  chip in its own row (« ⏱ 39:12 », the recipe's name in its accessible name
+  and title, shown beside the time from 80rem; under 80rem the wordmark keeps
+  only its mark while she cooks, so the header never wraps). Its width is
+  fixed and taken before the first paint (an inline script in `app.html`
+  reads the same storage, `cookflag.test.ts` keeps it in step), so nothing
+  shifts on load. It shows the timer that rings soonest (ringing
+  first, then a range to check, then the soonest, then a paused one), or
+  « ↩ Étape 4 » for a step to resume, « +1 » when other recipes cook too: a
+  tap on it lists them all, each a link to its kitchen with « × Terminer »
+  (that session goes from the device; one untouched for 12 h is no longer
+  listed). A tap goes back to kitchen mode at the timer's step
+  (`/r/<slug>/cuisine?etape=4`, 1-based, dropped from the address once
+  read). A timer that rings while she reads another page turns the chip red
+  (« TERMINÉ », a slow pulse, none with reduced motion) and sounds the
+  kitchen's alarm, again every 20 s for three minutes; a range's lower bound
+  turns it the highlight colour (« Vérifier ») with the soft call. One that
+  rang while no page was open shows red but does not sound late. The pulse
+  stops after 30 s, leaving a still red mark; a rung timer is forgotten once
+  seen (on its recipe's kitchen mode, or the chip's ×) or 30 min later.
+  Signing out clears this device's kitchen sessions and the chip. A step-only chip has a × (« Masquer »,
+  remembered until that session changes) and is not shown on that recipe's
+  own page, whose « Cuisiner » button already reads « Reprendre ». Not in
+  kitchen mode itself. Read from local storage in the browser only
+  (`lib/kitchensession.ts`, `CookChip.svelte`); other tabs update it.
 - **Works offline** once opened. Kitchen wifi is often the worst in the house; the
   recipe and its images are cached on open.
 - **Dark mode option,** high contrast either way.
@@ -316,20 +497,332 @@ the recipe page and kitchen mode, which are read on a phone at the counter.
   page's actions on the right, the intro under it.
 - **Primary action out, the rest in ⋯.** A page shows its one or two main
   actions as buttons; the secondary ones go in a ⋯ menu (`Menu.svelte`, a
-  `<details>`, so it works without JavaScript). The header keeps the four
+  `<details>`, so it works without JavaScript; its items are 44 px tall on a
+  phone or a touch screen). The header keeps the four
   places one goes to every day (Recettes, Variantes, Ingrédients,
   Garde-manger) and « Nouvelle recette »; the work queues (À relier,
   Étiquettes, Doublons), Ajouter, Corbeille and the account sit in « Plus »,
-  with a dot when a queue has something waiting.
+  each queue always on its row, in the same place (a queue that empties keeps
+  its row, with nothing after it), and after its name the backlog's total in the
+  soft ink for À relier and Doublons, then what is new and waits for her
+  (« Étiquettes · 3 à décider », « Doublons · 74 · 1 nouveau », « À relier · 70 »;
+  UI round 2: a backlog with no number anywhere read as nothing to do). These are backlogs (on an archive being typed in, À relier holds
+  about every recipe and Doublons hundreds of cards), so the button does not
+  carry their size: a count that never clears is noise. It says only what
+  waits for a decision and is new (decided in the round-5 UI pass, revised in
+  the organize pass): every pending tag (each one is new until accepted,
+  linked or removed), plus the duplicate cards holding a recipe saved after
+  this device's mark. The mark is a cookie (`rv-vu`, the index's highest
+  recipe id when the device first came, `lib/server/seen.ts`); a new card
+  counts until decided or seen — /doublons sorts the new cards first and,
+  once its first page has shown them all, moves the mark up (usability round
+  4; before, only deciding cleared it, and « 1 nouveau » pointed at a card on
+  another page). « Plus · 3 », 99+ at most, on the phone's Plus button too.
+  À relier never counts on the button (every new recipe adds names to it).
+  When nothing is new, the button carries no mark at all: round 3's quiet dot
+  for the backlogs said nothing to a thumb (usability round 4), and each line
+  of the menu says its own count. Corbeille shows only when signed in, and
+  « Plus » itself only when it holds something (signed out with no queue:
+  nothing). The number is text in navy small caps after a middle dot
+  (« Plus · 3 »), not a coloured badge. It is never a bare number (usability
+  round 2: « 1 élément à décider » beside 50 doublons and 64 names read as
+  « everything left »): the button's tooltip and what a screen reader hears
+  say what it counts, by kind (« Plus — 2 étiquettes à décider et 1 doublon
+  nouveau »), and in the menu each line's count is in ink, sentence case
+  (« Étiquettes · 2 à décider », « Doublons · 1 nouveau »): they add up to the
+  button's. The current
+  place is marked the tabs' way, an ink line under it — under « Nouvelle
+  recette » on /nouvelle and /ajouter, under « Plus » on its pages — never a
+  pressed button. The app has a name of its own, « Boîte à recettes »
+  (`t.app.name`, also the end of every page title), with its mark, a card
+  standing in a navy box; « Recettes » is the tab.
 - **The recipe page is the calmest page.** Ingredients and steps come first.
-  Cuisiner and Modifier stay in sight; Imprimer, Historique, « Marquer
-  vérifiée » and Supprimer are in the ⋯ menu. The photo sits in a fixed 4:3 box
-  beside the head on a wide screen and after the steps on a phone; the cost
-  line comes after the steps, its detail closed.
+  The head reads: « Une des 4 variantes de Tourtière » (the family, a link;
+  one word, « variante », for sibling recipes on the whole page, as in
+  « Autres variantes » under the sheet; the method's own « Variantes » head
+  is the cook's text from the file, shown as a small label inside the sheet;
+  the variant's own label after it, « — sans porc », unless it only repeats
+  the author the provenance names; usability round 3),
+  the title, then the provenance as the page's signature (an italic serif
+  line with a small drawing of the kind of source: a card, a book, a
+  clipping, a site, a show), then the facts in one row. Cuisiner,
+  Modifier and ⋯ make one row level with the title on a wide screen; on a
+  phone Cuisiner runs the width under the facts and Modifier joins « Ajouter
+  une photo », Imprimer, Historique, « Voir le fichier » (Markdown accounts,
+  a dialog), « Marquer vérifiée » and Supprimer in the ⋯ menu, so the
+  ingredients start inside the first screen. The photo or scan is a print
+  (white border, a paper shadow, a slight tilt on a wide screen): with one,
+  the wide head is two columns — the family line, title, provenance, facts,
+  tags and Cuisiner · Modifier · ⋯ at the left, the print at the right,
+  whole (a card across or a book page up) within ~232 × 256 px, « Voir la
+  photo en grand » under it — so the facts no longer wait under the photo and
+  the ingredients start higher; without one, a single column with the
+  actions level with the title. Up to 56rem (round-5 UI pass) the print is a
+  small square, ~88 px, beside the title, the family line across the width
+  above both, so the facts, Cuisiner and the first ingredients reach the
+  first screen of a phone; on a phone the tags move after the method (ways
+  into the list, not the recipe). The small print shows its top (where a
+  card's title is), a small enlarge mark at its corner; it was a 120 px strip
+  across the width under the title. Tapped, it opens full in a dialog.
+  Ingredients tick off while gathering: a small box at each row's start (or
+  a tap on the row's plain text) strikes the line through, kept for the tab's
+  session per recipe, never printed, with « Tout décocher » under the list.
+  A box rather than the whole row because most of a row already answers a
+  tap: the amount scales, the name opens its ingredient. The cost line is a
+  footnote of the method, after the steps, notes and variants, in the
+  ingredients' sans at 14 px and one weight: « Coût estimé : ≈ 20,26 $ ·
+  2,53 $ par portion », and the coverage as the disclosure that holds the
+  detail (« 9 ingrédients sur 15 ont un prix »: the lines without a price,
+  each with why, then the priced ones). Below the threshold only the
+  archive's keeper (the Markdown tools) sees « Coût estimé : pas assez de
+  prix »; a family account sees no cost line until there is a figure.
+  `[+]` reads as a small pencil chip, « ajouté », its title and the legend
+  at the sheet's foot saying the rest (« absent de l’original, ajouté à la
+  transcription »). In a title on the home page and the lists (round 4) it
+  is a small pencil « + » raised after the word, the same title on hover and
+  « ajouté » for a screen reader; never the raw brackets. Variantes speak in the steps' voice (serif, full size,
+  full ink) under a small capitals label like Notes', a hairline above.
+  On a phone the scaler sits on the Ingrédients heading's line when both
+  fit, else on its own line, « Autre quantité » as its last chip (« Autre… »,
+  a word, not a bare « … »). Once the head's Cuisiner has scrolled out of
+  sight, the phone's bottom bar carries it as a fifth cell in ink beside the
+  four tabs (the bar still slides away while reading down and comes back at
+  the first move up), so Cuisiner is a flick away anywhere on the page. The
+  cost's coverage says where the lines the page does not list come from: a
+  sub-recipe is one line on the page and its own lines in the count, « 9
+  ingrédients sur 15 ont un prix (dont 5 dans Pâte brisée) ».
+  The archive's upkeep is the keeper's alone (the Markdown tools) and says
+  itself in one quiet line above the family line and the title, under the
+  red rule: the state's badge, one short reason, « Marquer vérifiée » when
+  nothing is uncertain, and « 2 ingrédients à relier », which opens the list
+  of unlinked names at the sheet's foot, each with « Relier › » to its row in
+  the queue (usability round 3). There is no word after each unlinked line
+  any more (« pas encore relié » under names read as part of the recipe).
+  A draft reads « Brouillon · La famille la voit déjà ; « Marquer vérifiée »
+  dit qu’elle a été relue contre la fiche. » A draft with nothing to read it
+  against — no source, an invented one or a source with no field, and no
+  photo — reads « Saisie sans fiche d’origine · La famille la voit déjà ;
+  « Marquer vérifiée » dit seulement qu’elle a été relue. » (round 4: plainer
+  than « Pas de fiche originale », which read as something missing): only the
+  words change, the file's `status: draft` and what
+  verifying means stay as they are. Verified says nothing (the calm state),
+  so the line is there only when something waits. The family account sees
+  none of it: no badge, no reason, no link to the queue. Setting the amount
+  on a phone: the servings count is itself a button that opens « Pour [..]
+  portions », and × ½ × 2 × 3 stand at the right of the « Quantités d’origine »
+  line at every width (round 4; was « Recette originale », read as the card) (plan 05, « Help around scaled amounts »). « Reprendre ·
+  étape 4 » adds the kitchen session's amount when it differs from the page's
+  (« · 10 portions »).
+- **Notes are the archive's voice.** A Notes section is a « note de famille »:
+  a tinted slip with a pen rule in ink (not red), the text at 18 px italic
+  serif in full ink, signed « — Francine » when the recipe is a person's
+  (a family card or a source of unknown kind with an author; never a book's
+  author or publisher).
+- **Phone: the tab bar makes room.** On a recipe page it slides away while
+  reading down and comes back at the first move up or near the top; never
+  while focus is in it, and without the slide under reduced motion. On the
+  form pages (/nouvelle, /ajouter, /…/modifier) the save bar takes the bottom
+  and there is no tab bar: the four pages (Recettes, Variantes, Ingrédients,
+  Garde-manger) head the « Plus » menu there instead, 44 px rows over a rule
+  (usability round 5) — no extra button, the header stays one row.
+- **The red rule means the card.** On the recipe page: the sheet's top edge,
+  Ingrédients and Préparation; elsewhere the site header, kitchen mode and
+  errors. Not links (navy underline at 40 %), not step bullets (ink), not a
+  scaled amount (ink on a pale ground), not the « Plus » count (navy small caps:
+  things waiting are not errors). Variantes gets a hairline and a small
+  label, not the rule. « Autres variantes » shows three, then « Voir les n
+  autres ».
+- **The list is the drawer.** One cream card of ruled rows, at every width:
+  at the row's start a small drawing of the kind of source (the recipe page's
+  set: a card with its red rule, a book, a clipping, a site, a show, a
+  pencil; a plain card with dashed lines when the recipe does not say;
+  `SourceGlyph`, in ink, named on hover and to a screen reader: « Livre »,
+  « Magazine »… as in the Provenance filter), then the title (serif, 18 px,
+  two lines at most) and after its last word the family count « ⧉ 3 » (the
+  Variantes tab's drawing; the words « 3 variantes » for a screen reader) —
+  plain words, not a link: the row is one target, its recipe, whose page
+  links the family (a link nested in the row was a 28 × 17 px target), then
+  one quieter line « de Tante Aline · Dessert · Automne · 6 portions » — who
+  it is from, the name in ink, then the course (the first course tag it has)
+  and its seasons when it has one or two; a course or season the list is
+  filtered by goes unsaid, and who it is from keeps at least 40 % of the line
+  (servings dropped on a narrow row, the season after a course on a phone):
+  the family count never takes the author's room. The total time stands in
+  a right-hand column of its own on every row, the same grid track on every
+  row kind (a row, a same-title group's line, phone or desktop), so the eye
+  runs down the times — 129 desserts scan as « Automne · 40 min ». No other
+  tags on the rows: on a box of desserts they say little; a tag a search
+  found sits in that line, marked (« de Lise B. · **Dessert** »), never on a
+  line of its own, and not at all when it is a filter. Rows with the same title
+  are one entry, like a book's index under one word: a pile of cards and the
+  title once, « Carrés aux dattes 3 fiches » — plain words, not a link — or
+  « ⧉ 5 variantes » linking to the variants' page when they all belong to it
+  (the group's head is no row's link, so this one stays a link, 44 px under a
+  finger). Searching, a group's lines keep the search's order: no recipe is
+  marked « notre version », since nothing in a file says which version is the
+  family's own (an author is free text, there is no default per family).
+  Two words for two things: « fiches » counts the cards filed under one title
+  (any family or none); « variantes » is always the family, a link, as on the
+  recipe page's « Une des 4 variantes de … » and the Variantes tab. Then,
+  indented under it behind an `--edge` rule, a line per
+  recipe that leads with its drawing and who it is from, the name in bold — or
+  « Provenance inconnue » in italics when the recipe says nothing of where it
+  is from (else its `variant:` name), then its own « ⧉ 3 » — plain words, not
+  a link: the line is one 44 px target, its recipe — when it belongs to a
+  family the group's head does not name. Searching, the same titles are
+  brought together where the best placed of them ranked. No legend under
+  the list: each drawing carries its name (its title, read out). A row of its
+  own leaves out « de X » when its title already ends with that name (« Tarte
+  de Matante Ginette »; case, accents, markers aside — `rowProvenance`); a
+  same-title group's line keeps it. On a phone the provenance line wraps to
+  two lines at most, never « Tiré de Cuisine f… », the time keeping its
+  column. Every row keeps one rhythm: a scan
+  sits only on a wide one-column row (before the time) as a strip (96 × 40)
+  of its top-left corner, enlarged, where a card's or a page's title is
+  written; in the drawer's two columns, on a phone and on a same-title
+  group's line there is none — it would push the title onto a second line or
+  cut the provenance; the scans are on the idea cards and on the recipe
+  page. Most cards have no photo: no placeholder images on rows. On
+  a wide screen the drawer has two columns read like a book's index — down
+  the first, then the second — so a letter's tab sits in the flow and a short
+  letter leaves no hole; sorted by title the page sets where the second
+  column starts (about half way, counting a group by its lines), and a
+  letter that runs on opens it with its tab again, « B (suite) » (also at the
+  top of a page that starts inside a letter). A letter's tab is an index
+  card's: a buff tab with the serif capital in ink, on an `--edge` rule.
+  About twenty-four rows show at once, forty-eight to a page — sorted by
+  title, the page breaks where a letter changes when one is within 30 % of
+  that, else where the first word changes, and a rest that fits stays on the
+  last page. The letter strip lists only the letters that have recipes.
+  Over the index, on the first page of the whole box (no search,
+  no filter), under 60 rem (where the filters fold behind « Filtres » — a
+  wider screen has them beside the list, so no chip repeats them), a row of
+  filters to tap without opening « Filtres » — Plat
+  principal · Dessert · Rapide · 30 min · De saison · automne, each only when
+  it narrows the box (on a phone the row scrolls sideways and fades
+  out over its last 3.5 rem, so a cut chip reads as « more this way ») —
+  then a visible head « Des idées », with « Avec ce que j'ai › » (the pantry
+  search, another page) at its right, and up to six compact cream index cards of ideas: « Une
+  fiche au hasard » (its scan when there is one; under the title, two lines at
+  most of provenance · time · course; « ↻ Une autre » draws another of twelve
+  sent with the page), « De saison · automne » (three of the season's; the
+  whole head, « De saison · automne — Les n › », is the link to all of them;
+  Québec seasons: déc.–févr. hiver, mars–mai printemps, juin–août été,
+  sept.–nov. automne), three ways in read off the files — « Longs mijotés ·
+  plus de 2 h » (main dishes over 2 h total; « Les n › » is
+  `?tag=plat-principal&temps=plus`), « Pour une tablée · 7 et plus »
+  (`?portions=7+`, the Portions facet's top bucket, so the link holds exactly
+  what the card draws from) and « Les mieux notées » (rating 4 or 5; « Toutes
+  › » is the list sorted by note), each three at random and shown only when
+  it holds three at least — and « Ajoutées récemment » (the last three; the head
+  « … — Toutes › » leads to the list by date added). There is no « pas
+  cuisinée depuis longtemps »: nothing records when a recipe was cooked (the
+  history is of the file), and a card must not claim what the box does not
+  know. On a wide screen one row of three shows — the random card, the
+  season's, the first rail that holds enough (« Longs mijotés » first) — and a
+  quiet « Plus d'idées » shows the others in place, under them. Each idea is two lines,
+  the title then provenance · time · course (the first course tag of the seed
+  vocabulary it has: plat principal, entrée, dessert…), with a small thumbnail
+  where there is a photo. On a phone the cards scroll sideways, each about
+  80 % wide, with a dot per card under them for the one in view, so the index
+  starts right under them; the index stays. The owner's review state follows the title as a
+  word in small capitals (« à relire »), never a bare dot — on the rows only
+  while the État filter is on (on a third of the box it competed with the
+  titles; the recipe page always says it); a broken file is marked always, an alarm; a family account
+  sees none of it, nor État, « Ingrédients à relier » or the files that fail.
+  Searching, the rows whose title holds a word come first; the rest follow
+  under the reason they were found (« Dans les ingrédients de n recettes »,
+  then étiquettes, provenance, texte, and last « Mentionnent aussi « mot » » for a word
+  only a note mentions; see DATA-FLOW; each a quiet heading in the sans and
+  the soft ink, plainly not more of the results above) in
+  quieter drawers (a muted paper, no shadow), the same rows plus one line of
+  where the words are. Over the results, one line says how many (« 12
+  recettes pour « tourti » ») with the sort beside it, and the active filters
+  as chips, a dashed « Tout effacer » chip first, then each with its ×. On a phone,
+  under the search box, one row: « Filtres » (with how many are on), then how
+  many recipes and their order (« 320 recettes · par titre ») — or, with
+  filters on, the count, then under it « Tout effacer » (first, 44 px) and
+  the active filters as chips, wrapping onto as many lines as they need —
+  every one in sight, none cut at the edge (they are few); the first recipe
+  starts about 150 px under the header. The sort is the first thing in the
+  filter sheet; its head stays put with a 44 px ✕, Escape closes it (focus back
+  on « Filtres »), « Voir les recettes » sits under the last group, never over
+  it, and opening a group shifts nothing above it. A facet counts within the
+  current list; a value that would leave nothing shows greyed with 0, last —
+  except right after a tap on a value: every group then keeps the order it
+  was shown in, so the value tapped stays under the finger, until the next
+  navigation that is not a filter's.
+  Nothing found: with filters on, they show as chips with « Tout effacer » and
+  « Sans les filtres : n recettes »; with a search alone of several words,
+  « Aucune recette avec tous les mots. » and each word alone with its count
+  (« « carrot » seul : 27 recettes › », a link when it finds some); of one
+  word, one line to check the spelling. A word that stands for several
+  ingredients (« poivron ») adds « Aussi : piment vert (40) · piment rouge
+  (17) » over the count, each a link that narrows the list; a name the word
+  heads without meaning it (« piment de la Jamaïque », allspice, for
+  « piment ») is not among the results and comes last in the plain weight,
+  « · piment de la Jamaïque (2) », a link to its own search. Sorted by note,
+  each row shows its « ★ 4 »; the « Note » sort is offered only when a recipe
+  of the box has a rating. On a wide screen the filter column stays beside
+  the list as it scrolls (sticky, with a scroll of its own). While the search box has the focus (and is empty), a row of at
+  most three filters read off the list shows under it (its two most used
+  tags, the shortest time that narrows it, a season if there is room). The
+  filter groups run Étiquettes, Temps total — open — then Variantes, Saison,
+  Portions, Provenance, Auteur, folded unless one of their values is on; each
+  shows its top four, then « + n autres ». On a wide screen the active
+  filters sit over the count. Sorted by title, the letters on a wide screen
+  mark the ones on this page (underlined in ink) and lead to the page of the
+  others, at the letter; on a phone the letters that have recipes run down
+  the right edge in a gutter of their own, from under the search box (where
+  the header leaves it: measured at load and when the header or the window
+  changes size — a running timer's pill makes the header taller — never while
+  scrolling) to over the tab bar, each as tall as that allows (about 32 px with twenty letters):
+  tap one, or slide a finger along them — the letter shows large just left of
+  the finger, the list follows on this page and the page of the letter loads
+  on release. The pager names each page by its guide words, like a
+  dictionary's: the letters alone where two pages meet between letters, as
+  many as it takes where they meet inside one (« A–Ca · Ch–F · G–L · M–Pai ·
+  Pat–R »), never two pages alike; the current one in ink; by number when
+  not sorted by title; a long list keeps the first two, the last two and
+  those around this one. On a phone the pages are one row that scrolls
+  sideways (this page brought into it), never one alone on a second line.
+  Then « Précédentes · Page 2 sur 7, Titres de Ch à F · Suivantes ».
+  A variant's page names each version by who it is from; its `variant:` name
+  only when that says something more.
+- **Quiet signals.** A scalable amount has no underline: the scaler says it
+  once (the same pill whether by servings or by « × n », 44 px targets), with a
+  hint the first time on a device: one muted line under the scaler, in the
+  flow, never over the list (« Astuce : touchez une quantité pour tout
+  ajuster · Compris »), never in the paste preview; gone at « Compris », the
+  first amount tapped or the first change of amount. Only real links
+  underline, in navy over a faded navy line. Selects everywhere are drawn in
+  the cream and ink with their own chevron (app.css), still native. The
+  header's « Nouvelle recette » is an outlined button (a « + » on a phone),
+  underlined as current on the pages that write a new recipe; the filled ink is for
+  Cuisiner and Enregistrer. The steps' style (bullets by default, issue #5) is
+  a small two-part pill on Préparation's head, both choices in sight, the one
+  in use pressed in ink: « • Puces | 1. Numéros ». Bulleted steps get a
+  paragraph of air between them and a firm ink dot on their first line.
+- **Two accents, the ink and the red rule.** Notes, tips, notices and panels
+  are paper: a warm tint (`--info-bg`) with an ink rule at the left
+  (`--info-edge`) or an `--edge` border, never a pastel blue; « saved »
+  flashes `--ok-bg`. Highlighter yellow is for uncertain readings only.
+  Secondary text is `--ink-soft` (≈ 8:1 on the card) and nothing that is
+  read is under 15 px (`--step--1`); only capitals labels and counts are
+  smaller.
 - **Long lists are capped.** A list that can run to a hundred rows (the
   recipes using an ingredient) shows a dozen and a « n de plus » button.
 - **Images in fixed boxes.** A photo never sets the height of what is around
-  it: fixed aspect boxes, `object-fit: cover`.
+  it: fixed aspect boxes, `object-fit: cover`. The one exception is the
+  recipe page's print, shown whole (it may be the card itself) within a
+  bounding box of ~232 × 256 px beside the head on a wide screen; on a phone
+  it is a fixed 120 px strip, cropped from the top.
+- **Button sizes.** A button is at least 40 px high on a wide screen and 44 px
+  on a phone or a touch screen; only links inside a sentence are smaller. On
+  the form (`/nouvelle`, `/r/<slug>/modifier`) a phone keeps Enregistrer in a
+  bar at the bottom of the screen, « Il manque : … » beside it going to the
+  field; the bar steps back into the flow while she types, so it never covers
+  the box she is in (`docs/plans/04-write-path.md`, usability round 3).
 
 ## Bilingual handling
 

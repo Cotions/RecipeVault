@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import { amountParam, amountQuery, capFactor, factorFromParams, paramFactor, parseScaling, readAmount, scaleTextYield, scaleValues, servingsRange, servingsStep, type ScalingRules } from '../../src/lib/render/scale';
+import { amountParam, amountQuery, capFactor, factorFromParams, paramFactor, parseScaling, readAmount, scaleTextYield, scaleValues, servingsRange, servingsShown, servingsStep, type ScalingRules } from '../../src/lib/render/scale';
 import { formatAmount, ingredientParts, ingredientText } from '../../src/lib/render/ingredient';
 import { seedVocab } from '../../src/lib/server/vault';
 import { parseQuantity } from '../../src/lib/vault/quantity';
@@ -151,7 +151,16 @@ describe('servings and yield (Q7 A)', () => {
 		expect(servingsRange({ servings: 6, servingsMax: 8 }, 1, 'fr')).toEqual({ lo: '6', hi: '8' });
 		expect(servingsRange({ servings: 6, servingsMax: 8 }, 2, 'fr')).toEqual({ lo: '12', hi: '16' });
 		expect(servingsRange({ servings: 4 }, 1.5, 'fr')).toEqual({ lo: '6', hi: undefined });
-		expect(servingsRange({ servings: 6, servingsMax: 8 }, 1 / 6, 'fr')).toEqual({ lo: '1', hi: '1 ⅓' });
+		// Nobody serves a third of a person: a count that is not whole rounds, marked (usability round 4).
+		expect(servingsRange({ servings: 6, servingsMax: 8 }, 1 / 6, 'fr')).toEqual({ lo: '≈ 1', hi: undefined });
+		expect(servingsRange({ servings: 8 }, 4 / 3, 'fr')).toEqual({ lo: '≈ 11', hi: undefined });
+		expect(servingsRange({ servings: 6, servingsMax: 8 }, 1.25, 'fr')).toEqual({ lo: '≈ 8', hi: '10' });
+	});
+
+	it('the stepper’s count: whole as is, else rounded and marked, never under 1', () => {
+		expect(servingsShown(12, 'fr')).toBe('12');
+		expect(servingsShown(32 / 3, 'fr')).toBe('≈ 11');
+		expect(servingsShown(0.25, 'fr')).toBe('≈ 1');
 	});
 
 	it('a text yield’s leading number scales as a count, the rest kept', () => {

@@ -10,7 +10,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		return json(await importUrl(body.url, loadVocab(getApp().ctx.paths.vocab)));
 	} catch (e) {
-		if (e instanceof ImportError) return json({ error: e.message }, { status: 422 });
+		// `kind`: what the page offers next (a site that refuses, a page with no recipe).
+		if (e instanceof ImportError) return json({ error: e.message, kind: e.kind }, { status: 422 });
 		throw e;
 	}
 };

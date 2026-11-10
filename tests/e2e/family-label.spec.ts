@@ -16,7 +16,7 @@ async function setLabel(page: import('@playwright/test').Page, label: string) {
 
 test('a family gets a display name, saved to the vault and shown everywhere', async ({ page }) => {
 	await page.goto('/famille/lasagna');
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lasagna');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lasagnes aux courgettes');
 
 	await setLabel(page, 'Lasagnes de la maison');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lasagnes de la maison');
@@ -30,9 +30,9 @@ test('a family gets a display name, saved to the vault and shown everywhere', as
 	await page.goto('/?famille=lasagna');
 	await expect(page.locator('.facets')).toContainText('Lasagnes de la maison');
 
-	// Cleared: back to the name from the slug.
+	// Cleared: back to the shortest title among its recipes, never the slug.
 	await setLabel(page, '');
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lasagna');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Lasagnes aux courgettes');
 	expect(lastCommit()).toBe('family: lasagna (label removed)');
 	expect(readFileSync(`${VAULT}/vocab/families.yaml`, 'utf8')).not.toContain('lasagna');
 });

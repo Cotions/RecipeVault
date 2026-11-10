@@ -92,3 +92,26 @@ export function parseNumberInput(input: string): { ok: true; value: number } | {
 	const n = Number(s.replace(',', '.'));
 	return n > 0 ? { ok: true, value: n } : { ok: false, reason: 'zero' };
 }
+
+/**
+ * A whole number run into its fraction (« 21/2 » for « 2 1/2 »: the space
+ * forgotten, or « 1/2 » typed after a « 2 » already in the box): a fraction
+ * whose numerator is over 9 and over its denominator, the last digit of which
+ * makes a proper fraction. What it reads as and what she likely meant, both
+ * as the field shows them (`10 ½`, `2 ½`); nothing for anything else
+ * (usability round 5).
+ */
+export function fractionSlip(input: string, lang: Lang): { reads: string; meant: string } | undefined {
+	const m = input.trim().match(/^(\d*[1-9]\d*)(\d)\/(\d+)$/);
+	if (!m) return undefined;
+	const num = Number(m[1] + m[2]);
+	const den = Number(m[3]);
+	const last = Number(m[2]);
+	if (num <= 9 || den < 2 || num <= den || last === 0 || last >= den) return undefined;
+	const whole = Math.floor(num / den);
+	const rest = num % den;
+	return {
+		reads: rest ? showQuantity(`${whole} ${rest}/${den}`, lang) : String(whole),
+		meant: showQuantity(`${Number(m[1])} ${last}/${den}`, lang)
+	};
+}

@@ -13,6 +13,7 @@ import {
 	subRecipeCandidates,
 	suggestAuthors,
 	suggestNames,
+	suggestYields,
 	vaultStats
 } from '../../src/lib/server/formsave';
 import { currentFile, save } from '../../src/lib/server/save';
@@ -292,7 +293,7 @@ describe('families (Q10 A)', () => {
 		expect(r.status).toBe('saved');
 		expect(v.read('vocab/families.yaml')).toContain('galettes: { fr: Galettes }');
 		expect(changed()).toEqual(['recipes/galettes-de-sarrasin.md', 'vocab/families.yaml']);
-		expect(allFamilies(v.ctx).find((x) => x.slug === 'galettes')).toEqual({ slug: 'galettes', label: 'Galettes', count: 1 });
+		expect(allFamilies(v.ctx).find((x) => x.slug === 'galettes')).toEqual({ slug: 'galettes', label: 'Galettes', count: 1, name: null });
 	});
 
 	it('an existing label is never overwritten', async () => {
@@ -351,6 +352,27 @@ describe('hints and pickers', () => {
 		const target = f.groups[0].items[2].id;
 		const { hints } = formCheck(v.ctx, f);
 		expect(hints.some((h) => (h.code === 'W305' || h.code === 'W303') && h.target === target)).toBe(true);
+	});
+
+	it('a name a letter off one registry name: W305 says which (« Vouliez-vous dire »), with the name it was said of', () => {
+		const f = newForm('Soupe inventée', (f) => {
+			const it = newItem();
+			Object.assign(it, { qty: '1', unit: 'piece', name: 'oigon' });
+			f.groups[0].items.push(it);
+		});
+		const target = f.groups[0].items[1].id;
+		const { hints } = formCheck(v.ctx, f);
+		expect(hints).toContainEqual({ code: 'W305', target, field: 'name', value: 'oigon', suggestion: 'oignon' });
+	});
+
+	it('no « Vouliez-vous dire » for a name nothing is a typo of', () => {
+		const f = newForm('Soupe inventée', (f) => {
+			const it = newItem();
+			Object.assign(it, { qty: '1', unit: 'piece', name: 'légume imaginaire' });
+			f.groups[0].items.push(it);
+		});
+		const { hints } = formCheck(v.ctx, f);
+		expect(hints.filter((h) => h.code === 'W305' || h.code === 'W303').every((h) => h.suggestion === undefined)).toBe(true);
 	});
 
 	it('the sub-recipe picker never offers the recipe itself or one that uses it (E213)', () => {
@@ -426,6 +448,13 @@ describe('hints and pickers', () => {
 		expect(suggestNames(v.ctx, 'zzpan', 'fr').map((s) => s.name)).toEqual(['zzpanais']);
 	});
 
+	it('a name is not offered where it is only a modifier (« zzsoda » in « biscuits zzsoda »), with or without a unit', () => {
+		const add = v.ctx.db.prepare("INSERT INTO ingredients (slug, position, group_idx, name, key, resolution) VALUES ('zy', ?, 0, ?, ?, 'none')");
+		[['biscuits zzsoda', 1], ['zzsoda à pâte', 2], ['zzsoda', 3]].forEach(([name, pos]) => add.run(pos, name, name));
+		expect(suggestNames(v.ctx, 'zzsoda', 'fr').map((s) => s.name)).toEqual(['zzsoda', 'zzsoda à pâte']);
+		expect(suggestNames(v.ctx, 'zzsoda', 'fr', 8, 'tsp').map((s) => s.name)).toEqual(['zzsoda', 'zzsoda à pâte']);
+	});
+
 	it('an author is suggested once, whatever markers or case its recipes write it with, most used first', async () => {
 		// The fixture has « Tante Irène [?] »; two more recipes write her as read.
 		for (const [title, author] of [['Galettes inventées', 'Tante Irène'], ['Biscuits inventés', 'tante irène']])
@@ -434,5 +463,14 @@ describe('hints and pickers', () => {
 		const all = suggestAuthors(v.ctx, '', 50);
 		expect(new Set(all.map((a) => a.toLowerCase())).size).toBe(all.length);
 		expect(all[0]).toBe('Tante Irène');
+	});
+
+	it('the nouns of the vault\'s yields in words are suggested for « Donne », most used first', async () => {
+		for (const [title, y] of [['Tourtes inventées', '2 tourtes'], ['Tourtes bis', '3 tourtes'], ['Biscuits inventés', '4 douzaines'], ['Soupe inventée', 'environ 4 zzlitres']])
+			await formSave(ctx(), { form: newForm(title, (f) => (f.yield = { kind: 'text', text: y, qty: '', qtyMax: '', unit: '', note: '' })) }, { today: '2026-09-28' });
+		const all = suggestYields(v.ctx, '');
+		expect(all.indexOf('tourtes')).toBeLessThan(all.indexOf('douzaines'));
+		expect(suggestYields(v.ctx, 'zz')).toEqual([]);
+		expect(suggestYields(v.ctx, 'dou')).toEqual(['douzaines']);
 	});
 });

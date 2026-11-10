@@ -103,7 +103,10 @@ planted duplicate written for this plan. Screenshots go to `/tmp`.
   `?portions` / `?fois` once and drops them (`replaceState`); keeps servings,
   multiplier, ticks, step and timers in `localStorage` (`rv-kitchen:<slug>`,
   12 h, keyed by a fingerprint of the ingredients and steps); the per-step
-  ingredient lines (`stepIngredients`) are scaled.
+  ingredient lines (`stepIngredients`) are scaled. A restored session says
+  its amount in the resume line (« Repris à l'étape 2 · 12 portions », or
+  « × 1,5 » for a recipe without servings), so a scaled cook is never
+  resumed at an amount she did not expect.
 - `src/lib/components/CostLine.svelte`: the total follows the factor, the cost
   per serving does not (→ `DATA-FLOW.md` §Cost on the recipe page).
 - `src/lib/render/temperature.ts` (°F ↔ °C) and `timers.ts` (durations in step
@@ -662,7 +665,9 @@ these decisions:
   moule restent ceux de la recette de base. », plus « Dans les étapes, la
   quantité ajustée suit la flèche (→) » when a step holds an amount: above the
   method (when it has steps, times or an oven; printed too) and on the kitchen
-  step.
+  step. ⚑ Kitchen mode (UI round 1): one line, « × 2 · temps et four
+  inchangés », on step 1 and on steps that name a time, a temperature or a pan
+  (`src/lib/render/stepnote.ts`); the arrow sentence is not repeated there.
 - **Fixtures.** *Crêpes minces* step 1 now writes « 1 ½ tasse de lait » and
   *Molasses Cookies* step 3 « 2 T sugar » (the fixture vault had no amount in
   any step); the baseline was regenerated with the code before this phase —
@@ -1230,6 +1235,103 @@ own report):
 - The pair count on a real vault is unknown until the owner opens `/doublons`
   on it: the bench and the corpus say ~70–80 per 100 recipes if most dishes
   have a few cards — 3500–4000 pairs, ~200 pages, at 5000 recipes.
+
+## Help around scaled amounts (usability round 3)
+
+The scaling table (`tests/fixtures/scaling.yaml`) is owner-approved: nothing
+below changes an amount it produces or a unit it picks. These are the words and
+rules around the amounts, decided during the third usability round.
+
+- **Halves of whole things.** A count or a container (`classOf` `count`,
+  `container`) snaps to halves as before; when the scaled value is exactly
+  between two shown values, it now goes **up** (`snap` in
+  `src/lib/render/scale.ts`). Measures keep the smaller value, as before. This
+  is why 2 abaisses for 8 read ≈ 2 ½ at 9 portions (2,25) and 2 ½ at 10
+  (2,5): before, 2,25 went down to ≈ 2 and 9 portions read fewer crusts than
+  the half-step either side. At 11 (2,75) it reads ≈ 3. A shown half of
+  something counted whole (unit `piece` or none, never at × 1, never on a
+  range) gets a muted help after the line (`halfHelp` in
+  `src/lib/render/ingredient.ts`): an egg says « 1 ½ œuf (1 œuf + 1 jaune) »,
+  anything else « 2 ½ navets (prévoir 3) ». Containers (« ½ boîte ») get no help:
+  half a can is a real amount.
+- **The pan.** When the factor is not 1 and a step (or a text yield) names a
+  pan, the scale notice drops « et la taille du moule » and adds one line
+  (`src/lib/render/pans.ts`). With a size (« plat de 9 x 13 », « moule
+  carré de 20 cm », « assiette à tarte de 9 po », « 8 x 8 pan »): up to two
+  ways to bake the scaled **area** at the same depth, from the same pan and the
+  usual sizes of its shape (rectangles 8x8, 9x9, 7x11, 9x13, 10x15 in, or 20x20
+  to 25x38 cm; round 8/9/10 in or 20/23/25 cm; loaf 8x4, 9x5 in), one to three
+  of one size, each within 17 % of the scaled area, one pan before two when
+  both fit (« Moule : pour × 1 ½, 2 plats de 9 x 9 ou 1 plat de 10 x 15 ; la
+  fiche dit plat de 9 x 13 (même épaisseur, mêmes temps) »). Without a size, or
+  when nothing fits: « Moule : prévoir × 1 ½ la surface de celui de la recette
+  (même épaisseur, mêmes temps) ». A size under 4 in (10 cm) is a piece
+  (« carrés de 2 po »), not a pan. Same depth was chosen over same pan / longer
+  time: the times stay the card's, which the notice already says. Kitchen mode
+  shows the same line under its scale notice (round 4: same `findPan` /
+  `panOptions`, same words).
+- **« J'en ai » at another amount** says both figures: « La recette × 2
+  demande 2 lb (base : 1 lb). J'en ai : ». At × 1 it is unchanged.
+- **Footnote.** When scaled, one muted note under the ingredients: « ≈ :
+  arrondi à la mesure de cuisine la plus proche. » when a line shows ≈, and «
+  Les quantités écrites dans les étapes ne sont pas ajustées. » when there are
+  steps (or, when a step amount carries an arrow, « seules les mesures suivies
+  d'une flèche (→) sont ajustées »). The ≈ itself has a title saying the same.
+- **Setting the amount on a phone.** The servings count in the stepper is a
+  button: tapped, it opens « Pour [..] portions » (the « Autre quantité » form)
+  with the field focused. × ½ × 2 × 3 sit at the right of the « Quantités
+  d’origine / recette × f · Remettre » (round 4 wording) line on every width, always present, so
+  a tap moves nothing; a chip outside the cap is disabled.
+- **The address and a resume.** Every change still writes `?portions=` or
+  `?fois=` with a replacing `goto` (Phase 3). « Reprendre · étape 4 » names
+  the amount kitchen mode will open at whenever it is not the page's or not
+  the session's, so the label always matches. Round 4 (owner's rule): when she
+  set the amount on the page herself — an explicit `?portions` / `?fois` in the
+  address, or the controls this visit — and it differs from the session's,
+  the resume link carries the page's amount (« Reprendre · étape 3 · 16
+  portions » → `/cuisine?portions=16`): the step, ticks and timers go on, and
+  the resume line says both (« Repris à l'étape 3 · 16 portions (avant :
+  10) »). A page she did not touch leaves the session's amount, named on the
+  button (« Reprendre · étape 3 · 10 portions », no amount in the link). A
+  link with an amount still wins in kitchen mode (Q1 A). `resumeAmount` in
+  `src/lib/kitchensession.ts`.
+
+Tests: `tests/unit/pans.test.ts`, `tests/unit/agree.test.ts` (help and the tie
+going up), `tests/e2e/scaling.spec.ts`; the resume rule in
+`tests/unit/kitchensession.test.ts` and `tests/e2e/kitchen-session.spec.ts`.
+
+Round 4 (usability), still without touching the table (issue #21):
+
+- **Whole baked things.** When the recipe makes a count of things baked one
+  per pan — a text yield « 2 tourtières », an object yield of pieces whose note
+  names them, else the first ingredient note « pour 2 tartes » (`bakedCount`
+  in `src/lib/render/pans.ts`; tarte, tourtière, quiche, pâté, gâteau, pain
+  and their English words) — the pan line counts them instead of an area:
+  « Donne 4 tartes : prévoir 4 assiettes à tarte (mêmes temps). », the size
+  added when a step names one (« … 4 assiettes à tarte de 9 po »). A count
+  that is not whole rounds and is marked (« Donne ≈ 3 tartes »). The pan
+  word is the step's when a step names one in the recipe's language, else
+  « assiette à tarte » / « moule ».
+- **The note's count scales.** A note « pour 2 tartes » reads « pour 4 tartes »
+  at × 2 (`scaleNote`; only that pattern — a can's size or any other note stays
+  as written). A line with both a half's help and a note shows one
+  parenthetical: « 5 ½ pâtes à tarte (prévoir 6 · pour ≈ 3 tartes) ». Kitchen
+  mode reads the same line (shared `ingredientText`).
+- **Portions are whole.** A servings count that is not whole at the factor
+  (« J'en ai 2 lb » for 1 ½ lb at 8) shows rounded and marked, « ≈ 11
+  portions », at least 1, in the stepper and the facts (`servingsShown`,
+  `servingsRange`).
+- **« Quantités d’origine »** replaces « Recette originale » on the base line:
+  the line is about the amounts, and « originale » read as the card's photo.
+- **Phone: Ingrédients | Préparation.** Under 56rem, a recipe with at least 6
+  ingredient lines and a method gets a sticky bar of two links at the top of
+  the sheet; the section in view (the method's head above 40 % of the
+  window) is marked (`aria-current="location"`, an ink underline), and a jump
+  leaves the head under the bar (`scroll-padding-top`). It replaces the « ↓
+  Préparation » / « ↑ Ingrédients » links. Hidden at two columns and in print.
+- **Ticks.** The whole left band of a line (2.9rem, full height) is the tick;
+  the box is 1.4rem on touch. A tappable amount's 44 px target grows to the
+  right only, so the two never overlap.
 
 ## Out of scope
 

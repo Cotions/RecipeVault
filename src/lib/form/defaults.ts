@@ -57,3 +57,26 @@ export function defaultsFor(stats?: VaultStats): FormDefaults {
 		unitOrder: [...UNITS].sort((a, b) => (units[b] ?? 0) - (units[a] ?? 0))
 	};
 }
+
+/** How many of the vault's most used units the picker shows first. */
+export const COMMON_UNITS = 8;
+/** The order the common units read in: cups and spoons, then weights, then metric volumes and weights, then counts (one family after another, not regional). */
+const FAMILY_ORDER: readonly Unit[] = ['cup', 'tbsp', 'tsp', 'lb', 'oz', 'ml', 'cl', 'l', 'g', 'kg', 'piece'];
+
+/**
+ * The unit picker in two parts (plan 04, usability round 4): the vault's
+ * most used units (`order`, most used first), read family by family (« tasse,
+ * c. à table, c. à thé, lb, oz, ml, g, à l'unité »), then every other unit in
+ * the vocabulary's order. Which units come first is the vault's; only their
+ * order within the first part is fixed.
+ */
+export function unitMenu(order: readonly Unit[], size = COMMON_UNITS): { common: Unit[]; rest: Unit[] } {
+	const top = order.slice(0, size);
+	const rank = (u: Unit) => {
+		const i = FAMILY_ORDER.indexOf(u);
+		return i === -1 ? FAMILY_ORDER.length + top.indexOf(u) : i;
+	};
+	const common = [...top].sort((a, b) => rank(a) - rank(b));
+	const rest = UNITS.filter((u) => !common.includes(u));
+	return { common, rest };
+}

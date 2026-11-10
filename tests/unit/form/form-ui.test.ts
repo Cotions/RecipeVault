@@ -3,8 +3,26 @@
 // duration box that never shows "NaN". All content invented.
 
 import { describe, expect, it } from 'vitest';
-import { blocks as blocksOf, draftKey, emptyForm, formToDuration, loadDraft, markedText, saveDraft } from '../../../src/lib/form';
-import { blockText, blocksImplicitSubmit, draftDiffers, durationText, invalidMessage, mergeBlocks, packDraft, reasonLine, unpackDraft, withAlternative } from '../../../src/lib/components/form/formui';
+import { blocks as blocksOf, draftKey, emptyForm, formToDuration, loadDraft, markedText, newItem, saveDraft, toForm } from '../../../src/lib/form';
+import { checkFile } from '../../../src/lib/vault/check';
+import {
+	blockText,
+	blocksImplicitSubmit,
+	draftDiffers,
+	durationText,
+	invalidMessage,
+	listParts,
+	mergeBlocks,
+	packDraft,
+	reasonGroups,
+	reasonLine,
+	saveSentence,
+	sectionOf,
+	sectionStates,
+	stepEnter,
+	unpackDraft,
+	withAlternative
+} from '../../../src/lib/components/form/formui';
 import { explain } from '../../../src/lib/i18n/diagnostics';
 
 describe('withAlternative', () => {
@@ -45,6 +63,23 @@ describe('draft extras', () => {
 		expect(draftDiffers(packDraft(form, { familyLabel: '', pair: null }, 1), form)).toBe(false);
 		expect(draftDiffers(packDraft(form, { familyLabel: 'Pâté chinois', pair: null }, 1), form)).toBe(true);
 		expect(draftDiffers(packDraft(form, { familyLabel: '', pair }, 1), form)).toBe(true);
+	});
+
+	it('a draft that writes the same file is no draft (usability round 5)', () => {
+		const text = `---\nschema: 3\ntitle: Galette inventée\nslug: galette-inventee\nlang: fr\ningredients:\n  - items:\n      - { qty: "1/2", unit: cup, name: farine }\n---\n\n## Préparation\n\n- Mélanger.\n`;
+		const f0 = checkFile(text);
+		const opened = toForm(f0.recipe!, f0.body!);
+		const again = toForm(f0.recipe!, f0.body!);
+		// An empty row more, the fraction typed rather than its glyph: the same file.
+		again.groups[0].items.push(newItem());
+		again.groups[0].items[0].qty = '1/2';
+		expect(draftDiffers(packDraft(again, { familyLabel: '', pair: null }, 1), opened)).toBe(false);
+		again.groups[0].items[0].name = 'farine de blé';
+		expect(draftDiffers(packDraft(again, { familyLabel: '', pair: null }, 1), opened)).toBe(true);
+		// A box still to fix is a change she typed: kept.
+		const half = toForm(f0.recipe!, f0.body!);
+		half.groups[0].items.push({ ...newItem(), qty: '2' });
+		expect(draftDiffers(packDraft(half, { familyLabel: '', pair: null }, 1), opened)).toBe(true);
 	});
 
 	it('drops a malformed pair from the device', () => {
@@ -91,6 +126,24 @@ describe('a save the server check refused (issue #11)', () => {
 	});
 });
 
+describe('stepEnter: Enter in a step box', () => {
+	const box = (value: string, at = value.length, end = at) => ({ value, selectionStart: at, selectionEnd: end });
+	it('at the end of a step with text: the next step', () => {
+		expect(stepEnter({ key: 'Enter' }, box('Mélanger.'))).toBe('next');
+		expect(stepEnter({ key: 'Enter' }, box('Mélanger.  ', 9))).toBe('next');
+	});
+	it('an empty step: nothing (no blank line, no new row)', () => expect(stepEnter({ key: 'Enter' }, box('  '))).toBe('stay'));
+	it('Maj+Entrée, the caret inside, a selection, Ctrl (Enregistrer), an IME: the box’s own Enter', () => {
+		expect(stepEnter({ key: 'Enter', shiftKey: true }, box('Mélanger.'))).toBeNull();
+		expect(stepEnter({ key: 'Enter' }, box('Mélanger la pâte.', 4))).toBeNull();
+		expect(stepEnter({ key: 'Enter' }, box('Mélanger.', 0, 9))).toBeNull();
+		expect(stepEnter({ key: 'Enter', ctrlKey: true }, box('Mélanger.'))).toBeNull();
+		expect(stepEnter({ key: 'Enter', metaKey: true }, box('Mélanger.'))).toBeNull();
+		expect(stepEnter({ key: 'Enter', isComposing: true }, box('Mélanger.'))).toBeNull();
+		expect(stepEnter({ key: 'a' }, box('Mélanger.'))).toBeNull();
+	});
+});
+
 describe('blocksImplicitSubmit', () => {
 	it('stops Enter in one-line inputs only', () => {
 		expect(blocksImplicitSubmit('Enter', { tagName: 'INPUT', type: 'text' })).toBe(true);
@@ -132,5 +185,56 @@ describe('blocks from the checker, on their fields', () => {
 			{ id: 'a', field: 'recipe', reason: 'checker' as const, code: 'E213' }
 		];
 		expect(mergeBlocks(mine, server)).toEqual([mine[0], server[1]]);
+	});
+});
+
+describe('the save bar’s sentence, joined as French joins a list (UI pass 3)', () => {
+	const said = (...blocks: { reason: 'required' | 'nameComma' | 'unit'; field: string }[]) => reasonGroups(blocks.map((block) => ({ block })));
+
+	it('« un titre et un ingrédient »: a space after each comma, « et » before the last', () => {
+		expect(saveSentence(said({ reason: 'required', field: 'title' }, { reason: 'required', field: 'ingredients' }), 'fr')).toBe('Il manque : un titre et un ingrédient.');
+		expect(saveSentence(said({ reason: 'required', field: 'title' }), 'fr')).toBe('Il manque : un titre.');
+		expect(saveSentence(said({ reason: 'required', field: 'title' }, { reason: 'nameComma', field: 'name' }), 'fr')).toBe(
+			'Il manque : un titre. À corriger : un nom d’ingrédient avec une virgule.'
+		);
+		expect(saveSentence(said(), 'fr')).toBe('');
+	});
+
+	it('gives the items and the joins apart, so each item can be a button and every join keeps its spaces', () => {
+		const parts = listParts(['un titre', 'un ingrédient', 'l’unité d’une quantité'], 'fr');
+		expect(parts.map((p) => p.text).join('')).toBe('un titre, un ingrédient et l’unité d’une quantité');
+		expect(parts.filter((p) => p.item).map((p) => p.text)).toEqual(['un titre', 'un ingrédient', 'l’unité d’une quantité']);
+		expect(parts.filter((p) => !p.item).map((p) => p.text)).toEqual([', ', ' et ']);
+		expect(listParts([], 'fr')).toEqual([]);
+		expect(listParts(['a', 'b'], 'en').map((p) => p.text).join('')).toBe('a and b');
+	});
+});
+
+describe('the form’s section rail (UI pass 3)', () => {
+	it('dots each part: empty, filled, or something to fix — a missing title is empty, not red', () => {
+		const form = emptyForm();
+		let st = sectionStates(form, blocksOf(form));
+		expect(st).toEqual({ title: 'empty', source: 'empty', ingredients: 'empty', method: 'empty', notes: 'empty', class: 'empty' });
+
+		form.title = 'Pain inventé';
+		form.source.type = 'book';
+		form.groups[0].items[0].name = 'farine, sucre';
+		form.tags = ['dessert'];
+		st = sectionStates(form, blocksOf(form));
+		expect(st.title).toBe('done');
+		expect(st.source).toBe('done');
+		// « farine, sucre »: a comma in a name, to fix.
+		expect(st.ingredients).toBe('fix');
+		expect(st.class).toBe('done');
+		expect(st.method).toBe('empty');
+	});
+
+	it('finds the part a block is in', () => {
+		const form = emptyForm();
+		const it = form.groups[0].items[0];
+		expect(sectionOf({ id: 'recipe', field: 'source.url' }, form)).toBe('source');
+		expect(sectionOf({ id: 'recipe', field: 'tags[0]' }, form)).toBe('class');
+		expect(sectionOf({ id: it.id, field: 'unit' }, form)).toBe('ingredients');
+		expect(sectionOf({ id: 'recipe', field: 'times.prep' }, form)).toBeUndefined();
 	});
 });

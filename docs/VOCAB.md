@@ -81,6 +81,24 @@ Rules:
   written forms as aliases of an existing tag. Neither changes a recipe: the
   index maps them. "Retirer" is the one exception, asked for by a person: it
   takes the tag out of every recipe holding it, in one commit.
+- **Preselected on `/etiquettes`** (organize pass): a known tag is chosen for
+  her under "C'est comme…" only when the pending tag is the same word but for
+  its ending (a trailing s/x, then e, dropped from words over three letters;
+  accents folded: « soupes », « légume »), or a typo of one (one edit in five
+  letters or more, two from eight, the first letter the same). A pending tag
+  that names an ingredient of the registry takes only the first (« pain » is
+  never « main »). Otherwise nothing is preselected and « Garder » is the row's
+  main answer. W501's wider suggestion (two edits) stays a hint in the
+  form, never a choice made for her.
+- **One row per pending tag on `/etiquettes`** (UI council): « érable · 1
+  recette [Garder « Érable » ✎] [C'est comme… ▾] [Retirer] », one sentence
+  above the list. « Garder » is "Nouvelle étiquette" under the label it names;
+  ✎ opens the field to change that label first. The proposed label keeps the
+  accents the tag's recipes write (`erable`, « sirop d'érable » in a recipe →
+  « Érable »; `withAccents`, `src/lib/vault/tagmatch.ts`, the paste box's
+  W501 rule: each unaccented word takes the accented form those recipes use
+  most, case kept), else the tag as written with a capital. « Retirer » is one
+  tap; its « Annuler » puts the recipes back.
 - **Labels** live in `vocab/tag-labels.yaml`, one entry per line in flow style
   like `families.yaml` (`cabane-a-sucre: { fr: Cabane à sucre }`), seeded by
   `vault init` from "Tag labels" below. Every page that shows a tag shows its
@@ -149,12 +167,30 @@ pate-chinois: { fr: Pâté chinois }
 
 The slug is ASCII (`pates`, not `pâtes`), so the label is what every page
 shows: the family pages, the family filter, recipe cards and recipe pages. A
-family without a label shows its slug with hyphens as spaces and a capital
-(`pate-chinois` → "Pate chinois"). The seed is empty (`{}`); a family exists as
-soon as a recipe names it, label or not.
+family without a label shows the shortest title among its recipes, ties going
+to the first in title order (`title_sort`) — never its slug, which has lost its
+accents and punctuation. The seed is empty (`{}`); a family exists as soon as a
+recipe names it, label or not.
+
+A recipe in a list (the browse cards, the family page) is told apart from
+others of the same title by its provenance, not its `variant` slug: « de
+<author as written> », else « Tiré de <source title>, p. N » for a book,
+magazine, show or site, else the site's address or the source type, and only
+then the variant (`src/lib/render/provenance.ts`).
+
+**Variant labels.** `variant` is free text (« sans porc », « de Tante
+Aline »). The form and /doublons prefill it from the source with its « de »
+(`fromLabel` in `src/lib/form/family.ts`: the author as written, else the
+book's or magazine's title, « du Livre des desserts », else the kind, « du
+livre », « de la revue », « du site », « de la télé »), unless another member
+reads the same. An older variant written as a slug (`lise-b`, `revue`) is
+shown from the source it names (`variantShown`: « de Lise B. », « de la
+revue »), else with its hyphens as spaces; the file is not rewritten.
 
 **Setting a label (P1).** On `/famille/<slug>`, "Changer le nom du groupe"
-sets the French label; an empty field removes it (and the entry once it holds
+sets the French label, and so does « Renommer » on the group's line of
+`/familles` for the owner (usability round 4: English names in a French UI;
+her words, never a machine translation); an empty field removes it (and the entry once it holds
 no label). The write goes through the same guarantees as a recipe save
 (`DATA-FLOW.md`, "Family labels"). The paste box's "Regrouper en variantes" writes
 `family`/`variant` into the new recipe and the vault recipe it was offered
@@ -188,7 +224,8 @@ slugs sorted, the lines sorted:
 
 Not seeded: the file is written by the first "Recettes différentes", one commit
 `duplicate: <a> ≠ <b>`; its "Annuler" takes the line out again (`undo:
-duplicate <a> ≠ <b>`). The app edits it as text — comments are kept, the pair
+duplicate <a> ≠ <b>`), and removes the file when nothing but the app's own
+header is left. The app edits it as text — comments are kept, the pair
 lines rewritten sorted — and reads it on every request, so a hand edit or a
 `git pull` counts at once; it is not in the index, so deleting `cache/` loses
 nothing. A slug YAML would read as something other than a string (`1905`,
@@ -215,6 +252,41 @@ two dialects actually disagree:
 | sauce soya | sauce soja | |
 | crème 35 % / 15 % | crème entière / légère | the percentage matters |
 | steak haché | bœuf haché | |
+
+## Search words
+
+How the home page's search reads what people type (`DATA-FLOW.md`, "Full-text
+search"). A small list built into the app (`src/lib/server/index/searchwords.ts`),
+not vault data: no vocabulary file has a place for it — `tags.yaml` names tags,
+the ingredient registry names ingredients — and it is about how people ask,
+not about any recipe. Ingredient synonyms stay in the registry, where search
+reads them both ways (*poivron* finds *piment vert* through the entry
+`piment vert, poivron vert`; no alias is added for it).
+
+- **Little words**, dropped next to other words; alone, one matches only
+  itself, never as the start of a word: `a au aux avec ce cet cette chez d de
+  des du en et l la le les ma mes mon ou par pour sa ses son sur ta tes ton un
+  une`, and `and an my of the with s`.
+- **Kin words**, each finding the others as a prefix (*tante* finds
+  *Matante Rollande*):
+  `tante, matante, ma tante, aunt, auntie` ·
+  `oncle, mononc, mononcle, mon oncle, uncle` ·
+  `mémère, grand-mère, grand-maman, grandma, granny, grandmother` ·
+  `pépère, grand-père, grand-papa, grandpa, grandfather`.
+- **Names held apart**: a several-word name that heads with a word without
+  being a kind of it. A one-word search for the head leaves it out, and the
+  entry known under that word only by it, and offers it apart (« Aussi :
+  piment de la Jamaïque (2) »): `piment de la Jamaïque` (allspice, a spice, in
+  Québec as in France — not a *piment*), `poivre de la Jamaïque`, `noix de
+  muscade` (nutmeg is no nut), `noix de coco`. The registry keeps those names
+  on their own entries as usual; only the search reads this list.
+- **Dish words**, English for the French title, each finding the others as a
+  whole word or its plural (*pie* finds *tartes*, not *tartelettes*):
+  gâteau/cake · tarte/pie · carré/square · biscuit/cookie · pain/bread ·
+  soupe/soup/potage · ragoût/stew · boulette/meatball · pouding/pudding ·
+  confiture/jam · beigne/donut/doughnut · crêpe/pancake · salade/salad ·
+  grands-pères/dumpling · sucre à la crème/fudge · érable/maple ·
+  bonbon/candy.
 
 ## Plurals
 
@@ -278,14 +350,24 @@ words:
        tamisé, tamisée, ciselé, ciselée, ciselés, ciselées,
        écrasé, écrasée, écrasés, écrasées, pilé, pilée, pilés, pilées,
        égoutté, égouttée, égouttés, égouttées, épépiné, épépinée, épépinés, épépinées,
-       émietté, émiettée, émiettés, émiettées, en cubes]
+       émietté, émiettée, émiettés, émiettées, en cubes,
+       ramolli, ramollie, ramollis, ramollies, fouetté, fouettée, fouettés, fouettées,
+       dénoyauté, dénoyautée, dénoyautés, dénoyautées, rincé, rincée, rincés, rincées,
+       décongelé, décongelée, décongelés, décongelées]
   en: [chopped, minced, diced, sliced, grated, shredded, melted, beaten, sifted,
-       peeled, mashed, drained, cubed, crumbled]
+       peeled, mashed, drained, cubed, crumbled, softened, whipped, pitted, rinsed,
+       thawed, halved, quartered]
 keep: [bœuf haché, porc haché, veau haché, poulet haché, dinde hachée, agneau haché,
        steak haché, viande hachée, noix de coco râpée, coco râpé, tomates pelées,
        ananas écrasé, à fondue, bouillon en cubes, shredded coconut, shredded wheat,
-       diced tomatoes]
+       diced tomatoes, crème fouettée, garniture fouettée, whipped cream, whipped topping]
 ```
+
+One list for every line, French and English words alike (usability round 4:
+*butter softened* is flagged as *large eggs beaten* is): *ramolli* / *softened*,
+*fondu* / *melted*, *battu* / *beaten*, *haché* / *chopped* all go to `prep`.
+A vault seeded before a word was added keeps its own `vocab/participles.yaml`;
+the word is added there by hand.
 
 Ground meat, shredded coconut, canned peeled tomatoes are sold that way: the
 word names the product, and the registry has them as their own entries.
@@ -564,6 +646,10 @@ yield) when the factor is not 1:
   shows `≈ ½`); any other unit beyond the tolerance, with no rung of the
   ladder that fits better, shows a short decimal (`1 oz` at ×⅔ is `0,67 oz`;
   `1 lb` at ×⅔ is `10 ½ oz`, by the `oz → lb` rung).
+- **Ties.** An amount exactly between two allowed values takes the larger one
+  for the `count` and `container` classes (2 ¼ crusts show `≈ 2 ½`: whole
+  things are not under-counted), the smaller one for every other unit
+  (usability round 3; plan 05, « Help around scaled amounts »).
 - **The mark.** `≈` shows before an amount more than `approx` (2 %) away from
   the exact one.
 - **Metric.** The `metric.units` round to the step of the first `from` they

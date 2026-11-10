@@ -9,8 +9,14 @@ const { cook } = FIXTURE_USERS;
 test('signed out: recipes read freely, the paste box sends to sign-in and back', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByRole('link', { name: 'Se connecter' })).toBeVisible();
+	// Nothing in « Plus » is hers to use signed out (usability round 3): no Corbeille, no Plus at all.
+	await expect(page.getByTestId('more')).toHaveCount(0);
+	await expect(page.getByRole('link', { name: 'Corbeille' })).toHaveCount(0);
 	await page.goto('/ajouter');
 	await expect(page).toHaveURL(/\/connexion\?suite=%2Fajouter$/);
+	// No command line on the page: whom to ask (the CLI is in docs/DEPLOY.md).
+	await expect(page.getByText('Pas de compte ? Demandez-en un à la personne qui tient la boîte.')).toBeVisible();
+	await expect(page.getByText('vault user add')).toHaveCount(0);
 });
 
 test('sign in, the name shows, the Markdown tools stay hidden for her, sign out', async ({ page }) => {

@@ -5,7 +5,9 @@
 
 import { fold } from '../vault/normalize';
 import { WEB_URL_RE } from '../vault/rules/source';
-import { newGroup, newItem, newRow, type FormGroup, type FormItem, type FormRecipe, type StepRow } from './model';
+import { itemToForm, newGroup, newItem, newRow, type FormGroup, type FormItem, type FormRecipe, type StepRow } from './model';
+import type { ListedGroup, ListedStep } from './lineparse';
+import type { Ingredient, Lang } from '../vault/types';
 import { checkFile } from '../vault/check';
 import { checkerBlocks, formFile, markerBlocks } from './check';
 import { parseNumberInput, parseQuantityInput } from './quantity';
@@ -50,6 +52,16 @@ export function addStepRow(rows: StepRow[], type: RowType = 'step', after?: numb
 	return r;
 }
 
+/**
+ * Enter at the end of row `i` (a step or a heading): the step that follows —
+ * the empty step already under it, else a new step right after it.
+ */
+export function nextStepRow(rows: StepRow[], i: number): StepRow {
+	const next = rows[i + 1];
+	if (next && next.type === 'step' && !next.text.trim()) return next;
+	return addStepRow(rows, 'step', i);
+}
+
 /** The group UI shows once there is more than one group, or the only one has a name or is optional. */
 export const showGroups = (form: FormRecipe) => form.groups.length > 1 || form.groups.some((g) => g.name.trim() || g.optional);
 
@@ -62,6 +74,63 @@ export function setToTaste(item: FormItem, on: boolean): void {
 		item.unit = '';
 		item.alt = null;
 	}
+}
+
+/** A row nothing was typed in. */
+export const blankItem = (it: FormItem): boolean =>
+	!it.qty.trim() && !it.qtyMax.trim() && !it.unit && !it.name.trim() && !it.prep.trim() && !it.note.trim() && !it.brand.trim() && !it.alt && !it.or.length && !it.toTaste && !it.optional && !it.recipe;
+
+/**
+ * « Coller une liste »: the listed ingredients into group `gi`, its empty
+ * rows taken out. A heading line names the group when it has nothing yet,
+ * else starts a new group after it. Returns the rows added, in order.
+ */
+export function fillItems(form: FormRecipe, gi: number, list: ListedGroup[], lang: Lang): FormItem[] {
+	const added: FormItem[] = [];
+	let at = gi;
+	list.forEach((lg, k) => {
+		let g: FormGroup = form.groups[at];
+		if (lg.name !== undefined && !(k === 0 && !g.name.trim() && g.items.every(blankItem))) {
+			g = newGroup();
+			form.groups.splice(++at, 0, g);
+		}
+		if (lg.name !== undefined) g.name = lg.name;
+		const rows = lg.items.map((x) => itemToForm(x.item, lang));
+		g.items = [...g.items.filter((it) => !blankItem(it)), ...rows];
+		if (!g.items.length) g.items.push(newItem());
+		added.push(...rows);
+	});
+	return added;
+}
+
+/**
+ * [Séparer : 1 · pincée · sel]: the amount read from the name (`nameSplit`)
+ * goes in the row's quantity and unit, the name keeps the rest; a préparation
+ * or note the line held fills that box when it is empty.
+ */
+export function applyNameSplit(item: FormItem, split: Ingredient, lang: Lang): void {
+	const row = itemToForm(split, lang);
+	item.qty = row.qty;
+	item.qtyMax = row.qtyMax;
+	item.unit = row.unit;
+	item.name = row.name;
+	if (row.prep && !item.prep.trim()) item.prep = row.prep;
+	if (row.note && !item.note.trim()) item.note = row.note;
+	if (row.alt && !item.alt) item.alt = row.alt;
+	for (const k of ['qty', 'qtyMax', 'name'] as const) delete item.written[k];
+	Object.assign(item.written, row.written);
+}
+
+/** « Coller des étapes »: the listed steps after the ones she has, the empty ones taken out. Returns the rows added. */
+export function fillSteps(rows: StepRow[], list: ListedStep[]): StepRow[] {
+	const added = list.map((x) => {
+		const r = newRow(x.type);
+		r.text = x.text;
+		return r;
+	});
+	const kept = rows.filter((r) => r.text.trim());
+	rows.splice(0, rows.length, ...kept, ...added);
+	return added;
 }
 
 // ---------------------------------------------------------------------------

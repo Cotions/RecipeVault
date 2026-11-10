@@ -2,7 +2,7 @@
 // between two versions, computed on what she sees (the form model).
 
 import { describe, expect, it } from 'vitest';
-import { describeChanges, diffVersions, parseVersion } from '../../src/lib/server/history-diff';
+import { changeDetails, describeChanges, diffVersions, parseVersion } from '../../src/lib/server/history-diff';
 
 const base = (fm = '', ingredients = '      - { qty: 1, unit: cup, name: farine }\n      - { qty: 2, unit: piece, name: œufs }', steps = '1. Mélanger.\n2. Cuire.\n3. Servir.') =>
 	`---\nschema: 3\ntitle: Galettes inventées\nslug: galettes-inventees\nlang: fr\n${fm}ingredients:\n  - items:\n${ingredients}\nstatus: draft\nextracted_by: hand\n---\n\n## Préparation\n\n${steps}\n`;
@@ -37,5 +37,27 @@ describe('diffVersions', () => {
 	it('a change she cannot see reads as formatting; an unreadable version says so', () => {
 		expect(diff(base(), base().replace('extracted_by: hand', 'extracted_by: hand\nupdated: 2026-09-28'))).toEqual(['Mise en forme du fichier seulement, rien de visible']);
 		expect(diff(base(), '---\ntitle: [\n---\n')).toEqual(['Version que l’application ne sait plus lire']);
+	});
+});
+
+describe('changeDetails (usability round 4)', () => {
+	const details = (a: string, b: string) =>
+		changeDetails(diffVersions(parseVersion(a), parseVersion(b), a !== b)).map((d) => ({
+			kind: d.kind,
+			step: d.step,
+			text: d.parts.map((p) => (p.op === 'same' ? p.text : p.op === 'del' ? `[-${p.text}]` : `[+${p.text}]`)).join('')
+		}));
+	it('a changed ingredient line, word by word, as the recipe reads it', () => {
+		const after = base('', '      - { qty: 2, unit: cup, name: farine }\n      - { qty: 2, unit: piece, name: œufs }');
+		expect(details(base(), after)).toEqual([{ kind: 'ingredient', step: undefined, text: '[-1 tasse ][+2 tasses ]de farine' }]);
+	});
+	it('a changed step, numbered', () => {
+		expect(details(base(), base('', undefined, '1. Mélanger.\n2. Cuire doucement.\n3. Servir.'))).toEqual([{ kind: 'step', step: 2, text: '[-Cuire. ][+Cuire doucement.]' }]);
+		expect(details(base('', undefined, '1. Mélanger.\n2. Cuire 10 min à 350 °F.'), base('', undefined, '1. Mélanger.\n2. Cuire 12 min à 350 °F.'))).toEqual([
+			{ kind: 'step', step: 2, text: 'Cuire [-10 ][+12 ]min à 350 °F.' }
+		]);
+	});
+	it('nothing to show for a field change', () => {
+		expect(details(base(), base('servings: 4\n'))).toEqual([]);
 	});
 });

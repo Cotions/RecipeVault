@@ -44,7 +44,7 @@
 		margin: 0 0 1.25rem;
 		padding: 1rem;
 		background: var(--card);
-		border: 2px solid var(--rule-red);
+		border: 2px solid var(--danger);
 		border-radius: var(--radius);
 	}
 	h2 {

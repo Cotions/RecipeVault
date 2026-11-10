@@ -22,8 +22,25 @@ import { EXTRACTED_BY, UNIT_ALIASES, findQtyUnit, unitForAlias } from '../vault/
 import { UNITS } from '../vault/types';
 import { t } from '../i18n';
 import { canonicalTag, type VaultVocab } from './vocab';
+import { splitAll } from '../vault/quickfix';
+import { ovenInText } from '../vault/rules/body';
 
-export class ImportError extends Error {}
+/**
+ * Why an import failed, for what the page offers next (docs/DATA-FLOW.md,
+ * "Web import"): the site turned the app away (`refused`: 401, 403, 429),
+ * the page holds no recipe it can read (`noRecipe`), the address itself is
+ * refused before any fetch (`address`), or anything else.
+ */
+export type ImportFailure = 'refused' | 'noRecipe' | 'address' | 'other';
+
+export class ImportError extends Error {
+	constructor(
+		message: string,
+		readonly kind: ImportFailure = 'other'
+	) {
+		super(message);
+	}
+}
 
 export const LIMITS = { timeoutMs: 10_000, maxBytes: 5 * 1024 * 1024, maxRedirects: 5 };
 
@@ -126,13 +143,13 @@ export function checkUrl(raw: string): URL {
 	try {
 		url = new URL(raw.trim());
 	} catch {
-		throw new ImportError(t.add.importRefused.url);
+		throw new ImportError(t.add.importRefused.url, 'address');
 	}
-	if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ImportError(t.add.importRefused.scheme);
-	if (url.username || url.password) throw new ImportError(t.add.importRefused.credentials);
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ImportError(t.add.importRefused.scheme, 'address');
+	if (url.username || url.password) throw new ImportError(t.add.importRefused.credentials, 'address');
 	const host = url.hostname.replace(/^\[|\]$/g, '');
-	if (isIP(host) && isBlockedAddress(host)) throw new ImportError(t.add.importRefused.private);
-	if (/^localhost$|\.localhost$|\.local$|\.internal$/i.test(host)) throw new ImportError(t.add.importRefused.private);
+	if (isIP(host) && isBlockedAddress(host)) throw new ImportError(t.add.importRefused.private, 'address');
+	if (/^localhost$|\.localhost$|\.local$|\.internal$/i.test(host)) throw new ImportError(t.add.importRefused.private, 'address');
 	return url;
 }
 
@@ -204,7 +221,9 @@ function request(url: URL, deadline: number, maxBytes: number, allowPrivate: boo
 				}
 				if (status < 200 || status >= 300) {
 					res.resume();
-					return reject(new ImportError(t.add.importRefused.status(status)));
+					const refused = status === 401 || status === 403 || status === 429;
+					const why = refused ? t.add.importRefused.refused : status === 404 || status === 410 ? t.add.importRefused.gone : t.add.importRefused.status(status);
+					return reject(new ImportError(why, refused ? 'refused' : 'other'));
 				}
 				const type = String(res.headers['content-type'] ?? '');
 				if (type && !/html|xml/i.test(type)) {
@@ -238,8 +257,15 @@ function request(url: URL, deadline: number, maxBytes: number, allowPrivate: boo
 			}
 		);
 		req.on('timeout', () => req.destroy(new ImportError(t.add.importRefused.timeout)));
+		// A name no DNS knows: said in words, not « getaddrinfo ENOTFOUND … ».
 		req.on('error', (e: NodeJS.ErrnoException) =>
-			reject(e instanceof ImportError ? e : new ImportError(e.code === 'EBLOCKED' ? t.add.importRefused.private : t.add.importRefused.connect(e.message)))
+			reject(
+				e instanceof ImportError
+					? e
+					: new ImportError(
+							e.code === 'EBLOCKED' ? t.add.importRefused.private : e.code === 'ENOTFOUND' ? t.add.importRefused.noHost : t.add.importRefused.connect(e.code ?? e.message)
+						)
+			)
 		);
 		req.end();
 	});
@@ -419,7 +445,16 @@ function trailingNote(s: string): { name: string; note: string } | undefined {
 	const t = s.trimEnd();
 	if (!t.endsWith(')')) return;
 	const close = t.length - 1;
-	const open = t.indexOf('(', t.lastIndexOf(')', close - 1) + 1);
+	let open = t.indexOf('(', t.lastIndexOf(')', close - 1) + 1);
+	// « (540 ml (19 oz)) »: one size and its equivalent nested in the note's
+	// parentheses — the note is « 540 ml (19 oz) », the format's two-measure
+	// form (docs/RECIPE-SCHEMA.md, `note`). One level, found by index.
+	if (open < 0 && t.endsWith('))')) {
+		const inner = t.lastIndexOf('(', close - 1);
+		const outer = inner > 0 ? t.lastIndexOf('(', inner - 1) : -1;
+		const head = outer >= 0 ? t.slice(outer + 1, inner) : '';
+		if (head.trim() && !head.includes(')')) open = outer;
+	}
 	if (open < 0 || open >= close) return;
 	const name = t.slice(0, open).trimEnd();
 	return name ? { name, note: t.slice(open + 1, close).trim() } : undefined;
@@ -491,12 +526,55 @@ export function parseIngredientLine(line: string, lang: Lang): Ingredient {
 		it.name = it.name.slice(0, comma).trim();
 	}
 	it.name = it.name.trim();
+	// A second amount in the name of a line that has its own (« 1 gros œuf battu
+	// avec 1 c. à table d’eau »): the name is what comes before it, the rest the
+	// preparation, marked for review — never a quantity left in the name (E210).
+	const second = it.qty ? findQtyUnit(it.name) : undefined;
+	if (second) {
+		const head = it.name.slice(0, second.start).replace(SECOND_JOIN, '').trim();
+		if (!head || findQtyUnit(head)) return fallback;
+		const tail = it.name.slice(head.length).replace(/^[\s,:;–—-]+/, '').trim();
+		it.name = head;
+		it.prep = `${tail}${it.prep ? `, ${it.prep}` : ''} [?]`;
+	}
 	if (!it.name || findQtyUnit(it.name) || (it.prep !== undefined && !it.prep)) return fallback;
 	if (it.note && findQtyUnit(it.note) && it.unit && !CONTAINERS.includes(it.unit)) return fallback;
 	return it;
 }
 
+/** The words joining a name to a second amount after it (« battu avec 1 c. à table d’eau »): left out of the name. */
+const SECOND_JOIN = /[\s,:;–—-]*(?:\b(?:mixed|mélangée?s?|plus|and|with|avec|et|ou|or)\s*)*$/iu;
+
 // --- mapping -----------------------------------------------------------------
+
+const PORTION_WORDS = String.raw`(?:portions?|portion\(s\)|servings?|serving\(s\)|personnes?|personne\(s\)|people|parts?|part\(s\))`;
+const PORTIONS_RE = new RegExp(String.raw`^(?:(?:serves|pour|donne)\s+)?(\d+)(?:\s*(?:-|–|à|to|ou|or)\s*(\d+))?(?:\s*${PORTION_WORDS})?\.?$`, 'iu');
+
+/**
+ * `recipeYield` read as portions: « 4 », « 4 portions », « 4 portion(s) »,
+ * « 4 servings », « Serves 4 », « 4 à 6 personnes » (a range: `servings_max`).
+ * Anything else (« 24 biscuits », « Makes 12 », « 1 pain ») stays a `yield`.
+ */
+export function servingsOf(s: string): { servings: number; max?: number } | undefined {
+	const m = PORTIONS_RE.exec(s.trim());
+	if (!m) return undefined;
+	const servings = Number(m[1]);
+	const max = m[2] ? Number(m[2]) : undefined;
+	if (!servings || (max !== undefined && max <= servings)) return undefined;
+	return max ? { servings, max } : { servings };
+}
+
+/**
+ * « Paprika doux au goût » → « paprika doux au goût »: a page's capital on an
+ * ingredient's first word, when no other word of the name has one (« Club
+ * House », « Philadelphia » after it, an acronym: kept).
+ */
+function lowerFirst(it: Ingredient): Ingredient {
+	const words = it.name.split(' ');
+	const first = words[0] ?? '';
+	if (!/^\p{Lu}\p{Ll}/u.test(first) || words.slice(1).some((w) => /\p{Lu}/u.test(w))) return it;
+	return { ...it, name: first[0].toLocaleLowerCase('fr') + it.name.slice(1) };
+}
 
 function list(v: unknown): unknown[] {
 	return Array.isArray(v) ? v : v === undefined || v === null ? [] : [v];
@@ -510,27 +588,46 @@ function nameOf(v: unknown): string | undefined {
 	return undefined;
 }
 
-/** Instructions → Markdown steps, `###` for HowToSection names. */
-function steps(v: unknown): string[] {
-	const out: string[] = [];
-	const visit = (x: unknown) => {
+/** A page's section of advice, not of steps: tips, storage, notes, make-ahead (folded name). */
+const NOTES_SECTION = /\b(?:tips?|notes?|storage|storing|store|make[ -]ahead|variations?|astuces?|conseils?|conservation|remarques?|a l'avance|a l’avance|trucs?)\b/;
+/** A step that is advice by its first word: « Tip: », « Storage: », « Astuce : ». */
+const NOTES_LEAD = /^(?:tips?|notes?|storage|make[ -]ahead|astuces?|conseils?|conservation|remarques?|truc)\s*:/i;
+
+/**
+ * Instructions → Markdown steps, `###` for HowToSection names — except a
+ * section named as the recipe itself (`title`, accents and case aside): the
+ * page's one section, a heading that says nothing the title does not. A
+ * section of advice (Tips, Storage, Notes, Conservation…), a `HowToTip`, or a
+ * step that starts « Tip: » goes to the notes instead, one paragraph each
+ * (docs/DATA-FLOW.md, "Web import").
+ */
+function steps(v: unknown, title = '', lang: Lang = 'fr'): { method: string[]; notes: string[] } {
+	const colon = lang === 'en' ? ': ' : ' : ';
+	const method: string[] = [];
+	const notes: string[] = [];
+	const visit = (x: unknown, advice: string | null) => {
 		if (typeof x === 'string') {
 			for (const line of plain(x).split('\n')) {
 				// The page's own step number goes ("2." or "2)"); "1.5 kg" is a quantity and stays.
 				const t = line.replace(/^\s*\d+[.)](?=\s|$)\s*/, '').trim();
-				if (t) out.push(`1. ${t}`);
+				if (!t) continue;
+				if (advice !== null || NOTES_LEAD.test(t)) notes.push(advice ? `${advice}${colon}${t}` : t);
+				else method.push(`1. ${t}`);
 			}
-		} else if (Array.isArray(x)) x.forEach(visit);
+		} else if (Array.isArray(x)) x.forEach((y) => visit(y, advice));
 		else if (x && typeof x === 'object') {
 			const o = x as LD;
 			if (isType(o, 'HowToSection')) {
-				if (typeof o.name === 'string' && o.name.trim()) out.push('', `### ${plain(o.name)}`);
-				visit(o.itemListElement);
-			} else visit(o.text ?? o.name ?? o.itemListElement);
+				const name = typeof o.name === 'string' ? plain(o.name) : '';
+				if (advice === null && name && NOTES_SECTION.test(fold(name))) return visit(o.itemListElement, name);
+				if (advice === null && name && fold(name) !== fold(title)) method.push('', `### ${name}`);
+				visit(o.itemListElement, advice);
+			} else if (isType(o, 'HowToTip')) visit(o.text ?? o.name ?? o.itemListElement, advice ?? '');
+			else visit(o.text ?? o.name ?? o.itemListElement, advice);
 		}
 	};
-	visit(v);
-	return out;
+	visit(v, null);
+	return { method, notes };
 }
 
 /** Markers are not allowed from the web: a `[` in scraped text would read as one. */
@@ -548,7 +645,8 @@ export function recipeFromJsonLd(ld: LD, pageUrl: string, htmlLang: string | und
 	const ingredients: Ingredient[] = list(ld.recipeIngredient ?? ld.ingredients)
 		.map((l) => plain(l))
 		.filter(Boolean)
-		.map((l) => parseIngredientLine(clean(l), lang));
+		.map((l) => parseIngredientLine(clean(l), lang))
+		.map(lowerFirst);
 	// Two identical names in one group are an error (E209); number the repeats for review.
 	const seen = new Map<string, number>();
 	for (const it of ingredients) {
@@ -588,9 +686,11 @@ export function recipeFromJsonLd(ld: LD, pageUrl: string, htmlLang: string | und
 	if (Object.keys(times).length) recipe.times = times;
 
 	const y = list(ld.recipeYield).map((x) => plain(x)).filter(Boolean);
-	const servings = y.map((s) => s.match(/^(\d+)(?:\s*(?:portions?|servings?|personnes?|people|parts?))?$/i)).find(Boolean);
-	if (servings) recipe.servings = Number(servings[1]);
-	else if (y.length) recipe.yield = clean(y[0]);
+	const portions = y.map(servingsOf).find(Boolean);
+	if (portions) {
+		recipe.servings = portions.servings;
+		if (portions.max) recipe.servingsMax = portions.max;
+	} else if (y.length) recipe.yield = clean(y[0]);
 
 	const words = [
 		...list(ld.keywords).flatMap((k) => (typeof k === 'string' ? k.split(',') : [])),
@@ -607,17 +707,27 @@ export function recipeFromJsonLd(ld: LD, pageUrl: string, htmlLang: string | und
 	recipe.tags = [...tags].slice(0, 6);
 
 	const heading = lang === 'en' ? 'Instructions' : 'Préparation';
-	const method = steps(ld.recipeInstructions).map(clean);
-	const bodyText = `## ${heading}\n\n${method.length ? method.join('\n').trim() : '1. [?]'}\n`;
-	const markdown = serialize(recipe, parseBody(normalizeText(bodyText)).body);
+	const read = steps(ld.recipeInstructions, title, lang);
+	const method = read.method.map(clean);
+	const notes = read.notes.map(clean);
+	// No oven on the page's data: the first temperature a step gives (W609's reading), when it is one an oven takes.
+	for (const step of method) {
+		const oven = ovenInText(step);
+		if (!oven) continue;
+		if (oven.unit === 'F' ? oven.temp >= 200 && oven.temp <= 550 : oven.temp >= 90 && oven.temp <= 290) recipe.oven = oven;
+		break;
+	}
+	const bodyText =
+		`## ${heading}\n\n${method.length ? method.join('\n').trim() : '1. [?]'}\n` + (notes.length ? `\n## Notes\n\n${notes.join('\n\n')}\n` : '');
+	// The checker's own splits (E210, E204), run before she sees it: the import never hands her an error the box could settle.
+	const markdown = splitAll(serialize(recipe, parseBody(normalizeText(bodyText)).body), lang);
 	return { markdown, title };
 }
 
 export async function importUrl(raw: string, vocab: VaultVocab, opts: FetchOptions = {}): Promise<ImportResult> {
 	const { url, html } = await fetchPage(raw, opts);
 	const recipes = findRecipes(html);
-	if (!recipes.length)
-		throw new ImportError(t.add.importRefused.noRecipe);
+	if (!recipes.length) throw new ImportError(t.add.importRefused.noRecipe, 'noRecipe');
 	const lang = openTags(html, 'html').next().value?.attrs.match(/\blang=["']?([a-zA-Z-]+)/i)?.[1];
 	return recipeFromJsonLd(recipes[0], url, lang, vocab);
 }

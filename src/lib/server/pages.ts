@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Ingredient, Recipe, Unit } from '../vault/types';
 import type { App } from './app';
-import { familyDiff, getRecipe, titles as titlesOf, usedBy, type RecipeDetail } from './index/query';
+import { familyDiff, familyName, getRecipe, titles as titlesOf, usedBy, type RecipeDetail } from './index/query';
+import { provenanceLine, type ProvenanceFields } from '../render/provenance';
 import { currentFile } from './save';
 import { MEDIA_FILE_RE } from './photos';
 import { photoSrc } from '../render/media';
@@ -12,7 +13,9 @@ import { unresolvedDiagnostics } from './index/resolve';
 import { recipeVocabDiagnostics } from './checkopts';
 import { DEFAULT_LOCALE } from './config';
 import { costOfRecipe } from './cost';
-import { loadConversions, loadScaling } from './vocab';
+import { loadConversions, loadNormalize, loadScaling } from './vocab';
+import { nameForms, type NameForms } from '../render/ingredient';
+import type { PluralRule } from '../ingredients/normalize';
 import { tagNamer } from './tags';
 import type { CostLineView, CostView } from '../ingredients/cost';
 import type { Conversions } from '../ingredients/units';
@@ -74,12 +77,13 @@ export function loadRecipePage(app: App, slug: string, { markdown = true }: { ma
 		titles,
 		photo: photoView(app, recipe),
 		broken,
-		variants: (family?.variants ?? []).filter((v) => v.slug !== slug).map((v) => ({ slug: v.slug, title: v.title, variant: v.variant })),
+		/** The other recipes of the family, each with who it is from, so same titles can be told apart. */
+		variants: (family?.variants ?? []).filter((v) => v.slug !== slug).map((v) => ({ slug: v.slug, title: v.title, variant: v.variant, from: provenanceOf(app, v.slug) })),
 		usedBy: usedBy(app.ctx.db, slug),
 		/** Per tag of `recipe.tags`: its filter key and label (vocab/tag-labels.yaml, via aliases). */
 		tags: recipe.tags.map(tagNamer(app.ctx)),
-		/** The family's display label from vocab/families.yaml, if set. */
-		familyName: family?.label ?? null,
+		/** The family's display name: its label in vocab/families.yaml, else the shortest title among its recipes (never the slug). */
+		familyName: family ? (family.label ?? familyName(app.ctx.db, family.family)) : null,
 		/** W303 / W305 / W307: ingredients not linked to the registry (plan 03, Phase 2). */
 		unresolved,
 		/** W501 / W502: a tag outside the vocabulary, a family near another (plan 03, Q23). */
@@ -105,30 +109,44 @@ export interface IngredientLink {
 	key?: string;
 	/** Grams for one of a unit, from the ingredient's entry: a counted amount shows its weight to an account that reads in a measuring system. */
 	weights?: Partial<Record<Unit, number>>;
+	/** The line's name in the singular and the plural, when the entry's names give the other form (docs/DATA-FLOW.md, "Names"). */
+	forms?: NameForms;
 }
 
 /** How each line of a recipe resolved, from the index (`ingredients.item`). */
 export function ingredientLinks(app: App, slug: string): Record<number, IngredientLink> {
-	const rows = app.ctx.db.prepare('SELECT position, item, key, resolution FROM ingredients WHERE slug = ?').all(slug) as {
+	const rows = app.ctx.db.prepare('SELECT position, item, key, resolution, name FROM ingredients WHERE slug = ?').all(slug) as {
 		position: number;
 		item: string | null;
 		key: string;
 		resolution: string;
+		name: string;
 	}[];
 	const entry = app.ctx.db.prepare('SELECT entry_json FROM registry WHERE slug = ?').pluck();
-	const known = new Map<string, IngredientLink['weights']>();
-	const weightsOf = (item: string) => {
+	const lang = (app.ctx.db.prepare('SELECT lang FROM recipes WHERE slug = ?').pluck().get(slug) as string | undefined) ?? 'fr';
+	let plural: PluralRule | undefined | null = null;
+	type Entry = { weights?: IngredientLink['weights']; names?: Record<string, string[]> };
+	const known = new Map<string, Entry>();
+	const entryOf = (item: string): Entry => {
 		if (!known.has(item)) {
 			const json = entry.get(item) as string | undefined;
-			const weights = json ? (JSON.parse(json) as { weights?: IngredientLink['weights'] }).weights : undefined;
-			known.set(item, weights && Object.keys(weights).length ? weights : undefined);
+			known.set(item, json ? (JSON.parse(json) as Entry) : {});
 		}
-		return known.get(item);
+		return known.get(item)!;
+	};
+	const formsOf = (item: string, name: string) => {
+		const names = entryOf(item).names?.[lang];
+		if (!names?.length) return undefined;
+		if (plural === null) plural = loadNormalize(app.ctx.paths.vocab).plurals[lang];
+		return nameForms(name, names, plural);
 	};
 	const out: Record<number, IngredientLink> = {};
 	for (const r of rows) {
-		if (r.item) out[r.position] = { item: r.item, ...(weightsOf(r.item) ? { weights: weightsOf(r.item) } : {}) };
-		else if (r.resolution === 'none' || r.resolution === 'ambiguous') out[r.position] = { key: r.key };
+		if (r.item) {
+			const weights = entryOf(r.item).weights;
+			const forms = formsOf(r.item, r.name);
+			out[r.position] = { item: r.item, ...(weights && Object.keys(weights).length ? { weights } : {}), ...(forms ? { forms } : {}) };
+		} else if (r.resolution === 'none' || r.resolution === 'ambiguous') out[r.position] = { key: r.key };
 	}
 	return out;
 }
@@ -195,4 +213,10 @@ export function subScale(app: App, recipe: Recipe): { conversions: Conversions; 
 		if (d) recipes[slug] = { slug, yield: d.recipe.yield, servings: d.recipe.servings, servingsMax: d.recipe.servingsMax };
 	}
 	return { conversions: loadConversions(app.ctx.paths.vocab), recipes };
+}
+
+/** Who or where a recipe is from, in a few words (the browse cards' line): what tells same titles apart. */
+function provenanceOf(app: App, slug: string): string | null {
+	const row = app.ctx.db.prepare('SELECT author, source_type, source_title, source_url, source_page, variant FROM recipes WHERE slug = ?').get(slug) as ProvenanceFields | undefined;
+	return row ? provenanceLine(row) || null : null;
 }

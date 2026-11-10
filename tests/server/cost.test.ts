@@ -33,7 +33,8 @@ describe('cost on the recipe page', () => {
 	it('links each line: resolved to its entry, unresolved to its queue key', () => {
 		const d = page('lasagna-bolognaise');
 		const names = d.recipe.ingredients.flatMap((g) => g.items.map((i) => i.name));
-		expect(d.links[names.indexOf('tomates concassées')]).toEqual({ item: 'tomates-concassees' });
+		// The entry names the singular too: a bare count of them would read in the form its number needs.
+		expect(d.links[names.indexOf('tomates concassées')]).toEqual({ item: 'tomates-concassees', forms: { one: 'tomate concassée', other: 'tomates concassées' } });
 		expect(d.links[names.indexOf('concentré de tomate')]).toEqual({ key: 'concentre de tomate' });
 		expect(line('lasagna-bolognaise', 'concentré de tomate')).toMatchObject({ reason: 'unresolved', key: 'concentre de tomate' });
 	});

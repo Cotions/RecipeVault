@@ -51,7 +51,7 @@ source:
   type: family                       # family | book | website | magazine | tv | invented — optional
   author: Mamie Jeanne
   url:
-  title:                             # book or magazine name
+  title:                             # book, magazine, show or site name
   page:
   note: "carte manuscrite"
 
@@ -101,7 +101,7 @@ ingredients:
 
 # media — filenames inside media/<slug>/, see STORAGE.md
 media:
-  final: final.jpg                   # optional photo of the finished dish
+  final: final.jpg                   # optional: the recipe's one photo — the dish, or the card itself
 
 # bookkeeping — status and added are set by the app, never by the AI
 status: verified                     # draft | needs-review | verified
@@ -117,6 +117,10 @@ present it must be one of the six values (`E106`). `family` there means a
 recipe from someone the owner knows, not a book or a site; the interface labels
 it « Recette personnelle » ("Personal recipe"), the value stays `family`.
 `url` is a full web address starting with `http://` or `https://` (`E114`).
+
+`media.final` is the recipe's one photo. In a card archive it is as often a
+photo or scan of the card or page itself as of the finished dish; the app reads
+it either way and names it neutrally (« Photo (plat ou fiche) »).
 
 Only `schema`, `title` and `ingredients` are required; `slug` is derived from the title when
 absent. Omit keys rather than leaving them blank — an absent key is cleaner to

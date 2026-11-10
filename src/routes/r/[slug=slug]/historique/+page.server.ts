@@ -24,6 +24,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			author: v.author,
 			verb: v.verb,
 			summary: v.summary,
+			details: v.details,
 			current: v.current,
 			restorable: v.restorable,
 			blocked: v.blocked ?? null,

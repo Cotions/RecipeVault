@@ -13,7 +13,7 @@ import { parse } from 'yaml';
 import { afterAll, describe, expect, it } from 'vitest';
 import { lookupKey, parseNormalizeVocab, type PluralRules } from '../src/lib/ingredients/normalize';
 import { parseIngredient } from '../src/lib/ingredients/registry';
-import { FUZZY, nameRows, Resolver, ruleRows } from '../src/lib/ingredients/resolve';
+import { FUZZY, nameRows, Resolver, ruleRows, SHOWN, shownCandidates, STRONG } from '../src/lib/ingredients/resolve';
 import type { RegistryEntry } from '../src/lib/ingredients/types';
 import type { Unit } from '../src/lib/vault/types';
 import { seedEntries } from '../src/lib/server/seed';
@@ -144,6 +144,29 @@ describe('resolution metrics', () => {
 			'    sweep (min score: hit rate, mean candidates shown): ' +
 				[0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4].map((s) => `${s}: ${pct(hit(s, FUZZY.count).length, left.length)}, ${size(s).toFixed(2)}`).join(' · ')
 		);
+		const shownHit = left.filter((x) => shownCandidates(resolver.candidates(lookupKey(x.o.name), x.o.lang)).some((c) => c.slug === x.expected));
+		const shownSize = left.reduce((n, x) => n + shownCandidates(resolver.candidates(lookupKey(x.o.name), x.o.lang)).length, 0) / left.length;
+		report.push(
+			`    shown (floor ${SHOWN.floor}, ≥ ${SHOWN.relative} × the best): ${pct(shownHit.length, left.length)}, ${shownSize.toFixed(2)} candidates on average`
+		);
+		// Without the shared-stem check (resolve.ts sharesStem): what it costs in right answers, what it saves in noise.
+		const loose = left.filter((x) => shownCandidates(resolver.candidates(lookupKey(x.o.name), x.o.lang, { stem: false })).some((c) => c.slug === x.expected));
+		const looseSize = left.reduce((n, x) => n + shownCandidates(resolver.candidates(lookupKey(x.o.name), x.o.lang, { stem: false })).length, 0) / left.length;
+		report.push(
+			`    without the shared-stem check: ${pct(loose.length, left.length)}, ${looseSize.toFixed(2)} candidates on average; lost to it: ${loose
+				.filter((x) => !shownHit.includes(x))
+				.map((x) => `${x.o.name} → ${x.expected}`)
+				.join('; ')}`
+		);
+		// A strong first candidate (a clear typo, STRONG) is offered as the answer: how often it is right.
+		const firstOf = (x: (typeof left)[number]) => shownCandidates(resolver.candidates(lookupKey(x.o.name), x.o.lang))[0];
+		const strong = left.filter((x) => firstOf(x)?.strong);
+		const strongRight = strong.filter((x) => firstOf(x)!.slug === x.expected);
+		report.push(
+			`    strong first candidate (≤ 1 edit per ${STRONG.perChars} characters, ≤ ${STRONG.maxEdits}): ${strong.length}/${left.length} names, right ${strongRight.length}/${strong.length}` +
+				`${strong.length > strongRight.length ? ` (wrong: ${strong.filter((x) => !strongRight.includes(x)).map((x) => `${x.o.name} → ${firstOf(x)!.slug}`).join('; ')})` : ''}`
+		);
+		expect(strongRight.length).toBe(strong.length);
 		const missed = left.filter((x) => !chosen.includes(x));
 		report.push(`    missed (${missed.length}): ${missed.map((x) => `${x.o.name} → ${x.expected}`).join('; ')}`);
 		expect(chosen.length).toBeGreaterThan(0);

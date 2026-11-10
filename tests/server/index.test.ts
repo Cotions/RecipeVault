@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openIndex } from '../../src/lib/server/index/db';
-import { browse, familyDiff, families, ftsQuery, getRecipe, usedBy } from '../../src/lib/server/index/query';
+import { browse, familyDiff, familyName, familyNames, families, ftsQuery, getRecipe, photoTiles, usedBy } from '../../src/lib/server/index/query';
 import { SCHEMA_VERSION } from '../../src/lib/server/index/schema';
 import { syncVault } from '../../src/lib/server/index/sync';
 import { Watcher } from '../../src/lib/server/watcher';
@@ -84,8 +84,74 @@ describe('search and browse', () => {
 		expect(browse(v.ctx.db, { q: 'zzzz' }).total).toBe(0);
 	});
 
+	it('says why a result matched when its title does not', () => {
+		const one = (q: string, slug: string) => browse(v.ctx.db, { q }).items.find((c) => c.slug === slug)!;
+		expect(one('lasag', 'lasagna-bolognaise').match).toBeUndefined();
+		expect(one('ricotta', 'lasagna-epinards-ricotta').match).toBeUndefined();
+		expect(one('firmin', 'lasagna-epinards-ricotta').match).toEqual({ field: 'author', texts: ['Oncle Firmin'] });
+		expect(one('boeuf', 'pate-chinois').match).toMatchObject({ field: 'ingredients' });
+		const m = one('ecumant', 'soupe-aux-pois').match;
+		expect(m).toMatchObject({ field: 'body', section: 'Préparation' });
+		expect(m?.texts[0]).toContain('écumant');
+		expect(browse(v.ctx.db, { q: 'ecumant' }).terms).toEqual(['ecumant']);
+	});
+
+	it('gives a title-sorted list its letter index', () => {
+		const r = browse(v.ctx.db, { sort: 'title', pageSize: 5 });
+		expect(r.letters).toHaveLength(26);
+		const used = r.letters!.filter((l) => l.count);
+		expect(used.reduce((n, l) => n + l.count, 0)).toBe(r.total);
+		const l = r.letters!.find((x) => x.letter === 'L')!;
+		expect(l.count).toBeGreaterThanOrEqual(3);
+		// The page its first recipe is on: that page holds it, the page before holds none.
+		const onPage = (n: number) => browse(v.ctx.db, { sort: 'title', pageSize: 5, page: n }).items;
+		expect(onPage(l.page).some((c) => c.initial === 'L')).toBe(true);
+		if (l.page > 1) expect(onPage(l.page - 1).some((c) => c.initial === 'L')).toBe(false);
+		// Every recipe on exactly one page, with each page's guide words.
+		const all = Array.from({ length: r.pages }, (_, i) => onPage(i + 1).map((c) => c.slug)).flat();
+		expect(new Set(all).size).toBe(r.total);
+		expect(r.guides).toHaveLength(r.pages);
+		expect(r.letters!.find((x) => x.count === 0)?.page).toBe(0);
+		expect(browse(v.ctx.db, { sort: 'added' }).letters).toBeNull();
+		expect(browse(v.ctx.db, { q: 'lasag' }).letters).toBeNull();
+	});
+
 	it('ranks title matches first', () => {
 		expect(slugs(browse(v.ctx.db, { q: 'pizza' }))[0]).toMatch(/pizza/);
+	});
+
+	it('lists every result whose title holds all the words before the others, and counts them', () => {
+		let both = 0;
+		for (const q of ['boeuf', 'creme', 'tomate', 'lasag', 'oignon', 'sucre']) {
+			const r = browse(v.ctx.db, { q, pageSize: 100 });
+			const flags = r.items.map((c) => c.in_title);
+			expect(flags.every((f) => typeof f === 'boolean')).toBe(true);
+			expect(r.titleHits).toBe(flags.filter(Boolean).length);
+			// No title hit after the first other one.
+			expect(flags.slice(flags.indexOf(false) < 0 ? flags.length : flags.indexOf(false)).some(Boolean)).toBe(false);
+			if (r.titleHits && r.titleHits < r.total) both++;
+		}
+		expect(both).toBeGreaterThan(0);
+		expect(browse(v.ctx.db, { q: 'lasag', sort: 'title' }).titleHits).toBeNull();
+		expect(browse(v.ctx.db, {}).titleHits).toBeNull();
+		expect(browse(v.ctx.db, {}).items[0].in_title).toBeUndefined();
+	});
+
+	it('gives each card its tags, in the vocabulary’s order then by name', () => {
+		const order = ['plat-principal', 'vegetarien', 'four'];
+		const cards = browse(v.ctx.db, { family: 'lasagna' }, { tagOrder: order }).items;
+		expect(cards.every((c) => c.tags.length > 0)).toBe(true);
+		for (const c of cards) {
+			const known = c.tags.filter((t) => order.includes(t));
+			expect(known).toEqual([...known].sort((a, b) => order.indexOf(a) - order.indexOf(b)));
+			expect(c.tags.slice(0, known.length)).toEqual(known);
+			const rest = c.tags.slice(known.length);
+			expect(rest).toEqual([...rest].sort());
+		}
+		const plain = browse(v.ctx.db, { family: 'lasagna' }).items;
+		for (const c of plain) expect(c.tags).toEqual([...c.tags].sort());
+		// A list that shows no tags does not fetch them.
+		expect(browse(v.ctx.db, { family: 'lasagna' }, { withTags: false }).items.every((c) => c.tags.length === 0)).toBe(true);
 	});
 
 	it('filters by facets and counts each facet without its own filter', () => {
@@ -106,12 +172,29 @@ describe('search and browse', () => {
 		expect(all.find((t) => t.value === 'cabane-a-sucre')?.pending).toBe(true); // not in the seed vocabulary
 	});
 
+	it('lists the recipes with a photo for the home page’s strip, newest first', () => {
+		const tiles = photoTiles(v.ctx.db);
+		expect(tiles.map((x) => x.slug)).toEqual(['muffins-bleuets']);
+		expect(tiles[0].photo).toBe('final.jpg');
+		writeFileSync(join(v.dir, 'recipes', 'tarte-en-photo.md'), recipe('Tarte en photo', 'media:\n  final: final.jpg\nadded: 2099-01-01\n'));
+		syncVault(v.ctx.db, v.ctx.paths);
+		expect(photoTiles(v.ctx.db).map((x) => x.slug)).toEqual(['tarte-en-photo', 'muffins-bleuets']);
+		expect(photoTiles(v.ctx.db, 1)).toHaveLength(1);
+	});
+
 	it('sorts and paginates', () => {
-		const p1 = browse(v.ctx.db, { sort: 'title', pageSize: 5 });
+		const p1 = browse(v.ctx.db, { sort: 'added', pageSize: 5 });
 		expect(p1.pages).toBe(5);
 		expect(p1.items).toHaveLength(5);
-		const p5 = browse(v.ctx.db, { sort: 'title', pageSize: 5, page: 5 });
+		const p5 = browse(v.ctx.db, { sort: 'added', pageSize: 5, page: 5 });
 		expect(p5.items).toHaveLength(2);
+		// By title, a page breaks where a letter changes when one is near the size (render/browselist.ts pageStarts).
+		const t1 = browse(v.ctx.db, { sort: 'title', pageSize: 5 });
+		for (let n = 1; n <= t1.pages; n++) {
+			const r = browse(v.ctx.db, { sort: 'title', pageSize: 5, page: n });
+			expect(r.items.length).toBeGreaterThanOrEqual(2);
+			expect(r.items.length).toBeLessThanOrEqual(7);
+		}
 		const time = browse(v.ctx.db, { sort: 'time', pageSize: 100 }).items.map((c) => c.total_s).filter((t) => t !== null) as number[];
 		expect(time).toEqual([...time].sort((a, b) => a - b));
 		expect(browse(v.ctx.db, { sort: 'rating' }).items[0].slug).toMatch(/pate-chinois|pouding-chomeur|lasagna-bolognaise/);
@@ -121,9 +204,19 @@ describe('search and browse', () => {
 describe('families', () => {
 	it('lists families with variant counts', () => {
 		expect(families(v.ctx.db)).toEqual([
-			{ slug: 'lasagna', label: null, count: 3 },
-			{ slug: 'tarte-aux-pommes', label: null, count: 2 }
+			{ slug: 'lasagna', label: null, name: 'Lasagnes aux courgettes', count: 3 },
+			{ slug: 'tarte-aux-pommes', label: null, name: 'Tarte aux pommes streusel', count: 2 }
 		]);
+	});
+
+	it('names a family by its label, else its shortest recipe title — never its slug', () => {
+		expect(familyNames(v.ctx.db)).toEqual({ lasagna: 'Lasagnes aux courgettes', 'tarte-aux-pommes': 'Tarte aux pommes streusel' });
+		v.ctx.db.prepare("UPDATE families SET label_fr = 'Lasagnes' WHERE slug = 'lasagna'").run();
+		expect(familyName(v.ctx.db, 'lasagna')).toBe('Lasagnes');
+		expect(familyDiff(v.ctx.db, 'lasagna')).toMatchObject({ name: 'Lasagnes', fallback: 'Lasagnes aux courgettes' });
+		const card = browse(v.ctx.db, { family: 'tarte-aux-pommes' }).items.find((c) => c.slug.includes('grand'))!;
+		expect(card).toMatchObject({ family_name: 'Tarte aux pommes streusel', family_size: 2, author: 'Grand-mère Alma' });
+		expect(familyName(v.ctx.db, 'nothing-here')).toBeNull();
 	});
 
 	it('computes the diff table', () => {

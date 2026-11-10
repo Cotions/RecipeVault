@@ -2,23 +2,63 @@
 	import PageHead from '$lib/components/PageHead.svelte';
 	import { enhance } from '$app/forms';
 	import { t } from '$lib/i18n';
+	import { page } from '$app/state';
 	import { queueRowId } from '$lib/render/links';
+	import { Settling } from '$lib/settle.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 
-	/** Keep the page where it is: the row that was settled disappears, the next one moves up. */
-	const keep = () => async ({ update }: { update: (o?: { reset?: boolean; invalidateAll?: boolean }) => Promise<void> }) => update({ reset: false });
+	/** A decision folds the row away at once and says so in the toast, with « Annuler » (lib/settle.svelte.ts). */
+	const settling = new Settling();
+	const keep = (key: string) => settling.form(key);
 	const browseHref = (name: string) => `/?q=${encodeURIComponent(name)}&relies=non`;
+	/** The same name on two entries: their file names tell them apart. */
+	const twin = (cands: { name: string }[], name: string) => cands.filter((c) => c.name === name).length > 1;
+	/** The rows shown. */
+	const inOrder = $derived(data.rows.length);
+	/**
+	 * The keyboard (usability round 3): 1, 2, 3 take the row's first, second,
+	 * third suggestion, Enter the first — the row holding the focus, else the
+	 * first row still waiting. Never while typing in a field, nor with a
+	 * modifier; Enter only when the focus is on no control of its own.
+	 * Only a clear match (`strong`, lib/ingredients/resolve.ts) is taken at
+	 * once (usability round 5: « huile » in 13 recipes was one key from a
+	 * guess): a guess's key puts the focus on it, Enter then takes it, and
+	 * Enter alone takes no guess.
+	 */
+	function onkey(e: KeyboardEvent) {
+		if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+		const el = document.activeElement as HTMLElement | null;
+		if (el?.closest('input, textarea, select, [contenteditable]')) return;
+		const n = e.key === 'Enter' ? 1 : /^[1-9]$/.test(e.key) ? Number(e.key) : 0;
+		if (!n) return;
+		if (e.key === 'Enter' && el && el !== document.body && el.closest('a, button, summary')) return;
+		const row = (el?.closest('li.row:not(.gone)') as HTMLElement | null) ?? document.querySelector<HTMLElement>('ol.queue > li.row:not(.gone)');
+		const pick = row?.querySelectorAll<HTMLButtonElement>('[data-pick]')[n - 1];
+		if (!pick) return;
+		const sure = pick.hasAttribute('data-sure');
+		if (e.key === 'Enter' && !sure) return;
+		e.preventDefault();
+		if (sure) pick.click();
+		else pick.focus();
+	}
+	const nextHref = $derived.by(() => {
+		const u = new URL(page.url);
+		u.searchParams.set('n', String(data.rows.length + data.step));
+		return u.pathname + u.search;
+	});
 </script>
 
 <svelte:head><title>{t.queue.title} — {t.app.name}</title></svelte:head>
+<svelte:window onkeydown={onkey} />
 
-<PageHead title={t.queue.title} intro={t.queue.intro} />
+<PageHead title={t.queue.title} count={data.total ? t.queue.headCount(data.total) : null} intro={t.queue.intro} />
 
 {#if data.gone && !form?.message}
 	<p class="flash" role="status">{t.queue.gone}</p>
 {/if}
+<!-- Without JavaScript the decision comes back with the page; with it, in the toast. -->
 {#if form?.message}
 	<p class="flash" class:error={!form.ok} role={form.ok ? 'status' : 'alert'}>{form.message}</p>
 {/if}
@@ -30,9 +70,9 @@
 </datalist>
 
 {#if data.rows.length}
-	<ol class="queue">
+	<ol class="queue" class:busy={settling.busy}>
 		{#each data.rows as row, ri (row.key)}
-			<li class="row" id={queueRowId(row.key)} data-key={row.key}>
+			<li class="row" class:gone={settling.gone.has(row.key)} id={queueRowId(row.key)} data-key={row.key}>
 				<div class="head">
 					<h2 class="name">{row.forms[0].name}</h2>
 					<span class="count">{t.queue.count(row.count, row.recipes)} · {t.queue.lang[row.lang] ?? row.lang}</span>
@@ -53,8 +93,8 @@
 					<ul class="cands">
 						{#each row.candidates as c (c.slug)}
 							<li>
-								<span class="cand">{c.name} <code>{c.slug}</code></span>
-								<form method="POST" action="?/unlink" use:enhance={keep}>
+								<span class="cand">{c.name}{#if twin(row.candidates, c.name)} <small>({c.slug})</small>{/if}</span>
+								<form method="POST" action="?/unlink" use:enhance={keep(row.key)}>
 									<input type="hidden" name="key" value={row.key} />
 									<input type="hidden" name="slug" value={c.slug} />
 									<input type="hidden" name="hash" value={c.hash} />
@@ -64,18 +104,28 @@
 						{/each}
 					</ul>
 				{:else}
-					<h3>{t.queue.suggestions}</h3>
+					{@const sure = !!row.candidates[0]?.strong}
+					<h3>{sure || !row.candidates.length ? t.queue.suggestions : t.queue.guesses}</h3>
 					{#if row.candidates.length}
 						<ul class="cands">
-							{#each row.candidates as c (c.slug)}
+							{#each row.candidates as c, ci (c.slug)}
 								<li>
-									<span class="cand">{c.name} <code>{c.slug}</code></span>
-									<form method="POST" action="?/link" use:enhance={keep}>
+									<span class="cand">{c.name}{#if twin(row.candidates, c.name)} <small>({c.slug})</small>{/if}</span>
+									<form method="POST" action="?/link" use:enhance={keep(row.key)}>
 										<input type="hidden" name="key" value={row.key} />
 										<input type="hidden" name="form" value={row.forms[0].name} />
 										<input type="hidden" name="slug" value={c.slug} />
 										<input type="hidden" name="hash" value={c.hash} />
-										<button class="btn primary" type="submit">{t.queue.thisOne}</button>
+										<!-- The strongest first, and the key that takes it (1, 2, 3; Enter: the first) — the answer only when it is a clear match. -->
+										{#if !ci && sure}
+											<button class="btn primary" type="submit" data-pick data-sure aria-keyshortcuts="1 Enter" title={t.queue.key(1)}
+												><kbd aria-hidden="true">1</kbd>{t.queue.thisOne}</button
+											>
+										{:else}
+											<button class="btn" type="submit" data-pick data-sure={c.strong || undefined} aria-keyshortcuts={String(ci + 1)} title={c.strong ? t.queue.key(ci + 1) : t.queue.keyGuess(ci + 1)}
+												><kbd aria-hidden="true">{ci + 1}</kbd>{t.queue.thisOne}</button
+											>
+										{/if}
 									</form>
 								</li>
 							{/each}
@@ -88,7 +138,7 @@
 				{#if !row.ruleClash.length}
 					<details class="more">
 						<summary>{t.queue.link}</summary>
-						<form method="POST" action="?/link" use:enhance={keep}>
+						<form method="POST" action="?/link" use:enhance={keep(row.key)}>
 							<input type="hidden" name="key" value={row.key} />
 							<input type="hidden" name="form" value={row.forms[0].name} />
 							<label>
@@ -101,7 +151,7 @@
 				{/if}
 				<details class="more">
 					<summary>{t.queue.rule}</summary>
-					<form method="POST" action="?/rule" use:enhance={keep}>
+					<form method="POST" action="?/rule" use:enhance={keep(row.key)}>
 						<input type="hidden" name="key" value={row.key} />
 						<input type="hidden" name="form" value={row.forms[0].name} />
 						<p class="help">{t.queue.ruleHelp}</p>
@@ -137,7 +187,7 @@
 				{#if !row.ruleClash.length}
 					<details class="more">
 						<summary>{t.queue.create}</summary>
-						<form method="POST" action="?/create" use:enhance={keep}>
+						<form method="POST" action="?/create" use:enhance={keep(row.key)}>
 							<input type="hidden" name="key" value={row.key} />
 							<label>
 								{t.queue.slug}
@@ -161,8 +211,10 @@
 			</li>
 		{/each}
 	</ol>
-	{#if data.total > data.rows.length}
-		<p class="intro">{t.queue.more(data.total - data.rows.length)}</p>
+	{#if data.total > inOrder}
+		<p class="more" data-testid="queue-more">
+			<span>{t.queue.shown(inOrder, data.total)}</span> — <a href={nextHref} data-sveltekit-noscroll>{t.queue.next}</a>
+		</p>
 	{/if}
 {:else}
 	<p class="intro">{t.queue.empty}</p>
@@ -197,7 +249,8 @@
 	}
 	.row {
 		background: var(--card);
-		border-top: 2px solid var(--rule-red);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
 		padding: 0.7rem 1rem;
 	}
 	.head {
@@ -250,9 +303,52 @@
 		justify-content: space-between;
 		gap: 0.5rem;
 	}
-	.cand code {
-		color: var(--ink-soft);
+	/* The key that takes a suggestion: shown where there is a keyboard. */
+	kbd {
+		display: none;
+		font: inherit;
 		font-size: var(--step--1);
+		min-width: 1.3em;
+		margin-right: 0.45rem;
+		padding: 0 0.3em;
+		border: 1px solid currentColor;
+		border-radius: 3px;
+		opacity: 0.75;
+		text-align: center;
+	}
+	@media (hover: hover) and (pointer: fine) {
+		kbd {
+			display: inline-block;
+		}
+	}
+	.cand small {
+		color: var(--ink-soft);
+	}
+	/* « Retirer de « champignons en conserve » » wraps on a phone rather than push the row past the screen. */
+	.cands form {
+		max-width: 100%;
+	}
+	.cands .btn {
+		white-space: normal;
+		text-align: start;
+	}
+	/* A decision made: the row folds away at once, and no click lands on the one moving up. */
+	.queue.busy {
+		pointer-events: none;
+	}
+	.row.gone {
+		display: none;
+	}
+	.more {
+		margin: 1rem 0;
+		font-size: var(--step--1);
+		color: var(--ink-soft);
+	}
+	.more a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		font-weight: 600;
 	}
 	.more {
 		margin-top: 0.5rem;

@@ -1,29 +1,91 @@
 /* RecipeVault — the recipe-box index card.
    Paper, ink, the red header rule and faint blue ruled lines of a Québec
    recipe card; highlighter yellow for uncertain readings, pencil for text the
-   transcriber added. System fonts only: the app must work offline in a
-   kitchen, and Charter / Georgia read well at arm's length. */
+   transcriber added. The serif is Charter: the system's where it has one
+   (Apple), else Charis SIL — Charter's open-licence cut (OFL, see
+   lib/fonts/OFL.txt) — bundled with the build so it is cached with the app
+   shell and reads the same offline, on Android, Linux and Windows. Its tall
+   x-height holds at the small sizes of a card's lines. The sans stays the
+   system's. */
+
+@font-face {
+	font-family: 'Charis RV';
+	src: url('./lib/fonts/charis-sil-latin-400-normal.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Charis RV';
+	src: url('./lib/fonts/charis-sil-latin-700-normal.woff2') format('woff2');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Charis RV';
+	src: url('./lib/fonts/charis-sil-latin-400-italic.woff2') format('woff2');
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+}
+@font-face {
+	font-family: 'Charis RV';
+	src: url('./lib/fonts/charis-sil-latin-700-italic.woff2') format('woff2');
+	font-weight: 700;
+	font-style: italic;
+	font-display: swap;
+}
 
 :root {
-	--paper: #f3f5f2;
-	--card: #fffffd;
+	/* The recipe box: a warm drawer, cream cards. */
+	--paper: #f1eee6;
+	--card: #fffdf7;
 	--ink: #1c2a42;
-	--ink-soft: #4b5567;
-	--pencil: #6d717a;
+	/* Secondary text: still ink, a shade softer (≈ 8:1 on the card), never a
+	   faint grey; --pencil for marks and separators (≈ 5.5:1). */
+	--ink-soft: #424b5c;
+	--pencil: #62666f;
+	/* The red header rule of the index card. It means "a recipe card" (the
+	   recipe sheet, its section heads, the site header) — not decoration on
+	   every box. Errors use --danger, which happens to be the same red. */
 	--rule-red: #b3302c;
+	--danger: #b3302c;
+	--danger-bg: #fbeceb;
 	--rule-blue: #cfdcec;
-	--link: #2a578f;
-	--link-hover: #173c69;
+	/* Neutral edges for boxes that are not recipe cards. */
+	--edge: #e2ddd0;
+	--shadow: 0 1px 2px rgba(60, 50, 30, 0.08), 0 1px 0 rgba(60, 50, 30, 0.06);
+	/* Links in the card's ink: navy text over a faded navy underline, the
+	   line going full ink under the pointer. Red is the card's rule and the
+	   errors', never a link's. Only real links underline. */
+	--link: #24406a;
+	--link-hover: #1c2a42;
+	--link-line: rgb(28 42 66 / 0.4);
+	/* Highlighter yellow is for uncertain readings ([?], « À relire »), not
+	   for chrome: counts are the ink stamp (.stamp below). */
 	--highlight: #f6e27a;
 	--highlight-ink: #4a3b00;
 	--ok: #2f6b4f;
-	--line: #dfe3e8;
-	--focus: #2a578f;
+	--line: #e4e1d8;
+	--focus: #24406a;
+	/* Two accents only, the navy ink and the red rule. A note, a tip, a
+	   notice or a panel is paper: a warm tint with an ink rule at its left (or
+	   an --edge border), never a pastel blue. --ok-bg for « saved » flashes. */
+	--info-bg: #f5efe2;
+	--info-edge: rgb(28 42 66 / 0.5);
+	--ok-bg: #edf0e4;
+	/* The paper under the pointer (buttons, rows, menu items). */
+	--hover: #f3eee2;
+	/* A field's border: warm, dark enough to find the field (≈ 2.4:1). */
+	--field-edge: #b3aa95;
 
-	--serif: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
+	--serif: Charter, 'Charis RV', 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
 	--sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif;
 
-	--step--1: 0.875rem;
+	/* 15 px at the smallest for text that is read (secondary lines, labels);
+	   smaller only for capitals labels and counts. */
+	--step--1: 0.9375rem;
 	--step-0: 1rem;
 	--step-1: 1.1875rem;
 	--step-2: 1.4375rem;
@@ -68,11 +130,13 @@ h3 {
 
 a {
 	color: var(--link);
-	text-underline-offset: 0.15em;
+	text-underline-offset: 0.18em;
 	text-decoration-thickness: 1px;
+	text-decoration-color: var(--link-line);
 }
 a:hover {
 	color: var(--link-hover);
+	text-decoration-color: currentColor;
 }
 
 :focus-visible {
@@ -86,6 +150,19 @@ select,
 textarea {
 	font: inherit;
 	color: inherit;
+}
+
+/* One element per width where a control moves (the recipe's Modifier: a
+   button on a wide screen, an item of the ⋯ menu on a phone). */
+@media (max-width: 40rem) {
+	.wide-only {
+		display: none !important;
+	}
+}
+@media (min-width: 40.01rem) {
+	.phone-only {
+		display: none !important;
+	}
 }
 
 .visually-hidden {
@@ -114,7 +191,7 @@ textarea {
 	white-space: nowrap;
 }
 .btn:hover {
-	background: #eef2f7;
+	background: var(--hover);
 	color: var(--ink);
 }
 .btn.primary {
@@ -134,6 +211,16 @@ textarea {
 	color: var(--link);
 	padding-inline: 0.4rem;
 }
+.btn.quiet:hover {
+	background: var(--hover);
+	color: var(--link-hover);
+}
+/* Phone: every button a thumb's width tall (44 px). */
+@media (max-width: 40rem) {
+	.btn {
+		min-height: 2.75rem;
+	}
+}
 .btn:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
@@ -152,18 +239,44 @@ input[type='text'],
 input[type='url'],
 select,
 textarea {
-	border: 1.5px solid #b7c0cc;
+	border: 1.5px solid var(--field-edge);
 	border-radius: var(--radius);
 	background: var(--card);
 	padding: 0.45rem 0.6rem;
 	min-height: 2.5rem;
+}
+/* A select in the card's inks: cream ground, ink text, its own chevron
+   (the native control stays: keyboard, screen readers, the phone's picker).
+   A list box (multiple, size) keeps its native look. */
+select:not([multiple]):not([size]) {
+	-webkit-appearance: none;
+	appearance: none;
+	padding-right: 2rem;
+	border-color: var(--field-edge);
+	background-color: var(--card);
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%231c2a42' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.7rem center;
+	background-size: 0.7rem auto;
+	color: var(--ink);
+	cursor: pointer;
+}
+select:not([multiple]):not([size]):hover {
+	border-color: var(--ink);
+}
+select:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+select::-ms-expand {
+	display: none;
 }
 input:focus,
 select:focus,
 textarea:focus {
 	border-color: var(--ink);
 	outline: none;
-	box-shadow: 0 0 0 3px rgba(42, 87, 143, 0.25);
+	box-shadow: 0 0 0 3px rgb(28 42 66 / 0.2);
 }
 
 /* Markers, anywhere they appear. */
@@ -183,18 +296,46 @@ mark.mk-illegible {
 	color: var(--highlight-ink);
 	cursor: help;
 }
+/* [+]: a small pencil chip that says « ajouté », its title and the page's legend say the rest. */
 mark.mk-added {
+	display: inline-block;
 	background: none;
-	color: var(--pencil);
-	font-style: italic;
-	font-weight: 500;
-	border-bottom: 1px dotted var(--pencil);
-	border-radius: 0;
+	color: var(--ink-soft);
+	font-style: normal;
+	font-size: 0.75em;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	line-height: 1.35;
+	padding: 0 0.4em;
+	border: 1px solid var(--pencil);
+	border-radius: 999px;
+	vertical-align: 0.1em;
 	cursor: help;
 }
 .wikilink.dead {
 	color: var(--ink-soft);
 	border-bottom: 1px dashed var(--pencil);
+}
+
+/* A count in the ink stamp: a figure pressed in navy on the paper, a thin
+   ink frame, slightly askew. Things to decide (Plus's button, its queues),
+   not alarms: no fill, no colour but the ink. */
+.stamp {
+	display: inline-block;
+	min-width: 1.5rem;
+	padding: 0 0.3rem;
+	border: 1.5px solid currentColor;
+	border-radius: 4px;
+	color: var(--ink);
+	font-family: var(--sans);
+	font-size: 0.8125rem;
+	font-weight: 700;
+	line-height: 1.25rem;
+	letter-spacing: 0.02em;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	transform: rotate(-3deg);
+	opacity: 0.88;
 }
 
 /* Status badges. */
@@ -239,6 +380,12 @@ mark.mk-added {
 }
 .toast a {
 	color: #fff;
+}
+/* Above the phone's bottom tab bar. */
+@media (max-width: 40rem) {
+	.toast {
+		bottom: calc(4.5rem + env(safe-area-inset-bottom));
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {

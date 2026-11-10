@@ -132,7 +132,8 @@
 								<span class="missing">{t.pantry.missing}
 									{#each r.missing as m, i (i)}{i ? ', ' : ' '}{#each m as s, j (s)}{j ? t.pantry.or : ''}<a href={ingredientHref(s)}>{name(s)}</a>{/each}{/each}</span>
 							{/if}
-							{#if r.unresolved}<span class="unresolved" title={t.pantry.unresolvedTitle}>{t.pantry.unresolved(r.unresolved)}</span>{/if}
+							<!-- The owner's upkeep: a family account is not shown names to link (usability round 2). -->
+							{#if r.unresolved && data.user?.markdown}<a class="unresolved" href="/resoudre" title={t.pantry.unresolvedTitle}>{t.pantry.unresolved(r.unresolved)}</a>{/if}
 						</li>
 					{/each}
 				</ol>
@@ -223,8 +224,21 @@
 		color: var(--ink-soft);
 		padding: 0;
 	}
+	/* A thumb-sized box (22 px) inside a 44 px label, as on every form. */
 	.check {
 		font-size: var(--step--1);
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: 44px;
+		cursor: pointer;
+	}
+	.check input {
+		flex: none;
+		width: 1.375rem;
+		height: 1.375rem;
+		margin: 0;
+		accent-color: var(--ink);
 	}
 	.results {
 		padding-left: 1.5rem;

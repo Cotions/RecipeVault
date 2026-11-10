@@ -23,7 +23,7 @@ export function getResolver(db: DB, vocab: Pick<VaultVocab, 'normalize'> | (() =
 	const hit = cache.get(db);
 	if (hit && hit.hash === hash) return hit.resolver;
 	if (typeof vocab === 'function') vocab = vocab();
-	const rows = db.prepare('SELECT key, skey, slug FROM ingredient_names').all() as NameRow[];
+	const rows = db.prepare('SELECT key, skey, slug, lang FROM ingredient_names').all() as NameRow[];
 	const slugs = db.prepare('SELECT slug FROM registry').pluck().all() as string[];
 	const entries = (db.prepare("SELECT entry_json FROM registry WHERE entry_json LIKE '%\"when\"%'").pluck().all() as string[]).map(
 		(j) => JSON.parse(j) as Pick<RegistryEntry, 'slug' | 'when'>

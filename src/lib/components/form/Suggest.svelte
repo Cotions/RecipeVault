@@ -183,7 +183,7 @@
 		min-height: 44px;
 	}
 	input[aria-invalid='true'] {
-		border-color: var(--rule-red);
+		border-color: var(--danger);
 	}
 	label {
 		font-size: var(--step--1);

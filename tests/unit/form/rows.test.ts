@@ -4,9 +4,9 @@
 // components, without a browser.
 
 import { describe, expect, it } from 'vitest';
-import { applyNameHint, FORM_HINT_CODES, nameHint } from '../../../src/lib/form/hints';
-import { emptyForm, fromForm, newItem, type FormItem, type FormRecipe } from '../../../src/lib/form/model';
-import { addGroup, addItem, addStepRow, blockOn, blocks, move, removeAt, restoreAt, setToTaste, showGroups } from '../../../src/lib/form/rows';
+import { applyNameHint, FORM_HINT_CODES, nameHint, nearName } from '../../../src/lib/form/hints';
+import { emptyForm, fromForm, newItem, newRow, type FormItem, type FormRecipe } from '../../../src/lib/form/model';
+import { addGroup, addItem, addStepRow, blockOn, blocks, move, nextStepRow, removeAt, restoreAt, setToTaste, showGroups } from '../../../src/lib/form/rows';
 import { clearDraft, draftKey, loadDraft, sameForm, saveDraft } from '../../../src/lib/form/draft';
 import { formHintText } from '../../../src/lib/i18n/diagnostics';
 import { seedCheckWords } from '../../../src/lib/server/vocab';
@@ -201,5 +201,49 @@ describe('the web address (E114)', () => {
 		expect(blockOn(blocks(f), 'recipe', 'source.url')?.reason).toBe('url');
 		f.source.url = 'https://www.exemple.invalid/tarte';
 		expect(blocks(f)).toEqual([]);
+	});
+});
+
+describe('Enter at the end of a step: the next step (round 2 of the usability pass)', () => {
+	it('takes the empty step under it, else adds one right after it', () => {
+		const rows = [newRow('step'), newRow('step'), newRow('step')];
+		rows[0].text = 'Mélanger.';
+		rows[2].text = 'Cuire.';
+		expect(nextStepRow(rows, 0)).toBe(rows[1]);
+		rows[1].text = 'Verser.';
+		const added = nextStepRow(rows, 1);
+		expect(rows.indexOf(added)).toBe(2);
+		expect(added).toMatchObject({ type: 'step', text: '' });
+		expect(rows).toHaveLength(4);
+	});
+
+	it('after a heading, a step (never a second heading)', () => {
+		const rows = [newRow('heading'), newRow('heading')];
+		rows[0].text = 'Glaçage';
+		const r = nextStepRow(rows, 0);
+		expect(r.type).toBe('step');
+		expect(rows.indexOf(r)).toBe(1);
+	});
+});
+
+describe('nearName: W305’s « Vouliez-vous dire »', () => {
+	const names = [
+		{ slug: 'oignon', name: 'oignon' },
+		{ slug: 'oignon', name: 'onion' },
+		{ slug: 'oignons-verts', name: 'oignons verts' }
+	];
+	it('one registry name a letter off', () => {
+		expect(nearName('oigon', names)).toBe('oignon');
+		expect(nearName('Oigon', names)).toBe('oignon');
+	});
+	it('nothing when no name is a typo of it, or the first letter differs', () => {
+		expect(nearName('légume imaginaire', names)).toBeUndefined();
+		expect(nearName('pignon', names)).toBeUndefined();
+	});
+	it('nothing for a short word (one edit in four letters is another word)', () => {
+		expect(nearName('sek', [{ slug: 'sel', name: 'sel' }])).toBeUndefined();
+	});
+	it('nothing when two ingredients are as close: a guess', () => {
+		expect(nearName('carote', [{ slug: 'carotte', name: 'carotte' }, { slug: 'carotte-nantaise', name: 'carotes' }])).toBeUndefined();
 	});
 });

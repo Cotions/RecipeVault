@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { devices, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { FIXTURE_USERS } from '../../scripts/fixture-vault';
+import { ready } from './helpers';
 
 const VAULT = '/tmp/rv-e2e/vault';
 const { defaultBrowserType: _, ...phone } = devices['Pixel 7'];
@@ -19,6 +20,7 @@ test('add a photo from the recipe page, see it there and on the card', async ({ 
 		.toBuffer();
 
 	await page.goto('/r/pate-a-pizza');
+	await ready(page);
 	await expect(page.locator('figure.photo')).toHaveCount(0);
 	await page.getByTestId('photo-input').setInputFiles({ name: 'plat.jpg', mimeType: 'image/jpeg', buffer: jpg });
 	const img = page.locator('figure.photo img');
@@ -45,14 +47,17 @@ test('add a photo from the recipe page, see it there and on the card', async ({ 
 	expect((await page.request.get(src, { headers: { 'if-none-match': etag } })).status()).toBe(304);
 
 	await page.goto('/?q=pizza');
-	const thumb = page.locator(`a[href="/r/pate-a-pizza"]`).locator('xpath=..').locator('img');
+	await ready(page);
+	const thumb = page.locator('li.card', { has: page.locator('a[href="/r/pate-a-pizza"]') }).locator('img');
 	await expect(thumb).toHaveAttribute('src', src.replace('display', 'thumb'));
-	await expect(thumb).toHaveJSProperty('complete', true);
-	expect(await thumb.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(300);
+	// A narrow row hides the strip (and a lazy image never loads): check the copy served.
+	const small = await page.request.get(src.replace('display', 'thumb'));
+	expect((await sharp(await small.body()).metadata()).width).toBe(300);
 });
 
 test('a file that is not a photo is refused and nothing changes', async ({ page }) => {
 	await page.goto('/r/bouillon-de-legumes');
+	await ready(page);
 	const before = readFileSync(`${VAULT}/recipes/bouillon-de-legumes.md`, 'utf8');
 	await page.getByTestId('photo-input').setInputFiles({ name: 'plat.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('pas une image') });
 	await expect(page.getByText(/La photo n’a pas pu être ajoutée ; rien n’a changé\./)).toBeVisible();

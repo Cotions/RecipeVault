@@ -54,3 +54,15 @@ export function clearDraft(storage: Storage, key: string): void {
 export function sameForm(a: FormRecipe, b: FormRecipe): boolean {
 	return JSON.stringify(a, (k, v) => (k === 'id' ? undefined : v)) === JSON.stringify(b, (k, v) => (k === 'id' ? undefined : v));
 }
+
+/**
+ * The time a draft was kept, as the note under the form says it: « 1 h 40 »
+ * in French (the Québec way, no leading zero: « Brouillon gardé à 1 h 40 »),
+ * the locale's short time in English (« 1:40 p.m. »). Spaces are no-break,
+ * so the time never splits across lines.
+ */
+export function draftClock(ms: number, lang: 'fr' | 'en'): string {
+	const d = new Date(ms);
+	if (lang === 'fr') return `${d.getHours()} h ${String(d.getMinutes()).padStart(2, '0')}`;
+	return d.toLocaleTimeString('en-CA', { timeStyle: 'short' }).replace(/\s/g, ' ');
+}

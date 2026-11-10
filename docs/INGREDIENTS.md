@@ -178,6 +178,47 @@ registry. So at index time (on save, on sync, on an external edit):
    `src/lib/ingredients/resolve.ts`, tuned on `tests/fixtures/corpus`). A candidate
    is **never** taken automatically: a wrong resolution poisons every total that
    includes it. An ambiguous key's candidates are the entries sharing it.
+   What the queue and W305 show is cut further (`SHOWN`, `shownCandidates`):
+   none under half the best one's score — a weak look-alike beside a strong one
+   is noise (usability round 3: far suggestions offered beside the right one). On the
+   corpus this keeps every right answer (R2 58.1 %) and shows 1.70 candidates a
+   name instead of 1.94; raising the floor instead would lose right answers
+   (0.2: 53.9 %, 0.25: 51.1 %), so the floor stays 0.15.
+   An alias in which the name is, word for word, only a modifier is never a
+   candidate (`modifierOnly`; usability round 4): « soda » is not offered
+   « biscuits soda » (French puts the noun first) nor « soda crackers »
+   (English puts it last); « soda à pâte » and « brown sugar » for « sugar »
+   stay. The alias's language says which end is the noun; both ends when the
+   index row has none. (On a Québec card « 1 c. à thé de soda » is baking
+   soda: the seed's `bicarbonate-de-soude` has the rule `{ names: [soda],
+   unit: [tsp, tbsp, pinch] }`, not an alias, since « soda » by the cup may be
+   a drink.)
+
+   **A sure suggestion and a guess** (`STRONG`, `Candidate.strong`; usability
+   round 5: « 1 »/Entrée took a far look-alike as if it were the answer). A
+   candidate is *strong* when one of its aliases is the typed name, singular,
+   up to a clear typo: at most `min(1, floor(length / 4))` edits (optimal
+   string alignment, a swapped pair is one edit), so « vanile », « ognon »,
+   « oingon », « beouf haché » are strong and a word of three letters or fewer
+   never is by typo. On the invented corpus the strong first candidate is right
+   24 times of 24; two edits added one wrong (« soupe tomate » to sauce
+   tomate), so the limit is one. A candidate reached only through a rule is
+   never strong (rules are a guess at what the writer meant: « soda » with no
+   unit or by the cup offers bicarbonate de soude first, but as a guess), nor is
+   an entry of an ambiguous key. Everything else is a guess, and a guess must
+   share a stem with the name (`sharesStem`: one word of each starts with the
+   same letter and they share a three-letter run; a clear typo bypasses it),
+   so « soda » no longer gets « soda au gingembre » through « ginger ale »
+   nor « son de blé ». Cost on the corpus: R2 shown hit rate 56.7 % without it,
+   54.2 % with it; candidates shown 1.69 a name to 1.43. The names lost are
+   English to French translations that matched by luck (sugar, onion, rice,
+   noodles), which the owner links by name anyway. The paste box's W305 hint
+   names exactly the queue's list, in its order (the same `candidates` and
+   `shownCandidates`; no display filter of its own). On /resoudre only a strong
+   first candidate is the primary button and is taken by « 1 » or Entrée; a
+   guess is an outlined button headed « Peut-être (à vérifier) », its number
+   key only focuses it (Entrée on it, or a click, takes it). The link's toast
+   says how many recipes it changes (« … dans 6 recettes »).
 
 The result goes in the index only (`ingredients.key`, `.item`, `.resolution`, and
 the same for each `or` option in `ingredient_or`); it is never written back into
@@ -207,7 +248,7 @@ aliases with that key and the names of its rules that reach the key (a rule
 left with no name goes). A name ambiguous because the rules of two entries
 both hold on some of its lines cannot be settled by a new alias, since rules
 come first: the row says so, and offers no "Relier" nor "Créer" (the server
-refuses them too). Every « non relié » link opens the queue on its own row
+refuses them too). Every « Relier › » link of a recipe page's unlinked list opens the queue on its own row
 (`/resoudre?cle=<key>`), shown first when it is beyond the first page. Only
 ingredient files change (`DATA-FLOW.md`, "Ingredient edits").
 
@@ -232,12 +273,33 @@ never shows a whole-pack figure.
 Most ingredients will have no price for a long time. So:
 
 - Never display a total as if complete. Show coverage:
-  `≈ 4,20 $ · 9 ingrédients sur 12 ont un prix`.
-- Exclude `to_taste` and `staple` ingredients from the coverage denominator — they
-  are pennies and would make coverage look permanently broken. A priced staple
-  still adds to the cost (plan 03, Q17); butter and sugar are real money.
-- A recipe below 70 % coverage shows no figure: `Pas assez de prix · 5
-  ingrédients sur 12`, with the unpriced ones listed and linked (Q14). A recipe
+  `Coût estimé : ≈ 4,20 $`, then `9 ingrédients sur 15 ont un prix` as the
+  disclosure that holds the detail.
+- The coverage that decides whether a figure is shown excludes `to_taste` and
+  `staple` ingredients from its denominator — they are pennies and would make
+  coverage look permanently broken. A priced staple still adds to the cost
+  (plan 03, Q17); butter and sugar are real money.
+- **What the page says uses one denominator, the lines** (decided in the
+  round-3 UI pass): every non-optional ingredient line, a sub-recipe's lines
+  included (it is flattened, below). `9 ingrédients sur 15 ont un prix` (a
+  line is an ingredient; the round-4 UI pass chose the plainer word), behind
+  it `Sans prix (6)` listing each with its reason (an unlinked line « pas
+  encore relié », linked to its queue row, for the keeper only; a family
+  account reads « aucun prix »), a staple or `to_taste`
+  line marked « ne compte pas », then `Avec un prix (9)`. The numbers on the page
+  always add up (9 + 6 = 15); a sub-recipe is one line on the page and its
+  own lines in the count, so the summary says where those come from: `9
+  ingrédients sur 15 ont un prix (dont 5 dans Pâte brisée)` beside the 11
+  lines the page lists (round-5 UI pass). The 70 % rule above stays on the counted lines,
+  and the disclosure's help line says so. (It was `ingrédients sur <counted>`
+  next to a list that also held the unpriced staples: two denominators.)
+- A recipe below 70 % coverage shows no figure: one quiet line, `Coût : 10
+  prix manquants ›` (the unpriced lines, the same count as `Sans prix`), which
+  opens on the unpriced ones listed with their reasons and linked (Q14) — to
+  the archive's keeper (an account with the Markdown tools) only (usability
+  round 6; it was `Coût estimé : pas assez de prix` above the coverage
+  disclosure). A family account sees no cost line until there is a figure:
+  missing prices are work for the keeper, not news for the reader. A recipe
   where nothing counts (staples only) shows a figure only when every line with
   an amount is priced.
 - What counts: every line that is not optional (item or group, Q18), not
@@ -444,12 +506,20 @@ model from the index).
   close variants are never listed (55 of their 60 pairs score above 0.65).
 
 Where the pairs show: `W505` on the paste box, the form and the save result
-(`VALIDATION.md`), and the pair list `/doublons` (`DATA-FLOW.md`).
+(`VALIDATION.md`), and `/doublons` (`DATA-FLOW.md`), where the pairs linked by
+a recipe show as one card for one decision (linked only by a very close pair or
+titles of one dish word; see there).
 
 ## Two views
 
 **Recipe view** — what it is today, plus a cost line (consumed cost total and per
-serving, with coverage), and per-ingredient links into the ingredient view.
+serving, with coverage), and per-ingredient links into the ingredient view. The
+links sit after the line's text — a small `›` to the ingredient view, « recette ›
+» to a sub-recipe — never on the name (an unlinked name has no link on its line:
+the keeper's « N ingrédients à relier » under the red rule opens the list, each
+with « Relier › » to its queue row; usability round 3): a tap anywhere else on the line ticks it off (a 44 px row), so a tap
+meant to tick never navigates. Kitchen mode and the paste preview keep their
+own lines.
 
 **Ingredient view** — `/ingredients/tomates-concassees` (edits and merge:
 `DATA-FLOW.md`, "Ingredient edits: the ingredient view"):

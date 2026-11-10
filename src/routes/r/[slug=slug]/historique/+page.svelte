@@ -49,6 +49,21 @@
 						{/each}
 					</ul>
 				{/if}
+				{#if v.details.length}
+					<!-- What changed, as it reads: the old words struck, the new ones underlined (usability round 4). -->
+					<ul class="details" data-testid="history-details">
+						{#each v.details as d, i (i)}
+							<li>
+								<span class="what">{d.kind === 'step' ? (d.step ? h.detailStep(d.step) : h.detailStepGone) : h.detailIngredient}</span>
+								<span class="diff"
+									>{#each d.parts as p, k (k)}{#if p.op === 'del'}<del><span class="visually-hidden">{h.detailWas} </span>{p.text}</del>{:else if p.op === 'ins'}<ins
+												><span class="visually-hidden">{h.detailNow} </span>{p.text}</ins
+											>{:else}{p.text}{/if}{/each}</span
+								>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 				{#if v.restorable}
 					<details class="restore">
 						<summary class="btn">{h.restore}</summary>
@@ -151,6 +166,40 @@
 	}
 	.summary li {
 		margin: 0.15rem 0;
+	}
+	/* What changed, on the paper in the card's serif: struck in the soft ink, the new words underlined in ink. */
+	.details {
+		list-style: none;
+		margin: 0.5rem 0 0;
+		padding: 0.5rem 0.75rem;
+		background: var(--paper);
+		border-left: 3px solid var(--rule-blue);
+		font-family: var(--serif);
+		font-size: var(--step-0);
+		line-height: 1.5;
+	}
+	.details li + li {
+		margin-top: 0.35rem;
+	}
+	.details .what {
+		display: block;
+		font-family: var(--sans);
+		font-size: var(--step--1);
+		font-weight: 600;
+		color: var(--ink-soft);
+	}
+	.details del {
+		color: var(--ink-soft);
+		text-decoration: line-through;
+		text-decoration-color: var(--danger);
+		text-decoration-thickness: 1.5px;
+	}
+	.details ins {
+		text-decoration: underline;
+		text-decoration-color: var(--ok);
+		text-decoration-thickness: 2px;
+		text-underline-offset: 0.2em;
+		background: none;
 	}
 	.restore {
 		margin-top: 0.6rem;

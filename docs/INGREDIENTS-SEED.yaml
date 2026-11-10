@@ -28,7 +28,7 @@
 # disambiguation rule (`when:`, docs/INGREDIENTS.md) settles the bare name:
 # tomates and champignons by the can or by weight or count, bœuf and porc with
 # prep haché or en cubes, lard by the recipe's language, soupe à l'oignon by the
-# packet. What stays uncertain (tomates by the cup, huile, bouillon, fromage,
+# packet, soda by the spoon (baking soda). What stays uncertain (tomates by the cup, huile, bouillon, fromage,
 # échalotes) goes through the resolve queue.
 
 # --- Épicerie: farines, sucres, levures ---------------------------------------
@@ -119,6 +119,9 @@ poudre-a-pate:
 bicarbonate-de-soude:
   category: epicerie
   names: { fr: [bicarbonate de soude, soda à pâte, bicarbonate], en: [baking soda, bicarbonate of soda] }
+  # « 1 c. à thé de soda » on a Québec card (French or English) is baking soda; « soda » by the cup may be a drink.
+  when:
+    - { names: [soda], unit: [tsp, tbsp, pinch] }
   default_unit: g
   staple: true
   density: 0.9

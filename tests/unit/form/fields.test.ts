@@ -2,9 +2,9 @@
 // durations, method rows (Q5 A), marker text (Q15 A).
 
 import { describe, expect, it } from 'vitest';
-import { durationToForm, formToDuration } from '../../../src/lib/form/duration';
+import { durationFromInput, durationInputText, durationToForm, formToDuration, readDurationInput } from '../../../src/lib/form/duration';
 import { confirmValue, hideMarkers, markedText, reapplyAdded } from '../../../src/lib/form/markers';
-import { parseQuantityInput, showQuantity } from '../../../src/lib/form/quantity';
+import { fractionSlip, parseQuantityInput, showQuantity } from '../../../src/lib/form/quantity';
 import { rowsFromText, textFromRows } from '../../../src/lib/form/steps';
 import { parseBody } from '../../../src/lib/vault/body';
 import { parseDuration } from '../../../src/lib/vault/duration';
@@ -66,6 +66,19 @@ describe('quantity input', () => {
 	});
 });
 
+describe('a whole number run into its fraction (usability round 5)', () => {
+	it('reads « 21/2 » as 10 ½ and offers 2 ½', () => {
+		expect(fractionSlip('21/2', 'fr')).toEqual({ reads: '10 ½', meant: '2 ½' });
+		expect(fractionSlip('13/4', 'fr')).toEqual({ reads: '3 ¼', meant: '1 ¾' });
+		expect(fractionSlip('12/3', 'fr')).toEqual({ reads: '4', meant: '1 ⅔' });
+		// What it offers is what the field reads back.
+		expect(parseQuantityInput(fractionSlip('21/2', 'fr')!.meant)).toMatchObject({ ok: true, value: 2.5 });
+	});
+	it('says nothing for a plain fraction, a mixed number or a slip that is not one', () => {
+		for (const s of ['1/2', '3/4', '9/2', '2 1/2', '2', '10/3', '20/2', '19/9', '01/2', 'abc', '']) expect(fractionSlip(s, 'fr')).toBeUndefined();
+	});
+});
+
 describe('durations', () => {
 	it.each([
 		[{ hours: null, minutes: 30, maxHours: null, maxMinutes: null }, '30m'],
@@ -88,6 +101,56 @@ describe('durations', () => {
 		[{ hours: null, minutes: null, maxHours: 1, maxMinutes: null }, 'format']
 	])('%j refused (%s)', (f, reason) => {
 		expect(formToDuration(f)).toEqual({ ok: false, reason });
+	});
+});
+
+describe('a time typed in one box', () => {
+	const W = { h: 'h', min: 'min', to: 'à' };
+	it.each([
+		['1 h 30', '1h30m'],
+		['1h30', '1h30m'],
+		['1 h 30 min', '1h30m'],
+		['90 min', '1h30m'],
+		['90', '1h30m'],
+		['45', '45m'],
+		['2 heures', '2h'],
+		['1,5 h', '1h30m'],
+		['1 ½ h', '1h30m'],
+		['20 à 25 min', '20m-25m'],
+		['20-25 min', '20m-25m'],
+		['1 à 2 h', '1h-2h'],
+		['1 h à 1 h 30', '1h-1h30m'],
+		['45 min to 1 h', '45m-1h'],
+		['1h15m', '1h15m'],
+		['', undefined]
+	])('« %s » → %s', (text, raw) => {
+		expect(formToDuration(durationFromInput(text))).toEqual({ ok: true, raw });
+	});
+
+	it.each(['vingt', '1,5', '1 30', '20 à', 'à 25 min', '1 h 30 h', '5 à 10 à 15'])('« %s » is not a time: kept as typed, Save blocked', (text) => {
+		const d = durationFromInput(text);
+		expect(readDurationInput(text)).toBeNull();
+		expect(d.typed?.hours).toBe(text);
+		expect(formToDuration(d)).toEqual({ ok: false, reason: 'format' });
+		expect(durationInputText(d, W)).toBe(text);
+	});
+
+	it('a range that does not go up is read, and refused as a range', () => {
+		expect(formToDuration(durationFromInput('25 à 20 min'))).toEqual({ ok: false, reason: 'range' });
+	});
+
+	it.each([
+		['30m', '30 min', '30 min'],
+		['1h', '1 h', '1 h'],
+		['1h30m', '1 h 30', '1 h 30 min'],
+		['45m-50m', '45 à 50 min', '45 à 50 min'],
+		['2h-3h', '2 à 3 h', '2 à 3 h'],
+		['45m-1h15m', '45 min à 1 h 15', '45 min à 1 h 15 min']
+	])('%s shows as « %s » and echoes « %s »; what it shows reads back the same', (raw, shown, long) => {
+		const d = durationToForm(parseDuration(raw));
+		expect(durationInputText(d, W)).toBe(shown);
+		expect(durationInputText(d, W, true)).toBe(long);
+		expect(formToDuration(durationFromInput(shown))).toEqual({ ok: true, raw });
 	});
 });
 
@@ -219,5 +282,32 @@ describe('marker text', () => {
 		['soda crackers [+].', 'soda crackers.', 'soda crackers [+].']
 	])('edit of %j to %j writes %j', (raw, text, out) => {
 		expect(reapplyAdded(text, raw)).toBe(out);
+	});
+});
+
+describe('a step’s time changed under a time box (usability round 3)', () => {
+	it('offers the box the new time when it held the old one', async () => {
+		const { stepTimeChange } = await import('../../../src/lib/form/duration');
+		const box = (minutes: number, maxMinutes: number | null = null) => ({ hours: null, minutes, maxHours: null, maxMinutes });
+		expect(stepTimeChange('Cuire 10 à 12 minutes.', 'Cuire 12 à 14 minutes.', box(12))).toEqual({ hours: null, minutes: 12, maxHours: null, maxMinutes: 14 });
+		expect(stepTimeChange('Cuire 10 à 12 minutes.', 'Cuire 12 à 14 minutes.', box(10, 12))).toEqual({ hours: null, minutes: 12, maxHours: null, maxMinutes: 14 });
+		expect(stepTimeChange('Cuire 45 min.', 'Cuire 1 h 15.', box(45))).toEqual({ hours: 1, minutes: 15, maxHours: null, maxMinutes: null });
+		// The box held another time, the step's time did not change, or two did: nothing to offer.
+		expect(stepTimeChange('Cuire 10 à 12 minutes.', 'Cuire 12 à 14 minutes.', box(30))).toBeUndefined();
+		expect(stepTimeChange('Cuire 12 minutes.', 'Cuire bien 12 minutes.', box(12))).toBeUndefined();
+		expect(stepTimeChange('Cuire 5 min puis 12 min.', 'Cuire 6 min puis 14 min.', box(12))).toBeUndefined();
+		expect(stepTimeChange('Cuire 12 min.', 'Cuire 14 min.', { hours: null, minutes: null, maxHours: null, maxMinutes: null })).toBeUndefined();
+	});
+});
+
+describe('a step’s time range moved whole (usability round 4)', () => {
+	it('30 à 35 → 35 à 40 under a box of 30 à 35', async () => {
+		const { stepTimeChange } = await import('../../../src/lib/form/duration');
+		expect(stepTimeChange('Cuire au four 30 à 35 minutes.', 'Cuire au four 35 à 40 minutes.', { hours: null, minutes: 30, maxHours: null, maxMinutes: 35 })).toEqual({
+			hours: null,
+			minutes: 35,
+			maxHours: null,
+			maxMinutes: 40
+		});
 	});
 });

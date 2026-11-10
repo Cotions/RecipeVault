@@ -124,5 +124,7 @@ lines:
   - { line: { qty: 1, unit: can, name: tomates, note: 796 ml }, factor: 2, text: 2 boîtes de tomates (796 ml) }
   - { line: { name: sel, to_taste: true }, factor: 2, text: "sel, au goût" }
   - { line: { name: nouilles, note: pour servir }, factor: 3, text: nouilles (pour servir) }
-  - { line: { qty: 1, unit: piece, name: oignon, prep: haché }, factor: 2, text: 2 oignon haché }
+  # A bare count's name and participle agree with the number shown (docs/DATA-FLOW.md, "Names"; was « 2 oignon haché »
+  # before the round-2 usability pass). Amounts and units unchanged.
+  - { line: { qty: 1, unit: piece, name: oignon, prep: haché }, factor: 2, text: 2 oignons hachés }
   - { line: { qty: 2, unit: ml, name: cannelle, or: [{ qty: 1, unit: ml, name: muscade }] }, factor: 2, text: "4 ml de cannelle, ou 2 ml de muscade" }

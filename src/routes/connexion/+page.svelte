@@ -37,15 +37,18 @@
 		<input type="hidden" name="suite" value={data.next} />
 		<label>
 			<span>{t.auth.login}</span>
+			<!-- defaultValue, not value: what she typed before the page woke up (a slow
+			     link) stays; a value attribute is set again on hydration and empties
+			     the box, and « Se connecter » then does nothing (required). -->
 			<!-- svelte-ignore a11y_autofocus -->
-			<input type="text" name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus value={form?.login ?? ''} />
+			<input type="text" name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus defaultValue={form?.login ?? ''} />
 		</label>
 		<label>
 			<span>{t.auth.password}</span>
 			<input type="password" name="password" autocomplete="current-password" required />
 		</label>
 		<label class="stay">
-			<input type="checkbox" name="rester" checked={form?.persistent ?? true} />
+			<input type="checkbox" name="rester" defaultChecked={form?.persistent ?? true} />
 			<span>{t.auth.stay}</span>
 		</label>
 		<button class="btn primary" type="submit" disabled={busy}>{t.auth.submit}</button>

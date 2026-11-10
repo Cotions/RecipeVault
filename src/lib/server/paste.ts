@@ -9,7 +9,7 @@ import { withAuthor } from './context';
 import { titles } from './index/query';
 import { toTasteWarnings, unresolvedDiagnostics } from './index/resolve';
 import { checkOptions } from './checkopts';
-import { batchCloseRecipes, closeRecipes, duplicateWarnings, type CloseRecipe } from './duplicates';
+import { batchCloseRecipes, closeRecipes, duplicateWarnings, sideReader, titlesAlike, VARIANT_CLOSE, type CloseRecipe } from './duplicates';
 import { stripMarkers } from '../vault/markers';
 import { bodyText } from '../vault/parse';
 import { referencedSlugs } from './pages';
@@ -31,6 +31,14 @@ export interface ServerCheckFile {
 	 * W505): its hash for the stale guard, its family and variant to prefill.
 	 */
 	pairWith?: PairOffer;
+	/**
+	 * Every vault recipe the same-dish question is about, each named as a list
+	 * names it (title, where it is from): the same title (W608) first, then
+	 * nearly the same ingredients (W505), then a title that starts the same
+	 * (the form's « Ressemble à », `titleMatches().like`). She picks the one to
+	 * group with; `pairWith` is the first.
+	 */
+	candidates?: PairOffer[];
 	/** W505 inside the paste: earlier files of this paste with nearly the same ingredients (not saved yet: named by their place). */
 	closeInBatch?: { index: number; title: string; score: number }[];
 }
@@ -40,17 +48,22 @@ export interface PairOffer {
 	title: string;
 	hash: string;
 	family: string | null;
+	/** The family's name as shown (its label, else as its recipes write it); null when none. */
+	familyLabel: string | null;
 	/** As read (markers out). */
 	variant: string | null;
+	/** Where it is from, as a list line says it (« de Tante Aline », « Tiré du Tablier bleu »), '' when the file says nothing. */
+	from: string;
+	/** What its variant's label is read from (lib/form/family.ts variantShown, variantPrefill). */
+	origin: { author: string | null; source_type: string | null; source_title: string | null; title: string };
+	/** Why it is asked about: the same title, nearly the same ingredients, a title that starts the same. */
+	why: 'title' | 'close' | 'like';
+	/** The ingredients in common, weighted (0–1), as /doublons says it (« 67 % en commun »), when known. */
+	score?: number;
 }
 
-function pairOffer(app: App, slug: string): PairOffer | undefined {
-	const r = app.ctx.db.prepare('SELECT slug, title, family, variant, file_hash FROM recipes WHERE slug = ?').get(slug) as
-		| { slug: string; title: string; family: string | null; variant: string | null; file_hash: string }
-		| undefined;
-	if (!r) return undefined;
-	return { slug: r.slug, title: stripMarkers(r.title), hash: r.file_hash, family: r.family, variant: r.variant ? stripMarkers(r.variant).trim() : null };
-}
+/** At most this many recipes the same-dish question names. */
+const MAX_CANDIDATES = 4;
 
 /** Slug a file would be saved under, when its frontmatter reads at all. */
 export function slugOf(text: string): string | undefined {
@@ -70,14 +83,46 @@ export function serverCheck(app: App, texts: string[]): ServerCheckFile[] {
 	const own = result.files.map((f, i) => f.recipe ?? checkFile(texts[i]).recipe ?? null);
 	const bodies = texts.map(bodyText);
 	const inBatch = batchCloseRecipes(app.ctx, own, slugs, undefined, bodies);
+	const side = sideReader(app.ctx);
 	return result.files.map((f, i) => {
 		const slug = slugs[i];
 		const out: ServerCheckFile = { diagnostics: f.diagnostics, slug, titles: {} };
 		const batch = inBatch[i];
 		const pairWithOf = (title: string, ownSlug: string | undefined) => {
-			const first = titleMatches(app.ctx, title, ownSlug).same[0] ?? out.close?.[0];
-			const offer = first && pairOffer(app, first.slug);
-			if (offer) out.pairWith = offer;
+			const m = titleMatches(app.ctx, title, ownSlug);
+			const seen = new Set<string>();
+			const list: PairOffer[] = [];
+			const score = new Map((out.close ?? []).map((c) => [c.slug, c.score]));
+			const add = (slug: string, why: PairOffer['why']) => {
+				if (seen.has(slug) || list.length >= MAX_CANDIDATES) return;
+				seen.add(slug);
+				const s = side(slug);
+				const x = score.get(slug);
+				list.push({
+					slug,
+					title: s.title,
+					hash: s.hash,
+					family: s.family,
+					familyLabel: s.familyLabel,
+					variant: s.variant ? s.variant.trim() : null,
+					from: s.from,
+					origin: s.origin,
+					why,
+					...(x !== undefined ? { score: x } : {})
+				});
+			};
+			for (const r of m.same) add(r.slug, 'title');
+			// Close ingredients alone make a variant only when nearly all are shared, the titles say the
+			// same dish, or the method is the same text (VARIANT_CLOSE): W505 still names the others.
+			for (const r of out.close ?? []) if (r.score >= VARIANT_CLOSE || r.method || titlesAlike(stripMarkers(title), stripMarkers(r.title))) add(r.slug, 'close');
+			for (const r of m.like) add(r.slug, 'like');
+			if (list.length) {
+				out.candidates = list;
+				out.pairWith = list[0];
+			} else {
+				delete out.candidates;
+				delete out.pairWith;
+			}
 		};
 		if (batch.length) out.closeInBatch = batch.map((b) => ({ index: b.index, title: stripMarkers(own[b.index]!.title), score: b.score }));
 		if (f.recipe) {

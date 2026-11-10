@@ -110,6 +110,28 @@ function match(n: NameWords, start: number, end: number): WordMatch {
 	return { start, end, text: n.text.slice(from, to), rest };
 }
 
+/** Words that join two preparation words (« cuites et pilées »). */
+const JOINERS = new Set(['et', 'ou', 'puis', 'and', 'or', 'then']);
+
+/**
+ * A trailing preparation word after a comma takes the whole tail with it when
+ * every word between the comma and it is a listed word or a joiner:
+ * « pommes de terre, cuites et pilées » moves « cuites et pilées », not
+ * « pilées » alone (which left « pommes de terre, cuites et » in the name).
+ * Any other word in the tail (« sel, poivre moulu ») keeps the plain reading.
+ */
+function afterComma(n: NameWords, list: WordList, start: number): number {
+	let i = start;
+	while (i > 0) {
+		const gap = n.text.slice(n.spans[i - 1][1], n.spans[i][0]);
+		if (gap.includes(',')) return i;
+		const w = n.folded[i - 1];
+		if (!JOINERS.has(w) && !list.words.some((p) => p.length === 1 && p[0] === w)) return start;
+		i--;
+	}
+	return start;
+}
+
 /**
  * A listed phrase at the start or the end of the name, with other words left
  * (a name that is only the word is not flagged). French puts a participle or a
@@ -123,7 +145,7 @@ export function findAtEdge(n: NameWords, list: WordList | undefined): WordMatch 
 	const sorted = [...list.words].sort((a, b) => b.length - a.length);
 	for (const p of sorted) {
 		if (p.length >= len) continue;
-		if (at(n.folded, p, len - p.length) && !kept(n, list, len - p.length, len)) return match(n, len - p.length, len);
+		if (at(n.folded, p, len - p.length) && !kept(n, list, len - p.length, len)) return match(n, afterComma(n, list, len - p.length), len);
 		if (at(n.folded, p, 0) && !kept(n, list, 0, p.length)) return match(n, 0, p.length);
 	}
 	return undefined;

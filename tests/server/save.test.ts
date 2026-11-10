@@ -42,6 +42,8 @@ describe('save', () => {
 	it('writes the canonical file, commits it, indexes it', async () => {
 		const r = await save(v.ctx, [{ text: recipe('Galettes', 'status: verified\nadded: 1999-01-01\n') }], { today: '2026-09-27' });
 		expect(r.files[0]).toMatchObject({ status: 'saved', slug: 'galettes', recipeStatus: 'draft', created: true });
+		// The committed file's hash: what the paste box's "Joindre cette photo" is guarded by.
+		expect(r.files[0].status === 'saved' && r.files[0].hash).toBe(currentFile(v.ctx, 'galettes')!.hash);
 		const file = v.read('recipes/galettes.md');
 		expect(file).toContain('slug: galettes\n');
 		expect(file).toContain('status: draft\nadded: 2026-09-27\nupdated: 2026-09-27\nextracted_by: ai\n');
