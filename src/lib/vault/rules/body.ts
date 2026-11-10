@@ -8,6 +8,17 @@ const LONG_STEP = 400;
 const TEMP_RE = /(?<!\d)(\d{3})\s*(?:[°º]\s*([FC])?|(?:degr[ée]s?|degrees?)\s*([FC])?|([FC]))(?!\p{L})/iu;
 const OVEN_TEMP_RE = /(?<!\p{L})(?:four|oven)\s+(?:(?:à|a|to|at)\s+)?(\d{3})(?!\d)/iu;
 
+/**
+ * The oven temperature a step's text gives (« Cuire à 350 °F », « oven to
+ * 375 »), as W609 reads it: the number and its unit (°F when none is
+ * written). The web import fills `oven` from the first one (docs/DATA-FLOW.md).
+ */
+export function ovenInText(text: string): { temp: number; unit: 'F' | 'C' } | undefined {
+	const m = text.match(TEMP_RE) ?? text.match(OVEN_TEMP_RE);
+	if (!m) return undefined;
+	return { temp: Number(m[1]), unit: (m[2] ?? m[3] ?? m[4] ?? 'F').toUpperCase() as 'F' | 'C' };
+}
+
 // A `---` line with `schema:` as the next non-blank line: a second file's frontmatter.
 const MERGED_RE = /^---[ \t]*\n(?:[ \t]*\n)*[ \t]*schema[ \t]*:/m;
 

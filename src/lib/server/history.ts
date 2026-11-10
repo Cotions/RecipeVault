@@ -29,7 +29,7 @@ import { RECIPES, TRASH } from './vault';
 import { SLUG_RE } from '../vault/slug';
 import { loadVocab } from './vocab';
 import { tagNamer } from './tags';
-import { describeChanges, diffVersions, parseVersion, titleOfText, type Change, type Parsed } from './history-diff';
+import { changeDetails, describeChanges, diffVersions, parseVersion, titleOfText, type Change, type Detail, type Parsed } from './history-diff';
 
 export type HistoryErrorReason = 'unknown' | 'stale' | 'invalid' | 'unsupported' | 'gone' | 'failed';
 
@@ -148,6 +148,8 @@ export interface Version {
 	changes: Change[];
 	/** `changes` in plain French, one line each. */
 	summary: string[];
+	/** The ingredient lines and steps changed, word by word (usability round 4). */
+	details: Detail[];
 	/** Same text as the file on disk now. */
 	current: boolean;
 	/** "Revenir à cette version" is offered. */
@@ -247,6 +249,7 @@ export async function recipeHistory(ctx: VaultContext, slug: string, opts: { lim
 			text,
 			changes,
 			summary: describeChanges(changes, tagName),
+			details: changeDetails(changes),
 			current: text !== null && text === onDisk,
 			restorable: false,
 			toCurrent: []

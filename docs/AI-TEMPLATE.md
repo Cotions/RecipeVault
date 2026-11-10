@@ -228,6 +228,37 @@ extracted_by: ai
 
 ---
 
+## The translation request
+
+A web page imported in English (`lang: en`) is not saved as it is: the paste
+box's « Copier pour traduire » copies the prompt above, this request, and the
+imported file in one ```` ```markdown ```` fence, for the AI to answer with the
+French file; pasted back, the answer replaces the import (docs/DATA-FLOW.md,
+"Web import"). Nothing in the format changes: the answer is checked like any
+other paste.
+
+````text
+The recipe file below was imported from an English web page. Rewrite it as a French (Québec) recipe file following the rules above: translate the title, ingredient names, notes and steps into Québécois French, set `lang: fr` and use `## Préparation` (and `## Notes` for the notes); keep every quantity, unit code and the `source` block as they are, and add `note: traduit de l'anglais` to `source` (after a note already there, separated by « ; »). A yield in portions (« Serves 4 », « Makes 4 servings ») becomes `servings`; any other yield is translated (« Makes 12 » → « 12 biscuits »). Return the complete file in one ```markdown fence.
+````
+
+---
+
+## A web page through the AI
+
+When the app cannot read a web page (the site refuses, or the page declares no
+recipe), « Passer par l'IA » gives the AI a capture of the page or its text
+instead. The prompt above is copied with one line after it, so the answer
+carries the page's address in `source` (rule 23); nothing else changes and the
+answer is checked like any other paste (`pagePrompt` in `src/lib/vault/prompt.ts`;
+only a full `http(s)://` address is added):
+
+`This recipe is on the web page <url> (a capture or its text is attached). In source, write type: website and url: <url>`
+
+The app does not write the address into the answer itself: what is pasted is
+the AI's file, checked as it is (an answer without it simply has no `url`).
+
+---
+
 ## Worked example
 
 Invented card, typical of the collection.

@@ -5,7 +5,8 @@ import type { Strings } from './fr';
 
 export const en: Strings = {
 	app: {
-		name: 'Recipes',
+		/** The app's own name: the wordmark and the end of every page title (not the “Recipes” tab). */
+		name: 'Recipe Box',
 		/** The page description (search engines, link previews). */
 		description: 'Recipe archive: cards, clippings, books and websites, digitized, easy to search and read.',
 		nav: {
@@ -15,14 +16,26 @@ export const en: Strings = {
 			pantry: 'Pantry',
 			add: 'Add',
 			trash: 'Trash',
-			queue: (n: number) => `To link (${n})`,
-			pendingTags: (n: number) => `Tags (${n})`,
-			duplicates: (n: number) => `Duplicates (${n})`
+			queue: 'To link',
+			pendingTags: 'Tags',
+			duplicates: 'Duplicates'
 		},
 		skip: 'Skip to content',
 		/** The header's menu: the pages used less often, the account. */
 		more: 'More',
 		moreLabel: 'Other pages and account',
+		/** Beside “More”, the decisions waiting (tags to decide, new duplicate cards; not the To link backlog), for a screen reader. */
+		waiting: (tags: number, dups = 0) =>
+			[tags ? `${tags} tag${tags > 1 ? 's' : ''} to decide` : '', dups ? `${dups} new duplicate${dups > 1 ? 's' : ''}` : ''].filter(Boolean).join(' and '),
+		/** At a queue's item's end in “More”. */
+		toDecide: (n: number) => `${n} to decide`,
+		freshPart: (n: number) => `${n} new`,
+		queueLeft: (n: number) => (n === 1 ? '1 name' : `${n} names`),
+		groups: (n: number) => (n === 1 ? '1 group' : `${n} groups`),
+		/** The toast after a decision on a queue page (lib/settle.svelte.ts). */
+		undo: 'Undo',
+		undone: 'Undone.',
+		undoFailed: 'Could not undo; reload the page.',
 		/** A page's ⋯ menu. */
 		actions: 'More actions',
 		navLabel: 'Main',
@@ -49,13 +62,13 @@ export const en: Strings = {
 	servings: { '1-2': '1 or 2', '3-4': '3 or 4', '5-6': '5 or 6', '7+': '7 or more' } as Record<string, string>,
 	browse: {
 		title: 'Recipes',
-		search: 'Search for a recipe, an ingredient…',
+		search: 'Title, ingredient, person…',
+		searchHint: 'Search by title, ingredient, person or book.',
 		searchLabel: 'Search',
 		count: (n: number) => (n === 0 ? 'No recipes' : n === 1 ? '1 recipe' : `${n} recipes`),
-		empty: 'No recipes match. Remove a filter or change the search.',
 		emptyVault: 'The vault is empty. Add a first recipe: a scanned card, a web page or the form.',
 		filters: 'Filters',
-		showFilters: 'Filter',
+		showFilters: 'Filters',
 		closeFilters: 'Show recipes',
 		clear: 'Clear all',
 		sort: 'Sort by',
@@ -78,15 +91,131 @@ export const en: Strings = {
 			status: 'Status',
 			unresolved: 'Ingredients'
 		} as Record<string, string>,
-		unresolved: { non: 'Not linked to the registry' } as Record<string, string>,
-		more: (n: number) => `${n} more`,
+		unresolved: { non: 'Ingredients to link' } as Record<string, string>,
+		/** The active filters above the results, each removable. */
+		active: 'Active filters',
+		remove: (label: string) => `Remove the filter “${label}”`,
+		/** The filter button's badge, for a screen reader. */
+		activeCount: (n: number) => (n === 1 ? '1 active filter' : `${n} active filters`),
+		/** The recipe-box letter index of a list sorted by title. */
+		letters: 'Go to letter',
+		letter: (l: string, n: number) => (l === '#' ? `Other titles (${n})` : n === 0 ? `No recipes under ${l}` : n === 1 ? `1 recipe under ${l}` : `${n} recipes under ${l}`),
+		/** Why a search result matched, when its title does not say. */
+		match: {
+			ingredients: (n: number) => (n === 1 ? 'Ingredient' : 'Ingredients'),
+			tags: (n: number) => (n === 1 ? 'Tag' : 'Tags'),
+			author: 'Author',
+			body: 'Text'
+		},
+		range: (from: number, to: number, total: number) => `Recipes ${from} to ${to} of ${total}`,
+		more: (n: number) => `+ ${n} more`,
 		less: 'Less',
 		pending: 'not in the vocabulary',
 		prev: 'Previous',
 		next: 'Next',
 		page: (p: number, n: number) => `Page ${p} of ${n}`,
 		problems: (n: number) => (n === 1 ? '1 file in the vault does not pass validation' : `${n} files in the vault do not pass validation`),
-		pages: 'Pages'
+		pages: 'Pages',
+		/** The line above the results: how many, and for which search. */
+		forQuery: (q: string) => `for “${q}”`,
+		/** Phone: a few filters to tap, under the search box (the most used in the list). */
+		quick: 'Suggested filters',
+		/** Phone, beside the count: what the list is sorted by (the sort itself is in the filter sheet). */
+		sortedBy: (sort: string) => ` · by ${sort.toLowerCase()}`,
+		/** The pager and the letter index: which titles a page holds. */
+		pageLetters: (a: string, b: string) => (a === b ? `Titles under ${a}` : `Titles ${a} to ${b}`),
+		onPage: (p: number) => `page ${p}`,
+		/** Sorted by relevance: before the first result whose title lacks a word of the search. */
+		/**
+		 * Rows with the same title, shown under it once: « 3 cards », plain (not a
+		 * link) — apart from a family's « 4 variants », a link with the Variants drawing.
+		 */
+		sameTitle: (n: number) => `${n} cards`,
+		compare: 'Compare the variants',
+		/** A row whose recipe says nothing of where it is from (its drawing's name too). */
+		unknownFrom: 'Source unknown',
+		/** The drawing at the start of a same-title group. */
+		glyphStack: 'Several cards with this title',
+		/** The drawing before a row's « 3 variants » link (the Variants tab's). */
+		glyphVariants: 'Variants of one dish',
+		/** A letter continued at the top of the second column, or of the next page. */
+		cont: (l: string) => `${l} (cont.)`,
+		/** Sorted by relevance: the heading before the results whose title lacks the words, by where they are (search.ts sections). */
+		section: {
+			ingredients: (n: number) => (n === 1 ? 'In the ingredients of 1 recipe' : `In the ingredients of ${n} recipes`),
+			tags: (n: number) => (n === 1 ? 'In the tags of 1 recipe' : `In the tags of ${n} recipes`),
+			author: (n: number) => (n === 1 ? 'In the provenance of 1 recipe' : `In the provenance of ${n} recipes`),
+			body: (n: number) => (n === 1 ? 'In the text of 1 recipe' : `In the text of ${n} recipes`),
+			notes: (n: number, q?: string) =>
+				q ? (n === 1 ? `Also mentions “${q}”` : `Also mention “${q}”`) : n === 1 ? 'In the notes of 1 recipe' : `In the notes of ${n} recipes`
+		} as Record<string, (n: number, q?: string) => string>,
+		/** Nothing with every word: each word alone, a link when it finds some (« “carrot” alone: 27 recipes »). */
+		partial: {
+			none: 'No recipes with all the words.',
+			alone: (w: string) => `“${w}” alone`,
+			count: (n: number) => (n === 0 ? 'none' : n === 1 ? '1 recipe' : `${n} recipes`),
+			label: 'Each word alone'
+		},
+		/** A word that stands for several ingredients (« poivron »): each by the name the box writes, a link that narrows. */
+		also: 'Also:',
+		alsoLabel: 'Search instead',
+		/** “Also: piment de la Jamaïque (2)”: a name the word heads without meaning it, not among the results. */
+		alsoApart: 'Another ingredient, not in these results:',
+		/** Sorted by note: a row's rating. */
+		rating: (n: number) => `Rating: ${n} out of 5`,
+		/** The home's row of filters to tap (the whole box). */
+		start: {
+			label: 'Browse',
+			quick: 'Quick · 30 min',
+			/** The pantry search (/garde-manger), last of the row: what to make with what is at home. */
+			pantry: 'With what I have'
+		},
+		/** A close spelling that finds more: « Did you mean “tourtière”? », the word a link. */
+		didYouMean: { before: 'Did you mean ', after: '?' },
+		/** The typed words found nothing: the results shown are the correction's. */
+		noneFor: (q: string) => `No recipes for “${q}”.`,
+		resultsFor: (q: string) => `Results for “${q}”`,
+		respelled: (q: string, typed: string) => `Results for “${q}” (you typed “${typed}”)`,
+		searchExact: 'Search exactly as typed',
+		/** Nothing found. With filters on: they are listed, with « Clear all ». */
+		emptyFiltered: 'No recipes match with these filters:',
+		emptyUnfiltered: (n: number) => (n === 1 ? 'Without the filters: 1 recipe' : `Without the filters: ${n} recipes`),
+		emptyQuery: (q: string) => `No recipes for “${q}”. Check the spelling or try a single word.`,
+		/** Phone: the filter sheet's close button. */
+		closeSheet: 'Close the filters',
+		/** A facet value that would leave no recipe with the filters on (greyed). */
+		facetNone: 'no recipes with the current filters',
+		/** Over the index (the whole box, first page): a few ideas for « what should I make Sunday? ». */
+		ideas: {
+			title: 'Ideas',
+			more: 'More ideas',
+			less: 'Fewer ideas',
+			random: 'A card at random',
+			another: 'Another card at random',
+			season: (s: string) => `In season · ${s.toLowerCase()}`,
+			seasonAll: (n: number) => `All ${n}`,
+			seasonAllLabel: (n: number, s: string) => `The ${n} recipes in season (${s.toLowerCase()})`,
+			recent: 'Added recently',
+			recentAll: 'All',
+			recentAllLabel: 'All recipes, recently added first',
+			/** The ↻ button's visible word. */
+			anotherShort: 'Another',
+			/** Phone: which of the idea cards is in view. */
+			position: (i: number, n: number) => `Idea ${i} of ${n}`,
+			/** More ways in, read off the files (query.ts RAILS): each card's head is the link to its whole list. */
+			rails: {
+				long: 'Long simmers · over 2 h',
+				crowd: 'For a crowd · 7 and up',
+				liked: 'Best rated'
+			} as Record<string, string>,
+			railAll: (key: string, n: number) => (key === 'liked' ? 'All' : `All ${n}`),
+			railAllLabel: (key: string, n: number) =>
+				key === 'long'
+					? `The ${n} main dishes over 2 h`
+					: key === 'crowd'
+						? `The ${n} recipes for 7 servings and up`
+						: 'All recipes, best rated first'
+		}
 	},
 	card: {
 		servings: (a: number, b?: number | null) => (b ? `${a} to ${b} servings` : `${a} serving${a === 1 ? '' : 's'}`),
@@ -110,12 +239,48 @@ export const en: Strings = {
 		rename: 'Change the group’s name',
 		label: 'Display name',
 		labelHelp: (slug: string) =>
-			`The name shown everywhere for this group of variants. The recipes keep the identifier “${slug}”. Leave it empty to go back to the name taken from the identifier.`,
+			`The name shown everywhere for this group of variants. The recipes keep the identifier “${slug}”. Leave it empty to go back to the shortest title among its recipes.`,
 		labelSave: 'Save the name',
 		labelSaved: 'Group name saved.',
+		/** On a group's page (the owner): one more recipe in the group. */
+		add: '+ Add a recipe to this group',
+		addSearch: 'Search for a recipe',
+		addSave: 'Add to the group',
+		joined: (title: string, group: string) => `“${title}” is now a variant of “${group}”.`,
+		/** « Annuler » after grouping went through. */
+		ungrouped: (title: string) => `Group undone: “${title}” is no longer in it.`,
+		/** Before « Grouper »: how many of its ingredients the other side has too. */
+		shared: (n: number, of: number) => `${n} ${n === 1 ? 'ingredient' : 'ingredients'} in common out of ${of}, staples (salt, flour…) aside.`,
+		/** Under SHARED_LOW of them in common. */
+		fewShared: 'Few ingredients in common: is it really the same dish?',
+		/** A group of one recipe on Variants: waiting for its others. */
+		toComplete: 'to complete',
+		toCompleteHelp: 'A group of one recipe is waiting for its other variants: open it to add some.',
+		toCompleteWhat: 'add a 2nd variant',
+		fromType: { book: 'from the book', magazine: 'from the magazine', website: 'from the website', tv: 'from TV' } as Record<string, string>,
+		maybeSame: 'same ingredient?',
+		maybeLink: 'Link',
+		maybeLinkTitle: (name: string, entry: string) => `Link “${name}” to “${entry}”, in every recipe`,
+		summaryLabel: 'What sets them apart',
+		/** /familles?grouper=: one recipe, grouped from its ⋯ menu. */
+		/** The recipe's ⋯ menu (the owner). */
+		groupWith: 'Group with…',
+		groupTitle: (title: string) => `Group “${title}” with…`,
+		groupHelp: 'An existing group of variants, or another recipe: they will become two variants of one dish.',
+		groupSearch: 'Search for a group or a recipe',
+		groupIsFamily: (n: number) => (n === 1 ? 'group · 1 variant' : `group · ${n} variants`),
+		groupIsRecipe: 'recipe',
+		groupSave: 'Group',
+		groupCancel: 'Cancel',
 		/** In the comparison table, for a screen reader. */
 		yes: 'yes',
 		no: 'no',
+		legend: '✓: in this variant · –: not in it',
+		suggestion: 'Suggestion:',
+		suggestionPick: 'Group',
+		renameShort: 'Rename',
+		renameTitle: (name: string) => `Rename “${name}”`,
+		renameLabel: (name: string) => `New name for “${name}”`,
 		refused: {
 			slug: 'invalid group name.',
 			notNames: (file: string) => `${file} is not a list of names; fix it first.`,
@@ -126,7 +291,7 @@ export const en: Strings = {
 	/** Pending tags, /etiquettes (plan 04, Phase 8; Q11 B). */
 	pendingTags: {
 		title: 'Pending tags',
-		intro: 'Tags written in recipes but missing from the vocabulary. They still work; decide for each one: make it a tag, link it to an existing tag, or remove it from the recipes.',
+		intro: 'Keep a new tag, or say which one it matches.',
 		empty: 'No pending tags: every tag in the recipes is in the vocabulary.',
 		recipes: (n: number) => (n === 1 ? '1 recipe' : `${n} recipes`),
 		written: (forms: string[]) => `Written: ${forms.map((f) => `“${f}”`).join(', ')}`,
@@ -134,9 +299,16 @@ export const en: Strings = {
 		suggestion: (label: string) => `Close to “${label}”`,
 		accept: 'New tag',
 		acceptHelp: (slug: string) => `Added to the vocabulary under the identifier “${slug}”. The recipes do not change.`,
+		acceptHelpShort: 'Added to the tag vocabulary. The recipes do not change.',
+		/** The pending tags left, in the page's head. */
+		count: (n: number) => `${n} to decide`,
 		acceptNoSlug: 'This tag has no letter or digit to make an identifier from: link it or remove it.',
 		label: 'Display name',
 		acceptSave: 'Add to the vocabulary',
+		/** One row per tag: “Keep “Maple”” (✎ changes the name), “It’s the same as…”, “Remove”. */
+		keep: (label: string) => `Keep “${label}”`,
+		rename: 'Change the display name',
+		recipesOf: 'The recipes',
 		map: 'It’s the same as…',
 		mapHelp: 'Link to an existing tag: the recipes will show it under that name. The recipes do not change.',
 		mapLabel: 'Existing tag',
@@ -162,14 +334,57 @@ export const en: Strings = {
 			recipeChanged: 'one of the recipes has changed since the page was opened; reload it.',
 			recipeInvalid: (slug: string) => `the recipe “${slug}” does not pass validation; have it fixed first.`,
 			recipesWrite: (why: string) => `the recipes could not be written; nothing has changed: ${why}`,
-			recipesCommit: (why: string) => `the recipes could not be saved (git); nothing has changed: ${why}`
+			recipesCommit: (why: string) => `the recipes could not be saved (git); nothing has changed: ${why}`,
+			undo: 'this choice cannot be undone; see the vocabulary’s history.',
+			undoStale: 'cannot undo: the vocabulary has changed since; reload the page.'
 		}
 	},
 	duplicates: {
 		title: 'Possible duplicates',
-		intro: 'Recipes with almost the same ingredients: the same card entered twice, two variants of one dish, or two different recipes that look alike. Decide for each pair; every choice can be undone.',
+		intro: 'Recipes nearly alike, the closest first. Every choice can be undone.',
 		empty: 'No possible duplicates: no pair of recipes has almost the same ingredients.',
 		count: (n: number) => (n === 1 ? '1 pair' : `${n} pairs`),
+		/** The page's head: cards left, and how many are very close (≥ 90%). */
+		head: (n: number, close: number, fresh: number, done = 0) =>
+			[`${n === 1 ? '1 group' : `${n} groups`} to decide`, done ? `${done} of ${n + done} done` : '', close ? `${close} very close` : '', fresh ? `${fresh} new` : '']
+				.filter(Boolean)
+				.join(' · '),
+		left: (n: number) => (n ? ` ${n === 1 ? '1 group' : `${n} groups`} left to decide.` : ' No group left to decide.'),
+		closestMark: 'The closest',
+		low: (n: number, pct: number) => `${n === 1 ? '1 group is' : `${n} groups are`} little alike: under ${pct} % in common, different titles and methods, one language.`,
+		lowOpen: 'Mark them all different…',
+		lowHelp: 'These recipes will not be offered together again. The recipes do not change, and “Undo” brings them back.',
+		lowSave: (n: number) => (n === 1 ? 'Mark this group: different recipes' : `Mark these ${n} groups: different recipes`),
+		lowDone: (n: number) => (n === 1 ? '1 group set aside: it will not be offered again.' : `${n} groups set aside: they will not be offered again.`),
+		/** A card of more than two recipes. */
+		similar: (n: number) => `${n} similar cards`,
+		closest: 'The 2 closest:',
+		bridged: (n: number) => `And ${n === 1 ? '1 other pair' : `${n} other pairs`} between these two dishes, set aside with it if they differ.`,
+		moreMembers: (n: number) => (n === 1 ? '+ 1 more card' : `+ ${n} more cards`),
+		fewer: (n: number) => `Show only the ${n} closest`,
+		fresh: 'New',
+		freshCount: (n: number) => `${n} new`,
+		receiptDone: 'Done:',
+		receiptVersions: (name: string, n: number) => `${name}: ${n} variants`,
+		receiptSame: (kept: string, n: number) => `${kept} kept · ${n === 1 ? '1 card' : `${n} cards`} in the trash`,
+		receiptDistinct: (titles: string) => `${titles}: different recipes`,
+		receiptLow: (n: number) => `${n === 1 ? '1 group little alike' : `${n} groups little alike`}: different recipes`,
+		receiptRest: (n: number) => `the card stays: ${n} recipes still alike`,
+		andMore: (first: string, n: number) => `${first} and ${n === 1 ? '1 other' : `${n} others`}`,
+		keys: 'Keyboard: J / K next / previous card · 1, 2, 3 the three choices · Esc closes',
+		keysToggle: 'Keyboard shortcuts',
+		/** Which recipes of a card a decision is about (a card of three or more). */
+		pick: 'The decision is about:',
+		pickHelp: 'The two closest are ticked; tick others to include them.',
+		pickTwo: 'tick at least two cards.',
+		comparePairs: 'Compare two cards',
+		compareThese: (a: string, b: string, pct: number) => `${a} and ${b} (${pct}%)`,
+		detail: 'Detail',
+		slugs: 'File names',
+		groupName: 'Group name',
+		groupNameHelp: 'The name shown for this dish under Variants; you can change it later.',
+		groupJoin: (label: string) => `They join the group “${label}”.`,
+		groupPick: 'Group to join',
 		score: (pct: number) => `${pct}% in common`,
 		sameMethod: 'Same method, word for word',
 		sameTitle: 'Same title',
@@ -180,29 +395,42 @@ export const en: Strings = {
 		familyOf: (label: string, variant: string | null) => (variant ? `Variant of ${label} — ${variant}` : `Variant of ${label}`),
 		compare: 'Compare',
 		versions: 'Two variants of the same dish',
-		versionsHelp: 'Both recipes stay; they become two variants of one dish, grouped.',
+		versionsMany: 'Variants of one dish',
+		versionsHelp: 'The recipes stay; they become variants of one dish, grouped.',
 		family: 'Group of variants',
 		familyLabel: 'Group display name',
 		variant: (title: string) => `What sets “${title}” apart`,
+		variantPlaceholder: 'e.g. lemon zest, no sugar',
 		versionsSave: 'Make them two variants',
+		versionsSaveMany: (n: number) => `Make them ${n} variants`,
 		sameFamily: 'Already variants of the same dish, with the same ingredients and amounts: this is probably the same card.',
 		same: 'It’s the same recipe',
 		sameHelp: 'Keep one; the other goes to the trash, where it can be restored.',
 		keep: (title: string) => `Keep “${title}”`,
 		sameSave: 'Move the other to the trash',
+		sameSaveMany: (n: number) => `Move ${n} recipes to the trash`,
+		sameHelpMany: 'Keep one; the other ticked cards go to the trash, where they can be restored.',
+		pickDrop: 'tick at least one other card.',
 		pickOne: 'choose the recipe to keep.',
 		usedBy: 'Used as a sub-recipe in',
 		keepUsed: (title: string) => `“${title}” is used as a sub-recipe elsewhere: that is the one that stays.`,
 		bothUsed: 'Both are used as sub-recipes elsewhere: first change those recipes so they use only one, then come back here.',
 		distinct: 'Different recipes',
 		distinctHelp: 'This pair will no longer be suggested. The recipes do not change.',
+		distinctHelpAll: 'These cards will no longer be suggested together. The recipes do not change.',
+		distinctHelpSome: 'The ticked card will no longer be suggested with the others. The recipes do not change.',
+		distinctHelpTicked: 'The ticked cards will no longer be suggested together; the others stay on the card. The recipes do not change.',
+		distinctHelpBridge: (n: number) => `The ${n} pairs between these two dishes will no longer be suggested. The recipes do not change.`,
 		distinctSave: 'These are two different recipes',
-		versionsDone: (family: string) => `The two recipes are now variants of “${family}”.`,
-		sameDone: (title: string) => `“${title}” is in the trash.`,
-		distinctDone: 'Pair dismissed: it will no longer be suggested.',
+		distinctSaveMany: 'These are different recipes',
+		distinctSaveSome: 'Not the same dish as the others',
+		versionsDone: (n: number, family: string) => `${n === 2 ? 'The two recipes are' : `The ${n} recipes are`} now variants of “${family}”.`,
+		sameDone: (titles: string[]) => (titles.length === 1 ? `“${titles[0]}” is in the trash.` : `${titles.map((x) => `“${x}”`).join(', ')} are in the trash.`),
+		distinctDone: (pairs: number): string => (pairs === 1 ? 'Pair dismissed: it will no longer be suggested.' : 'Cards dismissed: they will no longer be suggested together.'),
 		undo: 'Undo',
 		undone: 'Undone.',
 		undoRefused: 'Cannot undo: one of the recipes has changed since. See its history.',
+		showRest: (n: number) => (n === 1 ? 'Show the next one' : `Show the next ${n}`),
 		prev: 'Previous',
 		next: 'Next',
 		page: (p: number, n: number) => `Page ${p} of ${n}`,
@@ -217,7 +445,9 @@ export const en: Strings = {
 			pair: 'invalid pair.',
 			changed: 'the list has changed since the page was opened; reload it.',
 			family: 'choose a group name.',
-			variants: 'say what sets each of the two variants apart.',
+			variants: 'say what sets each variant apart.',
+			variant: 'say what sets this variant apart.',
+			variantTaken: 'another recipe of the group already has this variant name.',
 			sameVariant: 'give the two variants different names.',
 			versions: (why: string) => `the two variants could not be saved; nothing has changed: ${why}`,
 			used: (titles: string[]) =>
@@ -239,6 +469,11 @@ export const en: Strings = {
 		suggestions: 'Suggestions',
 		none: 'No similar ingredient.',
 		thisOne: 'That’s it',
+		key: (n: number) => (n === 1 ? 'Key 1 or Enter' : `Key ${n}`),
+		/** A guess (no clear match): its key only puts the focus on it, Enter then takes it. */
+		keyGuess: (n: number) => `Key ${n}, then Enter`,
+		/** The heading of suggestions none of which is a clear match. */
+		guesses: 'Maybe (check first)',
 		owners: 'Ingredients that have this name',
 		remove: (name: string) => `Remove from “${name}”`,
 		link: 'Link to an existing ingredient',
@@ -259,12 +494,18 @@ export const en: Strings = {
 		ruleWordsHelp: 'Separated by commas, for example: chopped, cubed.',
 		ruleLang: (lang: string) => `Only in ${lang}`,
 		ruleSubmit: 'Add the rule',
-		linked: (form: string, name: string) => `“${form}” is linked to ${name}.`,
+		linked: (form: string, name: string, recipes: number) => `“${form}” is linked to ${name}${recipes ? ` in ${recipes === 1 ? '1 recipe' : `${recipes} recipes`}` : ''}.`,
 		created: (slug: string) => `Ingredient ${slug} created.`,
 		removed: (name: string) => `Name removed from ${name}.`,
 		ruled: (form: string, name: string, n: number) =>
 			`Rule added: “${form}” goes to ${name} ${n === 1 ? 'on 1 line' : `on ${n} lines`} that ${n === 1 ? 'meets' : 'meet'} it.`,
 		more: (n: number) => (n === 1 ? '1 more name further down the list.' : `${n} more names further down the list.`),
+		/** The page's head. */
+		headCount: (n: number) => (n === 1 ? '1 ingredient to link' : `${n} ingredients to link`),
+		/** Under the cards shown, when more wait. */
+		shown: (n: number, total: number) => `${n} of ${total}`,
+		next: 'Show the next ones',
+		detail: 'Detail',
 		gone: 'This name is already linked to the registry: it is no longer in the list.',
 		lang: { fr: 'French recipes', en: 'English recipes' } as Record<string, string>,
 		refused: {
@@ -280,7 +521,9 @@ export const en: Strings = {
 			exists: (slug: string) => `the ingredient ${slug} already exists; link the name to it, or choose another identifier.`,
 			notAName: (slug: string) => `this name is no longer a name of ${slug}; reload the page.`,
 			noCondition: 'choose at least one condition: a unit, a word or the language.',
-			sameRule: (slug: string) => `${slug} already has this rule.`
+			sameRule: (slug: string) => `${slug} already has this rule.`,
+			undo: 'this choice cannot be undone; see the ingredient’s history.',
+			undoStale: 'cannot undo: the ingredient has changed since; reload the page.'
 		}
 	},
 	ingredients: {
@@ -507,7 +750,7 @@ export const en: Strings = {
 		missing: 'Missing:',
 		or: ' or ',
 		swaps: 'Replace:',
-		unresolved: (n: number) => (n === 1 ? '+ 1 unlinked ingredient' : `+ ${n} unlinked ingredients`),
+		unresolved: (n: number) => (n === 1 ? '+ 1 ingredient not linked yet' : `+ ${n} ingredients not linked yet`),
 		unresolvedTitle: 'These names are linked to no ingredient in the registry: the search cannot tell whether you have them.'
 	},
 	category: {
@@ -526,9 +769,29 @@ export const en: Strings = {
 	} as Record<string, string>,
 	recipe: {
 		by: 'by',
+		from: (_name: string) => 'from ',
+		takenFrom: 'From',
+		/** The steps' style, two buttons on the method's head (issue #5: bullets by default, per device). */
+		stepStyle: 'Step style',
+		stepsBullets: 'Bullets',
+		hintDismiss: 'Got it',
+		/** The head's first line: “One of 4 variants of” + the family's name (a link). */
+		versionOf: (n: number, _name: string): string => (n > 1 ? `One of ${n} variants of ` : 'Only variant of '),
+		addPhoto: 'Add a photo',
+		addPhotoShort: '+ Photo',
+		/** Beside the print of the photo in the recipe head, and its tooltip: opens it full size. */
+		photoOpen: 'View the photo full size',
+		/** « Other variants »: the first three, then the rest behind this. */
+		moreVariants: (n: number) => (n === 1 ? 'Show 1 more' : `Show ${n} more`),
 		unresolved: (n: number) => `Unlinked ingredients (${n})`,
 		unresolvedHelp: 'These names match no ingredient in the registry. The recipe still works; they only stay out of grocery lists and costs until they are linked.',
 		vocab: (n: number) => `Tags and variants to review (${n})`,
+		/** At the page's foot, for the keeper (usability round 6): one line per W501 / W502, its decision a link away; the code behind « Details ». */
+		vocabTag: (tag: string) => `New tag: ${tag}`,
+		vocabTagGo: 'Decide in Tags ›',
+		vocabFamily: (name: string) => `Dish name close to another: ${name}`,
+		vocabFamilyGo: 'Decide in Variants ›',
+		vocabDetails: 'Details',
 		vocabHelp: 'A tag outside the vault’s vocabulary, or a group of variants named very close to another. The recipe still works; fix the file or the vocabulary (vocab/tags.yaml, vocab/families.yaml).',
 		source: 'Source',
 		/** A `source` without `type`: the kind of source was not evident. */
@@ -546,6 +809,15 @@ export const en: Strings = {
 		scale: 'Servings',
 		scaleFactor: 'Amount',
 		reset: 'Reset',
+		/** Phone, a long ingredient list: down to the method and back up. */
+		/** One column: the sticky bar over the sheet, « Ingredients | Method » (usability round 4). */
+		jumpLabel: 'Go to',
+		method: 'Method',
+		/** After a line that is a sub-recipe: a small link to its page. */
+		subRecipeShort: 'recipe',
+		subRecipeGo: (name: string) => `Recipe: ${name}`,
+		/** After a line linked to its ingredient: a small › to the ingredient's page. */
+		itemGo: (name: string) => `Ingredient page: ${name}`,
 		decrease: 'Fewer servings',
 		increase: 'More servings',
 		variants: 'Other variants',
@@ -553,14 +825,36 @@ export const en: Strings = {
 		legend: 'Legend',
 		legendUncertain: 'uncertain reading',
 		legendIllegible: 'illegible on the original',
-		legendAdded: 'added in the transcription',
+		/** The chip that shows `[+]` in the text, and the legend's line for it. */
+		markerAdded: 'added',
+		legendAdded: 'not on the original, added in the transcription',
+		/** Ingredients ticked off on the read page (per tab, per recipe). */
+		ticked: (n: number) => (n === 1 ? '1 ingredient ticked' : `${n} ingredients ticked`),
+		untickAll: 'Untick all',
 		cookMode: 'Cook',
+		/** A cook in progress on this device (kitchen mode's saved session): the head's button resumes it. */
+		/** `amount`: the session's own amount when it is not the page's (« · 10 servings »). */
+		cookResume: (step: number | null, amount?: string) => (step ? `Resume · step ${step}` : 'Resume') + (amount ? ` · ${amount}` : ''),
+		cookResumeTitle: 'Resume the cook started on this device, at the same amount',
 		print: 'Print',
 		/** Device setting: method steps numbered instead of bullets, on screen and in print. */
-		numberSteps: 'Number the steps',
+		numberSteps: 'Numbers',
 		verify: 'Mark verified',
 		verifyHelp: 'Mark as checked against the original',
 		verifyBlocked: 'Settle the uncertain readings first ([?], [illisible]).',
+		/** A draft with no original to check it against (no source, or an invented one, and no photo): its badge and what it means. */
+		noOriginal: 'Typed without an original card',
+		noOriginalWhy: 'not read over yet',
+		/** The keeper's line under the red rule: the names not yet linked, to the list at the foot of the page. */
+		upkeep: 'Archive upkeep',
+		toLink: (n: number) => (n === 1 ? '1 ingredient to link' : `${n} ingredients to link`),
+		/** In that list, after each name: its row in the resolve queue. */
+		linkIt: 'Link ›',
+		/** Beside the status badge, for whoever keeps the archive: what it means. */
+		statusWhy: {
+			draft: 'not yet read against the card',
+			'needs-review': 'uncertain readings to check against the original'
+		} as Record<string, string>,
 		verified: 'Recipe marked verified.',
 		remove: 'Delete',
 		removeConfirm: 'Move this recipe to the trash? It can be restored.',
@@ -571,7 +865,8 @@ export const en: Strings = {
 		copy: 'Copy',
 		copied: 'Copied',
 		broken: 'This recipe’s file no longer passes validation. The page shows the last valid version.',
-		photo: 'Photo of the dish',
+		/** The recipe's one photo (`media.final`): the dish, or the card it came from. */
+		photo: 'Photo of the recipe',
 		heic: 'HEIC photo: no preview available in the browser.',
 		notFound: 'This recipe does not exist or was deleted.',
 		tags: 'Tags',
@@ -610,19 +905,26 @@ export const en: Strings = {
 	},
 	/** The cost line on the recipe page (plan 03, Phase 5). */
 	cost: {
-		label: 'Cost',
+		label: 'Estimated cost:',
 		/** `≈ 4,20 $`: consumed cost, at the servings shown. */
 		approx: (money: string) => `≈ ${money}`,
 		perServing: (money: string) => `${money} per serving`,
-		coverage: (priced: number, counted: number) =>
-			`${priced} of ${counted} ${counted === 1 ? 'ingredient' : 'ingredients'} ${priced === 1 ? 'has' : 'have'} a price`,
-		notEnough: (priced: number, counted: number) =>
-			counted ? `Not enough prices · ${priced} of ${counted} ${counted === 1 ? 'ingredient' : 'ingredients'}` : 'Not enough prices',
+		/** One denominator, the recipe's ingredient lines (optional ones aside): “6 of 11 ingredients have a price”, the disclosure's summary. */
+		coverage: (priced: number, lines: number) => `${priced} of ${lines} ${lines === 1 ? 'ingredient' : 'ingredients'} ${priced === 1 ? 'has' : 'have'} a price`,
+		coverageFrom: (parts: { n: number; title: string }[]) => `(${parts.map((p) => `${p.n} in ${p.title}`).join(' and ')})`,
+		/** Below the coverage threshold, for the archive's keeper only, one line that opens on the missing ones: « Cost: 7 missing prices › ». */
+		short: 'Cost:',
+		missing: (n: number) => `${n} missing ${n > 1 ? 'prices' : 'price'} ›`,
 		stale: 'some prices are over a year old',
-		unpriced: (n: number) => (n === 1 ? '1 ingredient with no price' : `${n} ingredients with no price`),
-		unpricedHelp: 'The cost counts only what has a price. Staples and “to taste” ingredients do not count in the proportion.',
+		/** The disclosure's two lists. */
+		unpriced: (n: number) => `No price (${n})`,
+		priced: (n: number) => `Priced (${n})`,
+		unpricedHelp: 'The total adds up only the lines that have a price. To judge whether it is complete enough, staples (salt, butter…) and “to taste” lines do not count.',
+		/** After the reason of a line that does not count toward “enough prices”. */
+		staple: 'staple, does not count',
+		toTaste: 'to taste, does not count',
 		reason: {
-			unresolved: 'not linked',
+			unresolved: 'not linked yet',
 			'no-price': 'no price',
 			'no-qty': 'no amount',
 			'no-conversion': 'unit cannot be converted',
@@ -632,7 +934,7 @@ export const en: Strings = {
 		} as Record<string, string>,
 		via: (title: string) => `in ${title}`,
 		/** Beside a name not linked to the registry. */
-		unlinked: 'not linked',
+		unlinked: 'not linked yet',
 		unlinkedTitle: 'This name matches no ingredient in the registry: link it',
 		linkTitle: (name: string) => `View the ingredient ${name}`
 	},
@@ -643,45 +945,161 @@ export const en: Strings = {
 		step: (i: number, n: number) => `Step ${i} of ${n}`,
 		stepShort: (i: number) => `Step ${i}`,
 		prev: 'Previous step',
+		/** The phone's pager: under the arrow, the word alone. */
+		prevShort: 'Previous',
 		next: 'Next step',
 		done: 'Enjoy!',
 		list: 'Ingredients',
 		timer: 'Timer',
+		/** The timer strip: one chip per timer; on another step, a tap on its step goes back there. */
+		timers: 'Timers',
+		timerGoTo: (i: number) => `Go to step ${i}, this timer’s step`,
+		/** Resumed after hours: one line, with « Start over » beside it. */
+		resumedAt: (i: number | null, amount: string | null) => [i ? `Resumed at step ${i}` : 'Resumed where you left off', amount].filter(Boolean).join(' · '),
+		resumedServings: (n: string) => `${n} servings`,
+		resumedBefore: (shown: string, before: string) => `${shown} (before: ${before})`,
+		restarted: 'Cooking started over',
+		stepTimer: (label: string) => `This step’s timer: ${label}`,
 		timerUpTo: (s: string) => `up to ${s}`,
 		stop: 'Stop',
 		finished: 'Done',
-		wakeLock: 'The screen may lock: keeping it on requires HTTPS (Tailscale). ',
-		dismiss: 'Got it',
-		dark: 'Dark',
-		light: 'Light',
+		finishedAgo: (ago: string) => `Timer finished ${ago}`,
+		finishedAgoShort: (ago: string) => `Done ${ago}`,
+		agoNow: 'just now',
+		agoMin: (m: number) => `${m} min ago`,
+		agoHours: (h: number, m: number) => `${h} h${m ? ` ${String(m).padStart(2, '0')}` : ''} ago`,
+		relaunch: 'Run again',
+		clearTimer: 'Clear',
+		timerOfStep: (i: number) => `Timer · step ${i}`,
+		timersCount: (n: number) => `${n} timers`,
+		/** The screen toggle in the header (Wake Lock), and the strip under the header when it cannot be kept on. */
+		wakeKeep: 'Keep the screen on',
+		wakeOnTitle: 'Screen kept on. Tap to let it turn off.',
+		wakePausedTitle: 'The screen may turn off. Tap to keep it on.',
+		wakeNote: 'The screen may turn off: touch it now and then',
+		wakeOff: 'The screen may turn off',
+		/** The crossed-out sun's name and tooltip: what a tap on it does. */
+		wakeOffRetry: 'The screen may turn off · Turn back on',
+		wakeOffInsecure: 'The screen may turn off — address not secure',
+		wakeOffWhy: 'The browser keeps the screen on only at a secure (https) address, such as the one Tailscale provides. At an http address it turns off as usual.',
+		wakeRefusedWhy: 'The browser declined to keep the screen on (battery saver?). Tap “Try again” or touch the screen now and then.',
+		wakeRetry: 'Try again',
+		wakeDismiss: 'Close',
+		wakeOn: 'Screen on',
+		wakeOnLong: 'Screen kept on',
+		wakeReactivate: 'Turn back on',
+		wakeMaySleep: 'The screen may sleep',
+		wakeKeepShort: 'Keep on',
+		timerRange: (lo: string, hi: string) => `${lo}–${hi}`,
+		timerCheck: (lo: string) => `${lo}: check for doneness`,
+		checkShort: 'Check',
+		restartAsk: (n: number) => (n > 1 ? `${n} timers running` : 'A timer is running'),
+		restartYes: 'Start over anyway',
+		restartNo: 'Cancel',
+		chipTitle: (what: string) => `Back to kitchen mode — ${what}`,
+		chipCooking: 'Cooking',
+		chipMore: (n: number) => `+${n}`,
+		chipMoreTitle: (n: number) => (n > 1 ? `${n} other recipes cooking` : 'One other recipe cooking'),
+		chipHide: 'Hide',
+		chipListLabel: 'Recipes cooking',
+		chipPutAway: (title: string) => `Hide « Done » — ${title}`,
+		chipEnd: 'End',
+		chipEndTitle: (title: string) => `End this cook — ${title}`,
+		otherTimer: (title: string, step: number) => `${title}, step ${step}: open its kitchen mode`,
+		/** The ⋯ menu: the step text's size, remembered on the device. */
+		textSize: 'Text size',
+		smaller: 'Smaller text',
+		larger: 'Larger text',
+		dark: 'Dark mode',
+		more: 'More options',
+		view: 'Ingredients or steps',
+		steps: 'Steps',
+		resume: (i: number) => `Resume at step ${i}`,
+		forStep: 'For this step',
+		forStepMaybe: 'Mentioned',
+		allIngredients: 'All ingredients',
+		wholeGroup: (group: string) => `${group} (all)`,
+		startTimer: (s: string) => `Start a timer: ${s}`,
+		backToRecipe: 'Back to the recipe',
 		expand: 'Show the recipe',
 		collapse: 'Hide',
 		noSteps: 'This recipe has no numbered steps.',
 		offline: 'Offline — recipe kept on the device.',
-		restart: 'Start over'
+		restart: 'Start over',
+		/** The last step's main button; then « Enjoy » and back to the recipe. */
+		finishCook: 'Done ✓',
+		leaving: 'Back to the recipe in a moment…',
+		/** Over the previous and next steps' text, around the current one. */
+		before: 'Before:',
+		after: 'Next:',
+		/** The timer strip. */
+		pause: 'Pause',
+		play: 'Resume',
+		paused: 'Paused',
+		addMinute: '+1 min',
+		addMinuteTitle: 'Add a minute',
+		/** Under the step text, until she has started a timer once on this device. */
+		timerTip: 'Tap the duration to start a timer',
+		/** Wide screen: the checklist folded to a rail. */
+		hideList: 'Collapse the ingredients',
+		showList: (n: number) => `Ingredients (${n})`,
+		/** The photo (often the card itself) over the checklist, as a thumbnail; open, a tap zooms. */
+		seePhoto: 'See the photo',
+		photoZoom: 'Tap to zoom in',
+		photoFit: 'Tap to see it whole'
 	},
 	/** Plan 05: a recipe read at another amount. Nothing scaled is ever written (Q9 A). */
 	scaling: {
-		approxTitle: 'Rounded: the exact amount cannot be measured with cups and spoons',
+		approxTitle: 'Rounded to the nearest kitchen measure: the exact amount cannot be measured with cups and spoons',
 		times: (f: string) => `× ${f}`,
 		yieldTimes: (f: string) => `(× ${f})`,
-		tapHint: 'Tap an amount to adjust the recipe to what you have.',
+		tapHint: 'Tap an amount to scale the whole recipe',
+		tapHintClose: 'Hide the tip',
 		tapTitle: 'Adjust the recipe to this amount',
 		have: (written: string) => `The recipe calls for ${written}. I have:`,
+		/** At another amount: what the line shows now, and the card's amount the factor is reckoned from. */
+		haveScaled: (f: string, now: string, base: string) => `The recipe × ${f} calls for ${now} (original: ${base}). I have:`,
+		/** The stepper's count, tapped to type one. */
+		countTitle: 'Type a number of servings',
+		countLabel: (n: string) => `${n} servings — type a number`,
+		/** « Recipe × 2 · makes 4 pies · Reset »: the yield at the factor, on the scale line. */
+		yields: 'makes',
+		/** The one note under the ingredients at another amount (usability round 6): what stays the card's, joined by « · » with the pan and `approxShort`. */
+		kept: ({ steps, oven, pan }: { steps: boolean; oven: boolean; pan: boolean }) => {
+			const w = [...(steps ? ['steps'] : []), 'times', ...(oven ? ['oven'] : []), ...(pan ? ['pan'] : [])];
+			const s = `${w.length > 1 ? `${w.slice(0, -1).join(', ')} and ` : ''}${w[w.length - 1]} unchanged`;
+			return s.charAt(0).toUpperCase() + s.slice(1);
+		},
+		approxShort: '≈ rounded',
+		/** The head's servings when scaled: the stepper's count, then the card's own beside it (UI round 2). */
+		servingsWas: (n: string) => `recipe: ${n}`,
 		apply: 'Adjust',
 		cancel: 'Cancel',
 		other: 'Other amount',
+		otherShort: 'Other…',
 		factorLabel: 'Multiply the recipe by',
+		/** « Makes [10] servings »: the count she wants, typed. */
+		forLabel: 'For',
 		unreadable: 'Enter a number: 3, 2.5 or 1 1/2.',
 		outOfRange: (min: string, max: string) => `Between × ${min} and × ${max}.`,
 		factorShown: (f: string) => `recipe × ${f}`,
 		/** Q6 B: the scaled value shown after an amount written in a step. */
 		stepSystemTitle: 'In your measures; the card says what comes before the arrow',
 		stepAmountTitle: (f: string) => `Amount for the recipe × ${f}; the card says what comes before the arrow`,
-		/** Q6: when the factor is not 1, above the method and on the kitchen step. */
-		stepNotice: (f: string) => `Recipe × ${f}: the times, the oven temperature and the pan size stay those of the original recipe.`,
-		/** Q6 B: added to the notice when a step holds an amount. */
-		arrowNotice: 'In the steps, the adjusted amount follows the arrow (→); the card’s amount comes before it.',
+		/** Q6, kitchen mode at another amount, one line: on step 1 and on a step with a time, a temperature or a pan. */
+		stepNotice: (f: string) => `× ${f} · same times and oven`,
+		/** Plan 05, "The pan": pans whose bottom makes the scaled area. */
+		pan: (f: string, options: string[], written: string) => `Pan: for × ${f}, ${options.join(' or ')}; the card says ${written} (same depth, same times).`,
+		panArea: (f: string) => `Pan: allow × ${f} the area of the recipe’s pan (same depth, same times).`,
+		panCount: (count: number, word: string, size: string) => `${count} ${size} ${count > 1 ? (/(sh|ch|s|x)$/.test(word) ? `${word}es` : `${word}s`) : word}`,
+		/** The card's own pan, without a count: « a 9 x 13 pan ». */
+		panWritten: (word: string, size: string) => `a ${size} ${word}`,
+		/** The same, short, in the note under the ingredients: « pan: 2 8-inch pans or 1 9 x 13 dish », « pan: × 1 ½ the area ». */
+		panShort: (options: string[]) => `pan: ${options.join(' or ')}`,
+		panAreaShort: (f: string) => `pan: × ${f} the area`,
+		/** Whole pies or cakes, one per pan (usability round 4), in that note: « get 4 pie plates ». */
+		panBakedShort: (approx: boolean, n: string, pans: string, size: string) => `get ${approx ? '≈ ' : ''}${n} ${size ? `${size} ` : ''}${pans}`,
+		panSize: (w: string, h: string, round: boolean, cm: boolean) => (round ? `${w}${cm ? ' cm' : '-inch'}` : `${w} x ${h}${cm ? ' cm' : ''}`),
 		/** Q5 A: a sub-recipe read at a derived amount, in kitchen mode. */
 		subScaled: (f: string) => `recipe × ${f}`,
 		/** Q5 A: a sub-recipe the line's amount cannot scale, shown as written. */
@@ -689,17 +1107,165 @@ export const en: Strings = {
 	},
 	add: {
 		title: 'Add recipes',
-		intro: 'Paste the AI’s answer: each ```markdown block is one recipe.',
+		intro: 'Paste the AI’s whole answer, as it is.',
 		paste: 'AI’s answer',
+		pasteWeb: 'Recipe read from the page',
 		placeholder: 'Paste the AI’s full answer here…',
 		save: 'Save',
 		saveHint: 'Ctrl+Enter',
 		tooMany: (n: number) => `At most ${n} recipes at a time: save some of them, then the rest.`,
 		saving: 'Saving…',
-		copyPrompt: 'Copy the prompt',
-		promptCopied: 'Prompt copied. Paste it into a new conversation with the AI, along with the photo.',
-		files: (n: number) => (n === 1 ? '1 recipe found' : `${n} recipes found`),
-		none: 'No recipes found yet.',
+		copyPrompt: 'Copy the instructions for the AI',
+		promptCopied: 'Instructions copied',
+		copied: 'Copied',
+		copyAgain: 'Copy again',
+		showPrompt: 'See the instructions',
+		promptText: 'The instructions to give the AI',
+		copyManual: 'Copying is not possible here: Ctrl+C, or long-press › Copy.',
+		stepsLabel: 'Add a card in three steps',
+		/** The ways in, as the tabs of one card: a card in a photo (the AI, its answer pasted here), a web page; by hand beside them. */
+		waysLabel: 'How to add the recipe',
+		tabCard: 'A card in a photo',
+		tabWeb: 'A web page',
+		wayAiText: 'The AI transcribes the card; you check it here before saving.',
+		step1Help: 'They tell the AI how to write the card for the app.',
+		/** Step 2's action: the AI opened in a new tab (a computer), or the prompt shared to its app (a phone). */
+		openAi: 'Open Claude',
+		openAiLabel: 'Open Claude in a new tab; the instructions are copied at the same time',
+		step2Help: 'Paste the instructions there, attach the photo of the card.',
+		sharePrompt: 'Share the instructions…',
+		sharePromptHelp: 'To the AI’s app (Claude, ChatGPT…); attach the photo of the card there.',
+		step3: 'Paste its answer here',
+		/** A phone that can share a photo with an app (navigator.share): photo first, then both to the AI in one tap. */
+		pickPhoto: 'Choose the photo of the card',
+		pickPhotoHelp: 'Take it or pick it: it stays on this phone.',
+		changePhoto: 'Change',
+		sendToAi: 'Send to the AI',
+		sendToAiHelp: 'The photo and the instructions go together to the AI app you pick.',
+		sendToAiOnlyPhoto: 'The app got only the photo?',
+		shareFailed: 'Could not share: the instructions are copied. Open the AI’s app, paste them and attach the photo.',
+		/** Steps 1–2 folded to one line on a phone, once the prompt is given. */
+		sentLine: 'Photo and instructions sent',
+		promptGivenBefore: 'Instructions already given',
+		review: 'See the steps',
+		/** "Paste": the clipboard into the box, for the way back from the AI's app. */
+		pasteButton: 'Paste',
+		clipboardRefused: 'The clipboard cannot be read here: paste into the box (long press, then Paste).',
+		clipboardEmpty: 'The clipboard is empty.',
+		/** After a save: the card's photo on the recipe. */
+		attachAsk: 'Keep the photo of the card with the recipe?',
+		attach: 'Attach this photo to the recipe',
+		attachTo: (title: string) => `Attach to “${title}”`,
+		attachNo: 'No thanks',
+		attachClose: 'Close',
+		attachThumb: 'The photo of the card',
+		attachedTo: 'Photo attached to',
+		photoAttached: 'Photo of the card attached:',
+		photosAttached: (n: number) => (n === 1 ? 'Photo of the card attached.' : `${n} card photos attached.`),
+		/** On a pasted file's card: a photo sent with it, right after its save. */
+		cardPhoto: 'Attach the photo of the card',
+		cardPhotoHelp: 'Optional: it is kept with the recipe.',
+		cardPhotoSet: 'Photo attached on saving.',
+		cardPhotoDrop: 'Remove',
+		/** The web page tab: its address, imported into the box. */
+		wayWeb: 'Address of the page',
+		webHelp: 'Most recipe sites give the recipe ready-made: it lands here, and you check it before saving.',
+		wayHand: 'Type it in',
+		or: 'or',
+		/** The steps once something is pasted, each ticked when done. */
+		progress: ['Copy the instructions', 'Answer pasted', 'Checked'] as readonly string[],
+		progressPromptDone: 'Instructions copied',
+		progressWeb: ['Page read', 'Checked'] as readonly string[],
+		progressDone: 'done',
+		ingredientsN: (n: number) => (n === 1 ? `${n} ingredient` : `${n} ingredients`),
+		stepsN: (n: number) => (n === 1 ? `${n} step` : `${n} steps`),
+		outsideSteps: (n: number) => (n === 1 ? '1 line outside the method' : `${n} lines outside the method`),
+		restored: 'Text kept from your last visit',
+		restart: 'Start over',
+		restarted: 'Box emptied.',
+		undo: 'Undo',
+		recheck: 'to check again',
+		fixesDone: (n: number) => (n === 1 ? '1 fix made' : `${n} fixes made`),
+		undoLast: 'Undo the last one',
+		linkLater: (n: number) => `${n} ingredients to link later`,
+		editText: 'Edit the text',
+		hideText: 'Fold the text',
+		remarks: (n: number) => (n === 1 ? '1 remark' : `${n} remarks`),
+		sameDish: 'Same dish, group them',
+		groupWhat: 'Grouping keeps both cards whole, gathered under one dish, each with its variant name.',
+		otherDish: 'A different recipe',
+		otherDishSet: 'A different recipe: nothing to group.',
+		change: 'Change',
+		readyMany: (n: number) => `${n} recipes ready`,
+		toFirstError: 'Go to the first error',
+		quickFix: (value: string) => `Replace “${value}” with`,
+		quickFixApply: 'Replace',
+		quickFixChoose: 'Choose…',
+		quickFixed: (from: string, to: string) => `“${from}” replaced with “${to}” in the text.`,
+		quickFixedAll: (from: string, to: string, n: number) => `“${from}” replaced with “${to}” ${n} times in the text.`,
+		unitWritten: (code: string, word: string, n: number) => `Unit written: ${code}${n > 1 ? `, ${n} times` : ''}${word !== code ? ` (shown as “${word}”)` : ''}.`,
+		realign: (line: number) => `Realign line ${line}`,
+		realigned: (line: number) => `Line ${line} realigned with its neighbours.`,
+		titleLabel: 'Title:',
+		titleAdd: 'Add',
+		titleAdded: (title: string) => `Title added: “${title}”.`,
+		titleRefused: 'This title cannot be written here: write the “title:” line in the text.',
+		schemaAdd: 'Add the version',
+		schemaAdded: 'Format version added at the top of the card.',
+		split: (qty: string, word: string) => `Split into ${qty} + ${word}`,
+		nameSplit: (amount: string, name: string) => `Split into ${amount} + ${name}`,
+		prepSplit: (name: string, prep: string) => `Split into ${name} + ${prep}`,
+		prepDone: (prep: string) => `“${prep}” moved to the preparation.`,
+		saveNoSteps: 'Save without steps',
+		splitDone: (qty: string, code: string, word: string) => `Quantity ${qty}, unit written: ${code}${word !== code ? ` (shown as “${word}”)` : ''}.`,
+		methodFix: (n: number) => (n === 1 ? 'Put this line under a method heading' : `Put these ${n} lines under a method heading`),
+		methodDone: (n: number) => (n === 1 ? 'Method heading added: 1 step.' : `Method heading added: ${n} steps.`),
+		stepsFix: (n: number) => (n === 1 ? 'Make it a step' : `Make them ${n} steps`),
+		stepsDone: (n: number) => (n === 1 ? 'Line written as a step: 1 step.' : `Lines written as steps: ${n} steps.`),
+		entryRead: (text: string) => `Read as: ${text}`,
+		entryReadAll: (n: number) => `Read all ${n} lines`,
+		entryDone: (text: string) => `Line split: ${text}.`,
+		entryDoneAll: (n: number) => `${n} lines split.`,
+		toTaste: 'to taste',
+		englishPage: 'English page',
+		translateAsk: 'Have the AI translate it',
+		translateCopied: 'Instructions and recipe copied: paste them into the conversation with the AI, then paste its answer here (it will replace the imported page).',
+		translateFailed: 'Cannot copy here: the clipboard is not available.',
+		translateCopy: 'Copy to translate',
+		translateHelp: 'One tap copies the instructions, the translation request and the recipe: paste them into the conversation with the AI, then its answer here.',
+		translateNext: 'Copied: paste it into the conversation with the AI, then paste its answer here; it will replace the imported page.',
+		/** A unit the alias table knows: one tap writes its code. */
+		quickFixWrite: (unit: string) => `Write ${unit}`,
+		/** E109: the time in the format, one tap; E106: one button per source type, its code and its name. */
+		durationWrite: (value: string) => `Write ${value}`,
+		durationDone: (value: string) => `Time written: ${value}.`,
+		sourceTypeWrite: (code: string, label: string) => (code === label ? `Write ${code}` : `Write ${code} (${label})`),
+		sourceTypeDone: (code: string) => `Source type written: ${code}.`,
+		sourceTypePick: 'Source type',
+		/** Under a file's problems: their codes and places, for whoever repairs the file or the app. */
+		troubleDetails: 'Troubleshooting details',
+		quickFixWriteAll: (unit: string, n: number) => `Write ${unit} everywhere (${n})`,
+		quickFixAll: (n: number) => `Replace everywhere (${n})`,
+		quickFixHere: 'Only here',
+		otherUnit: 'Another unit…',
+		/** A new tag the recipe's text writes with its accents. */
+		accentFix: (tag: string) => `Write “${tag}” in the card`,
+		useTag: (tag: string) => `Use “${tag}”`,
+		/** The new tag kept as written: it will be added, marked for review. */
+		keepTag: (tag: string) => `Keep “${tag}”`,
+		found: (n: number) => (n === 1 ? 'recipe found' : 'recipes found'),
+		saveOne: (title: string) => `Save “${title}”`,
+		saveMany: (n: number) => `Save the ${n} recipes`,
+		/** The same-dish question asked and not answered "Same dish": the save says what it does. */
+		saveApart: 'Save without grouping',
+		collisionSettled: (slug: string) => `Settled: it will be saved as ${slug}.`,
+		collisionReplacing: 'Settled: it will replace the existing recipe.',
+		saveNew: 'Save as a new recipe',
+		saveGrouped: 'Save and group',
+		saveInFamily: (name: string) => `Save in “${name}”`,
+		needVariant: 'Name the variant to group them',
+		blocked: (n: number) => (n === 1 ? 'Fix 1 error to save' : `Fix ${n} errors to save`),
+		heldBack: (n: number) => (n === 1 ? '1 recipe with errors stays here' : `${n} recipes with errors stay here`),
 		valid: 'Valid',
 		invalid: 'Needs fixing',
 		errors: 'Errors',
@@ -707,18 +1273,34 @@ export const en: Strings = {
 		infos: 'Notes',
 		fixBlock: 'Copy the fix request',
 		fixCopied: 'Request copied. Paste it into the conversation with the AI.',
+		fixBlockHelp: 'The AI sends back the corrected card; paste it here.',
 		preview: 'Preview',
+		previewPartial: 'Partial preview',
+		previewPartialNote: 'What could be read, until the fix: a line not split shows as written; a line with no name is left out.',
+		previewPartialNone: 'No preview until the error is fixed.',
 		edit: 'Review and edit',
 		editHelp: 'Opens the recipe in a form, one box per field, without touching the text.',
-		editBlocked: 'To open it in the form, first have the AI fix the errors (“Copy the fix request”).',
 		saved: (n: number) => (n === 1 ? 'Recipe saved:' : `${n} recipes saved:`),
+		/** After a save: the card at the top, the way to the recipe and to the next one. */
+		seeRecipe: 'See the recipe',
+		addAnother: 'Add another card',
 		collision: (slug: string) => `A recipe “${slug}” already exists.`,
 		collisionTrash: (slug: string) => `“${slug}” is in the trash; that name will not be reused.`,
-		replace: 'Replace',
+		replace: 'Replace the existing card (the old one stays in its history)',
 		saveAs: (slug: string) => `Save as ${slug}`,
-		sameTitle: 'Same title as an existing recipe. Make them two variants of the same dish?',
+		sameTitle: 'Same title as an existing recipe: two variants of the same dish?',
 		close: 'Almost the same ingredients as',
-		closeFamily: 'It’s another variant of the same dish: group them?',
+		closeFamily: 'Another variant of the same dish?',
+		likeFamily: 'A similar title: another variant of the same dish?',
+		fromUnknown: 'source not given',
+		whyAsked: { title: 'same title', close: 'almost the same ingredients', like: 'similar title' } as Record<string, string>,
+		inGroup: (name: string) => `group “${name}”`,
+		/** Several recipes offered, none picked yet: the group button waits. */
+		pickTargetFirst: 'Group with… (pick the recipe above)',
+		see: 'See',
+		openTarget: (title: string) => `See “${title}” (new tab)`,
+		groupWith: (title: string, from: string) => `Group with ${title}${from ? ` — ${from}` : ''}`,
+		variantPlaceholder: 'e.g. from Aunt Aline, no sugar',
 		family: 'Group of variants',
 		variant: 'Variant',
 		makeFamily: 'Group as variants',
@@ -738,29 +1320,46 @@ export const en: Strings = {
 		outside: 'Text outside the blocks (ignored — the AI may have asked a question):',
 		indexError: 'Saved, but the index did not follow; it will be rebuilt at the next start.',
 		error: 'The save failed:',
-		importLabel: 'Import from a web address',
 		importPlaceholder: 'https://…',
 		import: 'Import',
-		importing: 'Importing…',
+		importing: 'Reading the page…',
+		importViaAi: 'Go through the AI (screenshot or page text)',
+		importOffline: 'No connection to the app: try again once the network is back.',
+		importViaAiHelp: 'Take a screenshot of the page (or copy its text), give it to the AI with the instructions, then paste its answer here.',
+		importWhy: {
+			refused: 'Likely cause: the site blocks automatic readers (a protection against bots).',
+			noRecipe: 'Likely cause: the page does not declare its recipe in its code (no recipe data).'
+		},
+		wayAiPage: 'The AI reads the page from a screenshot or its text; you check it here before saving.',
+		pageAddress: 'Page:',
+		backToAddress: 'Try the address again',
+		step2HelpPage: 'Paste the instructions there (they give the page’s address), attach a screenshot of the page or paste its text.',
+		sharePromptHelpPage: 'To the AI’s app (Claude, ChatGPT…); attach a screenshot of the page or paste its text.',
+		pickPhotoPage: 'Choose the screenshot of the page',
 		imported: 'Recipe imported into the box below: review it, then save.',
 		recipeN: (i: number) => `Recipe ${i}`,
 		importRefused: {
-			url: 'invalid address',
-			scheme: 'only http and https addresses are accepted',
-			credentials: 'address with credentials refused',
-			private: 'local or private address refused',
-			redirects: 'too many redirects',
-			timeout: 'timed out (10 s)',
-			status: (status: number) => `the site answered ${status}`,
-			notHtml: 'the page is not HTML',
-			tooBig: 'page too large (over 5 MB)',
-			read: (why: string) => `could not be read: ${why}`,
-			connect: (why: string) => `could not connect: ${why}`,
-			noRecipe: 'no structured recipe (JSON-LD) on this page. Take a screenshot of the page and go through the AI with the prompt.'
+			url: 'This address does not read: copy it from the browser’s address bar.',
+			scheme: 'Only http and https addresses are accepted.',
+			credentials: 'An address with a user name and password is refused.',
+			private: 'A local or private address is refused.',
+			redirects: 'The page sends on to too many other pages.',
+			timeout: 'The site did not answer in time (10 s).',
+			refused: 'This site refuses automatic reading.',
+			gone: 'This page cannot be found: check the address.',
+			status: (status: number) => `The site did not give the page (error ${status}).`,
+			notHtml: 'This address is not a web page.',
+			tooBig: 'This page is too large (over 5 MB).',
+			read: (why: string) => `The page could not be read (${why}).`,
+			connect: (why: string) => `The site does not answer (${why}).`,
+			noHost: 'This site cannot be found: check the address.',
+			noRecipe: 'This page holds no recipe that can be read.'
 		}
 	},
 	diagnostics: {
-		technical: 'Technical detail',
+		technical: 'Troubleshooting details',
+		/** A problem in the paste box: select its place in the pasted text. */
+		show: 'Show in the text',
 		/** Under the problems of a file already in the vault (no fix-request block there). */
 		vaultHint:
 			'Fix the file in the vault (a text editor or Obsidian), or have the AI fix it and paste the result in Add, choosing “Replace”. The page follows on its own.'
@@ -780,7 +1379,7 @@ export const en: Strings = {
 		wait: (s: number) => `Too many failed attempts. Wait ${s} ${s === 1 ? 'second' : 'seconds'} before trying again.`,
 		signedIn: (name: string) => `Signed in as ${name}.`,
 		signedInAs: 'Signed in as',
-		noAccount: 'No account yet? The owner creates one with “vault user add”.'
+		noAccount: 'No account? Ask the person who keeps the box for one.'
 	},
 	/** /compte: what one account chooses for itself (lib/prefs.ts). */
 	account: {
@@ -821,6 +1420,12 @@ export const en: Strings = {
 		restore: 'Go back to this version',
 		restoreWill: 'Going back will change:',
 		restoreNothing: 'The content is the same as the current version.',
+		/** Under a version's summary, what changed word by word (usability round 4). */
+		detailIngredient: 'Ingredient',
+		detailStep: (n: number) => `Step ${n}`,
+		detailStepGone: 'Step removed',
+		detailWas: 'before:',
+		detailNow: 'now:',
 		restoreConfirm: 'Yes, go back to this version',
 		restored: 'The recipe went back to this version.',
 		undo: 'Undo',
@@ -929,6 +1534,7 @@ export const en: Strings = {
 		edit: 'Edit',
 		required: 'required',
 		cancel: 'Leave without saving',
+		cancelShort: 'Leave',
 		/** A pasted recipe opened from the paste box ("Relire et modifier"). */
 		pasteTitle: 'Review the recipe',
 		pasteLead: 'Everything is filled in from the pasted text. Fix what needs fixing, box by box, then tap “Save”.',
@@ -957,7 +1563,8 @@ export const en: Strings = {
 			noteQuantity: 'an amount is written in a note',
 			marker: 'some text contains brackets reserved for uncertain readings',
 			method: 'keep at least one method step',
-			other: 'fix the flagged fields'
+			other: 'fix the flagged fields',
+			time: 'fix a time (1 h 30, 90 min, 20 to 25 min)'
 		} as Record<string, string>,
 		/** Next to a field. */
 		field: {
@@ -979,6 +1586,8 @@ export const en: Strings = {
 			noteQuantity: 'The amount goes in Amount and Unit (or in “or replace with”), not in the note.',
 			method: 'Keep at least one method step.'
 		} as Record<string, string>,
+		/** Next to a required field of the recipe itself, once Save was tried (round 3). */
+		fieldRequired: { title: 'The title is missing.', ingredients: 'Add at least one ingredient: its amount, unit and name.' } as Record<string, string>,
 		/** Next to a field holding text the file would read as a marker (E217, Q15 A). */
 		fieldMarker: (value: string) =>
 			`“${value}” is reserved for the uncertain readings of a transcription: write it another way (parentheses instead of brackets).`,
@@ -988,31 +1597,42 @@ export const en: Strings = {
 		invalidNamed: (problems: string[]) => `Nothing was saved. ${problems.join(' ')}`,
 
 		title: 'Title',
-		titlePlaceholder: 'Sugar pie',
+		titlePlaceholder: 'e.g. Sugar pie',
 		lang: 'Recipe language',
 		langs: { fr: 'French', en: 'English' } as Record<string, string>,
 
 		ingredients: 'Ingredients',
 		group: 'Group',
 		groupName: 'Group name',
-		groupPlaceholder: 'Filling',
+		groupPlaceholder: 'e.g. Filling',
+		groupPlaceholderFirst: 'e.g. Dough',
 		groupOptional: 'Optional group',
 		addGroup: 'Add a group',
 		removeGroup: 'Remove the group',
 		addItem: 'Add an ingredient',
 		qty: 'Amount',
 		unit: 'Unit',
-		noUnit: 'unit…',
+		noUnit: 'no unit',
+		/** The unit picker in two parts (usability round 4): the vault's most used, then the rest. */
+		unitsCommon: 'Most used',
+		unitsOther: 'Other units',
+		qtyPlaceholder: 'qty',
+		cols: { qty: 'Qty', unit: 'Unit', name: 'Ingredient' },
+		editItem: 'Edit',
 		/** The label of `piece`: counted things (3 œufs). */
 		piece: 'each',
 		name: 'Ingredient',
-		namePlaceholder: 'flour',
+		namePlaceholder: 'e.g. flour',
+		nameHint: 'ingredient',
+		precisionAdd: 'detail',
+		precisionTitle: 'Add a detail: preparation, other measure, to taste…',
+		detailsEdit: 'Edit the details',
 		linked: 'linked',
 		linkedTitle: 'This name matches a known ingredient.',
 		details: 'Details',
 		hideDetails: 'Less',
 		prep: 'Preparation',
-		prepPlaceholder: 'chopped, sifted…',
+		prepPlaceholder: 'e.g. chopped, sifted',
 		note: 'Note',
 		brand: 'Brand',
 		toTaste: 'To taste',
@@ -1041,23 +1661,42 @@ export const en: Strings = {
 		method: 'Method',
 		step: (n: number) => `Step ${n}`,
 		heading: 'Section heading',
-		headingPlaceholder: 'Icing',
+		headingPlaceholder: 'e.g. Icing',
 		text: 'Text',
 		addStep: 'Add a step',
 		addHeading: 'Add a section heading',
 		stepHelp: 'One step per box. Times written out (“20 min”) become timers in the kitchen.',
+		/** One line beside the step help, keyboards only (round 2 of the usability pass). */
+		keysHelp: 'Enter: next ingredient or step · Shift+Enter: new line · Ctrl+Enter: save',
+		/** An unlinked name one letter off a registry name: “Did you mean “onion”? [Yes]”. */
+		nameNearYes: 'Yes',
+		nameNearYesTitle: (s: string) => `Write “${s}”`,
+		qtySlip: (typed: string, reads: string, meant: string) => `${typed} = ${reads} — did you mean ${meant}?`,
+		qtySlipYes: (meant: string) => `Yes, ${meant}`,
+		/** A whole line typed in the name (“1 pinch of salt”): one tap puts the amount in its boxes (round 3). */
+		splitName: (parts: string) => `Split: ${parts}`,
+		splitNameTitle: 'Put the amount and unit in their boxes, the rest in the name',
 
 		notes: 'Notes',
 		variants: 'Variations',
 		alternatives: 'Substitutions',
 		notesHelp: 'What you want to remember: where the recipe comes from, a tip, a memory.',
+		notesNone: 'No notes',
+		notesAdd: 'Add',
 
-		photo: 'Photo of the dish',
+		/** The recipe's one photo (`media.final`): in this archive often the card itself, so named for both. */
+		photo: 'Photo (dish or card)',
+		photoHelp: 'The dish, or the card itself: taken with the camera or picked from the gallery.',
 		photoPending: (name: string) => `Photo chosen: ${name}. It will be sent when you save.`,
 		photoNotInDraft: 'The draft keeps everything except the photo: choose it again if you reload the page.',
 		photoCancel: 'Do not send this photo',
 		photoRemoved: 'The photo will be removed when you save (the file stays in the vault).',
 		photoKeep: 'Keep the photo',
+		scanShow: 'Show the card alongside',
+		scanHide: 'Hide the card',
+		scanAlt: 'The recipe’s photo',
+		scanZoom: 'Enlarge the card',
+		scanUnzoom: 'Fit the card to the width',
 		photoFailed: (msg: string) => `The recipe is saved, but not the photo: ${msg}`,
 
 		family: 'Variant of',
@@ -1066,19 +1705,41 @@ export const en: Strings = {
 		familyCount: (n: number) => (n === 0 ? 'no recipes' : n === 1 ? '1 recipe' : `${n} recipes`),
 		familyNew: (name: string) => `New group “${name}”`,
 		familyNewHelp: 'No existing group has a similar name.',
+		/** Under the search field while she types: what Enter (or leaving the field) picks. */
+		familyWillBe: (name: string) => `It will be the group: ${name}`,
+		familyWillBeNew: (name: string) => `It will be a new group: “${name}”`,
+		familyEnter: 'Press Enter to confirm, or pick from the list.',
 		familyChange: 'Change',
 		familyKeep: 'Keep this group',
 		familyRemove: 'No variants',
 		familyIs: 'Variant of:',
+		familyJoins: (name: string, n: number) => `It will join: ${name} (${n === 1 ? '1 recipe' : `${n} recipes`})`,
+		familyWith: 'The other recipes of the group:',
 		familyNewNote: 'New group: its name will be saved with the recipe.',
 		variant: 'What sets this variant apart',
-		variantPlaceholder: 'with spinach',
+		variantPlaceholder: 'e.g. lemon zest, no sugar',
 		sameTitle: 'Make them two variants of the same dish',
 		pairVariant: (title: string) => `What sets “${title}” apart`,
 		pairNote: (title: string) => `“${title}” will be grouped with this one, in the same save.`,
 		pairCancel: 'No, keep them separate',
 		useSuggestion: (s: string) => `Use “${s}”`,
-		near: 'View',
+		near: 'View the recipe',
+		/** The one line under the title (its room kept): a same title, close ingredients, a near title. */
+		titleSame: 'This title already exists.',
+		titleSameShort: 'Exists:',
+		titleClose: (title: string) => `Almost the same ingredients as “${title}”.`,
+		titleNear: (title: string) => `Almost the same title: “${title}”.`,
+		titleLike: (title: string, author: string) => `Looks like “${title}”${author ? ` (${author})` : ''}.`,
+		samePair: 'Make it a variant',
+		/** The quick Save (rail, strip) while it is not ready. */
+		saveCountMissing: (n: number) => `${n} to complete`,
+		saveCountFix: (n: number) => `${n} to fix`,
+		/** The count beside the quick Save, a button to the first field (round 3). */
+		saveCountGo: (what: string) => `Go to the first field: ${what}`,
+		/** A step's time changed while Cook (or Prep) held the old one (round 3). */
+		timeNudge: (field: string, from: string, to: string) => `${field}: ${from} → ${to}?`,
+		timeNudgeYes: 'Update',
+		timeNudgeNo: (field: string) => `Keep ${field.toLowerCase()} as is`,
 
 		tags: 'Tags',
 		tagsHelp: 'To find the recipe again: dessert, soup, vegetarian…',
@@ -1096,7 +1757,11 @@ export const en: Strings = {
 		sourceType: 'Where does it come from?',
 		sourceNone: 'I don’t know',
 		author: 'From whom',
-		authorPlaceholder: 'Aunt Irene',
+		authorPlaceholder: 'e.g. Aunt Irene',
+		srcAuthor: { book: 'Author or publisher', magazine: 'Author', website: 'Author', tv: 'Host or chef' } as Record<string, string>,
+		srcTitle: { book: 'Book title', magazine: 'Magazine', website: 'Site', tv: 'Show' } as Record<string, string>,
+		srcPage: { magazine: 'Issue / page' } as Record<string, string>,
+		srcUrl: { website: 'Address' } as Record<string, string>,
 		sourceTitle: 'Book or magazine',
 		page: 'Page',
 		url: 'Web address',
@@ -1105,6 +1770,8 @@ export const en: Strings = {
 		times: 'Times',
 		prepTime: 'Prep',
 		cookTime: 'Cooking',
+		prepTimePlaceholder: 'e.g. 20 min',
+		cookTimePlaceholder: 'e.g. 45 min',
 		restTime: 'Resting',
 		totalTime: 'Total',
 		hours: 'h',
@@ -1112,17 +1779,108 @@ export const en: Strings = {
 		hoursLabel: 'hours',
 		minutesLabel: 'minutes',
 		range: 'to',
-		rangeAdd: 'Add “to”',
+		rangeAdd: (u: string) => (u === 'C' ? 'Range (e.g. 175 to 190 °C)' : 'Range (e.g. 350 to 375 °F)'),
 		rangeRemove: 'Remove the maximum',
 		oven: 'Oven',
 		ovenTemp: 'Temperature',
 		ovenUnit: 'Oven unit',
+		ovenLegend: 'Oven (temperature)',
+		ovenUnitNames: { F: 'Fahrenheit', C: 'Celsius' } as Record<string, string>,
+		ovenTempPlaceholder: 'e.g. 350',
 		servings: 'Servings',
 		servingsNote: 'Detail',
-		servingsNotePlaceholder: 'as a side dish',
+		servingsNotePlaceholder: 'e.g. as a side dish',
 		yield: 'Makes',
-		yieldPlaceholder: '24 cookies',
+		yieldPlaceholder: 'e.g. 24 cookies',
 		yieldAmount: 'Amount made',
+		/** One box per time (plan 04, Phase 5.5, round 1 of the UI pass). */
+		basics: 'Servings and times',
+		timeHelp: 'Type “1 h 30”, “90 min” or “20 to 25 min”.',
+		timeFormat: 'Not a time: type 1 h 30, 90 min or 20 to 25 min.',
+		timeWords: { h: 'h', min: 'min', to: 'to' },
+		classify: 'Filing',
+		sectionsNav: 'Parts of the recipe',
+		sectionsJump: 'Go to a part of the recipe',
+		sectionNames: { title: 'Title', source: 'Source', ingredients: 'Ingredients', method: 'Method', notes: 'Notes', class: 'Filing' } as Record<string, string>,
+		sectionStates: { done: 'filled', empty: 'empty', fix: 'to fix' } as Record<string, string>,
+		/** The save bar: one line, each reason takes her to its field. */
+		jumpTo: (what: string) => `Go to the field: ${what}`,
+		moreReasons: (n: number) => `(+${n})`,
+		/** An ingredient row: its ⋯ menu and its details. */
+		itemActions: (label: string) => `Actions — ${label}`,
+		addDetail: 'Add a detail',
+		addDetailPick: 'Choose…',
+		sum: {
+			upTo: (q: string) => `up to ${q}`,
+			alt: (s: string) => `or ${s}`,
+			or: (s: string) => `or ${s}`,
+			toTaste: 'to taste',
+			optional: 'optional',
+			recipe: 'linked recipe'
+		},
+		groupActions: (n: number) => `Actions — Group ${n}`,
+		ratingNone: 'No rating',
+		difficultyNone: 'Not given',
+		/** Round 2 of the UI pass: the save bar says what is missing as a sentence. */
+		missingLead: 'Missing:',
+		fixLead: 'To fix:',
+		missing: {
+			title: 'a title',
+			ingredients: 'an ingredient',
+			name: 'an ingredient’s name',
+			unit: 'the unit of a quantity',
+			qty: 'a quantity',
+			variant: 'what sets this variant apart',
+			family: 'the dish this is a variant of',
+			items: 'the ingredients of a group'
+		} as Record<string, string>,
+		fix: {
+			format: 'a quantity or a number',
+			range: 'a maximum below the minimum',
+			duplicate: 'an ingredient listed twice',
+			oven: '°F or °C for the oven',
+			url: 'the web address (https://)',
+			integer: 'servings as a whole number',
+			nameQuantity: 'a quantity written in a name',
+			nameComma: 'an ingredient name with a comma',
+			noteQuantity: 'a quantity written in a note',
+			marker: 'brackets in a text',
+			method: 'the method: keep one step',
+			time: 'a time (1 h 30, 90 min)',
+			other: 'a flagged field'
+		} as Record<string, string>,
+		/** Filing, folded to one line until it is needed. */
+		classOpen: 'Fill in',
+		classClose: 'Fold',
+		classNoVariant: 'No variant',
+		classVariantOf: (name: string) => `Variant of ${name}`,
+		classTags: (n: number) => (n === 0 ? 'No tags' : n === 1 ? '1 tag' : `${n} tags`),
+		classDifficulty: (level: string) => `difficulty: ${level.toLowerCase()}`,
+		classRating: (n: number) => `rating: ${n} of 5`,
+		/** “Makes”: a number of servings, or something else (“2 pies”). */
+		givesPlaceholder: 'e.g. 8 servings, 2 pies',
+		givesPortions: (n: string, max: string) => `${n}${max ? ` to ${max}` : ''} ${!max && n === '1' ? 'serving' : 'servings'}`,
+		givesAsPortions: 'Counted in servings: the recipe scales to the number of people.',
+		givesAsYield: 'What the recipe makes, as written.',
+		yieldAlso: 'Also makes',
+		/** The source's detail and the rest and total times: a link until filled. */
+		addSourceNote: 'Detail',
+		addMoreTimes: 'Rest, total',
+		/** “Paste a list”: many ingredients or steps at once. */
+		pasteList: 'Paste a list',
+		pasteItemsLabel: 'One ingredient per line. A line “Crust:” starts a group.',
+		pasteItemsPlaceholder: '2 cups flour\n1 tsp salt\n3 eggs, beaten',
+		pasteStepsLabel: 'One step per line, or numbered steps (1., 2.) even when split over several lines.',
+		pasteStepsPlaceholder: '1. Heat the oven to 350 °F.\n2. Mix the flour and the salt.',
+		pasteRead: 'What the app understood',
+		pasteUnread: 'to check',
+		pasteUnreadHelp: 'Line not understood: it goes whole into the name, to fix.',
+		pasteAddItems: (n: number) => (n === 1 ? 'Add 1 ingredient' : `Add ${n} ingredients`),
+		pasteAddSteps: (n: number) => (n === 1 ? 'Add 1 step' : `Add ${n} steps`),
+		pasteCancel: 'Cancel',
+		pastedItems: (n: number) => (n === 1 ? '1 ingredient added.' : `${n} ingredients added.`),
+		pastedSteps: (n: number) => (n === 1 ? '1 step added.' : `${n} steps added.`),
+		stepActions: (label: string) => `Actions — ${label}`,
 
 		uncertain: 'Uncertain reading on the original.',
 		uncertainOr: (s: string) => `Other reading: “${s}”`,
@@ -1135,8 +1893,23 @@ export const en: Strings = {
 		draftDiscard: 'Start again from the recipe',
 		draftDiscardNew: 'Start from scratch',
 		draftDiscardPaste: 'Start again from the pasted text',
+		draftSetAside: (when: string) => `Draft of ${when} set aside: you are going on without it.`,
+		draftResumeOver: 'Resume the draft (replaces what you just typed)',
+		draftChooseFirst: (other: string) => `Choose first: “Resume the draft” or “${other}”.`,
+		draftKept: (time: string) => `Draft kept at\u00a0${time}`,
+		draftKeptTitle: 'What you type is kept on this device until you save.',
 
 		saved: 'Recipe saved.',
+		/** After saving an edit (the recipe page, where the form took her). */
+		savedEdit: 'Changes saved.',
+		/** Beside Save on a computer: the keys that save from anywhere in the form. */
+		saveKeys: 'Ctrl+Enter',
+		/** Body text the form has no field for (before any heading, or under a heading it does not know): shown and kept as written. */
+		freeText: 'Free text',
+		freeTextHelp: 'This text is under no heading the card recognizes: it is kept as written and the recipe shows it before the method.',
+		freeTextOther: (heading: string) => `Free text — section “${heading}”`,
+		freeTextOtherHelp: 'A section the card does not know: kept as written, shown on the recipe.',
+		freeToSteps: (n: number) => (n === 1 ? 'Move this line into Instructions' : `Move these ${n} lines into Instructions`),
 		unchanged: 'Nothing changed: there was nothing to save.',
 		redone: 'Change redone.',
 		undoFailed: (msg: string) => `Cannot undo: ${msg}`,

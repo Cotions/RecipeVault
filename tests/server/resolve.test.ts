@@ -78,6 +78,21 @@ describe('resolution in the index', () => {
 		syncVault(v.ctx.db, v.ctx.paths);
 		expect(familyDiff(v.ctx.db, 'lasagna')!.rows.find((x) => x.label === 'muscade')?.item).toBe('muscade');
 	});
+
+	it('with a guess, an unlinked name joins the row of the linked item it likely is, as a « maybe »', () => {
+		const before = familyDiff(v.ctx.db, 'lasagna')!;
+		const loose = before.rows.find((x) => x.item === 'k:muscade')!;
+		// Invented guess: « muscade » is some item another variant has linked.
+		const target = before.rows.find((x) => !x.item.startsWith('k:') && !x.in.some((s) => loose.in.includes(s)))!;
+		expect(target).toBeDefined();
+		const d = familyDiff(v.ctx.db, 'lasagna', (k) => (k === 'muscade' ? target.item : k === 'nothing' ? 'not-in-family' : null))!;
+		expect(d.rows.find((x) => x.item === 'k:muscade')).toBeUndefined();
+		const row = d.rows.find((x) => x.item === target.item)!;
+		expect(row.in).toEqual(target.in);
+		expect(row.maybe?.map((m) => [m.slug, m.key]).sort()).toEqual(loose.in.map((s) => [s, 'muscade']).sort());
+		// A row with a « maybe » is not « Seulement ici ».
+		for (const s of target.in) expect(d.unique[s]).not.toContain(target.label);
+	});
 });
 
 describe('unresolved ingredients in the app', () => {

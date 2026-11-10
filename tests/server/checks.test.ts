@@ -73,6 +73,18 @@ describe('name-word lists', () => {
 		expect(browser).toEqual(server);
 	});
 
+	it('one seeded list for every line, French and English: « butter softened » like « large eggs beaten »', () => {
+		const text = recipe(`      - { qty: 2, unit: piece, name: large eggs beaten }
+      - { qty: "1/2", unit: cup, name: butter softened }
+      - { qty: "1/2", unit: cup, name: beurre ramolli }
+      - { qty: 1, unit: cup, name: crème fouettée }`);
+		expect(only(['W302'])(serverCheck(app(), [text])[0].diagnostics).map((d) => d.path)).toEqual([
+			'ingredients[0].items[0].name',
+			'ingredients[0].items[1].name',
+			'ingredients[0].items[2].name'
+		]);
+	});
+
 	it('follow the vault’s own lists: an edited file changes the check', () => {
 		const text = recipe('      - { qty: 1, unit: cup, name: ananas broyé }');
 		expect(only(['W302'])(serverCheck(app(), [text])[0].diagnostics)).toEqual([]);

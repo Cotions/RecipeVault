@@ -63,6 +63,12 @@ export interface Candidate {
 	slug: string;
 	/** Trigram similarity, 0–1. */
 	score: number;
+	/**
+	 * A strong match (`STRONG`): the name is one of the entry's aliases with a
+	 * clear typo. Only a strong first candidate is offered as the answer
+	 * (/resoudre's primary « 1 C'est ça », Enter); the others are guesses.
+	 */
+	strong?: true;
 }
 
 /**
@@ -72,11 +78,89 @@ export interface Candidate {
  */
 export const FUZZY = { minScore: 0.15, count: 3 };
 
+/**
+ * What the resolve queue and W305 show of the candidates (usability round 3:
+ * « vanile » offered « huile végétale » beside « vanille »): none below
+ * `floor`, and none below `relative` × the best one's score — a weak
+ * look-alike beside a strong one is noise. Best first, as `candidates` gives
+ * them. On the corpus the relative cut keeps every right answer (R2 58.1 %)
+ * with 1.70 candidates shown instead of 1.94; a higher floor would lose right
+ * answers (0.2: 53.9 %). See docs/INGREDIENTS.md, "Resolution".
+ */
+export const SHOWN = { floor: FUZZY.minScore, relative: 0.5 };
+
+/** The candidates worth showing (SHOWN): an ambiguous key's owners (score 1) and a clear typo always. */
+export function shownCandidates<T extends Candidate>(cands: readonly T[]): T[] {
+	const best = Math.max(0, ...cands.map((c) => c.score));
+	return cands.filter((c) => c.strong || c.score >= Math.max(SHOWN.floor, best * SHOWN.relative));
+}
+
+/**
+ * A clear typo (usability round 5: /resoudre offered « lime » for « lièvre »
+ * as its answer): the typed singular key is at most `perChars` characters
+ * per edit (an adjacent swap counts one) from an alias's singular key, and
+ * at most `maxEdits` edits — « vanile » → vanille, « oingon » → oignon,
+ * « beouf haché » → bœuf haché, never a 3-letter word. On the corpus
+ * (tests/ingredients-corpus.test.ts, R2) a strong first candidate is right
+ * 23 times out of 23; two edits would add one wrong (« soupe tomate » →
+ * sauce tomate). See docs/INGREDIENTS.md, "Resolution".
+ */
+export const STRONG = { perChars: 4, maxEdits: 1 };
+
+/** Optimal string alignment distance: Levenshtein with an adjacent swap as one edit. */
+export function typoDistance(a: string, b: string): number {
+	if (a === b) return 0;
+	const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i ? (j ? 0 : i) : j)));
+	for (let i = 1; i <= a.length; i++)
+		for (let j = 1; j <= b.length; j++) {
+			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+			d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+			if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+		}
+	return d[a.length][b.length];
+}
+
+/** Whether a typed key is a clear typo of an alias key (`STRONG`); both singular lookup keys. */
+export function clearTypo(typed: string, alias: string): boolean {
+	const max = Math.min(STRONG.maxEdits, Math.floor(typed.length / STRONG.perChars));
+	return max > 0 && Math.abs(typed.length - alias.length) <= max && typoDistance(typed, alias) <= max;
+}
+
+/**
+ * Whether a typed key and an alias share a stem: some word of each starts
+ * with the same letter and the two share a run of three letters (`ognon` and
+ * `oignon`, `noix` and `noix de coco`); a word under three letters must be
+ * the same word. A trigram match with no such word is too loose to show
+ * (usability round 5: « nouilles » → citrouille, « lièvre » → lime, « soda »
+ * → son de blé). Checked on the alias that matched, never on the entry's
+ * display name: « soda » shares its stem with the alias « soda à pâte », not
+ * with « bicarbonate de soude » — the two used to disagree between /resoudre
+ * and the paste box's W305.
+ */
+export function sharesStem(typed: string, alias: string): boolean {
+	const grams = (w: string) => {
+		const out = new Set<string>();
+		for (let i = 0; i + 3 <= w.length; i++) out.add(w.slice(i, i + 3));
+		return out;
+	};
+	const b = wordsOf(alias);
+	return wordsOf(typed).some((x) =>
+		b.some((y) => {
+			if (x[0] !== y[0]) return false;
+			if (x.length < 3 || y.length < 3) return x === y;
+			const gy = grams(y);
+			return [...grams(x)].some((g) => gy.has(g));
+		})
+	);
+}
+
 export interface NameRow {
 	key: string;
 	/** The key with the alias's language plural rules applied. */
 	skey: string;
 	slug: string;
+	/** The alias's language: which end of it is the noun (`modifierOnly`). Absent: either. */
+	lang?: string;
 }
 
 /** The alias rows of registry entries, as the index stores them in `ingredient_names`. */
@@ -86,9 +170,32 @@ export function nameRows(entries: Pick<RegistryEntry, 'slug' | 'names'>[], plura
 		for (const lang of NAME_LANGS)
 			for (const n of e.names[lang] ?? []) {
 				const key = lookupKey(n);
-				out.push({ key, skey: singularKey(key, plurals[lang]), slug: e.slug });
+				out.push({ key, skey: singularKey(key, plurals[lang]), slug: e.slug, lang });
 			}
 	return out;
+}
+
+const wordsOf = (s: string) => s.split(/[\s'-]+/).filter(Boolean);
+
+/**
+ * The typed name is, word for word, only a modifier inside a longer alias:
+ * « soda » in « biscuits soda » (French puts the noun first) or in « soda
+ * crackers » (English puts it last). Such an alias names another product, so
+ * it is never a candidate for that name (usability round 4: « soda », baking
+ * soda on a Québec card, was offered « biscuits soda »). An alias that starts
+ * (French) or ends (English) with the typed words keeps its place: « soda à
+ * pâte » for « soda », « brown sugar » for « sugar ». Both ends when the
+ * alias's language is not known. Keys compared as lookup keys, singular.
+ */
+export function modifierOnly(typed: string, alias: string, lang?: string): boolean {
+	const t = wordsOf(typed);
+	const a = wordsOf(alias);
+	if (!t.length || a.length <= t.length) return false;
+	const at: number[] = [];
+	for (let i = 0; i + t.length <= a.length; i++) if (t.every((w, k) => a[i + k] === w)) at.push(i);
+	if (!at.length) return false;
+	const head = (i: number) => (lang === 'fr' ? i === 0 : lang === 'en' ? i === a.length - t.length : i === 0 || i === a.length - t.length);
+	return !at.some(head);
 }
 
 /** Padded word trigrams, as pg_trgm computes them: `  w`, ` wo`, `wor`, `ord`, `rd `. */
@@ -105,7 +212,7 @@ export function trigrams(s: string): Set<string> {
 export class Resolver {
 	private byKey = new Map<string, Set<string>>();
 	private bySkey = new Map<string, Set<string>>();
-	private fuzzyKeys: { skey: string; slug: string; grams: number }[] = [];
+	private fuzzyKeys: { skey: string; slug: string; grams: number; lang?: string }[] = [];
 	private gramIndex = new Map<string, number[]>();
 	private rulesByKey = new Map<string, RuleRow[]>();
 	/** Per recipe language: rules by the singular key of their name. Built on first use. */
@@ -122,16 +229,21 @@ export class Resolver {
 			if (!m.has(k)) m.set(k, new Set());
 			m.get(k)!.add(slug);
 		};
-		const seen = new Set<string>();
+		const seen = new Map<string, number>();
 		for (const r of rows) {
 			this.slugs.add(r.slug);
 			add(this.byKey, r.key, r.slug);
 			add(this.bySkey, r.skey, r.slug);
 			const id = `${r.slug}\0${r.skey}`;
-			if (seen.has(id)) continue;
-			seen.add(id);
+			const had = seen.get(id);
+			if (had !== undefined) {
+				// The same alias in both languages: either end may be its noun.
+				if (this.fuzzyKeys[had].lang !== r.lang) this.fuzzyKeys[had].lang = undefined;
+				continue;
+			}
 			const grams = trigrams(r.skey);
-			const i = this.fuzzyKeys.push({ skey: r.skey, slug: r.slug, grams: grams.size }) - 1;
+			const i = this.fuzzyKeys.push({ skey: r.skey, slug: r.slug, grams: grams.size, lang: r.lang }) - 1;
+			seen.set(id, i);
 			for (const g of grams) {
 				if (!this.gramIndex.has(g)) this.gramIndex.set(g, []);
 				this.gramIndex.get(g)!.push(i);
@@ -244,11 +356,15 @@ export class Resolver {
 	 * The resolve queue's suggestions for an unresolved key. An ambiguous key's
 	 * candidates are the entries that share it; otherwise the entries whose
 	 * aliases are nearest by trigram similarity (on singular keys), best first,
-	 * at most `count`, none below `minScore`.
+	 * at most `count`, none below `minScore` — never an alias in which the
+	 * name is only a modifier (`modifierOnly`: « biscuits soda » for « soda »),
+	 * nor one sharing no stem with it (`sharesStem`; `stem: false` for the
+	 * corpus sweep). A clear typo of an alias is `strong` and comes first.
 	 */
-	candidates(key: string, lang: Lang | string = 'fr', { minScore = FUZZY.minScore, count = FUZZY.count } = {}): Candidate[] {
+	candidates(key: string, lang: Lang | string = 'fr', { minScore = FUZZY.minScore, count = FUZZY.count, stem = true } = {}): Candidate[] {
 		const exact = new Set(this.byKey.get(key));
 		for (const r of this.rulesFor(key, lang)) exact.add(r.slug);
+		// The owners of an ambiguous key: one must be chosen, none is the answer.
 		if (exact.size > 1) return [...exact].sort().map((slug) => ({ slug, score: 1 }));
 		const sk = this.singular(key, lang);
 		const grams = trigrams(sk);
@@ -256,16 +372,25 @@ export class Resolver {
 		const shared = new Map<number, number>();
 		for (const g of grams) for (const i of this.gramIndex.get(g) ?? []) shared.set(i, (shared.get(i) ?? 0) + 1);
 		const best = new Map<string, number>();
+		const strong = new Set<string>();
 		for (const [i, n] of shared) {
 			const f = this.fuzzyKeys[i];
 			const score = n / (grams.size + f.grams - n);
-			if (score >= minScore && score > (best.get(f.slug) ?? 0)) best.set(f.slug, score);
+			if (score < minScore || modifierOnly(sk, f.skey, f.lang)) continue;
+			const typo = clearTypo(sk, f.skey);
+			// A clear typo may share no run of three letters (« oingon », oignon).
+			if (stem && !typo && !sharesStem(sk, f.skey)) continue;
+			if (typo) strong.add(f.slug);
+			if (score > (best.get(f.slug) ?? 0)) best.set(f.slug, score);
 		}
-		// A key only one entry's rules name: that entry first.
+		// A key only one entry's rules name: that entry first — not the answer,
+		// though: the rule's conditions did not hold on this line (« soda » with
+		// no unit, or by the cup).
 		for (const slug of exact) best.set(slug, 1);
 		return [...best]
-			.map(([slug, score]) => ({ slug, score }))
-			.sort((a, b) => b.score - a.score || a.slug.localeCompare(b.slug))
+			.map(([slug, score]): Candidate => ({ slug, score, ...(strong.has(slug) && !exact.has(slug) ? { strong: true as const } : {}) }))
+			// A clear typo before a guess, whatever their trigram scores (« beure »: beurre, then babeurre).
+			.sort((a, b) => Number(!!b.strong) - Number(!!a.strong) || b.score - a.score || a.slug.localeCompare(b.slug))
 			.slice(0, count);
 	}
 }
@@ -289,7 +414,7 @@ export function resolutionDiagnostics(recipe: Pick<Recipe, 'ingredients' | 'lang
 				fix: 'Create that ingredient, or correct the slug.'
 			});
 		else if (r.resolution === 'none' || r.resolution === 'ambiguous') {
-			const c = resolver.candidates(r.key, recipe.lang);
+			const c = shownCandidates(resolver.candidates(r.key, recipe.lang));
 			out.push(
 				c.length
 					? {

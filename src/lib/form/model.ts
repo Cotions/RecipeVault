@@ -43,7 +43,7 @@ import type {
 import { durationToForm, emptyDuration, formToDuration, sameDuration, type FormDuration } from './duration';
 import { confirmValue, hasMarkers, hideMarkers, isUncertain, markedText, reapplyAdded, type Mark } from './markers';
 import { parseNumberInput, parseQuantityInput, showDecimal, showQuantity } from './quantity';
-import { rowsFromText, sameRows, textFromRows, type RawRow, type RowType } from './steps';
+import { preambleSteps, rowsFromText, sameRows, textFromRows, type RawRow, type RowType } from './steps';
 
 /** Values as written in the file, per field, where the shown value would not write them back. */
 export type Written = Record<string, string | number>;
@@ -328,12 +328,33 @@ export function ensureSection(form: FormRecipe, kind: 'method' | TextKind): Meth
 	return section;
 }
 
+/**
+ * « Ranger ces N lignes dans Préparation » in the form: the step lines of the
+ * free text before any heading (W401) become the method's first steps (empty
+ * rows give way); the prose before them stays free text. The number of steps
+ * moved, 0 when there were none.
+ */
+export function freeStepsToMethod(form: FormRecipe): number {
+	const found = preambleSteps(form.preamble);
+	if (!found) return 0;
+	const method = ensureSection(form, 'method');
+	method.rows = [...rowsToForm(textFromRows(found.rows)), ...method.rows.filter((r) => r.text.trim())];
+	form.preamble = found.keep;
+	return found.steps;
+}
+
 export interface NewFormOptions {
 	lang?: Lang;
 	ovenUnit?: 'F' | 'C' | null;
+	/**
+	 * Empty ingredient rows and empty step rows to start with (1). /nouvelle
+	 * starts with 3 of each, so she can type at once; rows left empty are not
+	 * written (`fromForm`) and block nothing (`blocks`).
+	 */
+	rows?: number;
 }
 
-/** An empty form for a new recipe: one group with one row, a method with one step. */
+/** An empty form for a new recipe: one group with `rows` empty rows, a method with `rows` empty steps. */
 export function emptyForm(opts: NewFormOptions = {}): FormRecipe {
 	const form: FormRecipe = {
 		version: 1,
@@ -361,14 +382,20 @@ export function emptyForm(opts: NewFormOptions = {}): FormRecipe {
 		app: {},
 		written: {}
 	};
-	ensureSection(form, 'method');
+	const method = ensureSection(form, 'method');
+	const n = Math.max(1, Math.floor(opts.rows ?? 1));
+	for (let i = 1; i < n; i++) {
+		form.groups[0].items.push(newItem());
+		method.rows.push(newRow());
+	}
 	return form;
 }
 
 // ---------------------------------------------------------------------------
 // Recipe → form
 
-function itemToForm(it: Ingredient, lang: Lang): FormItem {
+/** An entry of the file (or of a pasted list) as a form row. */
+export function itemToForm(it: Ingredient, lang: Lang): FormItem {
 	const w: Written = {};
 	const q = qtyCodec(lang);
 	return {

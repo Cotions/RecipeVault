@@ -2,7 +2,7 @@
 // family is within the W502 distance; the variant pre-fill.
 
 import { describe, expect, it } from 'vitest';
-import { compareForms, emptyForm, familyChoices, variantFrom, type FamilyOption } from '../../../src/lib/form';
+import { compareForms, emptyForm, familyChoices, familyNameFromTitles, fromLabel, variantFrom, variantPrefill, variantShown, type FamilyOption } from '../../../src/lib/form';
 
 const FAMILIES: FamilyOption[] = [
 	{ slug: 'pouding-chomeur', label: 'Pouding chômeur', count: 3 },
@@ -64,5 +64,53 @@ describe('compareForms (Q18 A)', () => {
 		expect(rows[1]).toMatchObject({ n: 1 });
 		expect(rows[1].mine).toMatch(/^1 .*bouillon$/);
 		expect(rows[1].theirs).toContain('2');
+	});
+});
+
+describe('a family with no label is named from its titles', () => {
+	it('takes the words of a title that make the slug, accents kept', () => {
+		expect(familyNameFromTitles('pate-a-crepes', ['Ma pâte à crêpes, la meilleure', 'Autre'])).toBe('Pâte à crêpes');
+		expect(familyNameFromTitles('galette', ['« galette » des rois'])).toBe('Galette');
+	});
+	it('null when no title holds it', () => {
+		expect(familyNameFromTitles('chaudree', ['Soupe de poisson'])).toBeNull();
+		expect(familyNameFromTitles('chaudree', [])).toBeNull();
+	});
+});
+
+describe('variantShown / variantPrefill / fromLabel', () => {
+	it('a variant written as the slug of who it is from (or part of the name) reads « de » + her name, capitals kept', () => {
+		expect(variantShown('zoe-b', 'Zoé B.')).toBe('de Zoé B.');
+		expect(variantShown('zoe', 'Zoé')).toBe('de Zoé');
+		expect(variantShown('ines', 'Inès')).toBe('d’Inès');
+		expect(variantShown('zoe', 'Tante Zoé')).toBe('de Tante Zoé');
+		expect(variantShown('madame-inventee-d-a-cote', "Madame Inventée d'à côté")).toBe("de Madame Inventée d'à côté");
+	});
+	it('a typed variant as written; a slug as the kind of source, the title’s words, else its words', () => {
+		expect(variantShown('aux épinards', 'Zoé B.')).toBe('aux épinards');
+		expect(variantShown('avec aneth', { author: 'Tante Zoé' })).toBe('avec aneth');
+		expect(variantShown('revue', { source_type: 'magazine' })).toBe('de la revue');
+		expect(variantShown('livre', { source_type: 'book', source_title: 'Le Livre inventé' })).toBe('du livre');
+		expect(variantShown('sirop-d-erable', { title: 'Fèves inventées au sirop d’érable' })).toBe('sirop d’érable');
+		expect(variantShown('poires-amandes', { title: 'Tarte inventée poires et amandes' })).toBe('poires et amandes');
+		expect(variantShown('zoe-b', null)).toBe('zoe b');
+		expect(variantShown('zoe-b', 'Quelqu’un d’autre')).toBe('zoe b');
+	});
+	it('fromLabel: the author, else a published source’s title (article contracted), else the kind of source', () => {
+		expect(fromLabel('Tante Zoé')).toBe('de Tante Zoé');
+		expect(fromLabel('de Tante Zoé')).toBe('de Tante Zoé');
+		expect(fromLabel({ source_type: 'book', source_title: 'Le Tablier inventé' })).toBe('du Tablier inventé');
+		expect(fromLabel({ source_type: 'magazine', source_title: 'Les Recettes inventées' })).toBe('des Recettes inventées');
+		expect(fromLabel({ source_type: 'magazine' })).toBe('de la revue');
+		expect(fromLabel({ source_type: 'family' })).toBe('');
+		expect(fromLabel(undefined)).toBe('');
+	});
+	it('where it is from when that tells it apart, else empty — never a fragment of the title', () => {
+		expect(variantPrefill('Tante Zoé', ['Oncle Inventé', null])).toBe('de Tante Zoé');
+		expect(variantPrefill('Tante Zoé', ['tante zoe'])).toBe('');
+		expect(variantPrefill('de Tante Zoé', ['Tante Zoé'])).toBe('');
+		expect(variantPrefill({ source_type: 'magazine' }, [{ author: 'Tante Zoé' }])).toBe('de la revue');
+		expect(variantPrefill('', ['Oncle Inventé'])).toBe('');
+		expect(variantPrefill(undefined)).toBe('');
 	});
 });

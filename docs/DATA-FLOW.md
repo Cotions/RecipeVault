@@ -48,21 +48,195 @@ alone: another git command may be running.
 
 ### The paste box
 
-`/ajouter`. The browser checks every change live with the checker library; the
+`/ajouter`. An empty page leads with the main path, one card with two tabs:
+"Une fiche en photo" (selected) and "Une page web" (the URL field and
+"Importer", see "Web import"; the tab stays chosen after an import, its
+result shown under the card like a paste's, and a paste goes back to the
+first tab). The first tab holds three compact numbered steps: copy
+the prompt (the page says « les consignes pour l'IA », never « prompt »), open the AI with it, paste its answer — the paste box is step 3,
+inside the card, visible on load on a phone too, and says nothing until
+something is in it. "Taper à la main" (a link to her form, `/nouvelle`) is the
+page head's action. Step 2 on a computer is "Ouvrir Claude", a link to
+`https://claude.ai/new` in a new tab that also copies the prompt when step 1
+was skipped; on a touch screen that can share text it is "Partager les
+consignes…" (`navigator.share({ text: prompt })`; a refused share copies the
+prompt and says so; closing the sheet changes nothing). Each step is ticked
+when done: step 1 reads "1 Copier les consignes" until the prompt is given, then
+"✓ Consignes copiées". A copy that worked says so on its button, "✓ Copié", for
+2 s, then "Copier à nouveau". A copy the browser refuses or leaves hanging
+(no clipboard, a permission prompt: given 1 s) is never silent: a read-only
+box opens with the whole prompt in it, selected, and "Copie automatique
+impossible ici : Ctrl+C, ou appui long › Copier"; a copy from that box ticks
+step 1. "Voir les consignes" (a disclosure under the step, always there) shows
+the same box, to read or copy by hand; once Claude is opened, "Coller" becomes the filled button and,
+back on the tab, the box takes the focus (mouse only). The box takes the focus with a mouse on a screen 700 px
+wide or more (not on a touch screen or a narrow one, where a keyboard would
+rise over steps 1–2), and a paste anywhere on the page
+that is not into another field goes in the box, after what is there. Beside
+step 3, "Coller" (where the browser lets a page read the clipboard on a tap,
+`navigator.clipboard.readText`) puts the clipboard in the box the same way —
+the way back from the AI's app; refused or unavailable, it says to paste in
+the box by hand. On a phone, once step 2 is done, steps 1–2 fold to one
+line ("✓ Consignes copiées · Revoir"), so the box is on the first screen: after
+step 2 in this visit, or on a later visit when the prompt was copied on this
+device before (`localStorage` `recipevault:prompt-donne`, a convenience
+only); with photo sharing (below) the steps are per card, so only this card's
+"Envoyer à l'IA" folds them ("✓ Photo et consignes envoyées"). "Revoir" opens
+them again. A wide screen keeps the three steps.
+
+**Photo to the AI, on a phone.** On a touch screen whose browser can share a
+file with another app (Web Share: `navigator.canShare({ files })`), steps 1
+and 2 become "Choisir la photo de la fiche" (the system's picker or camera)
+and "Envoyer à l'IA": one tap calls `navigator.share({ files: [photo], text:
+prompt })`, so the AI's app opens with the photo and the prompt together. The
+photo is never uploaded by this: it stays in the page's memory (a local
+`blob:` preview), goes only where the system's share sheet sends it, and is
+dropped with the page. Closing the sheet changes nothing; a share the browser
+refuses copies the prompt instead and says to attach the photo by hand; "Copier
+les consignes pour l'IA" stays offered under the button for an app that keeps only the
+photo. Elsewhere (a computer, a browser without file sharing) the steps are
+"Copier les consignes pour l'IA" and "Ouvrir Claude" (or "Partager les consignes…", above).
+
+**The card's photo on the recipe.** The scan the AI read can end up on the
+recipe it became, as its photo (`media.final`, "Dish photos", below), only
+when she says so. On a phone that shared it, once the paste is saved the page
+offers "Joindre cette photo à la recette" above the steps (one button per
+recipe saved from it, "Joindre à « … »", when one photo held several); one
+tap sends that same in-memory photo to `POST /api/photo` with the recipe's
+slug and the hash `/api/save` returned for it (each saved file's result
+carries the committed file's `hash`), so a recipe changed since is refused,
+as everywhere. "Non merci" (or "Fermer" once attached) drops the photo, and
+the next card starts at step 1. A reload loses the photo, as before: the offer
+is only for this visit. On any device each pasted file's card also offers
+"Joindre la photo de la fiche" (a file picker, optional, not on a file with
+"Remplacer" chosen): the picked photo stays in the page until that file is
+saved, then goes to `/api/photo` the same way, right after the save
+("Photo de la fiche jointe." in a message); a refused photo is said
+and leaves the saved recipe as it is.
+
+Once
+something is pasted, the three steps stay as one line, each ticked when done
+(prompt given — only once it was copied, shared or the AI opened from this
+page, never implied by a pasted answer, since she may have used another way
+in —, answer pasted, every file passing). Text from a web import has its own
+two-step line instead, "Page lue · Vérifiée": no prompt was involved; a paste
+after it is the AI path again. At that line's end, « Recommencer » (always,
+once something is in the box): it empties the box, so the tabs and the steps
+come back, and says « Zone vidée. » with « Annuler », which puts the text, the
+choices made on it and the kept tags back (about 8 s). The paste is kept in
+this tab (`sessionStorage` `recipevault:collage`) until saved or emptied; when
+a reload fills the box from it, the line says « Texte repris de votre
+dernière visite · Recommencer ». « Modifier le texte » opens the box, scrolls
+it into view and focuses it at its start. When every pasted file passes — no errors; warnings and notes do not
+hold it — the text folds to a one-line summary
+("1 recette trouvée · 6 ingrédients · 5 étapes · Modifier le texte"; with no
+step read, « 3 lignes hors Préparation » in place of « 0 étape ») and the
+result takes the width; it stays open while she types in it (an edit that
+follows a key press in the box) or after she asks
+for it ("Modifier le texte", "Montrer dans le texte"), and folds again on the
+next paste, import, text put in whole (an autofill) or emptied box. Otherwise a wide screen shows the box and
+the result side by side; a phone stacks them. The preview of a single file is
+open, on a phone too. Its tags are named as the vault names them: a tag the
+vocabulary knows, accents and case aside (`quebecois`, `Québécois`), shows its
+canonical label from `vocab/tag-labels.yaml`; an unknown one shows as written.
+Per file the
+result is ordered by weight: the decisions she alone can make first (the
+collision choice; the same-dish question, below, with two answers "Même plat,
+regrouper" / "Recette différente"), then the errors, then the warnings and
+notes as "N remarques" (shown open when there is one; `W505` / `W608` leave
+them when the same-dish question already says it), then the preview. A file
+with errors simply does not offer "Relire et modifier"; there is no second
+guidance line under its errors. It still shows a preview under them, greyed,
+"Aperçu partiel": what the frontmatter gives as far as it reads (a line left
+whole, `- 1 1/2 tasse de lait`, shown as written in its place; an entry with
+no name left out; a unit outside the list as written, an
+unreadable oven dropped), so she sees the other ingredients and the steps came
+through; none when the frontmatter does not parse or has no title. Errors lead with a sentence, the place on its
+own line then what ("Sirop, 2e ingrédient (eau)" / "Unité « tasse » : …"); no
+code on a row: the codes wait in the file's one « Détails pour le dépannage »,
+closed, at the foot of its problems (`VALIDATION.md`, "Human-facing
+validation"); the box scrolls to the first error's line (a third down, by
+whole lines: the top line is never cut) and marks the errors' lines in its
+margin. Long lines wrap at the box's width (nothing clipped, no sideways
+scroll); the marks follow the wrapped lines, measured on a hidden copy of the
+box. With errors, a wide screen shows the box and the result side by side in
+two equal columns; a phone keeps the box short (seven lines, scrolled to the
+error, the steps line hidden) so the error card and its fix sit right under
+the marked line on the first screen. The same-dish
+question: "Une autre variante du même plat ?" (or, same title, "Même titre
+qu'une recette existante : deux variantes du même plat ?"; only a title that
+starts the same, "Titre semblable : une autre variante du même plat ?"), then
+each vault recipe it may join (`candidates` from /api/check, at most four:
+same title, then close ingredients, then a title one holds whole at its start,
+`like`, as the form's « Ressemble à »; a close-ingredients recipe is offered
+only at `VARIANT_CLOSE` 0.75 or more, or when its title is alike
+(`titlesAlike`) — the W505 remark keeps 0.65, but a group question on a
+pouding for a galette was noise, usability round 5), one row each: its title, where it is
+from (« de Tante Aline », « carte, 1998 », the provenance line of
+`sideReader`, `src/lib/server/duplicates.ts`), why it is asked (« même titre »,
+« presque les mêmes ingrédients », « titre semblable », with « · 82 % en
+commun » when ingredients were compared) and its group, with a « Voir ↗ »
+link; a radio picks the target when there are several, none picked at first
+(round 5: a pre-picked target was grouped without being read): « Regrouper
+avec… » stays off, « (choisissez la recette ci-dessus) », until one is. A
+single candidate is the target. The answer names the target: « Regrouper avec Pouding chômeur — de
+Tante Aline » / "Recette différente", both outlined (secondary) buttons — the
+screen's one filled button is the save. What grouping does (both cards kept
+whole, under one dish, each with its version name) is said once it is chosen,
+with the fields: the group's name, a name and never a slug (the target's
+group's name, else the shorter of the two titles when one starts the other,
+else the shorter; on save it is the known group with that name or slug,
+accents and case aside, else a new group with the name's slug), and each
+side's « Ce qui distingue », prefilled by `variantPrefill` from where each is
+from when that tells them apart (the target's own variant, shown by
+`variantShown`, when it has one). A `like`-only question is a hint, as in the
+form: the save keeps its own name until she answers it. The save
+row ends the file's card for one file and the result for several, and is
+sticky (`position: sticky; bottom: 0`): while she scrolls the card it stays at
+the bottom of the screen, inside the card, and it settles in its place once
+the card's end is reached — never over the card's own content below the
+item being fixed, never fixed above another part of the page; a jump to an
+error scrolls it clear of the bar. On a phone the bar is one compact line ("✓" alone for "Valide"; the error count, a
+link to the first error). The button names what it saves ("Enregistrer « … »", "Enregistrer les 3
+recettes"; "Enregistrer" on a phone) — or, when the file asks the same-dish
+question, the answer it will act on: "Enregistrer sans regrouper" until it is
+answered, "Enregistrer dans « <groupe> »" once « Regrouper avec … » is
+chosen (the group's name as in its field; on a phone too), "Enregistrer comme nouvelle recette" after "Recette
+différente"; held until the version name is given ("Nommez la variante pour
+regrouper", a link to the field). "✓ Valide" sits beside it when every file
+passes, else why it is off, at body size ("Corrigez 1 erreur pour
+enregistrer", a link to the first error,
+scrolled clear of the bar, its quick fix focused); the fix-request block is
+copied from one "Copier la demande de correction" right under the errors (of
+the first file that needs it; it covers them all).
+Ctrl+Entrée (Cmd+Entrée on a Mac) saves from anywhere on the page, a
+field or not; the hint is not shown on a touch
+screen. The browser checks every change live with the checker library; the
 server re-checks with the vault (`E103`, `W306`, `W503`, `W608`, `W505`) and is
 the only judge on save. Several fences in one paste are saved in one commit; files that
-fail stay in the box. A collision (`E103`) is settled inline: "Remplacer" (an
-edit, with the hash guard below) or the suffixed slug. Two files in one paste with the same new slug: the first
-is saved, only the later one waits for that choice. A same title (`W608`)
-offers "Regrouper en variantes": `family`/`variant` on the new file and on the vault
-recipe of the same title, each with its version name, in the same commit
+fail stay in the box. What was saved is said in a card at the top of the page,
+not a message at the bottom (UI council): « ✓ Recette enregistrée : <titre> »
+with « Voir la recette » and « Ajouter une autre fiche » (which closes the card
+and focuses the box, or the address field after a web import); several saved,
+« 3 recettes enregistrées : » and a link to each. The card stays until she
+closes it or the box's text changes; a photo attached or a file refused is
+still a message. A collision (`E103`) is settled inline: the suffixed
+slug (« Enregistrer comme pate-chinois-2 »), listed first and chosen until she
+picks otherwise, or « Remplacer la fiche existante (l'ancienne reste dans
+l'historique) » (an edit, with the hash guard below). Chosen either way, the
+clash leaves the error list (usability round 4). Two files in one paste with the same new slug: the first
+is saved under it, only the later ones get the choice — the suffixed slug
+chosen by default, so both save in one commit unless she picks otherwise (a
+copy pasted twice is still asked about as the same dish, below). A same title (`W608`)
+asks whether it is the same dish; « Regrouper avec … » sets `family`/`variant` on the new file and on the vault
+recipe she picked, each with its version name, in the same commit
 (`add: <title>; edit: <other title>`), guarded by the other file's hash as the
 check read it — a changed, deleted or broken other recipe, the same version
 name twice, or two files of one paste pairing one recipe differently keep the
 file in the box with the reason (issue #13; as the form, below, and
 `/doublons`). A recipe with nearly the same ingredients (`W505`, "Possible
-duplicates", below) gets the same offer, the closest recipe put in the family,
-the others linked. Two copies inside one paste are compared too: the later
+duplicates", below) gets the same offer, listed with the same-title ones; the
+one she picks is put in the family. Two copies inside one paste are compared too: the later
 file names the earlier one by its place ("le fichier n° 1 de ce collage"),
 with no offer, as neither is saved yet. The fix-request block holds only `ai`
 codes.
@@ -80,12 +254,13 @@ recipe is opened again ("Repartir du texte collé" drops it). Save goes through
 the form's own save (`POST /api/form/save`); the file then leaves the paste and
 she is back among the other pasted recipes, the toast linking the one saved
 with "Annuler" — or on the recipe page when it was the last. A file with errors
-says to have the AI fix it first. Until it is saved or emptied, the paste is
+does not open in the form: its errors are settled first (a quick fix here, else the AI). Until it is saved or emptied, the paste is
 kept in the tab (`sessionStorage`, never sent anywhere), so a tablet that
 reloads a tab left in the background, or a trip to the form and back, loses
 nothing.
 
-**Web import.** A URL typed above the box is fetched by the server — `http`/`https`
+**Web import.** A URL typed in "Adresse de la page" (the "Une page web" tab of
+the main card on the empty page) is fetched by the server — `http`/`https`
 only, 10 s for the whole fetch (redirects and body included, not only while
 idle), 5 MB, redirects re-checked, and never a host resolving to a private,
 loopback, link-local or CGNAT address (checked on the address actually
@@ -96,8 +271,66 @@ through the quantity and unit parser, and a line that does not read cleanly
 becomes `{ name: "<the whole line> [?]" }` so the checker flags it — including
 a quantity followed by a unit word the vocabulary does not know
 (`2 cuillères à soupe …`), which is never read as `piece`. The result
-lands in the box for review; it is never saved directly. No JSON-LD → the page
-says to use the AI path.
+lands in the box for review; it is never saved directly. The field takes
+Enter, adds `https://` to an address typed without it, and says "Lecture de
+la page…" while the server reads. A failure stays under the field, in one
+plain sentence, until the address is changed — "Ce site refuse la lecture
+automatique." (the site answers 401, 403 or 429: it blocks robots), "Cette
+page ne contient pas de recette lisible." (no JSON-LD `Recipe`), "Cette page
+est introuvable : vérifiez l'adresse." (404, 410), "Ce site est introuvable :
+vérifiez l'adresse." (a name no DNS knows, never the system's own
+`getaddrinfo` words), the timeout, the size, or an
+address the server will not fetch. The address stays in the field. A
+refusal or a page with no recipe adds one line on the likely cause ("Cause
+probable : le site bloque les lecteurs automatiques…", "… la page ne déclare
+pas sa recette dans son code…"). Then the ways that still work:
+"Passer par l'IA (capture ou texte de la page)", which keeps the web tab and
+shows the AI's three steps worded for a page ("joignez une capture de la page
+ou collez son texte"), under « Page : <address> · Réessayer l'adresse »; the
+prompt it copies ends with one line naming the page for `source`
+(`pagePrompt`, AI-TEMPLATE.md, "A web page through the AI"). The other tab
+gives the card's steps again. And "Taper à la main" (none after an address
+refused as such: it is the address to fix). `/api/import` answers 422 with `{ error, kind }`, `kind`
+one of `refused`, `noRecipe`, `address`, `other`.
+
+The mapping, beyond the parser, reads what sites commonly write:
+`recipeYield` of a number of portions ("4", "4 portions", "4 portion(s)",
+"4 servings", "Serves 4", "4 à 6 portions" as a range) is `servings`; any
+other yield ("Makes 12", "24 biscuits") stays `yield`. A size in nested
+parentheses at the end of a line, "1 boîte (540 ml (19 oz))", is the
+two-measure note `540 ml (19 oz)`, as written. A `HowToSection` whose name is
+the recipe's title again (folded) is no section: its steps are kept without
+the heading. An ingredient name whose first word only is capitalised
+("Farine") is written in lower case; a name with a capital further in (a
+brand, a place) is left alone. The review card of an imported page opens its
+remarks: none of them was seen by an AI first.
+
+Before it lands in the box the import is tidied by the same rules the paste
+box offers as fixes, so it arrives with as few problems as possible:
+
+- every `E204` and `E210` the quick fixes can settle is settled
+  (`splitAll`, `src/lib/vault/quickfix.ts`: « Beurre : 2 c. à table » becomes
+  `qty: 2, unit: tbsp, name: "beurre [?]"`); a line with a second amount after
+  the first (« 3 gousses d'ail, 500 g, hachées », « 1 egg beaten with 1
+  tablespoon water ») keeps the first and puts the rest in `prep`, marked `[?]`;
+- a `HowToSection` named Tips, Notes, Storage, Make ahead, Variations (and
+  Astuces, Conseils, Conservation, Remarques, À l'avance, Trucs), a `HowToTip`,
+  or a step that starts « Tip: » goes to `## Notes` (« Storage: … »), not to
+  the steps;
+- with no `oven` in the page, the first °F/°C in the steps that reads as an
+  oven (200–550 °F, 90–290 °C; `ovenInText`, the rule `W609` checks) fills
+  `oven`.
+
+A page whose recipe reads as English (`lang: en`) gets, first on its review
+card, « Page en anglais · Faire traduire par l'IA »: the main action is
+« Copier pour traduire », one tap that copies the prompt, the translation
+request (`AI-TEMPLATE.md`, "The translation request": Québécois French,
+`lang: fr`, quantities, unit codes and the source block kept, `note: traduit
+de l'anglais`) and the imported file, « ✓ Copié » on the button for 2 s;
+« Ouvrir Claude ↗ » beside it (copying too when not done yet). The save stays
+possible but is not the primary button there. The next paste — anywhere, the
+box or "Coller" — replaces the imported text instead of being added after it.
+No data format changes: the answer is an ordinary French file.
 
 **Paste log.** Every save attempt, and every copy of the fix-request block,
 appends one JSON line to `cache/paste-log.jsonl`: time, number of files, and per
@@ -124,14 +357,19 @@ is byte-identical over the fixture vault and the 320-card corpus.
   her. An edit never changes the slug, whatever the title becomes.
 - **What the form does not model** (Q4 A) is carried: the preamble, sections
   other than method / notes / variants / alternatives, `item:`, other `media`
-  keys. YAML comments and unknown keys are dropped, as by any app save. An
+  keys. The preamble and those sections are shown, editable, as « Texte
+  libre » (never hidden, written back as typed); the form always has a
+  Préparation, and the free text's step lines can be moved into it (plan 04,
+  "usability pass, round 1"). YAML comments and unknown keys are dropped, as by any app save. An
   untouched method section is written back as its original text; a changed one
   is rewritten canonically (`1.` numbering across sub-headings).
 - **Checks.** The browser runs the checker on exactly what Save would write;
   every error blocks Save on its row and field, in French. Warnings are hints
   (Q9 A): the name-word ones (`W302`, `W304`, `W607`) live in the browser, the
   vault ones from `POST /api/form/check` (debounced while she types, never
-  blocking). An error the server check still returns is a bug in the form:
+  blocking). A `W305` on a name a typo away from exactly one ingredient's name
+  asks « Vouliez-vous dire « oignon » ? » with « Oui », which writes that name
+  (plan 04, usability round 2). An error the server check still returns is a bug in the form:
   logged with its codes, and she reads one sentence ("rien n'a changé").
 - **Family** (Q10 A): a new family's French label, as she typed it, goes into
   `vocab/families.yaml` in the recipe's commit — only when the family has no
@@ -151,6 +389,9 @@ is byte-identical over the fixture vault and the 320-card corpus.
 - **Stale** (Q18 A): "Concurrent edit", below.
 - **Photo**: sent to `/api/photo` after the recipe's save, with the slug and
   hash that save returned ("Dish photos", below).
+- **Save**: Enregistrer or Ctrl+Entrée from any field (hint not shown on a
+  touch screen); success opens the recipe page with « Recette enregistrée. »
+  (« Modifications enregistrées. » for an edit).
 - **Annuler** in the toast after a save: `POST /api/form/undo` (`commit`,
   `slug`) — "Undo and history", below.
 
@@ -191,7 +432,13 @@ in one sentence and the owner can take it back by hand (`git show`).
   date, author, and what changed in plain French, computed by parsing both
   versions into the form model (title, ingredients added / removed / changed,
   steps, tags, photo, fields, "Vérifié", readings settled) — never a diff of
-  Markdown. **Revenir à cette version** shows what going back would change,
+  Markdown. Under that list, a changed ingredient line and a changed step show
+  word by word on the paper, in the recipe's serif: the old words struck, the
+  new underlined, the rest as it reads (« ~~1 ½~~ 2 lb de porc »; usability
+  round 4, `render/worddiff.ts`, `changeDetails` in `history-diff.ts`). Lines
+  pair by position; a step added or removed shows whole. Past 400 words, or
+  when the two share under a third of their words, the old text shows struck
+  then the new one whole. **Revenir à cette version** shows what going back would change,
   then writes `restore: <title> (version du <date>)`, guarded by the hash of
   the file the page showed. The restore finds the commit among the recipe's
   versions in the commit index and reads that one text (`<commit>:<path>`),
@@ -239,9 +486,11 @@ deleted), and a path created by a rename goes on under its old name.
 ### Dish photos
 
 `POST /api/photo` (signed in; multipart `slug`, `hash`, `photo`), from the
-recipe page's "Ajouter une photo" prompt (shown when a recipe has no photo —
-`W603` stays deferred, plan 04 Q13 A) and from the form (after the recipe's
-own save, with the hash it returned). Same order as a
+recipe page's "Ajouter une photo" (an item of its ⋯ menu, there when a recipe has no photo —
+`W603` stays deferred, plan 04 Q13 A), from the form (after the recipe's
+own save, with the hash it returned), and from the paste box (the card's
+photo, after the paste's save, with the hash `/api/save` returned: "The card's
+photo on the recipe", above). Same order as a
 save, around the recipe file: size (25 MB) and type by content checked, the
 image decoded into its two derived copies in memory (a file that does not
 decode is refused) — all before the lock, writing nothing. Then, under the
@@ -261,7 +510,7 @@ below.
 
 ### Family labels
 
-`/famille/<slug>` sets a family's French display label in
+`/famille/<slug>` (and « Renommer » on each line of `/familles`, the owner) sets a family's French display label in
 `vocab/families.yaml` (`VOCAB.md`, "Families"). Same order as a save: the
 page carries the hash of `families.yaml` it was rendered from and the write is
 refused if the file changed since; the file is rewritten atomically (comments
@@ -283,6 +532,22 @@ comments and alignment stay. "Retirer" (`tag: drop <pending>`) rewrites every
 recipe holding the tag in one commit, guarded by each file's hash and by the
 set of recipes the page listed; a recipe with errors stops it.
 
+The page is one compact row per tag (`VOCAB.md`, "Tags": « Garder « Érable » »,
+✎, « C'est comme… », « Retirer »). Each decision folds its row away at once (clicks held for the 350 ms the list
+takes to settle) and says so in the app's toast with « Annuler » for 10 s
+(`lib/settle.svelte.ts`). « Annuler » after "Nouvelle étiquette" or "C'est
+comme…" reverts that commit's vocabulary files (`lib/server/revert.ts`: every
+file it touched back to its parent's text, refused when one changed since),
+commit `undo: <subject>`, then a retag; after "Retirer" it is the history's
+undo of the recipe commit.
+
+A pending tag gets a known tag preselected under "C'est comme…" only when it is
+the same word but for its ending (plural, feminine, accents) or, for a word that
+is not an ingredient's name, a typo of one (one edit in five letters or more,
+two from eight, first letter kept); otherwise nothing is preselected and the
+card opens on "Nouvelle étiquette" (`lib/vault/tagmatch.ts`; docs/VOCAB.md,
+"Tags").
+
 ### Possible duplicates
 
 The duplicate model (`INGREDIENTS.md`, "Duplicates") is kept in memory per
@@ -290,24 +555,158 @@ index state; the pairs settled as different (`vocab/distinct.yaml`) are read
 from the file on each request and filtered out. `W505` is computed beside the
 unresolved-name warnings in the paste box's server check, the form's check and
 the save result (the recipe's own slug left out). `/doublons` (plan 05, Phase
-7) lists the unsettled pairs, most similar first, 20 a page; readable by anyone,
-its actions need a session, and "Doublons (N)" shows in the nav for an account
-with the Markdown tools while N > 0. Each action is one commit by the
-signed-in person, and its message offers "Annuler":
+7) shows the unsettled pairs as cards: the pairs linked by a recipe make one
+card (« 3 fiches semblables »), the new cards first (below), then sorted by their closest pair, then by size, 10
+cards a page (a phone shows 5, then « Voir les 5 suivantes »). A pair links its
+recipes into one card only when it is very close (90 % or more) or the two
+titles start with the same word that says something (`titleHead`: little words
+dropped, folded, a plural's s off — « Pouding chômeur » and « Pouding chômeur à
+l'érable »); the pairs between two sets kept apart make one card of two of
+their own (the closest such pair shown, « Et 2 autres paires entre ces deux
+plats »; « Recettes différentes » there settles them all) — usability round 2,
+where one 68 % pair joined « Grands-pères » and « Pouding chômeur » into an
+11-fiche card. The badges (« 100 % en commun · Même titre · Même préparation »)
+are the closest pair's, labelled so on a bigger card (« Les 2 plus proches : »).
+A card shows its closest three (the closest pair, then each by its closest
+pair with those before it); the others wait behind « + N autres fiches », and
+a decision is about the recipes in view. Each fiche is named by where it
+comes from, the provenance line with the year a note gives (« de Tante Aline,
+1994 », « Coup de pouce », `PairSide.from`), never « (1) » / « (2) »; « Fiche
+sans source » when there is none. The head counts cards, said so, how many
+are done this visit (the count when the tab first opened, in
+`sessionStorage`) and how many are very close (a pair at 90 % or more):
+« 258 groupes à décider · 12 sur 270 faits · 40 très semblables »; it drops
+the moment a card folds away — usability round 3. A decided card folds into one
+line where it stood, « ✓ Fèves au lard : 2 variantes · Annuler », the
+decision's one undo (UI council: no toast beside it; a screen reader hears
+what is left, « Reste 257 groupes à décider. », from a hidden status), and
+focus moves to the next card.
+A decision about some of a card's recipes (the closest two of seven) leaves
+the others linked: they come back as a card of their own, nothing open, the
+closest two ticked, right under the receipt (« · la carte reste : 5 fiches
+encore semblables »), and focus lands on it. The head counts cards, so such a decision
+leaves it as it was, or one more when the card splits in two — round 3 kept
+the old card's open panel and ticks because the card kept its key (its
+slugs), which read as « nothing happened » (usability round 4). On a wide
+screen with a keyboard: J / K next / previous card, 1 2 3 open its three
+choices (the first field focused), Échap closes them, said behind a small
+« Raccourcis clavier » disclosure above the cards, closed. Pairs already in one family are left out unless their
+ingredients and amounts are identical (Q16 C; unchanged). Readable by anyone,
+its actions need a session, and « Doublons » is always in « Plus » for an
+account with the Markdown tools, with only what is new after it (« Doublons ·
+1 nouveau »; PLANNING.md, « Plus »). On a card of
+three or more, each recipe has a tick and the decision acts on the ticked
+ones: only the two of the closest pair are ticked at first, marked « Les plus
+proches » (an ink rule, not red), so « C'est la même recette » never trashes a
+far fiche she did not look at; its button names the count (« Mettre 2 fiches à
+la corbeille ») — usability round 3. Slugs show only in a « Détail » disclosure; the group's name is
+prefilled with the shortest title, and each « Ce qui distingue » is labelled
+with that recipe's title. A group with no label reads as its recipes write it
+(`familyNames`: « Sucre à la crème », never the slug's « Sucre a la creme »). Each action is one decision by the signed-in person,
+the card folds into its receipt, whose « Annuler » undoes it:
 
-- "Deux variantes du même plat": `family`/`variant` set on both recipes
-  (and the family's label in `vocab/families.yaml` when it has none), one
-  commit `edit: <a>; edit: <b>`, hash-guarded on both files, each result
-  checked before anything is written. Undone by the history's undo.
+- "Deux variantes du même plat" (« Variantes d'un même plat » on a bigger
+  card): `family`/`variant` set on every ticked recipe (and the family's label
+  in `vocab/families.yaml` when it has none), one commit `edit: <a>; edit:
+  <b>…`, hash-guarded on every file, each result checked before anything is
+  written. The family is the one a ticked recipe is in (a choice when they are
+  in several), else a new one named by her. Undone by the history's undo.
 - "C'est la même recette": the one she does not keep goes to the trash
   (`delete: <title>`, hash-guarded), undone by the trash's restore. A recipe
   another recipe uses as a sub-recipe is never trashed from here: each side
   lists where it serves, the used side cannot be picked, and when both are used
   the action is not offered (plan 05, review fixes; kept by the owner
   2026-09-30).
+  On a bigger card she keeps one of the ticked and the other ticked ones go,
+  one `delete:` commit each, all checked first; "Annuler" restores them all.
 - "Recettes différentes": the pair added to `vocab/distinct.yaml`, commit
   `duplicate: <a> ≠ <b>`, hash-guarded on the file; "Annuler" takes the line out
-  (`undo: duplicate <a> ≠ <b>`).
+  (`undo: duplicate <a> ≠ <b>`); when that leaves only the app's own header,
+  the file is removed, as before the first decision. On a bigger card, the
+  pairs among the ticked (all its pairs when every recipe is ticked); one
+  ticked alone: its pairs with the others (« Pas le même plat que les
+  autres »), in one commit `duplicate: N pairs` (the pairs in the body).
+- « Toutes différentes », after the close cards (its quiet line under the
+  last one, UI council): the cards little alike
+  (`lowGroups`: every pair under `LOW_CLOSE`, 80 % in common, with titles not
+  alike — not the same, not within two edits, not the same head word — another
+  method, and both recipes in one language, since a pair across languages is
+  often one dish translated) listed by their titles in a disclosure, settled in
+  one commit as "Recettes différentes"; « Annuler » takes them all out. The
+  server recomputes the set and acts only on the cards posted that still
+  qualify. On the invented demo vault, 5 of 75 cards.
+
+« Nouveau » (a small navy tag, never the red rule) marks a card holding a
+recipe saved after the device's mark (see PLANNING.md, « Plus »); those
+cards are the duplicates part of the Plus number. They sort first, and the
+head's « 3 nouveaux » is a link to the first. Once the first page has shown
+every new card, the device's mark moves up to the index's (`markSeen`): the
+Plus number no longer counts them; the tags stay for the rest of the visit.
+
+### Grouping variants
+
+Besides /doublons and the form's « Variante de », the owner groups variants
+from two places, each one commit `edit: …` hash-guarded, with « Annuler » in
+the toast (the history's undo):
+
+- « Grouper avec… » in a recipe's ⋯ menu opens `/familles?grouper=<slug>`: she
+  searches a group (joins it) or another recipe (the two become a group: the
+  one either is in, else a new one named after the shorter title). Then the
+  group's page. The search ranks by how like the recipe each one is
+  (`groupingScores`: the better of its title, read as the form's « Ressemble
+  à » reads it — same 1, two edits off 0.95, one title holding the other
+  whole 0.9, the same head word 0.7 — and its ingredients' weighted Jaccard; a
+  group scores as its likest recipe), not alphabetically; before she types,
+  the likest at 0.6 or more is offered on one line, the group when that
+  recipe is in one: « Suggestion : Pâté chinois · 3 variantes [Grouper] »
+  (usability round 4). The chosen target's preview says « N ingrédients en
+  commun sur M, hors ingrédients de base » (distinct linked ingredients, the
+  registry's staples left out; M counts both sides), and under 30 % of M
+  (`SHARED_LOW`) a soft note « Peu d’ingrédients en commun : est-ce bien le
+  même plat ? » — never a refusal (round 5).
+  Its toast's « Annuler » reverts the commit, then says « Groupe défait :
+  « … » n’en fait plus partie » and refreshes the group's page; when the group
+  is gone (a pair undone) it goes to the recipe's page instead.
+- « + Ajouter une recette à ce groupe » on `/famille/<slug>`: a recipe joins
+  that group. Refused when another member already has that variant.
+
+« Ce qui distingue » (here, on /doublons and in the form) starts with who the
+recipe is from, capitalised as written and with its « de » (`fromLabel`:
+« de Tante Aline », « d’Hélène »; no author: the book's or magazine's title,
+« du Livre des desserts », else its kind, « du livre », « de la revue », « du
+site », « de la télé ») when no other recipe of the group reads the same; else
+it is empty, with examples in the placeholder (« ex. zeste de citron, sans
+sucre »). Never a fragment of the title (usability round 2: « aux », « trois »).
+A variant written as a slug reads back from the source (`variantShown`:
+`lise-b` for « Lise B. » reads « de Lise B. », `revue` « de la revue », else
+the hyphens become spaces). The recipe page shows it after the family link
+(« Une des 3 variantes de Tourtière — sans porc »), unless it only repeats the
+author the provenance names (usability round 3).
+
+The comparison on `/famille/<slug>` marks an ingredient a variant has with
+✓ and one it lacks with –, under a legend line « ✓ : dans cette variante ·
+– : absent » (a lone dot read as a bullet; usability round 4).
+
+On /familles each group is one line of facts, « 3 variantes · 45 min–1 h 10 ·
+Dessert » (the span of total times, the most common course tag), then its
+variants' labels in a serif line. A group of one recipe stays listed for the
+owner (more may be on the way), with « · à compléter : ajoutez une 2ᵉ
+variante » after its facts; a family account (no
+Markdown tools) sees only the groups of two or more, and /garde-manger shows
+it no « + N ingrédients pas encore reliés » (the owner's upkeep, a link to
+/resoudre for the owner). In the form, Enter (or leaving the field) in
+« Variante de » takes the top suggestion, « Ce sera le groupe : … » says what
+it will be, and « Aucun groupe existant n'a un nom proche » shows only when no
+group is listed. Once a group with recipes is chosen, « Elle rejoindra :
+Tourtière (3 recettes) » lists them before the save (« Les autres recettes du
+groupe : » on an edit already in it; read from `/famille/<slug>/membres`).
+The form's live check also names a recipe whose title this one holds whole,
+or that holds it (« Pouding au riz » / « Pouding au riz de la voisine »;
+`titleMatches().like`, two words at least): « Ressemble à « Pouding au riz »
+(Carmen). En faire une variante » under the title only (round 4: no longer
+repeated beside Enregistrer), and not when that recipe is already in this
+one's group. A pair made from the form is a new group named after the
+shorter title.
 
 "Comparer" (`/doublons/comparer?a=…&b=…`) shows the two recipes side by side,
 every field where they differ, read-only: the form's stale-compare table.
@@ -334,8 +733,22 @@ YAML (comments, order and body kept) and must still pass its own check; the
 file is written atomically and committed, a failed write or commit puts it
 back; then the registry is reloaded and every row re-resolved from its key.
 Writes of every kind (recipes, family labels, ingredients) go through one helper,
-`src/lib/server/files.ts`. The nav shows "À relier (N)" while N > 0; `vault
-queue [--limit N]` prints the same queue.
+`src/lib/server/files.ts`. « Plus » always lists « À relier », with no count
+(a backlog: the total is in the page's head); `vault
+queue [--limit N]` prints the same queue. The page shows 30 keys, the total in
+its head, and « 30 sur 66 — Voir les suivants » adds 30 more (`?n=`, up to
+1000). Each action folds its row away with the toast and « Annuler », which
+reverts that ingredient commit (`lib/server/revert.ts`, refused when the entry
+changed since), commit `undo: <subject>`, then the registry reloaded. A
+candidate shows by its name; its slug shows (small) only when two candidates
+share a name. The candidates are the ones worth showing (`shownCandidates`,
+docs/INGREDIENTS.md, "Resolution"), strongest first: the first is the primary
+button. On a keyboard, 1, 2, 3 pick the row's candidates (the focused row,
+else the first left) and Enter the first, ignored while typing in a field
+(usability round 3). Only a strong candidate (docs/INGREDIENTS.md, "A sure
+suggestion and a guess") is primary and taken by its key or Enter; a guess's
+key focuses it and nothing more (round 5). The « À relier — N » count in
+« Plus » and the page head follow each link and its undo.
 
 ### Ingredient edits: the ingredient view
 
@@ -405,25 +818,70 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
   ×20) is ignored. Kitchen mode keeps its own per-device session
   (`localStorage`, 12 h): the address wins when present, then is dropped, so a
   reload resumes what was set there. The service worker caches kitchen pages
-  under the path alone; the parameters create no cache entry.
+  under the path alone; the parameters create no cache entry. While a session
+  is resumable on the device (same recipe content, under 12 h, not finished,
+  and something done: a step reached, a tick or a timer), the recipe page's
+  « Cuisiner » reads « Reprendre · étape N » and its link carries no amount, so
+  the cook goes on at the session's own; read in the browser only
+  (`lib/kitchensession.ts`), the server's page always says « Cuisiner ».
 - **Ways in** (Q8 B): the stepper (±1 serving, to the next whole number), the
-  multiplier list for a recipe without servings, a free factor (« Autre
-  quantité ») on every recipe, and tapping an ingredient's amount to type what
-  she has (factor = typed ÷ written, from the lower bound of a range; not a
-  `to_taste` line, not a zero). « Remettre » returns to the card.
+  multiplier list for a recipe without servings, « Autre quantité » on every
+  recipe, and tapping an ingredient's amount to type what she has (factor =
+  typed ÷ written, from the lower bound of a range; not a `to_taste` line, not
+  a zero). « Autre quantité » asks for the count she wants when the recipe gives
+  one — « Pour [10] portions », else a yield that is one plain count (« Pour
+  [3] tourtières »; `render/target.ts`) — and shows the factor it makes beside
+  the field (« = × 1 ¼ »); a recipe with neither asks for a multiplier. The
+  controls are one row — the stepper or the multiplier chips, and « Autre
+  quantité » — and never change size or place as the amount changes (the
+  multiplier chips stay the same five; a factor not among them presses none).
+  Under them, a line whose height is always kept, so the list never moves:
+  scaled, « Recette × 2 · donne 4 tourtières · Remettre » (the yield only when
+  the recipe gives one; « Remettre » returns to the card); at × 1 nothing (the
+  head already says what it makes), or the hint. Scaled, one short note under
+  the list says what stays the card's and what ≈ means: « Temps et four
+  inchangés · prévoir 4 assiettes à tarte · ≈ arrondi » (the steps named when
+  none of their amounts shows its scaled value, the pan when none is found);
+  no notice above the method (usability round 6). A tappable amount has a
+  dotted underline in the ink and a 44 px target; one hint (« Touchez une
+  quantité pour tout ajuster ✕ »), in that line at × 1, shows per device until
+  she scales once (by any control, a tapped amount included) or closes it.
+  Escape closes « J’en ai » (focus back on the amount) and « Autre quantité »
+  (focus back on its button).
 - **Servings and yields** (Q7 A): a servings range is scaled at both ends; a
   text yield's leading plain number or fraction is scaled as a count and the
   rest kept (`24 biscuits` → `48 biscuits`); a text with no such number, or a
   range (`2 à 3 douzaines`), shows as written with `(× f)`. The words after a
   number keep their written number (`1 moule` → `2 moule`), as ingredient
   names do: see below.
-- **Names stay as written.** A scaled line changes its amount and its unit word
-  (`1 tasse` → `2 tasses`, from `vocab/unit-labels.yaml`), never the
-  ingredient's name: `1 oignon` at ×2 reads `2 oignon`. The file holds one
-  written form of the name (`RECIPE-SCHEMA.md`, `name`) and the docs define no
-  plural for it; pluralizing would need each language's noun grammar in code
-  (`VOCAB.md` "Plurals" only strips endings, it cannot add them). Plan 05,
-  Phase 4.
+- **Names.** A scaled line changes its amount and its unit word
+  (`1 tasse` → `2 tasses`, from `vocab/unit-labels.yaml`). A measured line's
+  name stays as written. A bare count (`piece` or no unit) agrees with the
+  number it shows, French from 2 (`1 ½ navet`, `2 navets`), English above 1:
+  1. the registry's form first, when the line is linked to an entry that names
+     it: an entry name that differs from the line's, word for word, only by a
+     plural suffix of `vocab/normalize.yaml` gives it, in the line's own
+     spelling (`oeuf` with `œufs` in the entry: `2 oeufs`; `1 ½ oeuf`);
+  2. else, in French and at a factor other than 1, a small rule set
+     (`render/agree.ts`): each word before the first preposition (`à`, `de`,
+     `d’`, `en`, `au`…) takes its plural — `-s`/`-x`/`-z` unchanged, `-al` →
+     `-aux`, `-au`/`-eau`/`-eu` → `+x`, the usual exceptions, an invariable
+     list (`orange`, `maison`, `crème`…), a capitalised variety and anything
+     after a marker left alone — so `1 croûte à quiche` × 4 reads `4 croûtes à
+     quiche`. The rule only adds a plural: a name written plural is never taken
+     back to the singular without a registry form. English has no rule;
+  3. the prep's leading past participles and adjectives then agree with the
+     name (`râpé` → `râpés`, `écrasée` → `écrasées`, `finement émincé`, `pelé et
+     tranché`), up to the first preposition, comma or unknown word: `coupé en
+     cubes` → `coupés en cubes`; `en cubes`, `au goût` never change.
+  At × 1 without a registry form, the card's words as written (`2 navet` stays).
+  One function for the recipe page and kitchen mode: `countWords` in
+  `render/ingredient.ts`, applied by `ingredientParts`/`ingredientText`. Both
+  page loads send each linked line's registry forms (and its weights, for the
+  grams beside a count) from `ingredientLinks`; kitchen mode receives them as
+  `lineForms`, keyed by the line's position across groups (as the index
+  numbers it), and hands them to `ingredientText` for its checklist and its
+  step chips, so a line reads the same on both pages (`2 ½ poivrons verts`).
 - **Sub-recipes** (Q5 A): kitchen mode's inline expansion is read at `line
   amount × factor / yield` — the cost rule (`INGREDIENTS.md`, "Cost";
   `subRecipeFactor`, one shared function) — when the sub-recipe's `yield`
@@ -451,8 +909,10 @@ carries the rules (`vocab/scaling.yaml`, how amounts show: `VOCAB.md`,
   An amount is read as the step shows it, across emphasis and the `[?]`,
   `[?: …]` and `[+]` markers (« 1 **tasse** », « 1 [?] tasse »), never across
   `[illisible]`, code or a link. The timers read the original text.
-  When the factor is not 1, one notice above the method (and on the kitchen
-  step) says that times, the oven and the pan are the base recipe's.
+  When the factor is not 1, the recipe page's note under the ingredients (and
+  in kitchen mode a notice, once: on step 1, on the first step shown that
+  visit, and on the step where the amount was changed — not on every step)
+  says that times, the oven and the pan are the base recipe's.
 
 ### Pantry search
 
@@ -509,7 +969,9 @@ Conveniences:
 - `status` → set by the app on every paste, never taken from the file: an AI file
   is never auto-`verified`. `needs-review` if any `[?]`, `[?: …]` or
   `[illisible]` remains (W605), otherwise `draft`. `verified` is set only by a
-  person, with « Marquer vérifiée » in the recipe page's ⋯ menu — a one-field edit
+  person, with « Marquer vérifiée » beside the state's badge on the recipe page
+  (for whoever has the Markdown tools; the ⋯ menu shows it disabled, with why,
+  while an uncertain reading remains) — a one-field edit
   through the normal save path, committed as `verify: <title>`, refused while an
   uncertain marker remains. A **form edit** (plan 04, Q14 A) keeps the
   recipe's status instead — `verified` stays `verified` — except that a
@@ -564,7 +1026,78 @@ a few MB at 5000 recipes. Tokenizer `unicode61 remove_diacritics 2`, and text is
 → `oe`, `æ` → `ae`, lowercase, markers removed): `remove_diacritics` alone does
 not map the ligature `œ` to `oe`, so `boeuf` would not find `bœuf`. Each word of
 a query becomes a prefix term (`"lasag"*`), all words required, so results
-update as you type. Ranked with bm25, title weighted highest.
+update as you type. A word (or a run of up to five) that names a registry entry,
+alone or less a final s/x, also matches the entry's other names in both
+languages and the lines resolved to it (`pomme` finds `apple`, `patate` finds
+`pommes de terre`). It does not match another entry's compound name whose head
+word (French first, English last) is that word and whose category differs:
+`pomme` never matches `pommes de terre`, while typing `pommes de t` still does.
+A whole word that names no entry but heads several-word names of entries
+(French: the first word, English: the last; at most 12 entries) stands for
+all of them: `poivron` finds the lines written `piment vert` or `green pepper`
+and those resolved to those entries, except inside a longer name of another
+entry (`red pepper` in `crushed red pepper`). Such a search shows « Aussi :
+piment vert (40) · piment rouge (17) »: per entry, the name the box writes most,
+with what a search for it alone finds — the two that find most, and only
+names that narrow the list. A one-word search leaves out the names it heads
+without naming a kind of it (docs/VOCAB.md, "Search words", names held
+apart: `piment` never matches `piment de la Jamaïque`, allspice, nor the
+entry known under that word only by it); each such name the registry writes
+is offered last, « Aussi : … · piment de la Jamaïque (2) », with what it
+finds alone. The search's own word groups (docs/VOCAB.md,
+"Search words") stand for each other the same way: kin words (`tante` ⇄
+`matante` ⇄ `ma tante` ⇄ `aunt`, `mononc'` ⇄ `oncle`, `mémère` ⇄
+`grand-mère`, `pépère` ⇄ `grand-père`) as prefixes, so `tante` finds « Matante
+Rollande »; dish words (`cake` ⇄ `gâteau`, `pie` ⇄ `tarte`, `squares` ⇄
+`carrés`, `cookies` ⇄ `biscuits`…) as whole words with their plural, so `pie`
+finds « Tarte » but not « Tartelettes ». The little words (`la`, `de`, `ma`,
+`mon`, `des`, `aux`…) are dropped next to other words; alone, one matches only
+itself, never as a prefix (`ma` is not `maigre`).
+FTS proposes the candidates and each is checked word by word in JS. The results
+whose title holds at least one word come first, the titles holding more ahead;
+the rest follow under the field holding the most words, in this order: « Dans
+les ingrédients de n recettes », then étiquettes, provenance, texte (the method,
+and any text before the first `##` heading), notes (the other sections: Notes,
+Variantes, Alternatives — a word only a note mentions, « se sert avec la
+tourtière », comes last, under a quieter « Mentionnent aussi « tourtière » »,
+so it never reads as more of what was searched).
+Each card says where the words are; a word found under another name marks
+that name (« Ingrédient piment vert »). Within a group, results are ranked by
+bm25 with the title weighted highest.
+
+**Each word alone.** When the words find nothing together (after the close
+spelling below), each word — or run of words that names one thing — is
+searched alone and the empty list says « Aucune recette avec tous les mots. »,
+then « « carrot » seul : 27 recettes › » (a link to that search) and « « gizmo »
+seul : aucune ». With filters on, the empty list offers to clear them instead.
+
+**Spelling.** With fewer than three results, each word that finds nothing alone
+is replaced by the closest word of the box. The box's words are taken from titles,
+ingredient names and registry names, at most 1 edit for 4–6 letters and 2 from 7
+letters, none under 4. Ties go to the more frequent word. If that finds more, a
+« Vouliez-vous dire « … » ? » link is shown. When the typed words find nothing,
+the close spelling's results are shown at once, said once over them:
+« Résultats pour « tarte » (vous aviez tapé « tarre ») · Chercher exactement »,
+the count line « n recettes pour « tarte » » (never « Aucune recette » over
+rows). « Chercher exactement » adds `?exact=1`: the typed words are searched
+as they are, the close spelling only offered (« Vouliez-vous dire »); typing
+in the box drops it. The vocabulary is cached until the index changes.
+
+**Facet counts** are taken within the current list. A facet's own values ignore
+its own filter (one value of Saison replaces another), except tags, which add up.
+The values are those of the search with no filter. A value that would leave
+nothing shows greyed with 0, after the others, and is not a link. The page
+keeps the order it showed after a tap on a value (until a navigation that is
+not a filter's), so the value tapped does not move under the finger.
+
+**Rows and idea rails.** Each row carries its course (the first course tag
+it has, `COURSE_TAGS`) and its seasons, for its line « Dessert · Automne ».
+The idea cards over the whole box add, beside the random card, the season's
+and the last added, three rails drawn from the index, each its link's list
+exactly: main dishes over 2 h (`?tag=plat-principal&temps=plus`), 7 servings
+and up (`?portions=7+`), rated 4 or 5 (its link: the box sorted by note);
+three at random each, shown from three recipes up. No rail claims when a
+recipe was last cooked: nothing records it.
 
 Measured on a generated vault of 5000 recipes (`scripts/gen-vault.ts --bench`):
 full `sync --force` ~5 s, no-op sync ~1.3 s, FTS query ~1 ms, a browse page
@@ -747,6 +1280,13 @@ For a given `family`, select every variant, then compute:
 That table is the "lasagna, all types" view. It answers *what is different*, not
 just *what exists*.
 
+A name not linked yet compares by the entry it most likely is (`familyDiff`'s
+`guess`: the first shown candidate, docs/INGREDIENTS.md, "Resolution"), when
+another variant has that entry linked: it sits on that entry's row, written as
+the recipe writes it, with « même ingrédient ? » and, for the owner, « Relier »
+(the queue's Relier, with « Annuler »). Such a row is never « Seulement ici »:
+a misspelling is not a difference (usability round 3).
+
 ## Authentication
 
 Two accounts minimum, since edits should be attributable in the git history and
@@ -816,7 +1356,22 @@ Each request, in this order (`src/hooks.server.ts`):
 Every write then commits as the signed-in person (`withAuthor(ctx, user)`,
 author and committer both); the CLI and the watcher's `edit (external)`
 commits keep `git_author`. Rights are the same for every account (Q2 B); the
-per-account `markdown` preference only shows or hides the Markdown tools.
+per-account `markdown` preference only shows or hides the Markdown tools, and
+with them the archive's upkeep on the recipe page: one quiet line under the
+red rule with the review state (« Brouillon · pas encore relue contre la fiche ·
+Marquer vérifiée » — the button's words never repeated in the sentence —, « Saisie
+sans fiche d’origine · pas encore relue » for a draft with no source or photo to
+read it against, « À relire · lectures incertaines à vérifier sur l’original »;
+usability round 6) and « N ingrédients à relier », which opens
+the list of unlinked ingredients at the page's foot, each with « Relier › » to
+its queue row (usability round 3; there is no longer a word after each
+unlinked line), and the vocabulary notes: one line per `W501` / `W502` at the
+foot, its decision a link away (« Étiquette nouvelle : érable — Décider dans
+Étiquettes › » to `/etiquettes`; « Nom de plat proche d’un autre : … — Décider
+dans Variantes › » to `/familles?grouper=<slug>`), the explanation, file names
+and codes only behind « Détails » (usability round 6). A family account reads the recipe
+without them: no badge, no explanation (the state says how far the keeper's
+work went, not whether the recipe can be cooked).
 
 ### Account preferences
 

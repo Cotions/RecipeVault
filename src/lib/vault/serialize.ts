@@ -80,8 +80,8 @@ function altFlow(a: Alt): string {
 	]);
 }
 
-/** Item key order follows the prompt's rule 6 (docs/AI-TEMPLATE.md). */
-function itemFlow(it: Ingredient): string {
+/** Item key order follows the prompt's rule 6 (docs/AI-TEMPLATE.md). Also the paste box's E207 fix (`entryFix`). */
+export function itemFlow(it: Ingredient): string {
 	const parts: string[] = [];
 	const add = (k: string, v: Value | undefined) => {
 		if (v !== undefined) parts.push(`${k}: ${value(v, true)}`);

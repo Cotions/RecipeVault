@@ -89,3 +89,16 @@ export function textFromRows(rows: RawRow[]): string {
 export const sameRows = (a: RawRow[], b: RawRow[]) =>
 	a.length === b.length &&
 	a.every((r, i) => r.type === b[i].type && r.text === b[i].text && (r.type !== 'heading' || r.level === b[i].level));
+
+/**
+ * Steps written under no heading (W401: bare `1.` / `-` lines in the body's
+ * preamble): the rows from the first step line on, and the prose before it,
+ * which stays where it was. Null when the text holds no step line.
+ */
+export function preambleSteps(preamble: string): { keep: string; rows: RawRow[]; steps: number } | null {
+	const rows = rowsFromText(preamble);
+	const first = rows.findIndex((r) => r.type === 'step');
+	if (first === -1) return null;
+	const moved = rows.slice(first);
+	return { keep: textFromRows(rows.slice(0, first)), rows: moved, steps: moved.filter((r) => r.type === 'step').length };
+}

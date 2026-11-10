@@ -73,3 +73,22 @@ test('an unknown recipe has no history page', async ({ page }) => {
 	const res = await page.goto('/r/nulle-part-inventee/historique');
 	expect(res?.status()).toBe(404);
 });
+
+test('a changed step shows word by word: the old words struck, the new underlined', async ({ page }) => {
+	const original = read();
+	// The version on file now: going back to it puts back the very text (a save would write it canonical).
+	const before = execFileSync('git', ['log', '-1', '--format=%H', '--', `recipes/${SLUG}.md`], { cwd: VAULT, encoding: 'utf8' }).trim();
+	const edited = original.replace('Laisser mijoter 3 heures', 'Laisser mijoter 4 heures');
+	expect(edited).not.toBe(original);
+	const res = await page.request.post('/api/save', { headers: ORIGIN, data: { files: [{ text: edited, overwrite: sha(original) }] } });
+	expect(res.ok()).toBe(true);
+	await page.goto(`/r/${SLUG}/historique`);
+	const details = page.locator('.versions > li').first().getByTestId('history-details');
+	await expect(details).toContainText('Étape 4');
+	await expect(details.locator('del')).toHaveText(/3/);
+	await expect(details.locator('ins')).toHaveText(/4/);
+	// Leave the vault as found for the other specs: back to the version before the edit.
+	const back = await page.request.post(`/r/${SLUG}/historique?/revenir`, { headers: ORIGIN, form: { commit: before, hash: sha(read()) } });
+	expect(back.ok()).toBe(true);
+	expect(read()).toBe(original);
+});

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FORM_HINT_CODES } from '../../src/lib/form/hints';
-import { codeText, explain, fixerText, formHintText, placeOf } from '../../src/lib/i18n/diagnostics';
+import { afterColon, codeText, explain, FIX_FR, fixerText, formHintText, pasteText, placeHuman, placeOf } from '../../src/lib/i18n/diagnostics';
 import { DEFAULT_PREFS, setPrefs } from '../../src/lib/prefs';
 import { CODE_FIXERS } from '../../src/lib/vault/codes';
 import { parseRecipe } from '../../src/lib/vault/parse';
@@ -9,6 +9,15 @@ describe('French explanation per code', () => {
 	it('has an entry for every registered code, and none for unknown codes', () => {
 		expect(Object.keys(CODE_FIXERS).filter((c) => !codeText[c])).toEqual([]);
 		expect(Object.keys(codeText).filter((c) => !(c in CODE_FIXERS))).toEqual([]);
+	});
+
+	it('has a French correction hint for every code, without the word frontmatter', () => {
+		expect(Object.keys(CODE_FIXERS).filter((c) => !FIX_FR[c])).toEqual([]);
+		expect(Object.keys(FIX_FR).filter((c) => !(c in CODE_FIXERS))).toEqual([]);
+		for (const [code, text] of Object.entries(FIX_FR)) {
+			expect(text, code).not.toMatch(/front ?matter|\b(the|is|must|missing)\b/i);
+			expect(text.normalize('NFC'), code).toBe(text);
+		}
 	});
 
 	it('entries are short plain French, not the English message', () => {
@@ -21,8 +30,10 @@ describe('French explanation per code', () => {
 	});
 
 	it('falls back for an unknown code', () => {
-		expect(explain('X999')).toMatch(/détail technique/);
-		expect(explain('E201')).toMatch(/tasse → cup/);
+		expect(explain('X999')).toMatch(/détails pour le dépannage/);
+		// The unit mapping (tasse → cup) is the checker's, behind « Détails pour le dépannage », not the cook's copy.
+		expect(explain('E201')).toMatch(/^Cette unité n’est pas dans la liste/);
+		expect(explain('E201')).not.toMatch(/→/);
 	});
 });
 
@@ -111,6 +122,45 @@ describe('placeOf', () => {
 	});
 });
 
+describe('placeHuman: where, as a cook says it', () => {
+	const parsed = parseRecipe(FILE);
+
+	it('names the group, the rank and the ingredient, not the field', () => {
+		expect(placeHuman('ingredients[0].items[1].unit', parsed)).toBe('Pâte, 2e ingrédient (beurre)');
+		expect(placeHuman('ingredients[0].items[0].qty', parsed)).toBe('Pâte, 1er ingrédient (farine)');
+		expect(placeHuman('ingredients[0].items[1].or[0].unit', parsed)).toBe('Pâte, 2e ingrédient (beurre), choix 1 (margarine)');
+		expect(placeHuman('ingredients[0].items[1].alt.qty', parsed)).toBe('Pâte, 2e ingrédient (beurre), autre mesure');
+		// An unnamed group among several: its number; a plain-string entry is its own name.
+		expect(placeHuman('ingredients[1].items[1]', parsed)).toBe('Groupe 2, 2e ingrédient (500 g de lait)');
+	});
+
+	it('leaves the group out when there is one, unnamed', () => {
+		expect(placeHuman('ingredients[0].items[2].unit', { frontmatter: { ingredients: [{ items: [{}, {}, { name: 'eau' }] }] } })).toBe('3e ingrédient (eau)');
+	});
+
+	it('falls back to placeOf elsewhere', () => {
+		expect(placeHuman('times.cook')).toBe('Temps : cuisson');
+		expect(placeHuman(null)).toBeNull();
+	});
+
+	it('builds a sentence after it', () => {
+		expect(afterColon('Cette unité n’est pas dans la liste.')).toBe('cette unité n’est pas dans la liste.');
+		expect(afterColon('L’IA doit le corriger.')).toBe('l’IA doit le corriger.');
+		expect(afterColon('IA en tête')).toBe('IA en tête');
+		expect(afterColon('« tasse » s’écrit cup')).toBe('« tasse » s’écrit cup');
+	});
+
+	it('says an alias unit is written as its code, not unknown', () => {
+		// The plain thing first (the unit as she wrote it), then what the file writes; never "inconnue".
+		expect(pasteText.unitAlias('tasse', 'cup', 'tasse')).toBe('Unité «\u00a0tasse\u00a0» : écrivez cup ; l’app affichera «\u00a0tasse\u00a0».');
+		expect(pasteText.unitAlias('c. à soupe', 'tbsp', 'c. à table')).toBe('Unité «\u00a0c. à soupe\u00a0» : écrivez tbsp ; l’app affichera «\u00a0c. à table\u00a0».');
+		expect(pasteText.unitAlias('tasse', 'cup', 'tasse')).not.toMatch(/inconnue/);
+		expect(pasteText.newTag('Erable')).toBe('Nouvelle étiquette «\u00a0Erable\u00a0» : gardée telle quelle, elle attendra dans Étiquettes.');
+		expect(pasteText.tagAccent('Erable', 'Érable')).toBe('Étiquette «\u00a0Erable\u00a0» inconnue : vouliez-vous «\u00a0Érable\u00a0» ? Sinon, gardez-la : elle attendra dans Étiquettes.');
+		expect(pasteText.tagKept('Erable')).toBe('✓ «\u00a0Erable\u00a0» gardée : elle attendra dans Étiquettes.');
+	});
+});
+
 describe('in English', () => {
 	const french = { ...codeText };
 	const frenchHints = Object.fromEntries(FORM_HINT_CODES.map((c) => [c, formHintText[c]({ word: 'x', value: 'y', suggestion: 'z' })]));
@@ -129,8 +179,8 @@ describe('in English', () => {
 	});
 
 	it('falls back for an unknown code, and says who settles one', () => {
-		expect(explain('X999')).toMatch(/technical detail/);
-		expect(explain('E201')).toMatch(/tablespoon → tbsp/);
+		expect(explain('X999')).toMatch(/troubleshooting details/);
+		expect(explain('E201')).toMatch(/^This unit is not in the list/);
 		expect(fixerText.ai).toMatch(/fix request/);
 	});
 
@@ -154,5 +204,8 @@ describe('in English', () => {
 		expect(placeOf('season[1]')).toBe('Season, no. 2');
 		expect(placeOf('source.editeur')).toBe('Source: field “editeur”');
 		expect(placeOf('allergens')).toBe('Field “allergens”');
+		expect(placeHuman('ingredients[0].items[1].unit', parsed)).toBe('Pâte, 2nd ingredient (beurre)');
+		expect(placeHuman('ingredients[0].items[10].unit', parsed)).toBe('Pâte, 11th ingredient');
+		expect(pasteText.unitAlias('tasse', 'cup', 'tasse')).toBe('Unit “tasse”: write cup; the app will show “tasse”.');
 	});
 });

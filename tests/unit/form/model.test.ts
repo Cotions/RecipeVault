@@ -5,7 +5,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { defaultsFor, statsFromRecipes } from '../../../src/lib/form/defaults';
+import { defaultsFor, statsFromRecipes, unitMenu } from '../../../src/lib/form/defaults';
 import {
 	confirmField,
 	emptyForm,
@@ -231,6 +231,25 @@ Avec du sirop.
 `);
 	});
 
+	it('a new form starts with three empty rows of each; the ones left empty are not written and block nothing', async () => {
+		const { blocks } = await import('../../../src/lib/form/rows');
+		const form = emptyForm({ lang: 'fr', ovenUnit: 'F', rows: 3 });
+		const method = ensureSection(form, 'method');
+		expect(form.groups[0].items).toHaveLength(3);
+		expect(method.rows.filter((r) => r.type === 'step')).toHaveLength(3);
+		// Nothing typed: only the title and an ingredient are missing — never a row.
+		expect(blocks(form).map((b) => `${b.id === 'recipe' ? 'recipe' : 'row'}:${b.field}`)).toEqual(['recipe:title', 'recipe:ingredients']);
+		form.title = 'Biscuits inventés';
+		Object.assign(form.groups[0].items[1], { qty: '1', unit: 'cup', name: 'farine' });
+		method.rows[1].text = 'Mélanger.';
+		expect(blocks(form)).toEqual([]);
+		const { recipe, body, errors } = fromForm(form);
+		expect(errors).toEqual([]);
+		expect(recipe.ingredients).toEqual([{ items: [{ qty: { raw: 1, value: 1 }, unit: 'cup', name: 'farine' }] }]);
+		expect(body.steps).toHaveLength(1);
+		expect(formText(form)).toContain('## Préparation\n\n1. Mélanger.\n');
+	});
+
 	it('refuses what the file format cannot hold', () => {
 		const form = emptyForm();
 		form.groups[0].items[0].qty = '2';
@@ -356,5 +375,15 @@ describe('browser safety', () => {
 			const text = readFileSync(join('src/lib/form', f), 'utf8');
 			expect(text, f).not.toMatch(/from ['"](?:node:|fs|path|\$lib\/server|\.\.\/server)/);
 		}
+	});
+});
+
+describe('the unit picker (usability round 4)', () => {
+	it('the most used first, family by family, then the rest in the vocabulary’s order', () => {
+		const order = defaultsFor({ units: { g: 9, tsp: 8, cup: 7, ml: 6, tbsp: 5, piece: 4, lb: 3, can: 2, oz: 1 }, ovenUnits: {}, langs: {} }).unitOrder;
+		const { common, rest } = unitMenu(order);
+		expect(common).toEqual(['cup', 'tbsp', 'tsp', 'lb', 'ml', 'g', 'piece', 'can']);
+		expect(rest).not.toContain('cup');
+		expect([...common, ...rest].sort()).toEqual([...order].sort());
 	});
 });

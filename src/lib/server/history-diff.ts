@@ -8,7 +8,9 @@ import { toForm, type FormItem, type FormRecipe, type FormSection } from '../for
 import { t, tagLabel } from '../i18n';
 import { checkFile } from '../vault/check';
 import { stripMarkers } from '../vault/markers';
-import type { Recipe } from '../vault/types';
+import type { Ingredient, Recipe } from '../vault/types';
+import { ingredientText } from '../render/ingredient';
+import { wordDiff, type DiffPart } from '../render/worddiff';
 
 /** A field the summary names without detail. */
 export type Field =
@@ -42,11 +44,22 @@ export type Change =
 	| { kind: 'title'; from: string; to: string }
 	| { kind: 'fields'; fields: Field[] }
 	| { kind: 'tags'; added: string[]; removed: string[] }
-	| { kind: 'ingredients'; added: string[]; removed: string[]; changed: string[] }
-	| { kind: 'steps'; added: number; removed: number; changed: number; reordered: boolean }
+	| { kind: 'ingredients'; added: string[]; removed: string[]; changed: string[]; details?: Detail[] }
+	| { kind: 'steps'; added: number; removed: number; changed: number; reordered: boolean; details?: Detail[] }
 	| { kind: 'photo'; action: 'added' | 'changed' | 'removed' }
 	| { kind: 'verified'; now: boolean }
 	| { kind: 'markers'; confirmed: number; added: number };
+
+/**
+ * One line of what changed, as it reads (usability round 4): an ingredient
+ * line or a step, the old words struck and the new ones underlined
+ * (« 1 ½ lb → 2 lb de bœuf haché maigre »). `step` numbers a step in the new version.
+ */
+export interface Detail {
+	kind: 'ingredient' | 'step';
+	step?: number;
+	parts: DiffPart[];
+}
 
 export interface Parsed {
 	recipe: Recipe;
@@ -82,23 +95,37 @@ const same = (a: unknown, b: unknown) => JSON.stringify(seen(a)) === JSON.string
 const items = (f: FormRecipe): FormItem[] => f.groups.flatMap((g) => g.items);
 const itemKey = (it: FormItem) => it.name.trim().toLocaleLowerCase('fr');
 
-function ingredientChanges(a: FormRecipe, b: FormRecipe): Change | null {
-	const before = new Map<string, FormItem[]>();
-	for (const it of items(a)) before.set(itemKey(it), [...(before.get(itemKey(it)) ?? []), it]);
+/** An ingredient line as the recipe page writes it, at the card's amounts. */
+const lineText = (it: Ingredient | undefined, lang: Recipe['lang']) => (it ? ingredientText(it, { lang, asWritten: true }) : '');
+
+function ingredientChanges(pa: Parsed, pb: Parsed): Change | null {
+	const a = pa.form;
+	const b = pb.form;
+	// The form's lines and the recipe's, in the same order (toForm keeps them one for one).
+	const linesA = pa.recipe.ingredients.flatMap((g) => g.items);
+	const linesB = pb.recipe.ingredients.flatMap((g) => g.items);
+	const before = new Map<string, { it: FormItem; at: number }[]>();
+	items(a).forEach((it, at) => before.set(itemKey(it), [...(before.get(itemKey(it)) ?? []), { it, at }]));
 	const added: string[] = [];
 	const changed: string[] = [];
-	for (const it of items(b)) {
+	const details: Detail[] = [];
+	items(b).forEach((it, at) => {
 		const olds = before.get(itemKey(it));
 		if (!olds?.length) {
 			added.push(it.name);
-			continue;
+			return;
 		}
-		const i = olds.findIndex((o) => same(o, it));
+		const i = olds.findIndex((o) => same(o.it, it));
 		const old = olds.splice(i === -1 ? 0 : i, 1)[0];
-		if (i === -1 && !same(old, it)) changed.push(it.name);
-	}
-	const removed = [...before.values()].flat().map((it) => it.name);
-	return added.length || removed.length || changed.length ? { kind: 'ingredients', added, removed, changed } : null;
+		if (i === -1 && !same(old.it, it)) {
+			changed.push(it.name);
+			const from = lineText(linesA[old.at], pa.recipe.lang);
+			const to = lineText(linesB[at], pb.recipe.lang);
+			if (from && to && from !== to) details.push({ kind: 'ingredient', parts: wordDiff(from, to) });
+		}
+	});
+	const removed = [...before.values()].flat().map((o) => o.it.name);
+	return added.length || removed.length || changed.length ? { kind: 'ingredients', added, removed, changed, ...(details.length ? { details } : {}) } : null;
 }
 
 const stepTexts = (f: FormRecipe) =>
@@ -122,7 +149,28 @@ function stepChanges(a: FormRecipe, b: FormRecipe): Change | null {
 	const unmatchedOld = x.length - kept;
 	const unmatchedNew = y.length - kept;
 	const changed = Math.min(unmatchedOld, unmatchedNew);
-	return { kind: 'steps', added: unmatchedNew - changed, removed: unmatchedOld - changed, changed, reordered: false };
+	// The steps of each side that the other does not have, in order: paired one for one while both last
+	// (a step rewritten), then the rest added or removed — each shown as it reads, the changed words marked.
+	const pool2 = [...y];
+	const oldOnly = x.filter((s) => {
+		const k = pool2.indexOf(s);
+		if (k === -1) return true;
+		pool2.splice(k, 1);
+		return false;
+	});
+	const pool3 = [...x];
+	const newOnly: { text: string; step: number }[] = [];
+	y.forEach((s, k) => {
+		const at = pool3.indexOf(s);
+		if (at === -1) newOnly.push({ text: s, step: k + 1 });
+		else pool3.splice(at, 1);
+	});
+	const details: Detail[] = [];
+	for (let k = 0; k < Math.max(oldOnly.length, newOnly.length); k++) {
+		const n = newOnly[k];
+		details.push({ kind: 'step', ...(n ? { step: n.step } : {}), parts: wordDiff(oldOnly[k] ?? '', n?.text ?? '') });
+	}
+	return { kind: 'steps', added: unmatchedNew - changed, removed: unmatchedOld - changed, changed, reordered: false, ...(details.length ? { details } : {}) };
 }
 
 const sectionText = (f: FormRecipe, kind: FormSection['kind']) =>
@@ -171,7 +219,7 @@ export function diffVersions(before: Parsed | null, after: Parsed | null, textCh
 	const tagsRemoved = a.tags.filter((x) => !b.tags.includes(x));
 	if (tagsAdded.length || tagsRemoved.length) out.push({ kind: 'tags', added: tagsAdded, removed: tagsRemoved });
 
-	const ing = ingredientChanges(a, b);
+	const ing = ingredientChanges(before, after);
 	if (ing) out.push(ing);
 	const steps = stepChanges(a, b);
 	if (steps) out.push(steps);
@@ -246,3 +294,6 @@ export function describeChange(c: Change, tagName: (tag: string) => string = (x)
 }
 
 export const describeChanges = (changes: Change[], tagName?: (tag: string) => string): string[] => changes.map((c) => describeChange(c, tagName));
+
+/** The lines shown word by word under a version's summary: the ingredients changed, then the steps. */
+export const changeDetails = (changes: Change[]): Detail[] => changes.flatMap((c) => ((c.kind === 'ingredients' || c.kind === 'steps') && c.details ? c.details : []));

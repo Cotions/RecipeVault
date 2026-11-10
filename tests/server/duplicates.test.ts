@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DUPLICATE_THRESHOLD, rarityWeights, similarPairs, similarPairsBrute, weightOf } from '../../src/lib/ingredients/similar';
 import type { App } from '../../src/lib/server/app';
 import { openVault } from '../../src/lib/server/context';
-import { DISTINCT_FILE } from '../../src/lib/server/duplicates';
+import { DISTINCT_FILE, VARIANT_CLOSE } from '../../src/lib/server/duplicates';
 import { formCheck, formSave, openForm } from '../../src/lib/server/formsave';
 import { serverCheck } from '../../src/lib/server/paste';
 import { aiDiagnostics } from '../../src/lib/vault/fixblock';
@@ -330,7 +330,10 @@ describe('"Mettre en famille" from the paste box puts both in the family (issue 
 	it('the check offers the vault recipe with its hash and variant: same title first, else the closest', async () => {
 		v = await fixtureVault();
 		const [f] = serverCheck({ ctx: v.ctx } as App, [COPY()]);
-		expect(f.pairWith).toEqual({ slug: 'pouding-chomeur', title: 'Pouding chômeur', hash: readHash(v, 'pouding-chomeur'), family: null, variant: null });
+		expect(f.pairWith).toMatchObject({ slug: 'pouding-chomeur', title: 'Pouding chômeur', hash: readHash(v, 'pouding-chomeur'), family: null, variant: null, why: 'close' });
+		// Each recipe the question names, with where it is from (what tells two of one title apart).
+		expect(f.candidates?.[0]).toBe(f.pairWith);
+		expect(typeof f.pairWith?.from).toBe('string');
 		// Same title as a vault recipe (W608), ingredients unrelated: that recipe is the one offered.
 		const [g] = serverCheck({ ctx: v.ctx } as App, [copyOf(GALETTES, 'Crêpes minces', 'crepes-de-galettes')]);
 		expect(g.diagnostics.map((d) => d.code)).toContain('W608');
@@ -402,3 +405,30 @@ describe('"Mettre en famille" from the paste box puts both in the family (issue 
 function readHash(t: TempVault, slug: string): string {
 	return t.ctx.db.prepare('SELECT file_hash FROM recipes WHERE slug = ?').pluck().get(slug) as string;
 }
+
+describe('the same-dish question in the paste box (usability round 5)', () => {
+	// A vault recipe and a paste of another dish sharing most of its ingredients (invented).
+	const other = (title: string, slug: string, swap: [string, string][]) =>
+		copyOf(GALETTES, title, slug, (t) => swap.reduce((x, [a, b]) => x.replace(`name: ${a} }`, `name: ${b} }`), t).replace(/\n\n## Préparation[\s\S]*$/, '\n\n## Préparation\n\n1. Mélanger et cuire.\n'));
+
+	it('close ingredients alone offer a variant only at VARIANT_CLOSE or with a title of the same dish; W505 stays', async () => {
+		v = await fixtureVault();
+		await save(v.ctx, [{ text: GALETTES }]);
+		const check = (title: string, slug: string, swap: [string, string][]) => serverCheck({ ctx: v!.ctx } as App, [other(title, slug, swap)])[0];
+		// Butter for oil: under VARIANT_CLOSE, another dish's title — named by W505, not offered.
+		const far = check('Pouding aux bleuets', 'pouding-aux-bleuets', [['beurre', 'huile']]);
+		expect(far.close?.[0].score).toBeGreaterThanOrEqual(DUPLICATE_THRESHOLD);
+		expect(far.close?.[0].score).toBeLessThan(VARIANT_CLOSE);
+		expect(far.diagnostics.map((d) => d.code)).toContain('W505');
+		expect(far.candidates).toBeUndefined();
+		expect(far.pairWith).toBeUndefined();
+		// The same ingredients with a title of the same dish (head word « galette »): offered, its score with it.
+		const same = check('Galettes de Rita', 'galettes-de-rita', [['beurre', 'huile']]);
+		expect(same.candidates?.map((c) => [c.slug, c.why])).toEqual([['galettes-a-l-avoine', 'close']]);
+		expect(same.candidates?.[0].score).toBe(same.close?.[0].score);
+		// Nearly all shared: offered whatever the title.
+		const near = check('Pouding aux bleuets', 'pouding-aux-bleuets', [['œuf', 'lait']]);
+		expect(near.close?.[0].score).toBeGreaterThanOrEqual(VARIANT_CLOSE);
+		expect(near.candidates?.map((c) => c.slug)).toEqual(['galettes-a-l-avoine']);
+	});
+});

@@ -10,7 +10,8 @@ const lastCommit = () => execFileSync('git', ['log', '-1', '--format=%s'], { cwd
 
 test('a recipe ingredient links to its view: prices, recipes by quantity, substitutes', async ({ page }) => {
 	await page.goto('/r/lasagna-bolognaise');
-	await page.locator('a.item', { hasText: 'tomates concassées' }).first().click();
+	// The link is the small › after the line, not its words (a tap on those ticks the line).
+	await page.getByRole('link', { name: 'Fiche de l’ingrédient : tomates concassées' }).first().click();
 	await expect(page).toHaveURL('/ingredients/tomates-concassees');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('tomates concassées');
 	await expect(page.locator('.current .money')).toHaveText(/0,89\s\$/);
@@ -32,7 +33,7 @@ test('adding a name from the view resolves the recipe that writes it', async ({ 
 	expect(lastCommit()).toBe('ingredient: tomates-concassees + "tomates entières"');
 
 	await page.goto('/r/sauce-tomate-maison');
-	await expect(page.locator('a.item', { hasText: 'tomates entières' })).toHaveAttribute('href', '/ingredients/tomates-concassees');
+	await expect(page.getByRole('link', { name: 'Fiche de l’ingrédient : tomates entières' })).toHaveAttribute('href', '/ingredients/tomates-concassees');
 	if (before === 1) await expect(unresolved).toHaveCount(0);
 	else await expect(unresolved).toContainText(`(${before - 1})`);
 });
@@ -45,7 +46,7 @@ test('"Relier ici" links a drifting unresolved name, and the recipe follows', as
 	await expect(page.locator('ul.drift li', { hasText: '« tomates »' })).toHaveCount(0);
 	expect(lastCommit()).toBe('ingredient: tomates-concassees + "tomates"');
 	await page.goto('/r/ketchup-aux-fruits');
-	await expect(page.locator('a.item', { hasText: /^tomates$/ })).toHaveAttribute('href', '/ingredients/tomates-concassees');
+	await expect(page.getByRole('link', { name: 'Fiche de l’ingrédient : tomates', exact: true })).toHaveAttribute('href', '/ingredients/tomates-concassees');
 });
 
 test('editing the fields commits the file; merging deletes the duplicate and lands on the target', async ({ page }) => {

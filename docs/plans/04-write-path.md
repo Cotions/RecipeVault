@@ -630,7 +630,19 @@ both in the guard's `WRITE_PAGES`; loads in `src/lib/server/formpage.ts`.
 - **Rows:** ↑ ↓ ✕ buttons (44 px); removing a row, step or group shows the
   app's toast with "Annuler" (restores it in place). Enter in a name adds the
   next row, its quantity focused. Fraction chips ¼ ⅓ ½ ⅔ ¾ under a focused
-  quantity (phone keyboards have none). One unnamed group shows no group UI.
+  quantity (phone keyboards have none), a line of the row in the flow on every
+  screen, never floating over the row's error or « + Ajouter un ingrédient »
+  (usability round 5). One unnamed group shows no group UI; « + Ajouter un
+  groupe » over filled rows focuses the first group's name box that appears
+  above them (« ex. Pâte »), and Entrée in a group name goes to the next
+  group's empty name, else to the group's first row. A row with nothing in it
+  (no quantity, unit, name, note…) is ignored on save and never blocks; a
+  partly filled one blocks, and Enregistrer or Ctrl+Entrée takes the focus to
+  it with the reason under it. A quantity typed as a fraction whose numerator
+  is over 9 and over its denominator (« 21/2 ») says what it reads as and the
+  likely meaning, one tap away: « 21/2 = 10 ½ — vouliez-vous 2 ½ ? [Oui, 2 ½] »
+  (`fractionSlip`, a hint, never a block). The quantity box does not select its
+  text on focus: no other box of the form does.
 - **Markers (Q15):** under the field, the text with the uncertain part
   highlighted (as on the recipe page), the other reading as a button, and
   "C'est bien ça"; `[+]` text in pencil. Nothing once the field is edited.
@@ -638,13 +650,24 @@ both in the guard's `WRITE_PAGES`; loads in `src/lib/server/formpage.ts`.
   vault hints from `/api/form/check`, debounced 700 ms, never blocking.
   "Pas encore relié" shows under a name the registry does not know.
 - **Autosave (Q17):** the form in `localStorage` 400 ms after the last change;
-  a draft equal to the opened form is removed. Reopening offers "Reprendre le
-  brouillon" / "Repartir de…"; nothing is overwritten before she chooses. An
-  edit's draft keeps the hash it was typed over, so resuming it later still
-  hits the stale guard. Cleared on save.
+  a draft equal to the opened form is removed — equal meaning the same file
+  written (an empty row more, « 1/2 » for « ½ »), so no banner offers a draft
+  that holds nothing. While one is kept, « Brouillon gardé à 4 h 16 » (no
+  leading zero; `draftClock`) sits
+  quietly beside Enregistrer. Reopening offers "Reprendre le brouillon" /
+  "Repartir de…"; the old draft is not overwritten before she chooses. The
+  form under the banner stays live (usability round 5: it was inert, and a
+  save did nothing, silently): a change she makes there answers « Repartir
+  de… » with her change, and the old draft stays a tap away in one quiet line
+  (« Brouillon du … mis de côté ») until she saves or leaves. Enregistrer or
+  Ctrl+Entrée before any change saves nothing and says so in the banner
+  (« Choisissez d'abord : … »), its first button focused. An edit's draft
+  keeps the hash it was typed over, so resuming it later still hits the stale
+  guard. Cleared on save (an edit, a new recipe, a pasted one).
 - **Save:** offline (or a network error) says so and keeps the draft; a lost
   session says to sign in again. Success goes to the recipe page with the
-  toast "Recette enregistrée." and "Annuler" (`/api/form/undo` →
+  toast "Recette enregistrée." ("Modifications enregistrées." after an edit)
+  and "Annuler" (`/api/form/undo` →
   `undoCommit`, the photo's commit first when there is one); after an undo
   the toast offers "Rétablir". Undoing a new recipe lands on the trash.
 - **Stale (Q18):** the other version beside hers, field by field, only the
@@ -1372,6 +1395,505 @@ Items of issue #11 (the two perf items went to a separate pass).
 - **`[slug=slug]` routes.** `r/`, `famille/`, `ingredients/` and `media/`
   take the matcher of `src/params/slug.ts`; the hook's 404 for a param that is
   not a slug stays, for a route added later without it.
+
+## Follow-up: UI pass, the form
+
+The form's layout was reworked after a UI review (the edit page of an
+11-ingredient recipe was ~9000 px tall). What changed, superseding the "Look",
+"Rows" and "Times" notes of the final report above; the data, the blocks and
+the save are unchanged.
+
+- **Order, as on a card:** title and provenance (de qui, d'où) → portions,
+  précision, donne, four, the four times → ingrédients → préparation → notes
+  (Variantes and Remplacements appear once filled or asked for) → photo →
+  classement (variante de, étiquettes, saisons, difficulté, note, langue).
+- **Sections** are plain cards (`--edge` border, `--shadow`): the red rule
+  means a recipe card and is not used in the form.
+- **Ingredient rows** always open closed: quantity, unit, name and a ⋯ menu
+  (Monter, Descendre, Détails, Retirer) on one line, on every screen. What
+  the details hold shows after the name as one grey line (« jusqu’à 3 ·
+  haché · au goût »); touching it opens that row. Open, a row shows its filled
+  details and one « Ajouter un détail » select for the others. A row opens by
+  itself when a detail needs her (a block on it, an uncertain reading), and
+  when « Utiliser « haché » » moves a word to Préparation. With a mouse the
+  list is denser (36 px lines); a finger keeps 44 px.
+- **Groups** read as headings (serif, an ink rule on the left); their moves,
+  « Groupe facultatif » and removal are in the group's ⋯.
+- **Times:** one text box per time. It reads « 1 h 30 », « 1h30 », « 90 min »,
+  « 90 » (minutes), « 1,5 h », « 20 à 25 min », « 1 à 2 h », « 1 h à 1 h 30 »
+  (`readDurationInput`), echoes the reading in grey (« = 1 h 30 min »), and
+  says « Ce n’est pas un temps » once she leaves a box that is not one. A bare
+  number is minutes; a range's first bound takes the unit of the second.
+  Whole minutes only (« 1,5 min » is refused). What is not a time is kept as
+  typed (`typed.hours`, `hours` NaN), so the draft gives it back and Save stays
+  disabled, as before.
+- **Save bar:** one line. Each reason is a button that takes her to the field
+  (`fieldId`); on a phone only the first reason shows, with « (+n) ».
+  « Quitter sans enregistrer » is a link above the page title.
+- **Difficulté / Note:** the meaning beside the name (« Difficulté — Moyenne »,
+  « Note — 4 sur 5 »), difficulty as five joined steps with « Très facile …
+  Très difficile » under them, rating as stars filled up to the value.
+  Saisons are chips like the tags (ticked when chosen).
+- **Family name:** a family with no label shows as its recipes' titles write
+  it (« Tourtière », not « Tourtiere »): `familyNameFromTitles`, sent by
+  `allFamilies` as `name`.
+
+## Follow-up: UI pass 2, the form
+
+A second review (first screen, phone rows, typing many ingredients). What
+changed, superseding the notes of the pass above where they differ; the data
+format, the blocks and the save path are unchanged.
+
+- **First screen:** title, provenance (de qui, d'où; « + Précision » until a
+  précision is filled or asked for), « Donne », four, préparation and cuisson
+  (« + Repos, total » on a phone until one is filled or asked for; all four on
+  a wide screen), then the first ingredient row.
+- **Classement folds.** On a new recipe it is closed, one line saying what it
+  holds (« Aucune étiquette · Pas de variante ») and « Compléter ». It opens
+  by itself when the recipe already has a variant group, tags, seasons,
+  difficulty or rating, when a block or a
+  W502 hint points inside it, and when the save bar's jump goes there. Once
+  open it stays open; a resumed draft decides again. Provenance stays open:
+  it is the archive's identity.
+- **« Donne »** is one line: a number (and « à » a maximum once there is a
+  number) and a select « portions | autre… ». « autre… » shows the free yield
+  (`yield`, text or the amount editor it already had) in place of the number.
+  The file's fields are as before (`servings`, `servings_max`,
+  `servings_note`, `yield`); a recipe with both shows both lines (« Donne
+  aussi »). The select opens on « autre… » when the recipe has a yield and no
+  servings.
+- **Ingredient rows on a phone** (≤ 600 px): quantity and unit on the first
+  line (the unit at least 96 px, so « gousse », « à l’unité » read whole), ⋯ at
+  the right, the name at full width on the second line, the details line (« ou
+  ½ lb · haché ») small under it, wrapped, never cut. On a wide screen the name
+  column takes the rest of the line and the details go under the name.
+- **« Coller une liste »**, beside « + Ajouter un ingrédient » (and under the
+  steps): a box for many lines at once. Under it, as she types, what was
+  understood — quantity, unit, name, the rest — and the lines it could not
+  read, flagged « à vérifier ». « Ajouter » puts them in the group (its empty
+  rows taken out); a heading line (« Garniture : », « ## Pâte ») names an
+  empty group or starts a new one after it; « sel, au goût » is *au goût*. An
+  unread line goes whole into the name, where the usual blocks ask for a fix
+  — never `[?]`. A toast offers to undo. Steps: numbered lines start steps
+  (the lines between join them); else blank lines separate steps; else one
+  line is one step; blank lines at the start or end mean nothing. The line
+  reader is `src/lib/form/lineparse.ts` (browser-safe), the same reading as
+  the web import's `parseIngredientLine`.
+- **Enter in a name** adds a row after it and focuses its quantity, unless the
+  row is still empty.
+- **Save bar:** one slim line, the blocks as a sentence: « Il manque : un
+  titre, un ingrédient. À corriger : un temps. » (`reasonGroups`: what is
+  missing apart from what is wrong, each wording once; each part a button to
+  its field). Not ready, « Enregistrer » keeps its look at full strength (UI
+  round 1: faded, it read as broken; the sentence carries the state), with
+  `aria-disabled` rather than `disabled`; pressed, it takes her to the first
+  block's field (opening Classement, Précision or the extra times if that is
+  where it is). On a phone the bar stops floating while a field has focus, so
+  it never covers what she types; on a wide screen the focused field is
+  scrolled clear of it.
+- **Step rows** use a ⋯ menu (Monter, Descendre, Retirer) like the
+  ingredients; reordering stays keyboard-reachable through it.
+- **Times help** (« 1 h 30, 90 min… ») shows only while a time box has focus.
+- On a phone the page head says « Quitter » (its accessible name stays
+  « Quitter sans enregistrer »).
+
+## Follow-up: UI pass 3, the form
+
+A third review (the long phone edit form, placeholders read as values, a save
+bar sentence missing a space). What changed, superseding the notes above where
+they differ; the data format, the blocks and the save path are unchanged.
+
+- **Save bar sentence** joins its parts as the language joins a list
+  (`Intl.ListFormat`, conjunction): « Il manque : un titre et un ingrédient. »,
+  « a, b et c ». `listParts` (formui.ts) gives the items and the joins apart, so
+  each item stays a button to its field while the joins are plain text written
+  as expressions (Svelte trims the edges of a block's text: the old
+  `{#if k}, {/if}` lost its space). `saveSentence` is the same sentence as one
+  string, for the button's hidden description. Without `Intl.ListFormat`, commas.
+- **Parts of the form.** A `<nav>` lists Titre, Provenance, Ingrédients,
+  Préparation (when the recipe has a method), Notes, Classement. Wide screen
+  (≥ 64 rem): a sticky rail left of the cards. Narrower: a strip of chips under
+  the page head, sticky at the top, which stops floating while a field has focus
+  on a phone (as the save bar does). Each link has a dot: filled (ink), empty
+  (ring), or something to fix (red) — a block whose save-bar wording is « to
+  fix », not « missing », so a new recipe is not red all over
+  (`sectionStates`, `sectionOf`). The part in sight is `aria-current`. A link
+  scrolls its part to the top and focuses it (the section, not a field: no phone
+  keyboard pops up); Classement opens first. The page keeps
+  `scroll-padding-bottom` for the save bar (and `scroll-padding-top` for the
+  strip), so a field scrolled to never lands under either.
+- **Ingredient rows on a phone fold.** A row with a name, no block, no name
+  suggestion, no uncertain reading and its details closed shows as one line:
+  the amount in bold (« 1 ½ lb »), the name, the details line in grey. A touch,
+  or Enter, opens it as the editor with its quantity focused; the row open before
+  folds back (one open at a time; the form holds which row she works on, set by
+  focus inside a row). Empty rows, new rows and rows that need her stay open. The
+  fold is CSS only (≤ 600 px): the line is in the page on every screen, so the
+  first paint never jumps. The tourtière edit page went from about 5,260 to about
+  4,250 CSS px at 390 px wide. Steps are unchanged: their text is the content.
+- **Column heads** (Qté · Unité · Ingrédient) above the first group's rows on a
+  wide screen, `aria-hidden` (each box keeps its own label); 14 px, sentence
+  case (UI round 1).
+- **Placeholders are examples:** « ex. Tarte au sucre », « ex. Tante Irène »,
+  « ex. farine », « ex. Garniture », « ex. 20 min »; the quantity box says
+  « qté » and the unit select's empty choice « unité » (grey while empty). Every
+  placeholder in the form is the sans, regular, upright, `--pencil` grey — never
+  the title's bold serif; the oven box says « ex. 350 » (UI round 1: « 350 »,
+  « 2 » read as values).
+- **Provenance** asks « D’où vient-elle ? » first; the same fields then take the
+  source's names: Livre → « Auteur ou éditeur », « Titre du livre », « Page »;
+  Magazine → « Auteur », « Magazine », « Numéro / page » (a text keyboard);
+  Site web → « Auteur », « Site », « Adresse »; Télévision → « Animateur ou
+  chef », « Émission », « Adresse web »; a personal recipe or no type → « De
+  qui » (with its example). The source's title box now shows for a site and a
+  show too (`source.title` is the book, magazine, show or site name, as
+  VOCAB.md's provenance line already read it).
+- **Times:** Préparation and Cuisson with an example placeholder; Repos and
+  Total behind « + Repos, total » on every screen (until filled, asked for, or
+  a block is on them).
+
+Left for later: « Modifier en texte » on a group (the paste box pre-filled with
+its lines), and folding steps on a phone.
+
+## Follow-up: UI pass 4, the form
+
+A fourth review (all three reviewers: the sticky save bar sat over the field
+being typed; the empty form was box-heavy with one row to start; the edit form
+was long; the same-title hint pushed the form down). What changed, superseding
+the notes above where they differ; the data format, the blocks and the save
+path are unchanged.
+
+- **Save never floats over the cards.** The bottom bar is gone. A quick
+  « Enregistrer » sits in the rail under the section links (wide screen) or at
+  the right of the sticky strip of chips (phone, tablet) — where an editor's
+  Save usually is — with, while not ready, how much is left under the word
+  (« 2 à compléter », « 1 à corriger »: the parts of the sentence). Pressed
+  early it takes her to the first missing field, as before. The whole sentence
+  (« Il manque : un titre et un ingrédient. », each part a button to its field)
+  is at the end of the form beside the main « Enregistrer », in the flow. Not
+  repeated at the top: a sentence appearing there would push the form, the
+  very fault the review flagged. The strip still stops floating while a field
+  has the focus on a phone. `scroll-padding-bottom` is no longer needed.
+- **Start rows.** /nouvelle opens with three empty ingredient rows and three
+  empty steps (`emptyForm({ rows: 3 })`). Empty rows are not written
+  (`fromForm` drops them) and block nothing (`blocks`); « Coller une liste »
+  still takes them out. Enter in a filled name goes to the next row when it is
+  empty, else adds one.
+- **« Coller une liste » at the top of the card** (a bordered button beside
+  « Ingrédients », and beside « Préparation ») while that card has nothing
+  typed; the box opens under the heading. Once rows are filled it is back
+  beside « + Ajouter un ingrédient » (and under the steps).
+- **One card for the top.** Donne, Four, Préparation, Cuisson (and Repos,
+  Total once asked for) are one row under Provenance, in the Titre card,
+  wrapping on a phone (Donne and Four on one line, the times on the next).
+- **One line under the title**, its room always kept but one text line tall
+  (≈ 30 px; two on a phone, where the links take the second line; UI round 1:
+  a ~60 px reserve on a wide screen read as a missing field, while a form that
+  moves when a hint comes moves under the hand). One hint
+  at a time: the same title (W608: « Ce titre existe déjà. Voir · En faire
+  deux variantes »), else close ingredients (W505, with the pair offer only for
+  a recipe with no family), else a near title (W503). The words give way (…)
+  to the links; on a phone the offer reads « Variantes » (its name stays « En
+  faire deux variantes du même plat »).
+- **Notes, Photo, Classement: one card, one line each.** Notes open folded
+  (their first words · the other texts, « Modifier »; « Aucune note »,
+  « Ajouter » when empty, which opens and focuses the box). A block or an
+  uncertain reading inside, a jump or the rail's link opens them. Classement
+  opens folded whatever it holds (its line says what; « Modifier » when filled,
+  « Compléter » when empty) — superseding UI pass 2, which opened it on a filled
+  recipe. The photo is one line: a small thumbnail and its buttons. The
+  tourtière edit page went from about 3,680 to about 2,620 CSS px at 1366 px,
+  and from about 4,250 to about 3,100 at 390 px.
+- **« Photo (plat ou fiche) ».** The recipe's one photo (`media.final`) is, in
+  this archive, often the card itself; the form names it for both
+  (docs/RECIPE-SCHEMA.md).
+- **The phone strip** fades at an edge only when there are more chips past it
+  (both edges once scrolled), and keeps the part in sight scrolled into view
+  with a little of the next chip showing.
+
+## Follow-up: UI pass 5, the form
+
+A fifth review (phone rows three lines high; the phone strip cut a chip
+mid-word; « Donne » asked twice; the row details editable only through ⋯; no
+way to read the card while typing it). What changed, superseding the notes
+above where they differ; the data format, the blocks and the save path are
+unchanged.
+
+- **« Donne » is one field.** She types what the card says. A number, a range
+  or a number with a word for portions (« 8 », « 6 à 8 portions », « pour 4
+  personnes ») is filed as `servings` (and `servings_max`); anything else
+  (« 2 tourtières », « 3 douzaines », « environ 4 litres ») is the text
+  `yield`, as typed (`parseGives`, `src/lib/form/gives.ts`). A decimal number
+  of portions stays portions, so the form says « en nombre entier » rather
+  than filing it as a yield. The box suggests, after the amount she typed,
+  « n portions » and the nouns of the vault's yields, most used first
+  (`/api/suggest?kind=yield`, `suggestYields`). While she is in the box, a
+  line under it says how it is filed. The précision of portions
+  (`servings_note`) is a box beside it once there are portions. A recipe
+  with both portions and a text yield shows the portions in « Donne » and the
+  yield on a « Donne aussi » line that « Donne » never overwrites; a yield
+  written as an amount (`{ qty, unit, note }`) keeps its small editor on that
+  line. The « portions | autre… » select is gone.
+- **Ingredient rows on a phone are one line**: quantity (≈ 54 px), unit
+  (≈ 82 px) and name (the rest), ⋯ at the end, every box 44 px high. The unit
+  box shows its word shortened past eight letters (« c. à tab. »); the list it
+  opens keeps the whole words. The details' line, or « + précision », is under
+  it. Filled rows still fold to one read-only line on a phone.
+- **Details in place.** The line under the name (« ou ½ lb · haché ✎ ») is in
+  ink, italic, dotted-underlined, with a pencil: touched, the details open
+  where they are and the first field takes the focus. A row with none offers
+  « + précision » — beside ⋯ on a wide screen while the pointer or the focus
+  is on the row (its room always kept, so nothing moves), under the row she
+  works on on a phone — which opens a « Préparation » box; the other details
+  are in « Ajouter un détail » as before. ⋯ keeps Monter, Descendre, Détails,
+  « C'est une autre recette » and Retirer.
+- **Row examples.** Only the first row's name box has an example (« ex.
+  farine »); the others say « ingrédient », every quantity box « qté » (UI
+  round 1 supersedes the per-row examples « 2 · tasse · ex. farine »: a grey
+  « 2 » read as a value). An empty unit on
+  a row with something typed reads « sans unité ». Enter in the last name adds
+  a row (unchanged).
+- **The phone's parts are one picker.** At ≤ 600 px the strip of chips is a
+  select showing the part in sight (« ✓ Ingrédients », « ○ Notes »,
+  « ! Classement — à corriger »); choosing one goes there as a link did. No
+  chip is ever cut at the edge. A tablet keeps the chips (snapping to a chip's
+  start, fading at an edge with more).
+- **The card beside the form.** At ≥ 1200 px, a recipe with a photo (or a
+  photo just chosen) offers « Afficher la fiche à côté » under « Enregistrer »:
+  the photo takes the rail's place (the parts' links hide), fit to the width
+  and kept in sight while the form scrolls; a click enlarges it to twice the
+  width in its own scrolling box. Remembered on the device (`rv-form-scan`).
+- **The title line** says « Voir la recette » and « En faire une variante »
+  (its tooltip « En faire deux variantes du même plat »); on a phone the words
+  shorten to « Déjà : » so the two links stay whole on the one line.
+  The live check waits 500 ms after the last key (was 700), the same on every
+  screen.
+- **Four (température).** The oven's caption names what the box and the °F/°C
+  buttons are; the box has an example (« 350 »), the buttons a tooltip
+  (Fahrenheit, Celsius). « Ajouter « à » » reads « + Plage (ex. 350 à 375 °F) »
+  (°C: « 175 à 190 °C ») and focuses the maximum; on a phone it goes under
+  the temperature rather than squeezing the °F/°C buttons.
+- **Tags in place.** The Étiquettes chips and their box are under Classement's
+  line whether it is folded or not: a tag on or off without opening anything.
+  The folded line no longer counts them.
+- **« Retirer la photo »** is a quiet button, not a red one: nothing is removed
+  until Enregistrer, the thumbnail fades and « Garder la photo » undoes it.
+
+## Follow-up: usability pass, round 1, the form
+
+Three reviewers typed and edited recipes by hand (desktop, then 390 px). What
+changed, superseding the notes above where they differ; the data format, the
+blocks and the save path are unchanged.
+
+- **Save feedback.** Ctrl+Entrée (⌘+Entrée) saves from any field of the form,
+  as on `/ajouter`; a box using it for itself (« Coller une liste ») keeps it.
+  Both Enregistrer buttons show « Ctrl+Entrée » when ready, never on a touch
+  screen or a phone. Success still goes to the recipe page — decided: it is
+  where she checks what she typed and where « Annuler » makes sense; staying
+  on the form would leave her unsure it was written. The toast says
+  « Modifications enregistrées. » after an edit, « Recette enregistrée. »
+  after a new recipe. Enregistrer pressed before it is ready goes to the
+  first missing field, or to the sentence at the end of the form when that
+  field has no box on screen. The reported « first click did nothing » was
+  not reproduced by typing a full recipe and clicking once (both buttons,
+  1366 and 390 px); its likely cause, content moving under the press, is
+  removed (next point).
+- **Nothing moves under a press.** What a field's blur shows or hides (a
+  time's error, « Pas encore relié », the previous row folding on a phone)
+  waits until the press that blurred it is released and its click handled
+  (`afterPress`, `src/lib/components/form/press.ts`). The time echo
+  (« = 1 h 30 min ») has its own line under the box, its room always kept;
+  « Écrivez « 1 h 30 »… » under the times is always shown (it appeared only
+  while a time box had the focus, and vanished under the next click).
+  « Coller une liste »: « Ajouter N ingrédients » sits right under the box,
+  what the app read grows below it.
+- **The empty unit** reads « sans unité » on every row, blank or not; a blank
+  row's example is in the quantity and the name only (a grey « tasse » in an
+  empty unit box read as a unit chosen).
+- **Préparation is always there; « Texte libre ».** The form always has a
+  Préparation section (an empty one is not written). Text under no heading
+  (the preamble — e.g. steps pasted as bare `-` lines, `W401`) shows at the
+  top of Préparation in a « Texte libre » box, editable, written back as
+  typed; a section with a heading the format does not know shows as
+  « Texte libre — section « … » » under the steps, its heading kept. Nothing
+  of the body is invisible in the form or dropped on save. When the free
+  text holds step lines, « Ranger ces N lignes dans Préparation » makes them
+  the first steps (the prose before them stays free text; the toast undoes
+  it) — the same fix the paste box offers for `W401` (`VALIDATION.md`).
+  `preambleSteps`, `freeStepsToMethod`; tests `tests/unit/form/freetext.test.ts`.
+- **Phone widths (≤ 600 px).** Ingredient rows: quantity and unit (whole
+  word) on the first line, « + précision » beside them on the row she works
+  on, the name on the whole second line with ⋯ (it had 124 px of 390); the
+  fraction chips open above the quantity, off the name's line. Times: two
+  columns (« 50 min à 1 h » whole), « + Repos, total » under them; on a wide
+  screen each time box is 9.5 rem. « Précision » of the provenance takes the
+  whole line on every screen. The title's note keeps the sentence whole on
+  its line and the two links on the next, both lines' room kept.
+
+## Follow-up: usability pass, round 2, the form
+
+- **Keyboard path.** Enter at the end of a step (or in a section title) goes
+  to the next step: the empty one under it, else a new step right after it
+  (`nextStepRow`), focused. Maj+Entrée keeps a new line; Enter with the caret
+  inside the text is a new line too; Enter in an empty step does nothing
+  (`stepEnter`, `formui.ts`). Enter in a name already went to the next row.
+  Ctrl/⌘+Entrée still saves. The keys are one line under the step help, on a
+  wide screen with a keyboard only.
+- **Phone widths (≤ 600 px).** A step's number and ⋯ are a line of their own
+  above it; the box takes the card's whole width (it had 239 of 319 px). The
+  details' line (« Modifier les précisions »), the « Il manque : » parts and
+  « + précision » are 44 px high on a phone or a touch screen. The fraction
+  chips are a line of the row she works on, under its name, always there
+  while it is that row: floating above the quantity they covered the row
+  above, and a finger aimed at its « Oui » or « Utiliser » typed ¼.
+- **« Vouliez-vous dire » on an unlinked name.** A `W305` whose candidates
+  (the resolve queue's trigram matcher, as the warning names them) include
+  exactly one ingredient with a name a typo away — one edit in five letters
+  or more, two from eight, first letter kept (`typoOf`, the rule
+  `/etiquettes` preselects with) — shows « « oigon » n'est pas encore relié.
+  Vouliez-vous dire « oignon » ? [Oui] » on the row; Oui writes that name.
+  Two ingredients as close, an ambiguous name, or a `W303`: the plain
+  « Pas encore relié » line, as before (`nearName`, `hints.ts`). A name hint
+  carries the name it was said of and is not shown under a name changed since.
+
+## Follow-up: usability pass, round 3, the form
+
+- **What is missing, one press away.** « N à compléter » is a button (the
+  rail's, under the quick Enregistrer; on a wide rail it also says the first
+  reason) going to the first field that blocks the save, in the order of the
+  form's sections. Enregistrer or Ctrl+Entrée pressed before the form is
+  ready does the same: the field gets the focus, its reason beside it
+  (« Il manque le titre. », « Ajoutez au moins un ingrédient : … », linked by
+  `aria-describedby`). A recipe-level « required » is said only once a save
+  was tried; until then the count says it.
+- **Phone save bar (≤ 600 px).** The savebar is sticky at the bottom of the
+  screen: left « Il manque : <first reason> (+N) », a button to that field;
+  right Enregistrer. The quick save at the top is hidden on a phone. While a
+  box has the focus (the `typing` state) the bar is back in the flow, so it
+  never covers the box or the keyboard's caret; `scroll-padding-bottom`
+  keeps a jumped-to field above it.
+- **A bare count (decided).** The format has no unitless quantity: `qty`
+  without `unit` is `E203`, a count is `unit: piece` (`RECIPE-SCHEMA.md`,
+  `VALIDATION.md`), and the paste reader already reads « 3 pommes de terre »
+  as `piece`. The form does the same: a quantity typed in a row with an empty
+  unit sets the unit to « à l'unité », shown in the select and changeable;
+  emptying the quantity takes it back while she has not chosen a unit
+  herself. A row loaded without a unit (an `E203` in the file) is left
+  alone and still asks. No change to the format or the validator.
+- **No error under the box she is still filling.** A row's « required »,
+  quantity and unit blocks are shown once the focus leaves the row, or after
+  a save was tried; Tab from the quantity into the unit select never
+  validates. Other row reasons (a bad number, an unknown unit) show at once.
+- **[Séparer] in the name.** A name that starts with an amount (« 1 pincée de
+  sel ») offers « Séparer : 1 · pincée · sel » under it; the button fills
+  quantity, unit and name with what the paste box would read
+  (`nameSplit`, `lineparse.ts`; `applyNameSplit`, `rows.ts`), keeps a
+  précision or note already typed, and puts the focus back in the name.
+- **« En faire une variante ».** When the other recipe is already in a
+  family, the form joins it and the « Ce qui distingue » box opens inline
+  under the title's note (prefilled from the source's author when empty),
+  focused, with « Aucune variante » beside it; its actions are 44 px on a
+  phone. When neither is in a family the pair box opens and is focused, as
+  before. The title's note gives its kept room back once one is open.
+- **Group names are labelled.** Each group's name has a visible label,
+  « Nom du groupe » (« Nom du groupe 2 » when there are several); the
+  placeholder is only an example.
+- **A step's time and the times.** When a step's text is left with one of
+  its durations changed (same count of durations, one differs) and Cuisson,
+  else Préparation, held the old one (the same range, or one of its bounds),
+  the step offers « Cuisson : 10 à 12 min → 12 à 14 min ? [Mettre à jour] ✕ ».
+  Whole minutes only; nothing is changed without the press
+  (`stepTimeChange`, `duration.ts`).
+- **Sizes.** The form's buttons, selects and row boxes are 40 px on a wide
+  screen and 44 px on a phone or a touch screen; only links inside a sentence
+  (the end sentence's « titre », « ingrédients ») are smaller.
+
+## Follow-up: usability pass, round 3, the paste box and web import
+
+The paste box (`/ajouter`) and the importer, after the third usability round
+(details in `DATA-FLOW.md`, "The paste box" and "Web import", and
+`VALIDATION.md`, "Human-facing validation"). No data format or rule changes;
+codes unchanged.
+
+- **« Recommencer »** at the end of the progress line empties the box (the
+  tabs and the prompt come back), with « Annuler » in the message; after a
+  reload the line says « Texte repris de votre dernière visite ». « Modifier
+  le texte » scrolls the box into view and focuses it.
+- **Regrouper with a named target.** /api/check returns `candidates` (same
+  title, close ingredients, a `like` title; at most four) with their
+  provenance line; she picks one, the button names it (« Regrouper avec … —
+  de … »), the group field takes a name (never a slug), and both « Ce qui
+  distingue » are prefilled with `variantPrefill` / `variantShown`.
+- **Web import.** `splitAll` settles `E204`/`E210`; Tips/Notes/Storage
+  sections and `HowToTip` go to `## Notes`; the oven is read from the steps;
+  « Copier pour traduire » (the prompt plus `AI-TEMPLATE.md`'s translation
+  request) is the English page's main action.
+- **One wave of errors.** `E002`'s realigned-text problems are error rows
+  marked « à revérifier », each with its fix (realign then fix, one tap); a
+  fixed row stays a moment as « ✓ Corrigé : … »; « 3 lignes hors
+  Préparation » replaces « 0 étape »; `E210` gets « Séparer en 500 ml + lait »;
+  several « pas encore relié » fold into « N ingrédients à relier plus tard ».
+- **W501, one pattern.** « Utiliser » only for the same word (`preselectTag`,
+  food-aware on the server), « Garder » always, « elle attendra dans
+  Étiquettes ».
+- **Rows.** The plain sentence first, where and the code on one small line;
+  a unit alias has one primary « Écrire cup » with « Autre unité… », nothing
+  preselected, under it.
+
+## Follow-up: usability pass, round 4, the paste box and web import
+
+After the fourth usability round (details in `VALIDATION.md`, "Quick fixes in
+the paste box", `DATA-FLOW.md`, "The paste box", `INGREDIENTS.md`,
+"Resolution", `VOCAB.md`, "Preparation words"). Codes and levels unchanged; no
+data format change.
+
+- **E207 on a whole line** reads « cette ligne n'est pas découpée » with
+  « Lire comme : 1 ½ tasse · lait » (the « Coller une liste » reader,
+  `entryFix`), « Lire les N lignes » for several.
+- **Steps in the wrong shape** (`Étape 1 :`, `1 -`, indented 4 spaces): the
+  line named above Save, « En faire N étapes » (`stepsFix`).
+- **Every one-tap fix has « Annuler »** in its message; the folded « ✓
+  Corrigé » row keeps the row's height, then slides away.
+- **A slug clash** defaults to « Enregistrer comme …-2 », listed first; the
+  other choice says the old card stays in its history. The same for two new
+  files with one slug in one paste: the first takes the slug, the later one
+  `…-2` unless she picks otherwise; nothing waits.
+- **« soda »** is never offered « biscuits soda » (`modifierOnly`); « soda »
+  by the spoon is baking soda (a seed rule). The seeded preparation words gain
+  *ramolli* / *softened* and a few more, for French and English lines alike.
+- Small: the partial preview shows a whole line as written (and says a line
+  with no name is left out); the box after a web import is labelled « Recette
+  lue sur la page »; the box takes the focus by itself only at 700 px or more
+  with a mouse; a refused page offers « Voir le prompt » beside « Passer par
+  l'IA ».
+
+## Follow-up: usability pass, round 4, the form
+
+- **The unit picker, Québec first.** The select opens on « Les plus
+  utilisées »: the vault's eight most used units (the order the form already
+  had), read family by family — tasse, c. à table, c. à thé, lb, oz, ml, cl,
+  l, g, kg, à l'unité, then any other among the eight in use order — and
+  « sans unité » last in that group; then « Autres unités », every other unit
+  in the vocabulary's order (`unitMenu`, `form/defaults.ts`). Which units
+  come first stays the vault's: in a vault of cans and sprigs, « boîte » and
+  « branche » are among them. The yield's unit uses the same menu.
+- **« Ressemble à » once.** The near-title offer shows only on the line under
+  the title (the copy beside Enregistrer is gone: two offers for one recipe
+  read as two problems), and not at all when the other recipe is already in
+  the group this one is in.
+- **The step-time nudge is not skipped by a save.** The nudge appeared on
+  the step box's blur; a save from the keyboard (Ctrl+Enter) while still in
+  the step left before it could. Now a save first checks the steps that were
+  changed: when one offers « Cuisson : 30 à 35 min → 35 à 40 min ? », the save
+  waits once, the nudge shows and « Mettre à jour » takes the focus; the next
+  save goes through whatever she chose (one wait per visit).
+- **The name's type-ahead and « relié » agree with the paste check.** A name
+  that is only a modifier inside a longer one is not offered (« soda » is not
+  offered « biscuits soda » or « soda crackers »; « soda à pâte » is), with
+  `modifierOnly` from `ingredients/resolve.ts`. The type-ahead and the
+  « relié » mark are asked with the row's unit (`/api/suggest?…&unit=`), so a
+  `when` rule holds as it does on a pasted line (« soda » by the spoon is
+  linked); changing the unit asks again.
 
 ## Out of scope
 

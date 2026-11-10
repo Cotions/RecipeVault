@@ -11,6 +11,8 @@
 		text,
 		testid,
 		badge = 0,
+		badgeLabel,
+		current = false,
 		align = 'end',
 		children
 	}: {
@@ -19,8 +21,12 @@
 		/** What it shows; ⋯ by default. */
 		text?: string;
 		testid?: string;
-		/** Things waiting inside: a dot on the button, the counts are on the items. */
+		/** Decisions waiting inside: their number as text on the button, 99+ at most (« Plus · 3 »); the counts by kind on the items. */
 		badge?: number;
+		/** What the number counts, by kind (« 2 étiquettes à décider »): for a screen reader, and in the tooltip after `label`. */
+		badgeLabel?: string;
+		/** The page shown is one of the menu's: the button is marked current (the tabs' underline). */
+		current?: boolean;
 		/** Which edge of the button the panel lines up with. */
 		align?: 'start' | 'end';
 		children: Snippet;
@@ -45,8 +51,10 @@
 />
 
 <details class="menu" bind:this={menu}>
-	<summary class="btn" class:dots={!text} aria-label={text ? undefined : label} title={label} data-testid={testid}>
-		{text ?? '⋯'}{#if badge}<span class="dot" aria-hidden="true"></span>{/if}
+	<summary class="btn" class:dots={!text} class:current aria-label={text ? undefined : label} title={badge && badgeLabel ? `${label} — ${badgeLabel}` : label} data-testid={testid}>
+		{text ?? '⋯'}{#if badge}<span class="menu-n" aria-hidden="true" data-testid={testid ? `${testid}-n` : undefined}><span class="sep">·</span>{badge > 99 ? '99+' : badge}</span>{#if badgeLabel}<span
+					class="visually-hidden">, {badgeLabel}</span
+				>{/if}{/if}
 	</summary>
 	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -- a click inside is a choice made; the keyboard goes through the items themselves -->
 	<div
@@ -79,13 +87,22 @@
 		letter-spacing: 0.05em;
 	}
 	.menu[open] > summary {
-		background: #eef2f7;
+		background: var(--hover);
 	}
-	.dot {
-		width: 0.5rem;
-		height: 0.5rem;
-		border-radius: 50%;
-		background: var(--rule-red);
+	/* Decisions waiting, not an error and not an alarm: « Plus · 3 », the
+	   number as text in navy small caps (usability round 4: a dot or a stamp
+	   alone said nothing to a thumb), capped at 99+. */
+	.menu-n {
+		margin-left: 0.3rem;
+		color: var(--ink);
+		font-weight: 700;
+		font-variant-caps: all-small-caps;
+		font-variant-numeric: tabular-nums;
+		letter-spacing: 0.04em;
+	}
+	.menu-n .sep {
+		margin-right: 0.3rem;
+		font-weight: 400;
 	}
 	.panel {
 		position: absolute;
@@ -95,8 +112,8 @@
 		max-width: min(22rem, calc(100vw - 2rem));
 		padding: 0.35rem 0;
 		background: var(--card);
-		border: 1px solid var(--line);
-		border-top: 3px solid var(--rule-red);
+		border: 1px solid var(--edge);
+		border-top: 1px solid var(--edge);
 		border-radius: var(--radius);
 		box-shadow: 0 6px 24px rgb(28 42 66 / 0.14);
 		display: flex;
@@ -128,9 +145,16 @@
 		cursor: pointer;
 		white-space: nowrap;
 	}
+	/* A thumb: every item a full 44 px on a phone or a touch screen. */
+	@media (max-width: 40rem), (pointer: coarse) {
+		.panel :global(a),
+		.panel :global(button) {
+			min-height: 44px;
+		}
+	}
 	.panel :global(a:hover),
 	.panel :global(button:hover:not(:disabled)) {
-		background: #eef2f7;
+		background: var(--hover);
 	}
 	.panel :global(a[aria-current='page']) {
 		font-weight: 700;

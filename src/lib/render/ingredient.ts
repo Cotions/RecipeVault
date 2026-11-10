@@ -9,6 +9,10 @@ import { prefs } from '../prefs';
 import { formatScaledNumber, scaleValues, type ScalingRules } from './scale';
 import { inSystem, isNative } from './system';
 import { unitLabel, wordLang } from './unitwords';
+import { lookupKey, type PluralRule } from '../ingredients/normalize';
+import { fold } from '../vault/normalize';
+import { agreePrepFr, pluralFr, pluralNameFr } from './agree';
+import { scaleNote } from './pans';
 
 // The unit words are the vault's (vocab/unit-labels.yaml, ./unitwords.ts).
 export { unitLabel } from './unitwords';
@@ -34,12 +38,14 @@ export interface AmountOptions {
 	asWritten?: boolean;
 	/** Grams for one of the line's unit, from the ingredient's entry: a counted amount then shows its weight too. */
 	gramsPerUnit?: number;
+	/** The line's name in the singular and the plural (`nameForms`): a bare count then takes the form its number needs. */
+	forms?: NameForms;
 }
 
 type Amounted = { qty?: { value: number }; qtyMax?: { value: number }; unit?: Unit };
 
 /** An amount as shown: its text and whether it is rounded (`≈`, shown apart). */
-export function amountView(q: Amounted, { factor = 1, lang: recipeLang, rules, asWritten }: AmountOptions): { text: string; approx: boolean } {
+export function amountView(q: Amounted, { factor = 1, lang: recipeLang, rules, asWritten }: AmountOptions): { text: string; approx: boolean; last?: number } {
 	if (!q.qty) return { text: '', approx: false };
 	const lang = wordLang(recipeLang);
 	const written = q.qtyMax ? [q.qty.value, q.qtyMax.value] : [q.qty.value];
@@ -49,7 +55,80 @@ export function amountView(q: Amounted, { factor = 1, lang: recipeLang, rules, a
 	const fmt = (v: number) => (s.plain ? formatNumber(v, lang) : formatScaledNumber(v, s.decimal, lang));
 	const nums = s.values.map(fmt).join(lang === 'fr' ? ' à ' : '–');
 	const unit = s.unit ? unitLabel(s.unit, s.values.at(-1)!, lang) : '';
-	return { text: unit ? `${nums} ${unit}` : nums, approx: s.approx };
+	return { text: unit ? `${nums} ${unit}` : nums, approx: s.approx, last: s.values.at(-1) };
+}
+
+/** A name in the singular and the plural, as written (docs/DATA-FLOW.md, "Names"). */
+export interface NameForms {
+	one: string;
+	other: string;
+}
+
+/**
+ * The singular and plural of a written name, read from its registry entry's
+ * names: an entry name that differs from it, word for word, only by the
+ * language's plural suffixes (vocab/normalize.yaml) gives the other form, in
+ * the line's own spelling (`oeuf` with `œufs` in the entry → `oeufs`).
+ * Undefined when the entry gives no such form: the name then stays as written.
+ */
+export function nameForms(name: string, entryNames: readonly string[], rule: PluralRule | undefined): NameForms | undefined {
+	if (!rule || /[[\]]/.test(name)) return undefined;
+	const written = name.trim().split(/\s+/);
+	const keys = lookupKey(name).split(' ');
+	if (keys.length !== written.length) return undefined;
+	// Per word: '' when the same, else the suffix `to` adds to `from`; undefined when they differ otherwise or not at all.
+	const added = (from: string[], to: string[]) => {
+		const out: string[] = [];
+		for (let i = 0; i < from.length; i++) {
+			if (from[i] === to[i]) out.push('');
+			else {
+				const s = rule.suffixes.find((x) => to[i] === from[i] + x && to[i].length >= rule.minLength);
+				if (s === undefined) return undefined;
+				out.push(s);
+			}
+		}
+		return out.some(Boolean) ? out : undefined;
+	};
+	for (const other of entryNames) {
+		const ok = lookupKey(other).split(' ');
+		if (ok.length !== keys.length) continue;
+		const up = added(keys, ok);
+		if (up) return { one: name, other: written.map((w, i) => w + up[i]).join(' ') };
+		const down = added(ok, keys);
+		if (down && written.every((w, i) => !down[i] || fold(w.slice(-down[i].length)) === down[i])) {
+			return { one: written.map((w, i) => (down[i] ? w.slice(0, -down[i].length) : w)).join(' '), other: name };
+		}
+	}
+	return undefined;
+}
+
+/** The form a bare count takes, in the recipe's language: French from 2 (`1 ½ œuf`, `2 œufs`), English above 1, as unit words do (docs/VOCAB.md). */
+export function nameFor(forms: NameForms, count: number, lang: Lang): string {
+	return (lang === 'fr' ? count >= 2 : count > 1) ? forms.other : forms.one;
+}
+
+/**
+ * The name and prep of a bare count (`piece` or no unit) at the number it
+ * shows (docs/DATA-FLOW.md, "Names"): the registry's form of the name first
+ * (`forms`); else, in French and at a factor other than 1, the name in the
+ * plural by rule from 2 (./agree.ts: « 2 ½ poivrons verts », « 4 pâtes à
+ * tarte »); a leading participle or adjective of the prep then agrees with it
+ * (« hachés », « pilées »; never « en dés », « au goût »). At ×1 without a
+ * registry form, the card's words as written. One function for the recipe
+ * page and kitchen mode.
+ */
+export function countWords(it: Pick<Ingredient, 'name' | 'prep'>, shown: number, { lang, factor = 1, forms }: { lang: Lang; factor?: number; forms?: NameForms }): { name: string; prep?: string } {
+	let name = it.name;
+	let plural: boolean | undefined;
+	if (forms) {
+		name = nameFor(forms, shown, lang);
+		plural = lang === 'fr' ? pluralFr(shown) : shown > 1;
+	} else if (lang === 'fr' && factor !== 1 && pluralFr(shown)) {
+		name = pluralNameFr(it.name);
+		plural = true;
+	}
+	const agree = lang === 'fr' && it.prep && plural !== undefined && (factor !== 1 || name !== it.name);
+	return { name, prep: agree ? agreePrepFr(it.prep!, plural!) : it.prep };
 }
 
 /**
@@ -97,9 +176,43 @@ export type Part =
 	| { kind: 'muted'; text: string; base?: ScaleBase };
 
 const WORDS = {
-	fr: { or: 'ou', toTaste: 'au goût', optional: 'facultatif', buy: 'ou acheter :', ready: 'du commerce' },
-	en: { or: 'or', toTaste: 'to taste', optional: 'optional', buy: 'or buy:', ready: 'store-bought' }
+	fr: {
+		or: 'ou',
+		toTaste: 'au goût',
+		optional: 'facultatif',
+		buy: 'ou acheter :',
+		ready: 'du commerce',
+		egg: (n: number) => (n ? `${n} ${n >= 2 ? 'œufs' : 'œuf'} + 1 jaune` : '1 jaune'),
+		plan: (n: number) => `prévoir ${n}`
+	},
+	en: {
+		or: 'or',
+		toTaste: 'to taste',
+		optional: 'optional',
+		buy: 'or buy:',
+		ready: 'store-bought',
+		egg: (n: number) => (n ? `${n} ${n > 1 ? 'eggs' : 'egg'} + 1 yolk` : '1 yolk'),
+		plan: (n: number) => `get ${n}`
+	}
 };
+
+/** An egg, by its name as written or its registry forms: `oeuf`, `œufs`, `gros œuf`, `egg`. */
+const EGG = /^(?:gros |petits? |large |small )?(?:oeufs?|œufs?|eggs?)$/;
+
+/**
+ * Help beside a scaled whole thing that shows a half (usability round 3; plan
+ * 05, "Halves of whole things"): an egg says how to measure the half
+ * (« 1 ½ œuf » → « 1 œuf + 1 jaune »), anything else how many to have on hand
+ * (« 2 ½ abaisses » → « prévoir 3 »). Never at factor 1: the card's own half
+ * is the card's. Nothing for a range or a whole number.
+ */
+export function halfHelp(it: Pick<Ingredient, 'name' | 'unit' | 'qtyMax'>, shown: number | undefined, factor: number, lang: Lang): string {
+	if (factor === 1 || shown === undefined || it.qtyMax || (it.unit && it.unit !== 'piece')) return '';
+	const whole = Math.floor(shown + 1e-9);
+	if (Math.abs(shown - whole - 0.5) > 1e-9) return '';
+	const w = WORDS[lang];
+	return EGG.test(fold(it.name.replace(/\[[^\]]*\]/g, '').trim().toLowerCase())) ? w.egg(whole) : w.plan(whole + 1);
+}
 
 // The card's second measure shows as the card has it, whatever the measuring system.
 function altText(alt: Alt, opts: AmountOptions): string {
@@ -109,7 +222,8 @@ function altText(alt: Alt, opts: AmountOptions): string {
 /**
  * The parts of one ingredient line. `factor` rescales every quantity,
  * alternatives and `or` entries included, each rounded in its own unit by
- * `rules`; `note` (a can's size), `prep`, markers and `to_taste` never change.
+ * `rules`; `note` (a can's size), `prep`, markers and `to_taste` never change,
+ * except a note that counts what the line makes (« pour 2 tartes », `scaleNote`).
  */
 export function ingredientParts(it: Ingredient, opts: AmountOptions): Part[] {
 	const { lang } = opts;
@@ -143,14 +257,21 @@ export function ingredientParts(it: Ingredient, opts: AmountOptions): Part[] {
 		const joiner = lang === 'fr' && wordLang(lang) === 'fr' && it.unit && it.unit !== 'piece' ? ` ${de(it.name)}` : ' ';
 		parts.push({ kind: 'text', text: joiner });
 	}
-	parts.push(it.recipe ? { kind: 'name', text: it.name, recipe: it.recipe, line: it } : { kind: 'name', text: it.name });
+	// A bare count reads with its name and prep in the number it shows (`countWords`).
+	const { name, prep } = amount.last !== undefined && (!it.unit || it.unit === 'piece') ? countWords(it, amount.last, { lang, factor: opts.factor, forms: opts.forms }) : it;
+	parts.push(it.recipe ? { kind: 'name', text: name, recipe: it.recipe, line: it } : { kind: 'name', text: name });
 	if (it.brand) parts.push({ kind: 'text', text: ` ${it.brand}` });
-	if (it.prep) parts.push({ kind: 'text', text: lang === 'fr' ? ` ${it.prep}` : `, ${it.prep}` });
-	if (it.note) parts.push({ kind: 'muted', text: ` (${it.note})` });
+	if (prep) parts.push({ kind: 'text', text: lang === 'fr' ? ` ${prep}` : `, ${prep}` });
+	// The help and the note in one parenthesis, the help first: « (prévoir 6 · pour 4 tartes) ».
+	// A note that says what the line makes (« pour 2 tartes ») counts with the recipe (./pans.ts); any other stays as written.
+	const help = halfHelp(it, amount.last, opts.factor ?? 1, lang);
+	const note = it.note ? scaleNote(it.note, opts.factor ?? 1, lang) : '';
+	const aside = [help, note].filter(Boolean).join(' · ');
+	if (aside) parts.push({ kind: 'muted', text: ` (${aside})` });
 	if (it.toTaste) parts.push({ kind: 'muted', text: `, ${w.toTaste}` });
 	for (const o of it.or ?? []) {
 		parts.push({ kind: 'text', text: `, ${w.or} ` });
-		const sub = ingredientParts(o, opts);
+		const sub = ingredientParts(o, { ...opts, forms: undefined });
 		parts.push(...sub);
 	}
 	if (it.recipe && it.buyInstead) parts.push({ kind: 'muted', text: ` — ${w.buy} ${it.name} ${w.ready}` });

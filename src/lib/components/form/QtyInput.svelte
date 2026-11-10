@@ -2,6 +2,7 @@
 	// A quantity field (plan 04, Q7 A): typed as she would write it (2, 1 ½,
 	// 0,5, 1/2) with the common fractions a tap away — a phone keyboard has none.
 	import { form as f } from '$lib/i18n';
+	import { FRACTIONS, withFraction } from './formui';
 
 	let {
 		value = $bindable(''),
@@ -11,7 +12,8 @@
 		disabled = false,
 		describedby,
 		testid,
-		placeholder = '1 ½',
+		placeholder = f.qtyPlaceholder,
+		inlineOnPhone = false,
 		input = $bindable()
 	}: {
 		value?: string;
@@ -24,14 +26,14 @@
 		/** An example quantity; none where it would read as a value (the "Jusqu'à" box, a disabled box: « au goût »). */
 		placeholder?: string;
 		input?: HTMLInputElement;
+		/** The row draws the fractions in a line of its own (ItemRow), in the flow: none float here (usability round 5: they covered the row's error and the add button). */
+		inlineOnPhone?: boolean;
 	} = $props();
 
-	const CHIPS = ['¼', '⅓', '½', '⅔', '¾'];
 	let focused = $state(false);
 
 	function chip(g: string) {
-		const v = value.trim().replace(/\s*[¼⅓½⅔¾]$/, '');
-		value = /^\d+$/.test(v) ? `${v} ${g}` : g;
+		value = withFraction(value, g);
 		input?.focus();
 	}
 </script>
@@ -51,9 +53,9 @@
 		data-testid={testid}
 		bind:value
 	/>
-	{#if focused && !disabled}
+	{#if focused && !disabled && !inlineOnPhone}
 		<div class="chips" role="group" aria-label={f.fractions}>
-			{#each CHIPS as g (g)}
+			{#each FRACTIONS as g (g)}
 				<button type="button" tabindex="-1" onpointerdown={(e) => e.preventDefault()} onclick={() => chip(g)}>{g}</button>
 			{/each}
 		</div>
@@ -72,7 +74,7 @@
 		font-variant-numeric: tabular-nums;
 	}
 	input[aria-invalid='true'] {
-		border-color: var(--rule-red);
+		border-color: var(--danger);
 	}
 	.chips {
 		position: absolute;
@@ -85,6 +87,14 @@
 		padding: 2px;
 		background: var(--ink);
 		border-radius: var(--radius);
+	}
+	/* A phone: above the box — under it is the name's line (ItemRow), the field she types next. */
+	@media (max-width: 37.5rem) {
+		.chips {
+			top: auto;
+			bottom: 100%;
+			margin: 0 0 2px;
+		}
 	}
 	.chips button {
 		min-width: 44px;

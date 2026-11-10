@@ -1,5 +1,5 @@
 // Review fixes on the paste box and the recipe page. Invented recipes only.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { fenced, paste } from './helpers';
 
@@ -15,8 +15,19 @@ test('a Remplacer choice does not carry over to another recipe pasted in its pla
 	await paste(page, fenced('Crêpes de remplacement', 'slug: crepes\n'));
 	await expect(page.getByText('Une recette « crepes » existe déjà.')).toBeVisible();
 	await expect(page.getByLabel('Remplacer')).not.toBeChecked();
-	await expect(page.getByText('À corriger')).toBeVisible();
-	await expect(page.getByRole('button', { name: /Enregistrer/ })).toBeDisabled();
+	// Unanswered, a clash keeps both: the suffixed slug, chosen and listed first (usability round 4).
+	await expect(page.getByRole('radio').first()).toHaveAccessibleName(/^Enregistrer comme crepes-\d+$/);
+	await expect(page.getByRole('radio').first()).toBeChecked();
+});
+
+test('a clash nobody answered: « Enregistrer comme …-2 » chosen, the clash not repeated in the errors', async ({ page }) => {
+	await page.goto('/ajouter');
+	await paste(page, fenced('Pâté chinois'));
+	await expect(page.getByText('Une recette « pate-chinois » existe déjà.')).toBeVisible();
+	await expect(page.getByTestId('collision-settled')).toContainText(/pate-chinois-\d+/);
+	await expect(page.getByLabel('Remplacer la fiche existante (l’ancienne reste dans l’historique)')).not.toBeChecked();
+	await expect(page.locator('.diag.error')).toHaveCount(0);
+	await expect(page.getByText('Valide')).toBeVisible();
 });
 
 test('a save refused for a collision says so and offers the choice', async ({ page }) => {
@@ -28,34 +39,38 @@ test('a save refused for a collision says so and offers the choice', async ({ pa
 	await page.goto('/ajouter');
 	await paste(page, fenced('Pâté chinois'));
 	await expect(page.getByText('Valide')).toBeVisible();
-	await box(page).press('Control+Enter');
+	await expect(box(page)).toBeHidden();
+	await page.keyboard.press('Control+Enter');
 	await expect(page.locator('.toast')).toContainText('1 recette n’a pas été enregistrée');
 	await expect(page.getByText('Une recette « pate-chinois » existe déjà.')).toBeVisible();
 	await expect(page.getByLabel('Remplacer')).toBeVisible();
 });
 
-test('two new files with one slug: the first saves under it, the later one waits', async ({ page }) => {
+test('two new files with one slug: the first saves under it, the later one under …-2 unless she picks otherwise', async ({ page }) => {
 	await page.goto('/ajouter');
 	await paste(page, fenced('Tarte doublon inventée') + '\n' + fenced('Tarte doublon inventée', '', '      - { qty: 2, unit: cup, name: farine }'));
 	const files = page.locator('section.file');
 	await expect(files).toHaveCount(2);
-	await expect(files.nth(1).getByLabel('Enregistrer comme tarte-doublon-inventee-2')).toBeVisible();
+	// The clash default (usability round 4): the suffixed slug, chosen, listed first; no error row.
+	await expect(files.nth(1).getByLabel('Enregistrer comme tarte-doublon-inventee-2')).toBeChecked();
+	await expect(files.nth(1).getByRole('radio').first()).toHaveAccessibleName('Enregistrer comme tarte-doublon-inventee-2');
 	await expect(files.nth(0).locator('.state')).toHaveText('Valide');
 	await expect(files.nth(0).getByRole('radio')).toHaveCount(0);
-	await expect(files.nth(1).locator('.state')).toHaveText('À corriger');
+	await expect(files.nth(1).locator('.state')).toHaveText('Valide');
+	await expect(files.nth(1).locator('.diag.error')).toHaveCount(0);
 
 	await page.getByRole('button', { name: /Enregistrer/ }).click();
-	await expect(page.locator('.toast')).toContainText('Recette enregistrée');
-	await expect(files).toHaveCount(1);
-	// The one left now collides with the saved one.
-	await expect(page.getByText('Une recette « tarte-doublon-inventee » existe déjà.')).toBeVisible();
+	// Several saved: the card lists a link to each.
+	await expect(page.getByTestId('saved-card')).toContainText('2 recettes enregistrées');
+	await expect(page.getByTestId('saved-card').getByRole('link')).toHaveCount(2);
+	expect(existsSync('/tmp/rv-e2e/vault/recipes/tarte-doublon-inventee.md')).toBe(true);
+	expect(existsSync('/tmp/rv-e2e/vault/recipes/tarte-doublon-inventee-2.md')).toBe(true);
 
 	const log = readFileSync('/tmp/rv-e2e/vault/cache/paste-log.jsonl', 'utf8').trim().split('\n').map((l) => JSON.parse(l));
 	const last = log.at(-1);
 	expect(last.via).toBe('save');
 	expect(last.files).toBe(2);
-	expect(last.results.map((r: { outcome: string }) => r.outcome).sort()).toEqual(['rejected', 'saved']);
-	expect(last.results.find((r: { outcome: string }) => r.outcome === 'rejected').codes).toContain('E103');
+	expect(last.results.map((r: { outcome: string }) => r.outcome)).toEqual(['saved', 'saved']);
 });
 
 test('the recipe page resets its servings when going to another recipe', async ({ page }) => {

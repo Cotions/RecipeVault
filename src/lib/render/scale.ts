@@ -161,6 +161,8 @@ interface Snap {
 
 const EPS = 1e-9;
 const classOf = (u: Unit) => UNIT_CLASS_OF[u];
+/** Classes of things counted whole: a tie between two shown values goes up (`snap`). */
+const WHOLE_THINGS = new Set<string>(['count', 'container']);
 
 function fractionsFor(unit: Unit, rules: ScalingRules): number[] | undefined {
 	return rules.fractions[unit] ?? rules.fractions[classOf(unit)] ?? rules.fractions.default;
@@ -200,10 +202,17 @@ function snap(a: number, unit: Unit, rules: ScalingRules): Snap | undefined {
 	const fr = fractionsFor(unit, rules);
 	if (!fr) return undefined;
 	const whole = Math.floor(a + EPS);
+	// Whole things (counts, containers) halfway between two values take the
+	// larger: 2 ¼ crusts show as `≈ 2 ½`, as 2 ½ does, never `≈ 2` one portion
+	// before `2 ½` (usability round 3; plan 05, "Halves of whole things").
+	// Measures keep the smaller.
+	const up = WHOLE_THINGS.has(classOf(unit));
 	let best: number | undefined;
 	for (const c of [whole, ...fr.map((f) => whole + f), whole + 1]) {
 		if (c <= 0) continue;
-		if (best === undefined || Math.abs(c - a) < Math.abs(best - a) - EPS) best = c;
+		const d = Math.abs(c - a);
+		const bd = best === undefined ? Infinity : Math.abs(best - a);
+		if (d < bd - EPS || (up && d <= bd + EPS)) best = c;
 	}
 	const err = Math.abs(best! - a) / a;
 	const r = rank(err, rules);
@@ -355,9 +364,22 @@ export function servingsStep(servingsNow: number, servings: number, dir: 1 | -1,
 export function servingsRange(recipe: Pick<Recipe, 'servings' | 'servingsMax'>, factor: number, lang: 'fr' | 'en'): { lo: string; hi?: string } {
 	if (!recipe.servings) return { lo: '' };
 	if (factor === 1) return { lo: formatNumber(recipe.servings, lang), hi: recipe.servingsMax ? String(recipe.servingsMax) : undefined };
-	const lo = formatNumber(recipe.servings * factor, lang);
-	const hi = recipe.servingsMax ? formatNumber(recipe.servingsMax * factor, lang) : undefined;
-	return { lo, hi: hi === lo ? undefined : hi };
+	const ends = [recipe.servings * factor, ...(recipe.servingsMax ? [recipe.servingsMax * factor] : [])];
+	// Nobody serves ⅔ of a person: a count that is not whole (a typed amount, « J'en ai ») shows rounded, « ≈ 11 ».
+	const approx = ends.some((n) => !wholeCount(n));
+	const [lo, hi] = ends.map((n) => (approx ? formatNumber(Math.max(1, Math.round(n)), lang) : formatNumber(n, lang)));
+	return { lo: approx ? `${APPROX_MARK} ${lo}` : lo, hi: hi === lo ? undefined : hi };
+}
+
+const APPROX_MARK = '≈';
+const wholeCount = (n: number) => Math.abs(n - Math.round(n)) < 1e-9;
+
+/**
+ * The servings count the stepper shows at a factor (plan 05, usability round
+ * 4): whole as it is, else rounded with ≈ (« ≈ 11 », never « 10 ⅔ »).
+ */
+export function servingsShown(n: number, lang: 'fr' | 'en'): string {
+	return wholeCount(n) ? formatNumber(n, lang) : `${APPROX_MARK} ${formatNumber(Math.max(1, Math.round(n)), lang)}`;
 }
 
 // A plain number or fraction at the start of a text yield, and nothing that
@@ -378,6 +400,14 @@ export function scaleTextYield(text: string, factor: number, rules: ScalingRules
 	const s = scaleValues([n], undefined, factor, rules);
 	const shown = s.plain ? formatNumber(s.values[0], lang) : formatScaledNumber(s.values[0], s.decimal, lang);
 	return { text: shown + text.slice(m[0].length), scaled: true, approx: s.approx };
+}
+
+/** A text yield's leading count and the words after it (« 24 biscuits » → 24, « biscuits »), when `scaleTextYield` would scale it. */
+export function textYieldCount(text: string): { value: number; rest: string } | undefined {
+	const m = LEADING.exec(text);
+	const n = m ? sizeNumber(m[1]) : undefined;
+	if (!m || n === undefined || n <= 0 || RANGE_AFTER.test(text.slice(m[0].length))) return undefined;
+	return { value: n, rest: text.slice(m[0].length).trim() };
 }
 
 // --- the amount in the address (Q1 A, Q8 B) ------------------------------------

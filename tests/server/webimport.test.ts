@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { checkRecipe } from '../../src/lib/vault/check';
 import { loadVocab } from '../../src/lib/server/vocab';
-import { checkUrl, fetchPage, ImportError, importUrl, isBlockedAddress, isoDuration, parseIngredientLine, recipeFromJsonLd } from '../../src/lib/server/webimport';
+import { checkUrl, fetchPage, ImportError, importUrl, isBlockedAddress, isoDuration, parseIngredientLine, recipeFromJsonLd, servingsOf } from '../../src/lib/server/webimport';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -108,7 +108,14 @@ describe('mapping', () => {
 		expect(parseIngredientLine('2-3 c. à table de beurre', 'fr')).toMatchObject({ qty: { value: 2 }, qtyMax: { value: 3 }, unit: 'tbsp' });
 		expect(parseIngredientLine('sel et poivre', 'fr')).toEqual({ name: 'sel et poivre' });
 		expect(parseIngredientLine('2 tbsp butter, melted', 'en')).toMatchObject({ unit: 'tbsp', name: 'butter', prep: 'melted' });
-		expect(parseIngredientLine('3 gousses d’ail hachées 500 g', 'fr')).toEqual({ name: '3 gousses d’ail hachées 500 g [?]' });
+		// A second amount after the line's own: the name stops before it, the rest is the preparation, marked for review (never E210).
+		expect(parseIngredientLine('3 gousses d’ail hachées 500 g', 'fr')).toMatchObject({ qty: { value: 3 }, unit: 'clove', name: 'ail hachées', prep: '500 g [?]' });
+		expect(parseIngredientLine('1 large egg beaten with 1 tablespoon water, for brushing', 'en')).toMatchObject({
+			qty: { value: 1 },
+			unit: 'piece',
+			name: 'large egg beaten',
+			prep: 'with 1 tablespoon water, for brushing [?]'
+		});
 		// A unit word that is not an alias: kept whole with [?], never read as `piece`.
 		expect(parseIngredientLine('2 cuillerées de beurre', 'fr')).toEqual({ name: '2 cuillerées de beurre [?]' });
 		expect(parseIngredientLine('2 c à soupe d’huile', 'fr')).toEqual({ name: '2 c à soupe d’huile [?]' });
@@ -145,8 +152,11 @@ describe('mapping', () => {
 		expect(r.markdown).toContain('{ qty: 250, unit: ml, name: beurre, prep: ramolli, alt: { qty: 1, unit: cup } }');
 		const check = checkRecipe(r.markdown);
 		const errors = check.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code);
-		// The unreadable line is kept, flagged: E210 (a quantity in the name) until a person fixes it.
-		expect(errors).toEqual(['E210']);
+		// The line with two amounts is kept, flagged for review ([?]), never a quantity left in a name (E210).
+		expect(errors).toEqual([]);
+		expect(r.markdown).toContain('name: ail hachées finement, prep: "500 g [?]"');
+		// No oven in the page's data: the first temperature of a step.
+		expect(r.markdown).toContain('oven: { temp: 350, unit: F }');
 		expect(check.diagnostics.some((d) => d.code === 'W605')).toBe(true);
 	});
 
@@ -156,7 +166,68 @@ describe('mapping', () => {
 		expect(markdown).toContain('1. Peler.\n1. Cuire.\n1. 1.5 kg de purée : garder au chaud.');
 	});
 
-	it('says so when the page has no JSON-LD', async () => {
-		await expect(importUrl(`${base}/none`, vocab, { allowPrivate: true })).rejects.toThrow(/JSON-LD/);
+	it('says so when the page has no JSON-LD, in plain words, with its kind', async () => {
+		const e = await importUrl(`${base}/none`, vocab, { allowPrivate: true }).catch((x) => x);
+		expect(e).toBeInstanceOf(ImportError);
+		expect(e.message).toBe('Cette page ne contient pas de recette lisible.');
+		expect(e.kind).toBe('noRecipe');
+	});
+
+	it('reads a yield in portions as servings, « (s) » and ranges included', () => {
+		expect(servingsOf('4 portion(s)')).toEqual({ servings: 4 });
+		expect(servingsOf('4 servings')).toEqual({ servings: 4 });
+		expect(servingsOf('Serves 6')).toEqual({ servings: 6 });
+		expect(servingsOf('4 à 6 personnes')).toEqual({ servings: 4, max: 6 });
+		expect(servingsOf('8')).toEqual({ servings: 8 });
+		expect(servingsOf('24 biscuits')).toBeUndefined();
+		expect(servingsOf('Makes 12')).toBeUndefined();
+		expect(servingsOf('6 à 4 portions')).toBeUndefined();
+		const ld = { '@type': 'Recipe', name: 'Pâté inventé', recipeYield: ['4', '4 portion(s)'], recipeIngredient: ['1 pomme'], recipeInstructions: ['Cuire.'] };
+		expect(recipeFromJsonLd(ld, 'https://example.invalid/x', 'fr', vocab).markdown).toMatch(/\nservings: 4\n/);
+	});
+
+	it('maps a nested size, a capital, and a section named as the title', () => {
+		expect(parseIngredientLine('1 boîte de maïs en crème (540 ml (19 oz))', 'fr')).toMatchObject({ unit: 'can', name: 'maïs en crème', note: '540 ml (19 oz)' });
+		const ld = {
+			'@type': 'Recipe',
+			name: 'Pâté inventé',
+			recipeIngredient: ['Paprika doux au goût', 'Club House poivre', '1 boîte de maïs en crème (540 ml (19 oz))'],
+			recipeInstructions: [{ '@type': 'HowToSection', name: 'Pâté Inventé', itemListElement: [{ '@type': 'HowToStep', text: 'Cuire.' }] }]
+		};
+		const { markdown } = recipeFromJsonLd(ld, 'https://example.invalid/x', 'fr', vocab);
+		expect(markdown).toContain('name: paprika doux au goût');
+		expect(markdown).toContain('Club House poivre');
+		expect(markdown).not.toContain('### ');
+		expect(markdown).toContain('note: 540 ml (19 oz)');
+		const errors = checkRecipe(markdown).diagnostics.filter((d) => d.severity === 'error').map((d) => d.code);
+		expect(errors).toEqual([]);
+	});
+
+	it('puts a page\'s tips, storage and notes in Notes, not in the steps', () => {
+		const ld = {
+			'@type': 'Recipe',
+			name: 'Biscuits inventés',
+			inLanguage: 'en',
+			recipeIngredient: ['1 cup flour'],
+			recipeInstructions: [
+				{ '@type': 'HowToStep', text: 'Preheat the oven to 375°F (190°C).' },
+				{ '@type': 'HowToStep', text: 'Bake 12 minutes.' },
+				{ '@type': 'HowToStep', text: 'Tip: chill the dough first.' },
+				{ '@type': 'HowToSection', name: 'Storage', itemListElement: [{ '@type': 'HowToStep', text: 'Keep in a tin for a week.' }] },
+				{ '@type': 'HowToTip', text: 'Double the batch for the freezer.' }
+			]
+		};
+		const { markdown } = recipeFromJsonLd(ld, 'https://example.invalid/x', 'en', vocab);
+		expect(markdown).toContain('1. Preheat the oven to 375°F (190°C).\n1. Bake 12 minutes.\n\n## Notes');
+		expect(markdown).toContain('Tip: chill the dough first.\n\nStorage: Keep in a tin for a week.\n\nDouble the batch for the freezer.');
+		expect(markdown).toContain('oven: { temp: 375, unit: F }');
+		expect(checkRecipe(markdown).diagnostics.filter((d) => d.code === 'W609')).toEqual([]);
+	});
+
+	it('splits a quantity written in a name before showing the file (E210)', () => {
+		const ld = { '@type': 'Recipe', name: 'Sauce inventée', recipeIngredient: ['Beurre : 2 c. à table', '1 tasse de lait'], recipeInstructions: ['Fondre.'] };
+		const { markdown } = recipeFromJsonLd(ld, 'https://example.invalid/x', 'fr', vocab);
+		expect(markdown).toMatch(/qty: 2, unit: tbsp, name: "?beurre \[\?\]"?/);
+		expect(checkRecipe(markdown).diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
 	});
 });

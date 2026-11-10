@@ -37,6 +37,8 @@ test('a pasted recipe edited in the form: saved from there, the others stay in t
 	await expect(row.getByTestId('qty').first()).toHaveValue('1');
 	await expect(row.getByTestId('name').first()).toHaveValue('farine');
 
+	// A phone shows a filled row as one line: touched, it opens.
+	if (await row.getByTestId('item-line').isVisible()) await row.getByTestId('item-line').click();
 	await row.getByTestId('qty').first().fill('2');
 	await row.getByTestId('name').first().fill('farine tout usage');
 	await page.getByTestId('save').click();
@@ -99,6 +101,8 @@ test('a reload keeps the paste, and the form it had open', async ({ page }) => {
 	await expect(page.getByTestId('title')).toHaveValue(name);
 	// Emptied, the box is forgotten too.
 	await page.getByTestId('back-to-paste').click();
+	// A valid paste is folded to its summary: open the text to empty it.
+	await page.getByRole('button', { name: 'Modifier le texte' }).click();
 	await page.getByLabel('Réponse de l’IA').fill('');
 	await page.reload();
 	await expect(page.getByLabel('Réponse de l’IA')).toHaveValue('');
@@ -109,9 +113,12 @@ test('a file with errors does not open in the form; it says to ask the AI', asyn
 	await paste(page, fenced(title('Biscuits brisés'), '', '      - { qty: 1, unit: tasse, name: farine }'));
 	await expect(page.getByText('À corriger')).toBeVisible();
 	await expect(page.getByTestId('edit-in-form')).toHaveCount(0);
-	await expect(page.getByTestId('edit-blocked')).toContainText('Copier la demande de correction');
+	// No second guidance line: the errors' own fix, and the one fix request under them.
+	await expect(page.getByText('Corrigez ci-dessus, puis enregistrez.')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Copier la demande de correction' })).toHaveCount(1);
 	// An address naming it opens the list, not the form.
 	await page.goto('/ajouter?recette=1');
 	await expect(page).toHaveURL(/\/ajouter$/);
-	await expect(page.getByTestId('edit-blocked')).toBeVisible();
+	await expect(page.locator('.diag.error')).toBeVisible();
+	await expect(page.getByTestId('edit-in-form')).toHaveCount(0);
 });

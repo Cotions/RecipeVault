@@ -20,7 +20,8 @@ import { isMap, isSeq, parse, parseDocument, type Document, type YAMLMap } from 
 import { checkFile, hasErrors } from '../vault/check';
 import { stripMarkers } from '../vault/markers';
 import { fold } from '../vault/normalize';
-import { suggestTag, tagFor } from '../vault/rules/vaultvocab';
+import { tagFor } from '../vault/rules/vaultvocab';
+import { preselectTag, withAccents } from '../vault/tagmatch';
 import { serialize } from '../vault/serialize';
 import { pendingKey } from '../vault/tagstatus';
 import type { Recipe } from '../vault/types';
@@ -28,6 +29,7 @@ import { t, tagLabel } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { cleanLabel, FamilyLabelError, LABEL_MAX, withLabel } from './families';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
+import { revertFiles, RevertError } from './revert';
 import { refreshFamilies, retag } from './index/build';
 import type { DB } from './index/db';
 import { indexText, recipePath, tagsHash } from './index/sync';
@@ -51,7 +53,11 @@ export interface PendingTag {
 	/** As written in the recipes (markers stripped), most used first. */
 	forms: string[];
 	recipes: { slug: string; title: string; hash: string; broken: boolean }[];
-	/** Closest canonical tag within two edits (W501's suggestion). */
+	/**
+	 * The canonical tag it is the same word as (its ending aside, or a typo):
+	 * preselected under « C'est comme… » (lib/vault/tagmatch.ts). Not W501's
+	 * two-edit hint: « carrés » is not « tartes ».
+	 */
 	suggestion?: string;
 	/** The canonical slug "Nouvelle étiquette" would add ('' when none can be made: no Latin letter or digit). */
 	slug: string;
@@ -73,6 +79,16 @@ export function tagSlug(key: string): string {
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/**
+ * The French label offered for a pending tag: its most used form, lowered
+ * then capitalized, with the accents the recipes' own text gives a word
+ * written without them (`erable`, « sirop d'érable » → « Érable »).
+ */
+export function labelFor(form: string, text: string): string {
+	const lower = form.toLocaleLowerCase('fr');
+	return capitalize(withAccents(lower, text) ?? lower);
+}
+
 /** Every pending tag with its recipes, most used first. */
 export function pendingTags(ctx: VaultContext): PendingTag[] {
 	const vocab = loadVocab(ctx.paths.vocab);
@@ -82,11 +98,15 @@ export function pendingTags(ctx: VaultContext): PendingTag[] {
 			 FROM tags t JOIN recipes r ON r.slug = t.slug WHERE t.pending = 1 ORDER BY t.tag, r.title`
 		)
 		.all() as { tag: string; slug: string; title: string; file_hash: string; data_json: string; broken: number }[];
-	const byTag = new Map<string, { forms: Map<string, number>; recipes: PendingTag['recipes'] }>();
+	// A tag naming a food of the registry (« pain ») is matched on its stem only.
+	const food = ctx.db.prepare('SELECT 1 FROM ingredient_names WHERE key = ? OR skey = ? UNION SELECT 1 FROM registry WHERE slug = ? LIMIT 1').pluck();
+	const byTag = new Map<string, { forms: Map<string, number>; recipes: PendingTag['recipes']; text: string[] }>();
 	for (const r of rows) {
-		const entry = byTag.get(r.tag) ?? { forms: new Map<string, number>(), recipes: [] as PendingTag['recipes'] };
+		const entry = byTag.get(r.tag) ?? { forms: new Map<string, number>(), recipes: [] as PendingTag['recipes'], text: [] as string[] };
 		byTag.set(r.tag, entry);
 		entry.recipes.push({ slug: r.slug, title: r.title, hash: r.file_hash, broken: !!r.broken });
+		// The recipe's own words (title, ingredients, tags): where an accent the tag lacks is found.
+		entry.text.push(r.title, r.data_json);
 		for (const t of (JSON.parse(r.data_json) as Recipe).tags) {
 			const form = stripMarkers(t).replace(/\s+/g, ' ').trim();
 			if (pendingKey(form) === r.tag) entry.forms.set(form, (entry.forms.get(form) ?? 0) + 1);
@@ -95,14 +115,14 @@ export function pendingTags(ctx: VaultContext): PendingTag[] {
 	return [...byTag]
 		.map(([tag, e]) => {
 			const forms = [...e.forms].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([f]) => f);
-			const suggestion = suggestTag(vocab.tags, tag);
+			const suggestion = preselectTag(vocab.tags, tag, { food: !!food.get(tag.replace(/-/g, ' '), tag.replace(/-/g, ' '), tag) });
 			return {
 				tag,
 				forms: forms.length ? forms : [tag],
 				recipes: e.recipes,
 				...(suggestion ? { suggestion } : {}),
 				slug: tagSlug(tag),
-				label: capitalize((forms[0] ?? tag.replace(/-/g, ' ')).toLocaleLowerCase('fr'))
+				label: labelFor(forms[0] ?? tag.replace(/-/g, ' '), e.text.join('\n'))
 			};
 		})
 		.sort((a, b) => b.recipes.length - a.recipes.length || a.tag.localeCompare(b.tag));
@@ -396,5 +416,29 @@ export function dropTag(
 		}
 		committed(ctx);
 		return { commit, recipes: writes.length };
+	});
+}
+
+/**
+ * "Annuler" after "Nouvelle étiquette" or "C'est comme…": the vocabulary
+ * commit taken back (lib/server/revert.ts), one commit `undo: …`, the index
+ * retagged. Refused when either file changed since.
+ */
+export function undoTagVocab(ctx: VaultContext, commit: string): Promise<{ commit?: string }> {
+	return ctx.lock.run(async () => {
+		let r: { commit?: string };
+		try {
+			r = await revertFiles(ctx, commit, (p) => p === TAGS_FILE || p === TAG_LABELS_FILE);
+		} catch (e) {
+			if (e instanceof RevertError) throw new TagError(e.reason === 'stale' ? t.pendingTags.refused.undoStale : t.pendingTags.refused.undo);
+			throw e;
+		}
+		try {
+			retag(ctx.db, loadVocab(ctx.paths.vocab), tagsHash(ctx.paths.vocab));
+		} catch (e) {
+			ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
+		}
+		committed(ctx);
+		return r;
 	});
 }

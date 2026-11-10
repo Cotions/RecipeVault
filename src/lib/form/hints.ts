@@ -12,6 +12,8 @@
 // Browser-safe.
 
 import { findAtEdge, findInside, nameWords, type CheckWords } from '../vault/words';
+import { editDistance, fold } from '../vault/normalize';
+import { typoOf } from '../vault/tagmatch';
 import type { FormItem } from './model';
 
 /** A vault warning on a form field, as the server sends it. */
@@ -22,7 +24,7 @@ export interface FormHint {
 	field: string;
 	/** What the field holds: the tag, the family, the other recipe's title. */
 	value?: string;
-	/** The fix: the closest tag, the near family. */
+	/** The fix: the closest tag, the near family, the registry name a typo away (W305). */
 	suggestion?: string;
 	/** The suggested family's label. */
 	label?: string;
@@ -62,4 +64,24 @@ export function applyNameHint(item: FormItem, hint: NameHint): void {
 	item.name = hint.rest;
 	const had = item[hint.field].trim();
 	item[hint.field] = had && hint.field !== 'brand' ? `${hint.word}, ${had}` : hint.word;
+}
+
+/**
+ * W305's « Vouliez-vous dire « oignon » ? » (round 2 of the usability pass):
+ * of the registry names of the resolve queue's candidates (`names`, the
+ * trigram matcher's slugs with their names), the one a typo away from what she
+ * typed — one edit in five letters or more, two from eight, the first letter
+ * kept (`typoOf`, the rule /etiquettes preselects with). Only when exactly one
+ * ingredient has such a name: two would be a guess. The closest of its names.
+ */
+export function nearName(typed: string, names: readonly { slug: string; name: string }[]): string | undefined {
+	const t = fold(typed);
+	const best = new Map<string, { name: string; d: number }>();
+	for (const n of names) {
+		if (fold(n.name) === t || !typoOf(typed, n.name)) continue;
+		const d = editDistance(t, fold(n.name));
+		const had = best.get(n.slug);
+		if (!had || d < had.d) best.set(n.slug, { name: n.name, d });
+	}
+	return best.size === 1 ? [...best.values()][0].name : undefined;
 }

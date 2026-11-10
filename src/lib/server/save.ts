@@ -56,7 +56,16 @@ export interface PairRequest {
 export type PairRefusal = 'gone' | 'stale' | 'invalid' | 'variant' | 'busy';
 
 export type FileResult =
-	| { status: 'saved'; slug: string; title: string; recipeStatus: string; created: boolean; diagnostics: Diagnostic[] }
+	| {
+			status: 'saved';
+			slug: string;
+			title: string;
+			recipeStatus: string;
+			created: boolean;
+			diagnostics: Diagnostic[];
+			/** The saved file's hash, once committed: what a photo added next (/api/photo) is guarded by. */
+			hash?: string;
+	  }
 	| { status: 'rejected'; diagnostics: Diagnostic[] }
 	| {
 			status: 'collision';
@@ -352,6 +361,7 @@ export async function saveLocked(ctx: VaultContext, files: SaveFile[], opts: Sav
 	if (!ready.length) return { files: results };
 	for (const r of opts.extra?.recipes ?? []) ready.push({ ...r, created: false, verb: 'edit' });
 	const { commit, indexError } = await writeCommitIndex(ctx, ready, undefined, opts.extra?.files);
+	for (const r of results) if (r.status === 'saved') r.hash = currentFile(ctx, r.slug)?.hash;
 	return { files: results, commit, indexError };
 }
 

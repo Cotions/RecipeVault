@@ -7,7 +7,7 @@
 // and re-resolves the index. No recipe file is touched (docs/STORAGE.md).
 
 import { IngredientEditError, parseIngredient, serializeIngredient, withName, withoutKey, withoutRuleNames, withRule } from '../ingredients/registry';
-import type { Candidate } from '../ingredients/resolve';
+import { shownCandidates, type Candidate } from '../ingredients/resolve';
 import { CATEGORIES, UNIT_CLASSES, type Category, type NameRule, type RegistryEntry } from '../ingredients/types';
 import { stripMarkers } from '../vault/markers';
 import { SLUG_RE } from '../vault/slug';
@@ -15,6 +15,7 @@ import { UNITS, type Lang } from '../vault/types';
 import { t } from '../i18n';
 import { committed, type VaultContext } from './context';
 import { FileWriteError, readVaultFile, writeAndCommit, type FileWrite } from './files';
+import { revertFiles, RevertError } from './revert';
 import type { DB } from './index/db';
 import { getResolver, reresolve, ruleClash } from './index/resolve';
 import { ingredientPath, syncRegistry } from './registry';
@@ -118,7 +119,7 @@ export function resolveQueue(
 	const extra = include !== undefined && !page.some((g) => g.key === include) ? all.find((g) => g.key === include) : undefined;
 	const rows = (extra ? [extra, ...page] : page).map((g): QueueRow => ({
 		...g,
-		candidates: resolver.candidates(g.key, g.lang).flatMap((c) => {
+		candidates: shownCandidates(resolver.candidates(g.key, g.lang)).flatMap((c) => {
 			const e = entry.get(c.slug) as { name: string; file_hash: string } | undefined;
 			return e ? [{ ...c, name: e.name, hash: e.file_hash }] : [];
 		}),
@@ -306,5 +307,33 @@ export function addRule(ctx: VaultContext, key: string, slug: string, input: Rul
 		const cond = [rule.lang && `lang: ${rule.lang}`, unit.length && `unit: ${unit.join(', ')}`, words.length && `words: ${words.join(', ')}`].filter(Boolean).join('; ');
 		const commit = await commitEntries(ctx, vocab, [{ rel: ingredientPath(slug), text }], `ingredient: ${slug} + rule "${form}" (${cond})`);
 		return { commit, resolved: before - (rowOf(ctx.db, key)?.count ?? 0) };
+	});
+}
+
+/**
+ * "Annuler" after any of the above: the ingredient commit taken back
+ * (lib/server/revert.ts) — the name off the entry again, a new entry removed,
+ * the rule gone — one commit `undo: …`, then the registry reloaded and the
+ * queue re-resolved. Refused when the entry changed since.
+ */
+export function undoEntryCommit(ctx: VaultContext, commit: string): Promise<{ commit?: string }> {
+	return ctx.lock.run(async () => {
+		let r: { commit?: string };
+		try {
+			r = await revertFiles(ctx, commit, (p) => /^ingredients\/[a-z0-9-]+\.md$/.test(p));
+		} catch (e) {
+			if (e instanceof RevertError) throw new QueueError(e.reason === 'stale' ? t.queue.refused.undoStale : t.queue.refused.undo);
+			throw e;
+		}
+		const vocab = loadVocab(ctx.paths.vocab);
+		try {
+			ctx.db.transaction(() => {
+				if (syncRegistry(ctx.db, ctx.paths, vocab).changed) reresolve(ctx.db, getResolver(ctx.db, vocab));
+			})();
+		} catch (e) {
+			ctx.log(`recipevault: index update failed after commit (vault sync will recover): ${(e as Error).message}`);
+		}
+		committed(ctx);
+		return r;
 	});
 }

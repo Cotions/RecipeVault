@@ -71,6 +71,15 @@ describe('finding listed words in a name', () => {
 
 	it('keeps markers and punctuation of the name as written', () => {
 		expect(findAtEdge(nameWords('oignon [?] haché'), WORDS.participles)).toMatchObject({ text: 'haché', rest: 'oignon [?]' });
+	});
+
+	it('takes the whole tail after a comma when it is only preparation words', () => {
+		expect(findAtEdge(nameWords('oignons, râpé et hachés'), WORDS.participles)).toMatchObject({ text: 'râpé et hachés', rest: 'oignons' });
+		expect(findAtEdge(nameWords('oignons, hachés'), WORDS.participles)).toMatchObject({ text: 'hachés', rest: 'oignons' });
+		// Another word in the tail: the plain reading, the comma left for E211.
+		expect(findAtEdge(nameWords('sel, poivre haché'), WORDS.participles)).toMatchObject({ text: 'haché', rest: 'sel, poivre' });
+		// No comma: the last word only.
+		expect(findAtEdge(nameWords('oignon râpé haché'), WORDS.participles)).toMatchObject({ text: 'haché', rest: 'oignon râpé' });
 		expect(findInside(nameWords('sauce (Lea & Perrins)'), WORDS.brands)).toMatchObject({ text: 'Lea & Perrins', rest: 'sauce' });
 	});
 });

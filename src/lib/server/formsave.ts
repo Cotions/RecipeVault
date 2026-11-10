@@ -30,12 +30,16 @@ import { serialize } from '../vault/serialize';
 import { isSlug, slugify } from '../vault/slug';
 import type { Diagnostic, Recipe } from '../vault/types';
 import { suggestTag } from '../vault/rules/vaultvocab';
+import { ambiguous, resemblesSlugs } from '../vault/quickfix';
 import { fromForm, toForm, type FormError, type FormRecipe } from '../form/model';
 import { checkerBlocks, formFile } from '../form/check';
 import { blocks, type Block } from '../form/rows';
-import type { FormHint } from '../form/hints';
+import { nearName, type FormHint } from '../form/hints';
+import { familyNameFromTitles } from '../form/family';
+import { yieldNoun } from '../form/gives';
 import type { VaultStats } from '../form/defaults';
 import { lookupKey } from '../ingredients/normalize';
+import { modifierOnly } from '../ingredients/resolve';
 import { checkOptions } from './checkopts';
 import type { VaultContext } from './context';
 import { closeRecipes, duplicateWarnings, type CloseRecipe } from './duplicates';
@@ -205,24 +209,56 @@ async function formSaveLocked(ctx: VaultContext, req: FormSaveRequest, opts: For
 // Hints (Q9 A): the vault's warnings, mapped to the form's fields.
 
 /** Vault recipes with the same or a near-identical title (W608 / W503), this one left out. */
-export function titleMatches(ctx: VaultContext, title: string, own?: string): { same: { slug: string; title: string; hash: string; family: string | null }[]; near: { slug: string; title: string }[] } {
+/** A recipe one title names whole inside the other (« Pouding au riz » in « Pouding au riz de la voisine »): the offer to make them variants. */
+export interface TitleLike {
+	slug: string;
+	title: string;
+	hash: string;
+	family: string | null;
+	/** Who it is from ('' when not said): « Ressemble à « Pouding au riz » (Carmen) ». */
+	author: string;
+}
+
+/** At most this many `like` recipes. */
+const MAX_LIKE = 3;
+
+export function titleMatches(
+	ctx: VaultContext,
+	title: string,
+	own?: string
+): { same: { slug: string; title: string; hash: string; family: string | null }[]; near: { slug: string; title: string }[]; like: TitleLike[] } {
 	const t = normTitle(title);
 	const same: { slug: string; title: string; hash: string; family: string | null }[] = [];
 	const near: { slug: string; title: string }[] = [];
-	if (!t) return { same, near };
+	const like: TitleLike[] = [];
+	if (!t) return { same, near, like };
 	const rows = indexMemo(ctx.db, 'titleMatches', () =>
-		(ctx.db.prepare('SELECT slug, title, family, file_hash FROM recipes').all() as { slug: string; title: string; family: string | null; file_hash: string }[]).map((r) => ({
+		(
+			ctx.db.prepare('SELECT slug, title, family, file_hash, author FROM recipes').all() as {
+				slug: string;
+				title: string;
+				family: string | null;
+				file_hash: string;
+				author: string | null;
+			}[]
+		).map((r) => ({
 			...r,
 			norm: normTitle(r.title)
 		}))
 	);
+	// One title is the other's start, a whole word or more after it (four letters at least: never « Pain » in every bread).
+	const starts = (long: string, short: string) => short.length >= 4 && short.includes(' ') && long.startsWith(short + ' ');
 	for (const r of rows) {
 		if (r.slug === own) continue;
 		const u = r.norm;
 		if (u === t) same.push({ slug: r.slug, title: stripMarkers(r.title), hash: r.file_hash, family: r.family });
 		else if (withinDistance(t, u, 2)) near.push({ slug: r.slug, title: stripMarkers(r.title) });
+		else if (starts(t, u) || starts(u, t))
+			like.push({ slug: r.slug, title: stripMarkers(r.title), hash: r.file_hash, family: r.family, author: r.author ? stripMarkers(r.author).trim() : '' });
 	}
-	return { same, near };
+	// The one in a group first (she joins it), then the shortest title.
+	like.sort((a, b) => Number(!!b.family) - Number(!!a.family) || a.title.length - b.title.length || a.slug.localeCompare(b.slug));
+	return { same, near, like: like.slice(0, MAX_LIKE) };
 }
 
 /** The row a diagnostic path points at: the item (or `or` entry) id, the group id, or `recipe`. */
@@ -231,6 +267,31 @@ function targetOf(path: string | null, ids: Record<string, string>): string {
 	const m = path.match(/^ingredients\[\d+\](?:\.items\[\d+\](?:\.or\[\d+\])?)?/);
 	if (!m) return 'recipe';
 	return ids[m[0]] ?? ids[m[0].replace(/\.or\[\d+\]$/, '')] ?? 'recipe';
+}
+
+/** The ingredient line (or `or` entry) a diagnostic path names: `ingredients[0].items[3].or[1].name`. */
+function itemAt(recipe: Recipe, path: string | null): { name: string } | undefined {
+	const m = path?.match(/^ingredients\[(\d+)\]\.items\[(\d+)\](?:\.or\[(\d+)\])?/);
+	if (!m) return undefined;
+	const it = recipe.ingredients[Number(m[1])]?.items[Number(m[2])];
+	return m[3] === undefined ? it : it?.or?.[Number(m[3])];
+}
+
+/**
+ * The registry name a typo away from an unlinked name (W305's « Vouliez-vous
+ * dire »): the resolve queue's own candidates, as the W305 names them
+ * (`resemblesSlugs`, what /ajouter shows too), then `nearName` keeps one a
+ * letter or two off. Never for a name several entries share (that is a choice,
+ * made in « À relier »).
+ */
+function nearRegistryName(ctx: VaultContext, d: Diagnostic, typed: string, lang: string): string | undefined {
+	if (ambiguous(d)) return undefined;
+	const slugs = resemblesSlugs(d);
+	if (!slugs.length) return undefined;
+	const rows = ctx.db
+		.prepare(`SELECT slug, name FROM ingredient_names WHERE lang = ? AND slug IN (${slugs.map(() => '?').join(', ')})`)
+		.all(lang, ...slugs) as { slug: string; name: string }[];
+	return nearName(stripMarkers(typed).trim(), rows);
 }
 
 /**
@@ -280,9 +341,19 @@ export function hintsFrom(
 				break;
 			case 'W303':
 			case 'W305':
-			case 'W306':
-				out.push({ code: d.code, target: targetOf(d.path, ids), field: d.code === 'W306' ? 'recipe' : 'name' });
+			case 'W306': {
+				const typed = d.code === 'W306' ? undefined : itemAt(recipe, d.path)?.name;
+				const near = d.code === 'W305' && typed ? nearRegistryName(ctx, d, typed, recipe.lang) : undefined;
+				out.push({
+					code: d.code,
+					target: targetOf(d.path, ids),
+					field: d.code === 'W306' ? 'recipe' : 'name',
+					// The name it was said of: a hint left from before an edit of the name is not shown under the new one.
+					...(typed !== undefined ? { value: stripMarkers(typed).trim() } : {}),
+					...(near ? { suggestion: near } : {})
+				});
 				break;
+			}
 			case 'W605':
 				out.push({ code: 'W605', target: 'recipe', field: 'markers' });
 				break;
@@ -305,7 +376,7 @@ export function formCheck(
 	ctx: VaultContext,
 	form: FormRecipe,
 	base?: FormBase
-): { hints: FormHint[]; errors: Block[]; same: { slug: string; title: string; hash: string; family: string | null }[]; close: CloseRecipe[] } {
+): { hints: FormHint[]; errors: Block[]; same: { slug: string; title: string; hash: string; family: string | null }[]; close: CloseRecipe[]; like: TitleLike[] } {
 	const slug = base?.slug ?? (slugify(form.title) || 'recette');
 	const { recipe, text, ids } = formRecipe(form, slug);
 	const { entries } = vaultEntries(ctx);
@@ -326,7 +397,8 @@ export function formCheck(
 		hints: hintsFrom(ctx, diagnostics, ids, recipe, matches, close),
 		errors: checkerBlocks(f.diagnostics.filter((d) => d.code !== 'E103'), ids),
 		same: matches.same,
-		close
+		close,
+		like: matches.like
 	};
 }
 
@@ -344,7 +416,7 @@ export interface NameSuggestion {
  * recipe's language and the names written in the vault, most used first;
  * matching on folded words, a prefix match before a match inside.
  */
-export function suggestNames(ctx: VaultContext, q: string, lang: string, limit = 8): NameSuggestion[] {
+export function suggestNames(ctx: VaultContext, q: string, lang: string, limit = 8, unit?: string): NameSuggestion[] {
 	const key = fold(q).trim();
 	if (!key) return [];
 	const counts = new Map<string, { name: string; n: number }>();
@@ -359,37 +431,57 @@ export function suggestNames(ctx: VaultContext, q: string, lang: string, limit =
 		add(stripMarkers(r.name).trim(), r.n);
 	for (const r of ctx.db.prepare(`SELECT name FROM ingredient_names WHERE lang = ? AND key LIKE ? ESCAPE '\\' LIMIT 200`).all(lang, like) as { name: string }[]) add(r.name, 0);
 	const resolver = getResolver(ctx.db, () => loadVocab(ctx.paths.vocab));
+	// « soda » is not offered « biscuits soda » or « soda crackers »: only a modifier there, another product
+	// (usability round 4). Which end is the noun follows the name's own language when the registry knows it
+	// (« soda crackers » is an English alias, even in a French recipe), else the recipe's.
+	const typed = lookupKey(q);
+	const aliasLang = new Map<string, string>();
+	for (const r of ctx.db.prepare(`SELECT key, lang FROM ingredient_names WHERE key LIKE ? ESCAPE '\\' LIMIT 400`).all(like) as { key: string; lang: string }[])
+		if (!aliasLang.has(r.key)) aliasLang.set(r.key, r.lang);
+	const modifier = (name: string) => {
+		const k = lookupKey(name);
+		return modifierOnly(typed, k, aliasLang.get(k) ?? lang);
+	};
 	return [...counts.entries()]
-		.filter(([k]) => k.includes(key))
+		.filter(([k, v]) => k.includes(key) && !modifier(v.name))
 		.sort(([a, x], [b, y]) => Number(b.startsWith(key)) - Number(a.startsWith(key)) || y.n - x.n || a.localeCompare(b))
 		.slice(0, limit)
-		.map(([, v]) => ({ name: v.name, linked: nameLinked(resolver, v.name, lang) }));
+		.map(([, v]) => ({ name: v.name, linked: nameLinked(resolver, v.name, lang, unit) }));
 }
 
-function nameLinked(resolver: ReturnType<typeof getResolver>, name: string, lang: string): boolean {
-	const r = resolver.resolveKey(lookupKey(name), lang);
+/** With the row's unit, as the paste check resolves a line: a `when` rule (« soda » by the spoon) holds or not. */
+function nameLinked(resolver: ReturnType<typeof getResolver>, name: string, lang: string, unit?: string): boolean {
+	const r = resolver.resolveKey(lookupKey(name), lang, unit ? { unit } : {});
 	return !!r.item;
 }
 
-/** Whether a typed name resolves (the "relié" mark beside a name she typed). */
-export function nameResolves(ctx: VaultContext, name: string, lang: string): boolean {
+/** Whether a typed name resolves (the "relié" mark beside a name she typed), at the row's unit. */
+export function nameResolves(ctx: VaultContext, name: string, lang: string, unit?: string): boolean {
 	if (!name.trim()) return false;
-	return nameLinked(getResolver(ctx.db, () => loadVocab(ctx.paths.vocab)), name, lang);
+	return nameLinked(getResolver(ctx.db, () => loadVocab(ctx.paths.vocab)), name, lang, unit);
 }
 
 export interface FamilySuggestion {
 	slug: string;
 	label: string | null;
 	count: number;
+	/** No label: the name as its recipes' titles write it (« Tourtière »), else null. */
+	name: string | null;
 }
 
-/** Every family: in vocab/families.yaml or used by a recipe, with its label and how many recipes it has. */
+/** Every family: in vocab/families.yaml or used by a recipe, with its label, its name from the titles, and how many recipes it has. */
 export function allFamilies(ctx: VaultContext): FamilySuggestion[] {
 	const vocab = loadVocab(ctx.paths.vocab);
 	const counts = new Map((ctx.db.prepare('SELECT family, count(*) AS n FROM recipes WHERE family IS NOT NULL GROUP BY family').all() as { family: string; n: number }[]).map((r) => [r.family, r.n]));
+	const titles = new Map<string, string[]>();
+	for (const r of ctx.db.prepare('SELECT family, title FROM recipes WHERE family IS NOT NULL ORDER BY length(title), title').all() as { family: string; title: string }[])
+		titles.set(r.family, [...(titles.get(r.family) ?? []), stripMarkers(r.title)]);
 	const slugs = new Set([...vocab.families.keys(), ...counts.keys()]);
 	return [...slugs]
-		.map((slug) => ({ slug, label: vocab.families.get(slug)?.fr ?? null, count: counts.get(slug) ?? 0 }))
+		.map((slug) => {
+			const label = vocab.families.get(slug)?.fr ?? null;
+			return { slug, label, count: counts.get(slug) ?? 0, name: label ? null : familyNameFromTitles(slug, titles.get(slug) ?? []) };
+		})
 		.sort((a, b) => b.count - a.count || a.slug.localeCompare(b.slug));
 }
 
@@ -414,6 +506,29 @@ export function suggestAuthors(ctx: VaultContext, q: string, limit = 8): string[
 		.sort(([a, x], [b, y]) => y.n - x.n || a.localeCompare(b))
 		.slice(0, limit)
 		.map(([, v]) => v.name);
+}
+
+/**
+ * The nouns of the vault's yields in words (« tourtières », « douzaines »,
+ * « pots de 500 ml »), most used first, for « Donne » (UI pass, round 5).
+ * Only text yields that start with an amount; `q` filters on the noun.
+ */
+export function suggestYields(ctx: VaultContext, q: string, limit = 8): string[] {
+	const key = fold(q).trim();
+	const rows = ctx.db.prepare("SELECT json_extract(data_json, '$.yield') AS y FROM recipes WHERE json_type(data_json, '$.yield') = 'text'").all() as { y: string }[];
+	const nouns = new Map<string, { noun: string; n: number }>();
+	for (const r of rows) {
+		const noun = yieldNoun(stripMarkers(r.y));
+		if (!noun) continue;
+		const e = nouns.get(fold(noun));
+		if (e) e.n++;
+		else nouns.set(fold(noun), { noun, n: 1 });
+	}
+	return [...nouns.entries()]
+		.filter(([k]) => !key || k.startsWith(key) || k.includes(` ${key}`))
+		.sort(([a, x], [b, y]) => y.n - x.n || a.localeCompare(b))
+		.slice(0, limit)
+		.map(([, v]) => v.noun);
 }
 
 export interface RecipeSuggestion {

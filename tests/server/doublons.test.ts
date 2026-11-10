@@ -3,12 +3,12 @@
 // settled pair gone from the list and from W505, and still gone after the
 // cache is deleted.
 
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../../src/lib/server/app';
 import { withAuthor } from '../../src/lib/server/context';
-import { closeRecipes, DISTINCT_FILE, dismissPair, DuplicateError, duplicateCount, duplicatePage, pairVersions, parseDistinct, readDistinct, sameRecipe, undismissPair } from '../../src/lib/server/duplicates';
+import { closeRecipes, DISTINCT_FILE, dismissPair, DuplicateError, duplicateCount, duplicatePage, LOW_CLOSE, lowGroups, noteYear, pairVersions, parseDistinct, readDistinct, sameRecipe, undismissPair } from '../../src/lib/server/duplicates';
 import { undoCommit } from '../../src/lib/server/history';
 import { syncVault } from '../../src/lib/server/index/sync';
 import { serverCheck } from '../../src/lib/server/paste';
@@ -68,6 +68,28 @@ describe('the list', () => {
 	});
 });
 
+describe('the cards little alike (« Toutes différentes »)', () => {
+	const card = (a: string, b: string, score: number, method?: true) => ({ key: `${a} ${b}`, slugs: [a, b], pairs: [{ a, b, score, ...(method ? { method } : {}) }], score });
+
+	it('keeps a card under LOW_CLOSE with other titles, another method and one language; never the others', () => {
+		const low = card('crepes', 'feves-au-lard', LOW_CLOSE - 0.2);
+		const groups = [
+			low,
+			card('crepes', 'pate-chinois', LOW_CLOSE),
+			card('feves-au-lard', 'pate-chinois', 0.4, true),
+			card('pouding-chomeur', 'pouding-de-matante', 0.4),
+			card('banana-bread', 'crepes', 0.4)
+		];
+		expect(lowGroups(v.ctx, groups).map((g) => g.key)).toEqual([low.key]);
+	});
+
+	it('a year in the source note reads as the fiche’s year', () => {
+		expect(noteYear('fiche de 1994, coin plié')).toBe('1994');
+		expect(noteYear('page 12')).toBeNull();
+		expect(noteYear(null)).toBeNull();
+	});
+});
+
 describe('"Recettes différentes"', () => {
 	it('one commit touching only vocab/distinct.yaml; gone from the list and from W505; survives deleting cache/', async () => {
 		const before = count();
@@ -110,13 +132,21 @@ describe('"Recettes différentes"', () => {
 		expect(count()).toBe(n);
 	});
 
-	it('"Annuler" takes the line out, one commit; the pair is back', async () => {
+	it('"Annuler" takes the line out, one commit; the pair is back; the file it made goes again', async () => {
 		await dismissPair(ctx(), 'pouding-chomeur', 'pouding-de-matante', '');
 		await undismissPair(ctx(), 'pouding-de-matante', 'pouding-chomeur');
 		expect(head()).toBe(`undo: duplicate pouding-chomeur ≠ pouding-de-matante|${CAMILLE.name}`);
-		expect(changed()).toEqual([`M\t${DISTINCT_FILE}`]);
-		expect(parseDistinct(v.read(DISTINCT_FILE))).toEqual([]);
+		expect(changed()).toEqual([`D\t${DISTINCT_FILE}`]);
+		expect(existsSync(join(v.dir, DISTINCT_FILE))).toBe(false);
 		expect(listed()).toEqual([PAIR]);
+		expect(duplicatePage(v.ctx).distinctHash).toBe('');
+	});
+
+	it('"Annuler" keeps a file she wrote in, without its pair line', async () => {
+		writeFileSync(join(v.dir, DISTINCT_FILE), '# mes notes\n');
+		await dismissPair(ctx(), 'pouding-chomeur', 'pouding-de-matante', duplicatePage(v.ctx).distinctHash);
+		await undismissPair(ctx(), 'pouding-de-matante', 'pouding-chomeur');
+		expect(v.read(DISTINCT_FILE)).toBe('# mes notes\n');
 	});
 
 	it('a line naming a recipe no longer in the vault is harmless', async () => {

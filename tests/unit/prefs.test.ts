@@ -77,7 +77,7 @@ describe('the strings', () => {
 		setPrefs(account({ lang: 'en' }));
 		expect(t.app.nav.pantry).toBe(en.app.nav.pantry);
 		expect(held.pantry).toBe(en.app.nav.pantry);
-		expect(t.app.nav.queue(3)).toBe(en.app.nav.queue(3));
+		expect(t.app.waiting(3)).toBe(en.app.waiting(3));
 		expect(Object.keys(t.status)).toEqual(Object.keys(fr.status));
 	});
 
